@@ -12,9 +12,17 @@
 #include <QMetaObject>
 #include <QClipboard>
 #include <QGroupBox>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QTabWidget>
+#include <QFileDialog>
 #include <shlwapi.h>
+#include <ShlObj.h>
 #include <mmsystem.h>
 #include <array>
+#include <fstream>
 #include <stdexcept>
 
 #pragma comment(lib, "winmm.lib")
@@ -66,7 +74,7 @@ bool IsMouseUpMessage(WPARAM wParam) {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       exeDir_(getExeDir()),
-      configStore_(exeDir_ / L"config.json"),
+      configStore_(getConfigPath()),
       engine_(driver_) {
     g_mainWindow = this;
 }
@@ -176,9 +184,9 @@ void MainWindow::setupUi() {
     beepCheck_ = new QCheckBox(QString::fromStdWString(L"开启提示音"), this);
     rightLayout->addWidget(beepCheck_);
 
-    QPushButton* aboutBtn = new QPushButton(QString::fromStdWString(L"关于"), this);
-    aboutBtn->setMinimumHeight(28);
-    rightLayout->addWidget(aboutBtn);
+    QPushButton* settingsBtn = new QPushButton(QString::fromStdWString(L"设置"), this);
+    settingsBtn->setMinimumHeight(28);
+    rightLayout->addWidget(settingsBtn);
 
     rightLayout->addStretch();
 
@@ -206,7 +214,7 @@ void MainWindow::setupUi() {
     connect(deleteBtn_, &QPushButton::clicked, this, &MainWindow::onDeleteSelected);
     connect(startBtn_, &QPushButton::clicked, this, &MainWindow::onStartClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &MainWindow::onBeepToggled);
-    connect(aboutBtn, &QPushButton::clicked, this, &MainWindow::onAboutClicked);
+    connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
 
     hotkeyEdit_->installEventFilter(this);
     
@@ -502,27 +510,121 @@ void MainWindow::onBeepToggled() {
     saveConfig();
 }
 
-void MainWindow::onAboutClicked() {
+void MainWindow::onSettingsClicked() {
     QDialog dialog(this);
-    dialog.setWindowTitle(QString::fromStdWString(L"关于"));
+    dialog.setWindowTitle(QString::fromStdWString(L"设置"));
     dialog.setWindowIcon(QIcon(":/assets/icon.png"));
-    dialog.setFixedSize(420, 480);
+    dialog.setFixedSize(460, 440);
 
-    QVBoxLayout* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(24, 24, 24, 16);
-    layout->setSpacing(16);
+    QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(12);
 
-    // 标题
-    QLabel* titleLabel = new QLabel(QString::fromStdWString(L"关于"), &dialog);
-    QFont titleFont = titleLabel->font();
-    titleFont.setPointSize(14);
-    titleFont.setBold(true);
-    titleLabel->setFont(titleFont);
-    titleLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(titleLabel);
+    QTabWidget* tabWidget = new QTabWidget(&dialog);
+    mainLayout->addWidget(tabWidget);
+
+    // ==================== 设置页 ====================
+    QWidget* settingsPage = new QWidget();
+    QVBoxLayout* settingsLayout = new QVBoxLayout(settingsPage);
+    settingsLayout->setContentsMargins(16, 16, 16, 8);
+    settingsLayout->setSpacing(16);
+
+    // 关闭行为
+    QGroupBox* closeGroup = new QGroupBox(QString::fromStdWString(L"关闭窗口时"), settingsPage);
+    QVBoxLayout* closeLayout = new QVBoxLayout(closeGroup);
+
+    QRadioButton* radioAsk = new QRadioButton(QString::fromStdWString(L"每次询问"), closeGroup);
+    QRadioButton* radioMinimize = new QRadioButton(QString::fromStdWString(L"最小化到系统托盘"), closeGroup);
+    QRadioButton* radioExit = new QRadioButton(QString::fromStdWString(L"直接退出程序"), closeGroup);
+
+    if (config_.closeAction == CloseAction::Minimize) radioMinimize->setChecked(true);
+    else if (config_.closeAction == CloseAction::Exit) radioExit->setChecked(true);
+    else radioAsk->setChecked(true);
+
+    closeLayout->addWidget(radioAsk);
+    closeLayout->addWidget(radioMinimize);
+    closeLayout->addWidget(radioExit);
+    settingsLayout->addWidget(closeGroup);
+
+    // 配置文件
+    QGroupBox* configGroup = new QGroupBox(QString::fromStdWString(L"配置文件"), settingsPage);
+    QVBoxLayout* configLayout = new QVBoxLayout(configGroup);
+
+    QLabel* configPathLabel = new QLabel(QString::fromStdWString(configStore_.GetPath().wstring()), configGroup);
+    configPathLabel->setWordWrap(true);
+    configPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    configLayout->addWidget(configPathLabel);
+
+    QHBoxLayout* configBtnLayout = new QHBoxLayout();
+    QPushButton* openConfigFolderBtn = new QPushButton(QString::fromStdWString(L"打开文件夹"), configGroup);
+    QPushButton* changeConfigPathBtn = new QPushButton(QString::fromStdWString(L"自定义路径"), configGroup);
+    QPushButton* resetConfigPathBtn = new QPushButton(QString::fromStdWString(L"恢复默认"), configGroup);
+    openConfigFolderBtn->setMinimumHeight(28);
+    changeConfigPathBtn->setMinimumHeight(28);
+    resetConfigPathBtn->setMinimumHeight(28);
+    configBtnLayout->addWidget(openConfigFolderBtn);
+    configBtnLayout->addWidget(changeConfigPathBtn);
+    configBtnLayout->addWidget(resetConfigPathBtn);
+    configLayout->addLayout(configBtnLayout);
+    settingsLayout->addWidget(configGroup);
+
+    settingsLayout->addStretch();
+
+    connect(openConfigFolderBtn, &QPushButton::clicked, [this]() {
+        const auto folder = configStore_.GetPath().parent_path();
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder.wstring())));
+    });
+
+    connect(changeConfigPathBtn, &QPushButton::clicked, [this, configPathLabel]() {
+        QString filePath = QFileDialog::getSaveFileName(this,
+            QString::fromStdWString(L"选择配置文件路径"),
+            QString::fromStdWString(configStore_.GetPath().wstring()),
+            QString::fromStdWString(L"JSON 文件 (*.json)"));
+        if (filePath.isEmpty()) return;
+
+        std::filesystem::path newPath = filePath.toStdWString();
+        // 确保目录存在
+        std::filesystem::create_directories(newPath.parent_path());
+
+        // 将当前配置保存到新路径
+        config_.customConfigPath = newPath.wstring();
+        configStore_.SetPath(newPath);
+        std::wstring error;
+        if (!configStore_.Save(config_, error)) {
+            QMessageBox::warning(this, QString::fromStdWString(L"保存失败"), QString::fromStdWString(error));
+            return;
+        }
+
+        // 同时更新默认位置的指向记录
+        saveDefaultConfigPointer();
+        configPathLabel->setText(QString::fromStdWString(newPath.wstring()));
+    });
+
+    connect(resetConfigPathBtn, &QPushButton::clicked, [this, configPathLabel]() {
+        std::filesystem::path defaultPath = getDefaultConfigPath();
+        if (configStore_.GetPath() == defaultPath) return;
+
+        config_.customConfigPath.clear();
+        configStore_.SetPath(defaultPath);
+        std::wstring error;
+        if (!configStore_.Save(config_, error)) {
+            QMessageBox::warning(this, QString::fromStdWString(L"保存失败"), QString::fromStdWString(error));
+            return;
+        }
+        saveDefaultConfigPointer();
+        configPathLabel->setText(QString::fromStdWString(defaultPath.wstring()));
+    });
+
+    tabWidget->addTab(settingsPage, QString::fromStdWString(L"设置"));
+
+    // ==================== 关于页 ====================
+    QWidget* aboutPage = new QWidget();
+    QVBoxLayout* aboutLayout = new QVBoxLayout(aboutPage);
+    aboutLayout->setContentsMargins(16, 16, 16, 8);
+    aboutLayout->setSpacing(16);
 
     // 联系作者
-    QGroupBox* contactGroup = new QGroupBox(QString::fromStdWString(L"联系作者"), &dialog);
+    QGroupBox* contactGroup = new QGroupBox(QString::fromStdWString(L"联系作者"), aboutPage);
     QGridLayout* contactLayout = new QGridLayout(contactGroup);
     contactLayout->setSpacing(8);
 
@@ -540,10 +642,10 @@ void MainWindow::onAboutClicked() {
     QPushButton* copyEmailBtn = new QPushButton(QString::fromStdWString(L"复制"), contactGroup);
     contactLayout->addWidget(copyEmailBtn, 1, 2);
 
-    layout->addWidget(contactGroup);
+    aboutLayout->addWidget(contactGroup);
 
     // 免责声明
-    QGroupBox* disclaimerGroup = new QGroupBox(QString::fromStdWString(L"免责声明"), &dialog);
+    QGroupBox* disclaimerGroup = new QGroupBox(QString::fromStdWString(L"免责声明"), aboutPage);
     QVBoxLayout* disclaimerLayout = new QVBoxLayout(disclaimerGroup);
     QLabel* disclaimerLabel = new QLabel(
         QString::fromStdWString(
@@ -554,17 +656,9 @@ void MainWindow::onAboutClicked() {
         disclaimerGroup);
     disclaimerLabel->setWordWrap(true);
     disclaimerLayout->addWidget(disclaimerLabel);
-    layout->addWidget(disclaimerGroup);
+    aboutLayout->addWidget(disclaimerGroup);
 
-    layout->addStretch();
-
-    // 关闭按钮
-    QHBoxLayout* btnLayout = new QHBoxLayout();
-    btnLayout->addStretch();
-    QPushButton* closeBtn = new QPushButton(QString::fromStdWString(L"关闭"), &dialog);
-    closeBtn->setMinimumSize(80, 32);
-    btnLayout->addWidget(closeBtn);
-    layout->addLayout(btnLayout);
+    aboutLayout->addStretch();
 
     connect(copyQqBtn, &QPushButton::clicked, [qqEdit]() {
         QApplication::clipboard()->setText(qqEdit->text());
@@ -572,9 +666,30 @@ void MainWindow::onAboutClicked() {
     connect(copyEmailBtn, &QPushButton::clicked, [emailEdit]() {
         QApplication::clipboard()->setText(emailEdit->text());
     });
-    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    tabWidget->addTab(aboutPage, QString::fromStdWString(L"关于"));
+
+    // ==================== 底部按钮 ====================
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    QPushButton* okBtn = new QPushButton(QString::fromStdWString(L"确定"), &dialog);
+    okBtn->setMinimumSize(80, 32);
+    btnLayout->addWidget(okBtn);
+    mainLayout->addLayout(btnLayout);
+
+    connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
 
     dialog.exec();
+
+    // 保存关闭行为设置
+    CloseAction newAction = CloseAction::Ask;
+    if (radioMinimize->isChecked()) newAction = CloseAction::Minimize;
+    else if (radioExit->isChecked()) newAction = CloseAction::Exit;
+
+    if (newAction != config_.closeAction) {
+        config_.closeAction = newAction;
+        saveConfig();
+    }
 }
 
 void MainWindow::onListDoubleClicked(int row, int /*col*/) {
@@ -771,6 +886,7 @@ void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
             } else {
                 config_.controlHotkey = key;
                 saveConfig();
+                refreshHookState();  // ⭐ 立即同步到钩子线程，使新快捷键即时生效
             }
         }
         updateHotkeyText();
@@ -787,9 +903,62 @@ void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
 
 void MainWindow::closeEvent(QCloseEvent *event) {
     saveConfig();
-    // 关闭窗口时最小化到托盘，而不是退出
-    hide();
-    event->ignore();
+
+    if (config_.closeAction == CloseAction::Minimize) {
+        hide();
+        event->ignore();
+        return;
+    }
+    if (config_.closeAction == CloseAction::Exit) {
+        trayIcon_->hide();
+        event->accept();
+        return;
+    }
+
+    // CloseAction::Ask — 弹出询问对话框
+    QDialog dialog(this);
+    dialog.setWindowTitle(QString::fromStdWString(L"关闭确认"));
+    dialog.setFixedSize(320, 160);
+
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(20, 16, 20, 12);
+    layout->setSpacing(12);
+
+    QLabel* label = new QLabel(QString::fromStdWString(L"您希望关闭程序还是最小化到系统托盘？"), &dialog);
+    label->setWordWrap(true);
+    layout->addWidget(label);
+
+    QCheckBox* rememberCheck = new QCheckBox(QString::fromStdWString(L"记住我的选择"), &dialog);
+    layout->addWidget(rememberCheck);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    QPushButton* minimizeBtn = new QPushButton(QString::fromStdWString(L"最小化到托盘"), &dialog);
+    QPushButton* exitBtn = new QPushButton(QString::fromStdWString(L"退出程序"), &dialog);
+    minimizeBtn->setMinimumHeight(28);
+    exitBtn->setMinimumHeight(28);
+    btnLayout->addWidget(minimizeBtn);
+    btnLayout->addWidget(exitBtn);
+    layout->addLayout(btnLayout);
+
+    bool chosenExit = false;
+    connect(minimizeBtn, &QPushButton::clicked, [&]() { chosenExit = false; dialog.accept(); });
+    connect(exitBtn, &QPushButton::clicked, [&]() { chosenExit = true; dialog.accept(); });
+
+    dialog.exec();
+
+    if (rememberCheck->isChecked()) {
+        config_.closeAction = chosenExit ? CloseAction::Exit : CloseAction::Minimize;
+        saveConfig();
+    }
+
+    if (chosenExit) {
+        trayIcon_->hide();
+        event->accept();
+    } else {
+        hide();
+        event->ignore();
+    }
 }
 
 void MainWindow::refreshHookState() {
@@ -817,6 +986,45 @@ std::wstring MainWindow::getExeDir() const {
     PathRemoveFileSpecW(path.data());
     path.resize(wcslen(path.c_str()));
     return path;
+}
+
+std::filesystem::path MainWindow::getDefaultConfigPath() const {
+    wchar_t* appDataPath = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appDataPath))) {
+        std::filesystem::path configDir = std::filesystem::path(appDataPath) / L"XiaoJiAutoKey";
+        CoTaskMemFree(appDataPath);
+        std::filesystem::create_directories(configDir);
+        return configDir / L"config.json";
+    }
+    return std::filesystem::path(exeDir_) / L"config.json";
+}
+
+std::filesystem::path MainWindow::getConfigPath() const {
+    // 默认路径下检查是否有自定义路径指向
+    std::filesystem::path defaultPath = getDefaultConfigPath();
+    std::filesystem::path pointerFile = defaultPath.parent_path() / L"config_path.txt";
+
+    if (std::filesystem::exists(pointerFile)) {
+        std::wifstream ifs(pointerFile);
+        std::wstring customPath;
+        if (std::getline(ifs, customPath) && !customPath.empty() && std::filesystem::exists(customPath)) {
+            return customPath;
+        }
+    }
+    return defaultPath;
+}
+
+void MainWindow::saveDefaultConfigPointer() const {
+    std::filesystem::path defaultPath = getDefaultConfigPath();
+    std::filesystem::path pointerFile = defaultPath.parent_path() / L"config_path.txt";
+
+    if (config_.customConfigPath.empty()) {
+        // 删除指针文件
+        std::filesystem::remove(pointerFile);
+    } else {
+        std::wofstream ofs(pointerFile, std::ios::trunc);
+        ofs << config_.customConfigPath;
+    }
 }
 
 LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam) {

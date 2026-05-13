@@ -89,6 +89,20 @@ AppConfig ConfigStore::Load() const {
         config.beepEnabled = *beepEnabled;
     }
 
+    if (const auto closeActionStr = GetStringField(*object, "closeAction"); closeActionStr.has_value()) {
+        if (*closeActionStr == "minimize") {
+            config.closeAction = CloseAction::Minimize;
+        } else if (*closeActionStr == "exit") {
+            config.closeAction = CloseAction::Exit;
+        } else {
+            config.closeAction = CloseAction::Ask;
+        }
+    }
+
+    if (const auto customPath = GetStringField(*object, "customConfigPath"); customPath.has_value() && !customPath->empty()) {
+        config.customConfigPath = ToWide(*customPath);
+    }
+
     if (const auto hotkeyText = GetStringField(*object, "controlHotkey"); hotkeyText.has_value()) {
         config.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
     }
@@ -136,6 +150,15 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     root.emplace("defaultDelayMs", config.defaultDelayMs);
     root.emplace("beepEnabled", config.beepEnabled);
 
+    std::string closeActionStr = "ask";
+    if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
+    else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
+    root.emplace("closeAction", closeActionStr);
+
+    if (!config.customConfigPath.empty()) {
+        root.emplace("customConfigPath", ToUtf8(config.customConfigPath));
+    }
+
     jsonlite::Array bindings;
     bindings.reserve(config.bindings.size());
     for (const auto& binding : config.bindings) {
@@ -167,4 +190,8 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
 
 const std::filesystem::path& ConfigStore::GetPath() const noexcept {
     return configPath_;
+}
+
+void ConfigStore::SetPath(std::filesystem::path newPath) {
+    configPath_ = std::move(newPath);
 }

@@ -40,10 +40,18 @@ struct KeyBinding {
     int delayMs = 100;
 };
 
+enum class CloseAction {
+    Ask,        // 每次询问
+    Minimize,   // 最小化到托盘
+    Exit,       // 直接退出
+};
+
 struct AppConfig {
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = 100;
     bool beepEnabled = true;
+    CloseAction closeAction = CloseAction::Ask;
+    std::wstring customConfigPath;  // 空表示使用默认路径
     std::vector<KeyBinding> bindings;
 };
 

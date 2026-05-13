@@ -12,6 +12,7 @@ public:
     bool Save(const AppConfig& config, std::wstring& error) const;
 
     [[nodiscard]] const std::filesystem::path& GetPath() const noexcept;
+    void SetPath(std::filesystem::path newPath);
 
 private:
     std::filesystem::path configPath_;

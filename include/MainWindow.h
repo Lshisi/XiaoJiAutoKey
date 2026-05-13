@@ -45,7 +45,7 @@ private slots:
     void onStartClicked();
     void onHotkeyEditClicked();
     void onBeepToggled();
-    void onAboutClicked();
+    void onSettingsClicked();
     void updateStatusText();
     void onListDoubleClicked(int row, int col);
     void onItemChanged(QTableWidgetItem* item);
@@ -79,6 +79,9 @@ private:
     std::filesystem::path resolveAudioPath(const wchar_t* fileName) const;
     std::optional<std::size_t> findBindingIndex(std::uint64_t id) const;
     [[nodiscard]] std::wstring getExeDir() const;
+    [[nodiscard]] std::filesystem::path getDefaultConfigPath() const;
+    [[nodiscard]] std::filesystem::path getConfigPath() const;
+    void saveDefaultConfigPointer() const;
     [[nodiscard]] bool IsHoldBindingEnabledForKey(const KeyDescriptor& key) const;
     [[nodiscard]] bool IsHoldBindingEnabledForKeyRealtime(const KeyDescriptor& key) const;
 

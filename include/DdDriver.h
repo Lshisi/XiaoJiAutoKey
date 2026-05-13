@@ -26,6 +26,8 @@ public:
     [[nodiscard]] bool IsKeySimulating(const KeyDescriptor& key) const;
 
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected);
+    bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected);
+    bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected);
     void ReleaseAll();
     void ClearAllStates();  // 清空所有内部状态（pressedKeys_和selfInjected_）
     bool IsSelfInjected(const KeyDescriptor& key) const;

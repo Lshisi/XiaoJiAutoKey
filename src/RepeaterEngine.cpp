@@ -44,6 +44,8 @@ void RepeaterEngine::SetToolRunning(bool running) {
 
         for (auto& t : tasks_) {
             t.lastFire = 0;
+            t.isDown = false;
+            t.downTime = 0;
         }
     }
 
@@ -112,6 +114,8 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
 void RepeaterEngine::BeforeSend(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+    // down 产生1个事件，up 产生1个事件，总共还是2个需要忽略
+    // 但现在 down 和 up 分开调用，down 时先加2（预留给后续的 up 事件）
     ignoreCount_[encoded] += 2;
 
     // ⭐ 对Hold key，只给KEYUP计数+1（KEYDOWN不需要计数，因为key已在集合中时直接忽略）
@@ -179,48 +183,83 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
 
 
 
-// ── Worker（tick驱动版） ─────────────
+// ── Worker（状态机版：down/up 分离发送） ─────────────
 void RepeaterEngine::WorkerLoop() {
     while (!exit_.load()) {
-        // 收集需要发送的按键
-        std::vector<KeyDescriptor> toSend;
+        // 收集需要发送的事件
+        std::vector<std::pair<KeyDescriptor, bool>> toSend;  // key, isDown
         {
             std::lock_guard lock(mutex_);
 
-            // ⭐ 使用独立的holdPhysicalDown_来判断Hold是否激活（不受ignoreCount/键盘重复影响）
             const bool holdActive = IsHoldActive();
 
             for (auto& t : tasks_) {
                 if (!t.config.enabled) continue;
 
                 const int interval = std::max(1, t.config.intervalMs);
-                // 使用Hook维护的physicalDown_（已通过per-key时间戳过滤了SendTap事件）
                 const bool isDown = physicalDown_.count(t.config.key) > 0;
 
                 // Hold模式：必须按住才发
-                if (t.config.mode == RepeatMode::Hold && !isDown) continue;
+                if (t.config.mode == RepeatMode::Hold && !isDown) {
+                    // 如果松开了但还有 pending 的 down，立即发 up
+                    if (t.isDown) {
+                        toSend.push_back({t.config.key, false});
+                        t.isDown = false;
+                    }
+                    continue;
+                }
 
-                // ⭐ 关键：Toggle模式在Hold激活时被压制
+                // Toggle模式在Hold激活时被压制
                 if (t.config.mode == RepeatMode::Toggle) {
-                    if (!toolRunning_) continue;
-                    if (holdActive) continue;  // Hold优先级压制Toggle
+                    if (!toolRunning_) {
+                        if (t.isDown) {
+                            toSend.push_back({t.config.key, false});
+                            t.isDown = false;
+                        }
+                        continue;
+                    }
+                    if (holdActive) {
+                        if (t.isDown) {
+                            toSend.push_back({t.config.key, false});
+                            t.isDown = false;
+                        }
+                        continue;
+                    }
                 }
 
                 const auto now = NowMs();
+
+                // 如果当前处于 down 状态，检查是否该发 up
+                if (t.isDown) {
+                    // hold 时间 = min(interval / 3, 30)，最少 2ms
+                    const int holdMs = std::max(2, std::min(interval / 3, 30));
+                    if (now - t.downTime >= (ULONGLONG)holdMs) {
+                        toSend.push_back({t.config.key, false});
+                        t.isDown = false;
+                        t.lastFire = now;
+                    }
+                    continue;
+                }
+
+                // 检查是否该发 down
                 if (t.lastFire == 0 || now - t.lastFire >= (ULONGLONG)interval) {
-                    t.lastFire = now;
-                    toSend.push_back(t.config.key);
+                    toSend.push_back({t.config.key, true});
+                    t.isDown = true;
+                    t.downTime = now;
                 }
             }
         }
 
-        // 在锁外发送按键，避免死锁
-        for (const auto& key : toSend) {
-            BeforeSend(key);  // ⭐ SendTap前设置计数器，Hook会忽略接下来的2个事件
-            driver_.SendTap(key, InputSource::Injected);
+        // 在锁外发送事件
+        for (const auto& [key, down] : toSend) {
+            if (down) {
+                BeforeSend(key);
+                driver_.SendDown(key, InputSource::Injected);
+            } else {
+                driver_.SendUp(key, InputSource::Injected);
+            }
         }
 
-        // 短暂休眠，避免CPU占用过高
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
@@ -229,6 +268,8 @@ void RepeaterEngine::WorkerLoop() {
 void RepeaterEngine::ResetAllLocked() {
     for (auto& t : tasks_) {
         t.lastFire = 0;
+        t.isDown = false;
+        t.downTime = 0;
     }
 }
 

@@ -138,6 +138,58 @@ bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
     return key.device == InputDevice::Mouse ? SendMouseTap(key.code) : SendKeyboardTap(key.code);
 }
 
+bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
+    if (!IsReady()) return false;
+    if (simulateDepth_.load() > 3) return false;
+
+    if (src == InputSource::Injected) {
+        MarkInjected(key);
+    }
+
+    if (key.device == InputDevice::Mouse) {
+        const auto mouseCodes = ToMouseCodes(key.code);
+        if (!mouseCodes.has_value()) return false;
+        ++simulateDepth_;
+        RegisterPress(key);
+        ddBtn_(mouseCodes->first);
+        --simulateDepth_;
+    } else {
+        const int ddCode = ddToDc_(static_cast<int>(key.code));
+        if (ddCode <= 0) return false;
+        ++simulateDepth_;
+        RegisterPress(key);
+        ddKey_(ddCode, 1);
+        --simulateDepth_;
+    }
+    return true;
+}
+
+bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
+    if (!IsReady()) return false;
+    if (simulateDepth_.load() > 3) return false;
+
+    if (src == InputSource::Injected) {
+        MarkInjected(key);
+    }
+
+    if (key.device == InputDevice::Mouse) {
+        const auto mouseCodes = ToMouseCodes(key.code);
+        if (!mouseCodes.has_value()) return false;
+        ++simulateDepth_;
+        ddBtn_(mouseCodes->second);
+        RegisterRelease(key);
+        --simulateDepth_;
+    } else {
+        const int ddCode = ddToDc_(static_cast<int>(key.code));
+        if (ddCode <= 0) return false;
+        ++simulateDepth_;
+        ddKey_(ddCode, 2);
+        RegisterRelease(key);
+        --simulateDepth_;
+    }
+    return true;
+}
+
 void DdDriver::ReleaseAll() {
     if (!IsReady()) {
         return;

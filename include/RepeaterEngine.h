@@ -30,10 +30,12 @@ struct TaskConfig {
     bool enabled = true;
 };
 
-// ── Runtime（已移除 schedule，避免时间漂移） ─────────────
+// ── Runtime（状态机版：支持 down/up 分离发送） ─────────────
 struct TaskRuntime {
     TaskConfig config;
     ULONGLONG lastFire = 0;
+    bool isDown = false;        // 当前是否处于 down 状态（等待发 up）
+    ULONGLONG downTime = 0;     // 发 down 的时间戳
 };
 
 class RepeaterEngine {

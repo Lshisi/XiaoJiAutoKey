@@ -5,6 +5,7 @@
 #include "../components/FluentLineEdit.h"
 #include "../components/FluentSwitch.h"
 #include "../components/FluentCard.h"
+#include "../components/FluentComboBox.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -35,15 +36,46 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     // ═══ Left: Table Card ═══
     auto* tableCard = new FluentCard(this);
 
+    // -- Profile selector row --
+    auto* profileRow = new QHBoxLayout();
+    profileRow->setSpacing(6);
+    auto* profileLabel = new QLabel(QString::fromWCharArray(L"\u914d\u7f6e\u65b9\u6848:"), this);
+    profileLabel->setFont(Fluent::Typography::caption());
+    QPalette pLabelPal = profileLabel->palette();
+    pLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    profileLabel->setPalette(pLabelPal);
+    profileRow->addWidget(profileLabel);
+    profileCombo_ = new FluentComboBox(this);
+    profileCombo_->setMinimumWidth(120);
+    profileCombo_->setFixedHeight(28);
+    profileRow->addWidget(profileCombo_, 1);
+    profileAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);  // + icon
+    profileAddBtn_->setFixedSize(28, 28);
+    profileAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileAddBtn_->setToolTip(QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"));
+    profileRow->addWidget(profileAddBtn_);
+    profileRenameBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE8AC)), this);  // rename icon
+    profileRenameBtn_->setFixedSize(28, 28);
+    profileRenameBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileRenameBtn_->setToolTip(QString::fromWCharArray(L"\u91cd\u547d\u540d"));
+    profileRow->addWidget(profileRenameBtn_);
+    profileDeleteBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), this);  // delete icon
+    profileDeleteBtn_->setFixedSize(28, 28);
+    profileDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileDeleteBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e"));
+    profileRow->addWidget(profileDeleteBtn_);
+    tableCard->contentLayout()->addLayout(profileRow);
+    tableCard->contentLayout()->addSpacing(8);
+
     auto* headerRow = new QHBoxLayout();
     auto* title = new QLabel(QString::fromWCharArray(L"\u70ed\u952e\u5217\u8868"), this);
     title->setFont(Fluent::Typography::pageTitle());
     headerRow->addWidget(title);
     headerRow->addStretch();
-    auto* addBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6309\u952e"), this);
-    addBtn->setFixedHeight(30);
-    addBtn->setMinimumWidth(100);
-    headerRow->addWidget(addBtn);
+    addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6309\u952e"), this);
+    addBtn_->setFixedHeight(30);
+    addBtn_->setMinimumWidth(100);
+    headerRow->addWidget(addBtn_);
     tableCard->contentLayout()->addLayout(headerRow);
 
     table_ = new FluentTable(0, 5, this);
@@ -116,15 +148,42 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(beepCheck_);
     rightLayout->addWidget(triggerCard);
 
+    // -- Card 3: 混合模式 --
+    auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u6df7\u5408\u6a21\u5f0f"), this);
+    mixedModeCheck_ = new QCheckBox(QString::fromWCharArray(L"\u542f\u7528\u6df7\u5408\u6a21\u5f0f"), this);
+    mixedModeCheck_->setFont(Fluent::Typography::body());
+    mixedModeCheck_->setStyleSheet(kCheckBoxStyle);
+    mixedCard->contentLayout()->addWidget(mixedModeCheck_);
+    mixedCard->contentLayout()->addSpacing(4);
+    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\n\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\n\u677e\u5f00\u540e\u6062\u590d\u3002"), this);
+    mixedDesc->setFont(Fluent::Typography::caption());
+    mixedDesc->setWordWrap(true);
+    QPalette mPal = mixedDesc->palette();
+    mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    mixedDesc->setPalette(mPal);
+    mixedCard->contentLayout()->addWidget(mixedDesc);
+    rightLayout->addWidget(mixedCard);
+
     rightLayout->addStretch();
     layout->addLayout(rightLayout, 3);
 
     // ═══ Connections ═══
-    connect(addBtn, &QPushButton::clicked, this, &KeyPage::addRequested);
+    connect(addBtn_, &QPushButton::clicked, this, &KeyPage::addRequested);
     connect(startBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
+    connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     hotkeyEdit_->installEventFilter(this);
+
+    // Profile connections
+    connect(profileCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index < 0) return;
+        auto id = static_cast<quint64>(profileCombo_->itemData(index).toULongLong());
+        emit profileSwitched(id);
+    });
+    connect(profileAddBtn_, &QPushButton::clicked, this, &KeyPage::profileAddRequested);
+    connect(profileRenameBtn_, &QPushButton::clicked, this, &KeyPage::profileRenameRequested);
+    connect(profileDeleteBtn_, &QPushButton::clicked, this, &KeyPage::profileDeleteRequested);
 
     connect(table_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
         if (item->column() == 0) {
@@ -150,6 +209,17 @@ void KeyPage::setRunning(bool running) {
     statusLabel_->setText(running
         ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
         : QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"));
+
+    // Disable editing controls while running
+    addBtn_->setEnabled(!running);
+    hotkeyEdit_->setEnabled(!running);
+    profileCombo_->setEnabled(!running);
+    profileAddBtn_->setEnabled(!running);
+    profileRenameBtn_->setEnabled(!running);
+    profileDeleteBtn_->setEnabled(!running && bindings_.size() > 0);
+    table_->setEnabled(!running);
+    beepCheck_->setEnabled(!running);
+    mixedModeCheck_->setEnabled(!running);
 }
 
 void KeyPage::setHotkeyText(const QString& text) {
@@ -162,6 +232,12 @@ void KeyPage::setBeepEnabled(bool enabled) {
     beepCheck_->blockSignals(true);
     beepCheck_->setChecked(enabled);
     beepCheck_->blockSignals(false);
+}
+
+void KeyPage::setMixedMode(bool enabled) {
+    mixedModeCheck_->blockSignals(true);
+    mixedModeCheck_->setChecked(enabled);
+    mixedModeCheck_->blockSignals(false);
 }
 
 void KeyPage::updateStartBtnText() {
@@ -225,8 +301,24 @@ void KeyPage::refreshTable() {
 
 bool KeyPage::eventFilter(QObject* watched, QEvent* event) {
     if (watched == hotkeyEdit_ && event->type() == QEvent::MouseButtonPress) {
+        if (running_) return true;  // Ignore clicks while running
         emit hotkeyEditClicked();
         return true;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void KeyPage::setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& profiles, std::uint64_t activeId) {
+    profileCombo_->blockSignals(true);
+    profileCombo_->clear();
+    int activeIndex = 0;
+    for (int i = 0; i < static_cast<int>(profiles.size()); ++i) {
+        profileCombo_->addItem(profiles[i].second, QVariant::fromValue(static_cast<qulonglong>(profiles[i].first)));
+        if (profiles[i].first == activeId) activeIndex = i;
+    }
+    profileCombo_->setCurrentIndex(activeIndex);
+    profileCombo_->blockSignals(false);
+
+    // Disable delete if only one profile
+    profileDeleteBtn_->setEnabled(profiles.size() > 1);
 }

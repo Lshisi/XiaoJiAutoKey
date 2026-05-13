@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 #include "ConfigStore.h"
 #include "DdDriver.h"
+#include "ProfileManager.h"
 #include "RepeaterEngine.h"
 
 #include <QMainWindow>
@@ -46,9 +47,16 @@ private slots:
     void onStartClicked();
     void onHotkeyEditClicked();
     void onBeepToggled(bool enabled);
+    void onMixedModeToggled(bool enabled);
     void updateStatusText();
     void handleCapturedKey(quint64 encodedKey);
     void handleToolStateChanged(bool running);
+
+    // Profile management
+    void onProfileSwitched(quint64 profileId);
+    void onProfileAdd();
+    void onProfileRename();
+    void onProfileDelete();
 
 signals:
     void capturedKey(quint64 encodedKey);
@@ -87,6 +95,8 @@ private:
     void refreshHookState();
     void refreshAllPages();
     void navigateTo(const QString& pageId);
+    void switchToProfile(std::uint64_t profileId);
+    void refreshProfileCombo();
 
     static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK MouseHookProc(int code, WPARAM wParam, LPARAM lParam);
@@ -107,6 +117,7 @@ private:
 
     // Core
     std::filesystem::path exeDir_;
+    ProfileManager profileManager_;
     ConfigStore configStore_;
     AppConfig config_;
     std::uint64_t nextBindingId_ = 1;

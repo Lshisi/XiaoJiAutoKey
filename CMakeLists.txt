@@ -26,6 +26,7 @@ set(CORE_SOURCES
     src/ConfigStore.cpp
     src/DdDriver.cpp
     src/JsonLite.cpp
+    src/ProfileManager.cpp
     src/RepeaterEngine.cpp
 )
 

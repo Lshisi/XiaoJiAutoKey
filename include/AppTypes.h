@@ -37,7 +37,7 @@ struct KeyBinding {
     bool enabled = true;
     KeyDescriptor key;
     RepeatMode mode = RepeatMode::Toggle;
-    int delayMs = 100;
+    int delayMs = 10;
 };
 
 enum class CloseAction {
@@ -48,8 +48,9 @@ enum class CloseAction {
 
 struct AppConfig {
     std::optional<KeyDescriptor> controlHotkey;
-    int defaultDelayMs = 100;
+    int defaultDelayMs = 10;
     bool beepEnabled = true;
+    bool mixedMode = false;         // 混合模式：Hold按住时压制Toggle（默认关闭）
     CloseAction closeAction = CloseAction::Ask;
     std::wstring customConfigPath;  // 空表示使用默认路径
     std::vector<KeyBinding> bindings;

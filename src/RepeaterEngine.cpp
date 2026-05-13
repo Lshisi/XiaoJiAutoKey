@@ -31,6 +31,11 @@ bool RepeaterEngine::IsToolRunning() const noexcept {
     return running_.load();
 }
 
+void RepeaterEngine::SetMixedMode(bool enabled) {
+    std::lock_guard lock(mutex_);
+    mixedMode_ = enabled;
+}
+
 // ── 启停 ─────────────────────────────
 void RepeaterEngine::SetToolRunning(bool running) {
     {
@@ -209,7 +214,7 @@ void RepeaterEngine::WorkerLoop() {
                     continue;
                 }
 
-                // Toggle模式在Hold激活时被压制
+                // Toggle模式：仅在混合模式开启时被Hold激活压制
                 if (t.config.mode == RepeatMode::Toggle) {
                     if (!toolRunning_) {
                         if (t.isDown) {
@@ -218,7 +223,7 @@ void RepeaterEngine::WorkerLoop() {
                         }
                         continue;
                     }
-                    if (holdActive) {
+                    if (mixedMode_ && holdActive) {
                         if (t.isDown) {
                             toSend.push_back({t.config.key, false});
                             t.isDown = false;

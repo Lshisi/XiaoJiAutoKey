@@ -25,6 +25,7 @@
 #include <QLabel>
 #include <QCheckBox>
 #include <QPainter>
+#include <QInputDialog>
 #include <shlwapi.h>
 #include <ShlObj.h>
 #include <mmsystem.h>
@@ -75,9 +76,14 @@ bool IsMouseUpMessage(WPARAM wParam) {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       exeDir_(getExeDir()),
-      configStore_(getConfigPath()),
+      profileManager_(getDefaultConfigPath().parent_path()),
+      configStore_(getDefaultConfigPath()),
       engine_(driver_) {
     g_mainWindow = this;
+    profileManager_.Load();
+    if (auto* active = profileManager_.ActiveProfile()) {
+        configStore_.SetPath(active->configPath);
+    }
 }
 
 MainWindow::~MainWindow() {
@@ -183,6 +189,13 @@ void MainWindow::setupUi() {
     connect(keyPage_, &KeyPage::startStopClicked, this, &MainWindow::onStartClicked);
     connect(keyPage_, &KeyPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
     connect(keyPage_, &KeyPage::beepToggled, this, &MainWindow::onBeepToggled);
+    connect(keyPage_, &KeyPage::mixedModeToggled, this, &MainWindow::onMixedModeToggled);
+
+    // Profile signals
+    connect(keyPage_, &KeyPage::profileSwitched, this, &MainWindow::onProfileSwitched);
+    connect(keyPage_, &KeyPage::profileAddRequested, this, &MainWindow::onProfileAdd);
+    connect(keyPage_, &KeyPage::profileRenameRequested, this, &MainWindow::onProfileRename);
+    connect(keyPage_, &KeyPage::profileDeleteRequested, this, &MainWindow::onProfileDelete);
 
     // SettingsPage signals
     connect(settingsPage_, &SettingsPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
@@ -206,7 +219,7 @@ void MainWindow::setupUi() {
             QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), QString::fromStdWString(error));
             return;
         }
-        saveDefaultConfigPointer();
+        profileManager_.UpdateConfigPath(profileManager_.ActiveId(), newPath);
         settingsPage_->setConfigPath(QString::fromStdWString(newPath.wstring()));
     });
     connect(settingsPage_, &SettingsPage::resetConfigPath, this, [this]() {
@@ -219,7 +232,7 @@ void MainWindow::setupUi() {
             QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), QString::fromStdWString(error));
             return;
         }
-        saveDefaultConfigPointer();
+        profileManager_.UpdateConfigPath(profileManager_.ActiveId(), defaultPath);
         settingsPage_->setConfigPath(QString::fromStdWString(defaultPath.wstring()));
     });
     connect(settingsPage_, &SettingsPage::closeActionChanged, this, [this](CloseAction action) {
@@ -262,6 +275,8 @@ void MainWindow::refreshAllPages() {
     keyPage_->setRunning(engine_.IsToolRunning());
     keyPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     keyPage_->setBeepEnabled(config_.beepEnabled);
+    keyPage_->setMixedMode(config_.mixedMode);
+    refreshProfileCombo();
     settingsPage_->setConfig(config_);
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
@@ -313,6 +328,7 @@ void MainWindow::saveConfig() {
 
 void MainWindow::applyBindingsToEngine() {
     engine_.UpdateBindings(config_.bindings);
+    engine_.SetMixedMode(config_.mixedMode);
     refreshHookState();
     updateStatusText();
 }
@@ -416,6 +432,96 @@ void MainWindow::onHotkeyEditClicked() {
 void MainWindow::onBeepToggled(bool enabled) {
     config_.beepEnabled = enabled;
     saveConfig();
+}
+
+void MainWindow::onMixedModeToggled(bool enabled) {
+    config_.mixedMode = enabled;
+    engine_.SetMixedMode(enabled);
+    saveConfig();
+}
+
+// ── Profile Management ──────────────────────────────────────────────────────
+
+void MainWindow::onProfileSwitched(quint64 profileId) {
+    if (profileId == profileManager_.ActiveId()) return;
+    // Save current config before switching
+    saveConfig();
+    switchToProfile(profileId);
+}
+
+void MainWindow::onProfileAdd() {
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+        QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"),
+        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u914d\u7f6e\u540d\u79f0:"),
+        QLineEdit::Normal, QString(), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    auto entry = profileManager_.AddProfile(name.trimmed().toStdWString());
+    switchToProfile(entry.id);
+}
+
+void MainWindow::onProfileRename() {
+    auto* active = profileManager_.ActiveProfile();
+    if (!active) return;
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+        QString::fromWCharArray(L"\u91cd\u547d\u540d\u914d\u7f6e"),
+        QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
+        QLineEdit::Normal, QString::fromStdWString(active->name), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    profileManager_.RenameProfile(active->id, name.trimmed().toStdWString());
+    refreshProfileCombo();
+}
+
+void MainWindow::onProfileDelete() {
+    auto* active = profileManager_.ActiveProfile();
+    if (!active) return;
+    if (profileManager_.Profiles().size() <= 1) {
+        QMessageBox::information(this,
+            QString::fromWCharArray(L"\u65e0\u6cd5\u5220\u9664"),
+            QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u914d\u7f6e\u65b9\u6848\u3002"));
+        return;
+    }
+
+    auto result = QMessageBox::question(this,
+        QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e"),
+        QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u914d\u7f6e\u201c") +
+            QString::fromStdWString(active->name) +
+            QString::fromWCharArray(L"\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002"),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (result != QMessageBox::Yes) return;
+
+    std::uint64_t deletedId = active->id;
+    profileManager_.DeleteProfile(deletedId);
+    // Switch to the new active profile
+    switchToProfile(profileManager_.ActiveId());
+}
+
+void MainWindow::switchToProfile(std::uint64_t profileId) {
+    // Stop engine before switching
+    if (engine_.IsToolRunning()) {
+        setToolRunning(false);
+    }
+
+    profileManager_.SetActive(profileId);
+    auto* profile = profileManager_.ActiveProfile();
+    if (!profile) return;
+
+    configStore_.SetPath(profile->configPath);
+    loadConfig();
+    applyBindingsToEngine();
+    refreshAllPages();
+}
+
+void MainWindow::refreshProfileCombo() {
+    std::vector<std::pair<std::uint64_t, QString>> profiles;
+    for (auto& p : profileManager_.Profiles()) {
+        profiles.emplace_back(p.id, QString::fromStdWString(p.name));
+    }
+    keyPage_->setProfiles(profiles, profileManager_.ActiveId());
 }
 
 void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {

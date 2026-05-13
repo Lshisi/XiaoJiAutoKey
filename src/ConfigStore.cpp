@@ -89,6 +89,10 @@ AppConfig ConfigStore::Load() const {
         config.beepEnabled = *beepEnabled;
     }
 
+    if (const auto mixedMode = GetBoolField(*object, "mixedMode"); mixedMode.has_value()) {
+        config.mixedMode = *mixedMode;
+    }
+
     if (const auto closeActionStr = GetStringField(*object, "closeAction"); closeActionStr.has_value()) {
         if (*closeActionStr == "minimize") {
             config.closeAction = CloseAction::Minimize;
@@ -149,6 +153,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     root.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(config.controlHotkey)));
     root.emplace("defaultDelayMs", config.defaultDelayMs);
     root.emplace("beepEnabled", config.beepEnabled);
+    root.emplace("mixedMode", config.mixedMode);
 
     std::string closeActionStr = "ask";
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";

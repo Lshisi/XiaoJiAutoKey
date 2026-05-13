@@ -49,6 +49,7 @@ public:
     void UpdateBindings(const std::vector<KeyBinding>& bindings);
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
+    void SetMixedMode(bool enabled);
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
@@ -74,6 +75,7 @@ private:
     // 物理按键状态追踪（由Hook维护）
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> physicalDown_;
     bool toolRunning_ = false;
+    bool mixedMode_ = false;  // 混合模式：Hold压制Toggle
 
     // ⭐ per-key计数器：SendTap前+2，Hook事件到达时-1，计数器>0就忽略
     std::unordered_map<std::uint64_t, int> ignoreCount_;

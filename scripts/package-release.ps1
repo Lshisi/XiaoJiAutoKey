@@ -13,7 +13,7 @@ if (-not (Test-Path $cmake)) {
 
 $buildDir = Join-Path $repoRoot "build"
 $distDir = Join-Path $repoRoot "dist"
-$packageName = "XiaoJiAutoKey_Release"
+$packageName = "XiaoJiAutoKey"
 $packageDir = Join-Path $distDir $packageName
 $zipPath = Join-Path $distDir "XiaoJiAutoKey.zip"
 $exePath = Join-Path $buildDir "$Configuration\XiaoJiAutoKey.exe"
@@ -21,8 +21,7 @@ $driverSrcDir = Join-Path $repoRoot "third_party\dd"
 $driverDstDir = Join-Path $packageDir "driver"
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
-$logsDir = Join-Path $packageDir "logs"
-$configPath = Join-Path $packageDir "config.json"
+
 
 # Auto update version
 $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
@@ -58,8 +57,6 @@ if (Test-Path $packageDir) {
     Remove-Item $packageDir -Recurse -Force
 }
 New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
-New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
-
 Copy-Item $exePath (Join-Path $packageDir "XiaoJiAutoKey.exe") -Force
 
 # Check if this is a static Qt build by looking for Qt DLL dependencies
@@ -120,18 +117,6 @@ if (-not $isStatic) {
     Write-Host "Static Qt build detected - no Qt DLLs needed!"
 }
 
-# Default config
-$defaultConfig = @'
-{
-  "controlHotkey": "",
-  "defaultDelayMs": 100,
-  "beepEnabled": true,
-  "bindings": []
-}
-'@
-Set-Content -LiteralPath $configPath -Value $defaultConfig -Encoding UTF8
-Set-Content -Path (Join-Path $logsDir "README.txt") -Value "Application log files can be stored in this directory." -Encoding ASCII
-
 # Audio files
 if (Test-Path $audioSrcDir) {
     New-Item -ItemType Directory -Path $audioDstDir -Force | Out-Null
@@ -157,19 +142,8 @@ if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
 
-# Rename exe to Chinese name before zipping
-$chineseName = [char]0x5C0F + [char]0x53FD + [char]0x6309 + [char]0x952E
-$srcExe = Join-Path $packageDir "XiaoJiAutoKey.exe"
-Rename-Item -LiteralPath $srcExe -NewName ($chineseName + ".exe") -Force
-
 Compress-Archive -Path $packageDir -DestinationPath $zipPath -Force
-
-$dstZip = Join-Path $distDir ($chineseName + ".zip")
-if (Test-Path $dstZip) {
-    Remove-Item $dstZip -Force
-}
-Rename-Item -LiteralPath $zipPath -NewName ($chineseName + ".zip") -Force
 
 Write-Host "Package ready:"
 Write-Host "  Folder: $packageDir"
-Write-Host "  Zip:    $dstZip"
+Write-Host "  Zip:    $zipPath"

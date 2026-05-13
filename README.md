@@ -91,11 +91,30 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-static-qt.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
 ```
 
+脚本会自动完成：
+1. 递增版本号（patch +1）
+2. CMake 配置 + 编译（静态 Qt，单文件 exe）
+3. 组装发布目录并打包为 `dist/XiaoJiAutoKey.zip`
+
+打包产物结构：
+
+```
+XiaoJiAutoKey/
+├── XiaoJiAutoKey.exe   # 主程序（静态链接 Qt，无需额外 DLL）
+├── audio/              # 启停提示音
+│   ├── 按键开启.mp3
+│   └── 按键关闭.mp3
+├── driver/             # DD 驱动 DLL
+│   ├── DD32.dll
+│   └── DD64.dll
+└── logs/               # 日志目录
+```
+
 ## 运行准备
 
-1. 安装 DD 驱动（运行 `driver/` 目录下的安装程序）
-2. 确保 `DD64.dll` 或 `DD32.dll` 在 exe 同目录（构建时自动复制）
-3. 启动程序，配置全局控制键和按键列表
+1. 安装 DD 驱动（运行 DD 官方安装程序）
+2. 解压发布包，`driver/` 目录下已包含 DD32.dll / DD64.dll
+3. 以管理员身份启动程序，配置全局控制键和按键列表
 
 ## 配置文件
 

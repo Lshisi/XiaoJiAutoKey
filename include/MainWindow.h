@@ -6,16 +6,10 @@
 #include "RepeaterEngine.h"
 
 #include <QMainWindow>
-#include <QTableWidget>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QComboBox>
-#include <QCheckBox>
-#include <QLabel>
-#include <QTabWidget>
-#include <QGroupBox>
+#include <QStackedWidget>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QLabel>
 
 #include <Windows.h>
 #include <atomic>
@@ -25,6 +19,11 @@
 #include <filesystem>
 #include <thread>
 #include <vector>
+
+class FluentSidebar;
+class KeyPage;
+class SettingsPage;
+class AboutPage;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -41,14 +40,13 @@ protected:
 
 private slots:
     void onAddBinding();
-    void onDeleteSelected();
+    void onEditBinding(std::uint64_t id);
+    void onDeleteBinding(std::uint64_t id);
+    void onEnableToggled(std::uint64_t id, bool enabled);
     void onStartClicked();
     void onHotkeyEditClicked();
-    void onBeepToggled();
-    void onSettingsClicked();
+    void onBeepToggled(bool enabled);
     void updateStatusText();
-    void onListDoubleClicked(int row, int col);
-    void onItemChanged(QTableWidgetItem* item);
     void handleCapturedKey(quint64 encodedKey);
     void handleToolStateChanged(bool running);
 
@@ -68,7 +66,6 @@ private:
     void runHookLoop();
     void loadConfig();
     void saveConfig();
-    void refreshList();
     void applyBindingsToEngine();
     void updateHotkeyText();
     void updateStartButtonText();
@@ -88,23 +85,27 @@ private:
     void openEditDialog(std::optional<std::uint64_t> bindingId);
     void onCapturedKeyInternal(const KeyDescriptor& key);
     void refreshHookState();
+    void refreshAllPages();
+    void navigateTo(const QString& pageId);
 
     static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK MouseHookProc(int code, WPARAM wParam, LPARAM lParam);
 
-    QTableWidget* tableWidget_;
-    QPushButton* addBtn_;
-    QPushButton* deleteBtn_;
-    QLineEdit* hotkeyEdit_;
-    QCheckBox* beepCheck_;
-    QPushButton* startBtn_;
-    QLabel* statusLabel_;
+    // UI Components
+    FluentSidebar* sidebar_;
+    QStackedWidget* pageStack_;
+    KeyPage* keyPage_;
+    SettingsPage* settingsPage_;
+    AboutPage* aboutPage_;
+
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
 
+    // Hooks
     HHOOK keyboardHook_ = nullptr;
     HHOOK mouseHook_ = nullptr;
 
+    // Core
     std::filesystem::path exeDir_;
     ConfigStore configStore_;
     AppConfig config_;
@@ -114,13 +115,13 @@ private:
     RepeaterEngine engine_;
 
     std::optional<CaptureRequest> captureRequest_;
-    
+
     // For Edit Dialog
     QWidget* editDialog_ = nullptr;
-    QLineEdit* editKeyBox_ = nullptr;
-    QComboBox* editModeCombo_ = nullptr;
-    QLineEdit* editDelayEdit_ = nullptr;
-    QCheckBox* editEnabledCheck_ = nullptr;
+    class FluentLineEdit* editKeyBox_ = nullptr;
+    class FluentComboBox* editModeCombo_ = nullptr;
+    class FluentLineEdit* editDelayEdit_ = nullptr;
+    class FluentSwitch* editEnabledSwitch_ = nullptr;
     std::uint64_t editBindingId_ = 0;
     bool editingExisting_ = false;
     KeyDescriptor currentEditKey_{};

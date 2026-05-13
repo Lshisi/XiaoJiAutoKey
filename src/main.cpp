@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include <QApplication>
 #include <QStyleFactory>
+#include <QFont>
 #include <QtPlugin>
 #include <Windows.h>
 #include <mmsystem.h>
@@ -12,7 +13,7 @@ Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 #pragma comment(lib, "winmm.lib")
 
 int main(int argc, char *argv[]) {
-    // 单实例守护：防止打开多个进程
+    // 单实例守护
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, L"XiaoJiAutoKey_SingleInstance_Mutex");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
@@ -20,11 +21,17 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // 提升 Windows 系统时钟精度到 1ms，解决 Sleep 默认 15.6ms 误差导致的连发卡顿问题
+    // 提升时钟精度到 1ms
     timeBeginPeriod(1);
 
     QApplication app(argc, argv);
     app.setStyle(QStyleFactory::create("Fusion"));
+
+    // Set global font - compact UI with slight letter spacing
+    QFont globalFont("Segoe UI", 9);
+    globalFont.setStyleStrategy(QFont::PreferAntialias);
+    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0.3);
+    app.setFont(globalFont);
 
     MainWindow window;
     if (!window.Initialize()) {

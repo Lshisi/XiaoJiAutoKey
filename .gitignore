@@ -41,8 +41,5 @@ build_output.txt
 # Config files (user-specific)
 config.json
 
-# Third party DLLs (users should provide their own)
-third_party/dd/*.dll
-
 # Kiro
 .kiro/

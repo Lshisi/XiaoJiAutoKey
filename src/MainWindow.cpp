@@ -1,26 +1,35 @@
-#include "MainWindow.h"
+﻿#include "MainWindow.h"
+
+#include "ui/components/FluentSidebar.h"
+#include "ui/components/FluentButton.h"
+#include "ui/components/FluentCard.h"
+#include "ui/components/FluentLineEdit.h"
+#include "ui/components/FluentComboBox.h"
+#include "ui/components/FluentSwitch.h"
+#include "ui/pages/KeyPage.h"
+#include "ui/pages/SettingsPage.h"
+#include "ui/pages/AboutPage.h"
+#include "ui/styles/DesignTokens.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
-#include <QHeaderView>
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QApplication>
 #include <QMetaObject>
 #include <QClipboard>
-#include <QGroupBox>
 #include <QDesktopServices>
 #include <QUrl>
-#include <QRadioButton>
-#include <QButtonGroup>
-#include <QTabWidget>
 #include <QFileDialog>
+#include <QLabel>
+#include <QCheckBox>
+#include <QPainter>
 #include <shlwapi.h>
 #include <ShlObj.h>
 #include <mmsystem.h>
+#include <windowsx.h>
+#include <dwmapi.h>
 #include <array>
 #include <fstream>
 #include <stdexcept>
@@ -44,20 +53,12 @@ KeyDescriptor DecodeKey(std::uint64_t value) {
 
 KeyDescriptor MouseMessageToDescriptor(WPARAM wParam, const MSLLHOOKSTRUCT& info) {
     switch (wParam) {
-    case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP:
-        return {InputDevice::Mouse, VK_LBUTTON};
-    case WM_RBUTTONDOWN:
-    case WM_RBUTTONUP:
-        return {InputDevice::Mouse, VK_RBUTTON};
-    case WM_MBUTTONDOWN:
-    case WM_MBUTTONUP:
-        return {InputDevice::Mouse, VK_MBUTTON};
-    case WM_XBUTTONDOWN:
-    case WM_XBUTTONUP:
+    case WM_LBUTTONDOWN: case WM_LBUTTONUP: return {InputDevice::Mouse, VK_LBUTTON};
+    case WM_RBUTTONDOWN: case WM_RBUTTONUP: return {InputDevice::Mouse, VK_RBUTTON};
+    case WM_MBUTTONDOWN: case WM_MBUTTONUP: return {InputDevice::Mouse, VK_MBUTTON};
+    case WM_XBUTTONDOWN: case WM_XBUTTONUP:
         return {InputDevice::Mouse, static_cast<std::uint32_t>(HIWORD(info.mouseData) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2)};
-    default:
-        return {};
+    default: return {};
     }
 }
 
@@ -80,16 +81,10 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-    if (hookThreadId_ != 0) {
-        PostThreadMessageW(hookThreadId_, WM_QUIT, 0, 0);
-    }
-    if (hookThread_.joinable()) {
-        hookThread_.join();
-    }
+    if (hookThreadId_ != 0) PostThreadMessageW(hookThreadId_, WM_QUIT, 0, 0);
+    if (hookThread_.joinable()) hookThread_.join();
     engine_.StopThread();
-    if (g_mainWindow == this) {
-        g_mainWindow = nullptr;
-    }
+    if (g_mainWindow == this) g_mainWindow = nullptr;
 }
 
 bool MainWindow::Initialize() {
@@ -97,8 +92,9 @@ bool MainWindow::Initialize() {
     loadConfig();
 
     if (!driver_.LoadFromDirectory(exeDir_.wstring())) {
-        std::wstring errorMsg = L"错误原因: " + driver_.GetLastError() + L"\n\n请确认：\n1. 是否已安装 DD 驱动（需要管理员权限运行安装程序）\n2. DD64.dll / DD32.dll 是否在 exe 同目录\n\n程序即将退出。";
-        QMessageBox::critical(this, QString::fromStdWString(L"DD 驱动加载失败"),
+        std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " + driver_.GetLastError() +
+            L"\n\n\u8bf7\u786e\u8ba4\uff1a\n1. \u662f\u5426\u5df2\u5b89\u88c5 DD \u9a71\u52a8\n2. DD64.dll / DD32.dll \u662f\u5426\u5728 exe \u540c\u76ee\u5f55\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002";
+        QMessageBox::critical(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
             QString::fromStdWString(errorMsg));
         return false;
     }
@@ -106,207 +102,195 @@ bool MainWindow::Initialize() {
     try {
         setupHooks();
     } catch (const std::exception&) {
-        QMessageBox::critical(this, QString::fromStdWString(L"全局钩子初始化失败"),
-            QString::fromStdWString(L"无法安装全局键盘/鼠标钩子，程序无法正常监听快捷键。"));
+        QMessageBox::critical(this, QString::fromWCharArray(L"\u5168\u5c40\u94a9\u5b50\u521d\u59cb\u5316\u5931\u8d25"),
+            QString::fromWCharArray(L"\u65e0\u6cd5\u5b89\u88c5\u5168\u5c40\u952e\u76d8/\u9f20\u6807\u94a9\u5b50"));
         return false;
     }
     engine_.StartThread();
     applyBindingsToEngine();
-    updateHotkeyText();
-    updateStartButtonText();
-    updateStatusText();
-
+    refreshAllPages();
     return true;
 }
 
 void MainWindow::setupUi() {
-    setWindowTitle(QString::fromStdWString(L"小叽按键~"));
+    // Use native Windows title bar
+    setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e~"));
     setWindowIcon(QIcon(":/assets/icon.png"));
-    resize(720, 500);
+    resize(780, 560);
     setMinimumSize(720, 500);
 
     QWidget* centralWidget = new QWidget(this);
+    centralWidget->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::pageBg().name()));
     setCentralWidget(centralWidget);
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(16, 16, 16, 8);
-    mainLayout->setSpacing(16);
+    auto* rootLayout = new QVBoxLayout(centralWidget);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
 
-    QHBoxLayout* contentLayout = new QHBoxLayout();
-    contentLayout->setSpacing(20);
+    // Body: Sidebar + Content
+    auto* bodyLayout = new QHBoxLayout();
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    bodyLayout->setSpacing(0);
 
-    // Left side: Table
-    tableWidget_ = new QTableWidget(0, 4, this);
-    tableWidget_->setHorizontalHeaderLabels({
-        QString::fromStdWString(L"状态"),
-        QString::fromStdWString(L"按键"),
-        QString::fromStdWString(L"模式"),
-        QString::fromStdWString(L"延迟")
+    sidebar_ = new FluentSidebar(this);
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u7ba1\u7406"), "keys");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2699"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2139"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
+    sidebar_->setCurrentPage("keys");
+    bodyLayout->addWidget(sidebar_);
+
+    // Page stack
+    pageStack_ = new QStackedWidget(this);
+    keyPage_ = new KeyPage(this);
+    settingsPage_ = new SettingsPage(this);
+    aboutPage_ = new AboutPage(this);
+
+    pageStack_->addWidget(keyPage_);
+    pageStack_->addWidget(settingsPage_);
+    pageStack_->addWidget(aboutPage_);
+    pageStack_->setCurrentWidget(keyPage_);
+    bodyLayout->addWidget(pageStack_, 1);
+
+    rootLayout->addLayout(bodyLayout, 1);
+
+    // ── Bottom status bar ──
+    auto* statusBar = new QWidget(this);
+    statusBar->setFixedHeight(24);
+    statusBar->setStyleSheet("background: #F5F7FA; border-top: 1px solid rgba(0,0,0,0.08);");
+    auto* statusLayout = new QHBoxLayout(statusBar);
+    statusLayout->setContentsMargins(12, 0, 12, 0);
+    auto* versionLabel = new QLabel(QString("v") + QString(APP_VERSION), statusBar);
+    versionLabel->setFont(Fluent::Typography::smallText());
+    QPalette stPal = versionLabel->palette();
+    stPal.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());
+    versionLabel->setPalette(stPal);
+    statusLayout->addWidget(versionLabel);
+    statusLayout->addStretch();
+    auto* authorLabel = new QLabel(QString::fromWCharArray(L"By\uff1a\u9f99\u864e-\u95fb\u6210\u753b"), statusBar);
+    authorLabel->setFont(Fluent::Typography::smallText());
+    authorLabel->setPalette(stPal);
+    statusLayout->addWidget(authorLabel);
+    rootLayout->addWidget(statusBar);
+
+    // Sidebar navigation
+    connect(sidebar_, &FluentSidebar::pageSelected, this, &MainWindow::navigateTo);
+
+    // KeyPage signals
+    connect(keyPage_, &KeyPage::addRequested, this, &MainWindow::onAddBinding);
+    connect(keyPage_, &KeyPage::editRequested, this, &MainWindow::onEditBinding);
+    connect(keyPage_, &KeyPage::deleteRequested, this, &MainWindow::onDeleteBinding);
+    connect(keyPage_, &KeyPage::enableToggled, this, &MainWindow::onEnableToggled);
+    connect(keyPage_, &KeyPage::startStopClicked, this, &MainWindow::onStartClicked);
+    connect(keyPage_, &KeyPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
+    connect(keyPage_, &KeyPage::beepToggled, this, &MainWindow::onBeepToggled);
+
+    // SettingsPage signals
+    connect(settingsPage_, &SettingsPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
+    connect(settingsPage_, &SettingsPage::beepToggled, this, &MainWindow::onBeepToggled);
+    connect(settingsPage_, &SettingsPage::openConfigFolder, this, [this]() {
+        const auto folder = configStore_.GetPath().parent_path();
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder.wstring())));
     });
-    tableWidget_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    tableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    tableWidget_->setColumnWidth(0, 50);
-    tableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tableWidget_->verticalHeader()->setVisible(false);
-    tableWidget_->setFocusPolicy(Qt::NoFocus);
-    contentLayout->addWidget(tableWidget_, 5);
+    connect(settingsPage_, &SettingsPage::changeConfigPath, this, [this]() {
+        QString filePath = QFileDialog::getSaveFileName(this,
+            QString::fromWCharArray(L"\u9009\u62e9\u914d\u7f6e\u6587\u4ef6\u8def\u5f84"),
+            QString::fromStdWString(configStore_.GetPath().wstring()),
+            QString::fromWCharArray(L"JSON \u6587\u4ef6 (*.json)"));
+        if (filePath.isEmpty()) return;
+        std::filesystem::path newPath = filePath.toStdWString();
+        std::filesystem::create_directories(newPath.parent_path());
+        config_.customConfigPath = newPath.wstring();
+        configStore_.SetPath(newPath);
+        std::wstring error;
+        if (!configStore_.Save(config_, error)) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), QString::fromStdWString(error));
+            return;
+        }
+        saveDefaultConfigPointer();
+        settingsPage_->setConfigPath(QString::fromStdWString(newPath.wstring()));
+    });
+    connect(settingsPage_, &SettingsPage::resetConfigPath, this, [this]() {
+        std::filesystem::path defaultPath = getDefaultConfigPath();
+        if (configStore_.GetPath() == defaultPath) return;
+        config_.customConfigPath.clear();
+        configStore_.SetPath(defaultPath);
+        std::wstring error;
+        if (!configStore_.Save(config_, error)) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), QString::fromStdWString(error));
+            return;
+        }
+        saveDefaultConfigPointer();
+        settingsPage_->setConfigPath(QString::fromStdWString(defaultPath.wstring()));
+    });
+    connect(settingsPage_, &SettingsPage::closeActionChanged, this, [this](CloseAction action) {
+        config_.closeAction = action;
+        saveConfig();
+    });
 
-    // Right side: Controls
-    QVBoxLayout* rightLayout = new QVBoxLayout();
-    contentLayout->addLayout(rightLayout, 4);
-
-    QHBoxLayout* btnLayout = new QHBoxLayout();
-    addBtn_ = new QPushButton(QString::fromStdWString(L"添加按键"), this);
-    deleteBtn_ = new QPushButton(QString::fromStdWString(L"删除按键"), this);
-    addBtn_->setMinimumHeight(32);
-    deleteBtn_->setMinimumHeight(32);
-    btnLayout->addWidget(addBtn_);
-    btnLayout->addWidget(deleteBtn_);
-    rightLayout->addLayout(btnLayout);
-    
-    rightLayout->addSpacing(24);
-
-    QGridLayout* formLayout = new QGridLayout();
-    formLayout->setSpacing(16);
-
-    QLabel* hotkeyLabel = new QLabel(QString::fromStdWString(L"启停快捷键:"), this);
-    formLayout->addWidget(hotkeyLabel, 0, 0);
-    hotkeyEdit_ = new QLineEdit(this);
-    hotkeyEdit_->setReadOnly(true);
-    hotkeyEdit_->setPlaceholderText(QString::fromStdWString(L"点击录制"));
-    hotkeyEdit_->setMinimumHeight(28);
-    formLayout->addWidget(hotkeyEdit_, 0, 1);
-
-    rightLayout->addLayout(formLayout);
-    rightLayout->addSpacing(24);
-
-    beepCheck_ = new QCheckBox(QString::fromStdWString(L"开启提示音"), this);
-    rightLayout->addWidget(beepCheck_);
-
-    QPushButton* settingsBtn = new QPushButton(QString::fromStdWString(L"设置"), this);
-    settingsBtn->setMinimumHeight(28);
-    rightLayout->addWidget(settingsBtn);
-
-    rightLayout->addStretch();
-
-    startBtn_ = new QPushButton(QString::fromStdWString(L"启动"), this);
-    startBtn_->setMinimumHeight(48);
-    QFont startFont = startBtn_->font();
-    startFont.setPointSize(11);
-    startFont.setBold(true);
-    startBtn_->setFont(startFont);
-    rightLayout->addWidget(startBtn_);
-
-    mainLayout->addLayout(contentLayout);
-
-    QHBoxLayout* bottomLayout = new QHBoxLayout();
-    statusLabel_ = new QLabel(this);
-    bottomLayout->addWidget(statusLabel_);
-    bottomLayout->addStretch();
-    QLabel* authorLabel = new QLabel(QString::fromStdWString(L"By：龙虎-闻成画"), this);
-    bottomLayout->addWidget(authorLabel);
-    mainLayout->addLayout(bottomLayout);
-
-    connect(tableWidget_, &QTableWidget::cellDoubleClicked, this, &MainWindow::onListDoubleClicked);
-    connect(tableWidget_, &QTableWidget::itemChanged, this, &MainWindow::onItemChanged);
-    connect(addBtn_, &QPushButton::clicked, this, &MainWindow::onAddBinding);
-    connect(deleteBtn_, &QPushButton::clicked, this, &MainWindow::onDeleteSelected);
-    connect(startBtn_, &QPushButton::clicked, this, &MainWindow::onStartClicked);
-    connect(beepCheck_, &QCheckBox::toggled, this, &MainWindow::onBeepToggled);
-    connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
-
-    hotkeyEdit_->installEventFilter(this);
-    
-    // Install event filter to capture focus events on inputs
-    qApp->installEventFilter(this);
-
+    // Engine state signals
     connect(this, &MainWindow::capturedKey, this, &MainWindow::handleCapturedKey);
     connect(this, &MainWindow::holdStateChanged, this, &MainWindow::updateStatusText);
     connect(this, &MainWindow::toolStateChanged, this, &MainWindow::handleToolStateChanged);
 
-    // 系统托盘
+    // System tray
     trayIcon_ = new QSystemTrayIcon(QIcon(":/assets/icon.png"), this);
     trayMenu_ = new QMenu(this);
-    QAction* showAction = trayMenu_->addAction(QString::fromStdWString(L"显示主窗口"));
-    QAction* quitAction = trayMenu_->addAction(QString::fromStdWString(L"退出"));
+    QAction* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
+    QAction* quitAction = trayMenu_->addAction(QString::fromWCharArray(L"\u9000\u51fa"));
     trayIcon_->setContextMenu(trayMenu_);
-    trayIcon_->setToolTip(QString::fromStdWString(L"小叽按键"));
+    trayIcon_->setToolTip(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
     trayIcon_->show();
 
-    connect(showAction, &QAction::triggered, this, [this]() {
-        showNormal();
-        activateWindow();
-    });
-    connect(quitAction, &QAction::triggered, this, [this]() {
-        trayIcon_->hide();
-        qApp->quit();
-    });
+    connect(showAction, &QAction::triggered, this, [this]() { showNormal(); activateWindow(); });
+    connect(quitAction, &QAction::triggered, this, [this]() { trayIcon_->hide(); qApp->quit(); });
     connect(trayIcon_, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::DoubleClick) {
-            showNormal();
-            activateWindow();
-        }
+        if (reason == QSystemTrayIcon::DoubleClick) { showNormal(); activateWindow(); }
     });
 }
 
+void MainWindow::navigateTo(const QString& pageId) {
+    if (pageId == "keys") pageStack_->setCurrentWidget(keyPage_);
+    else if (pageId == "settings") pageStack_->setCurrentWidget(settingsPage_);
+    else if (pageId == "about") pageStack_->setCurrentWidget(aboutPage_);
+}
+
+void MainWindow::refreshAllPages() {
+    QString hotkey = config_.controlHotkey.has_value()
+        ? QString::fromStdWString(GetKeyDisplayName(*config_.controlHotkey))
+        : QString();
+    keyPage_->setBindings(config_.bindings);
+    keyPage_->setRunning(engine_.IsToolRunning());
+    keyPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
+    keyPage_->setBeepEnabled(config_.beepEnabled);
+    settingsPage_->setConfig(config_);
+    settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
+    settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
+}
+
 void MainWindow::setupHooks() {
-    {
-        std::lock_guard lock(hookInitMutex_);
-        hookInitCompleted_ = false;
-        hookInitSucceeded_ = false;
-    }
-
+    { std::lock_guard lock(hookInitMutex_); hookInitCompleted_ = false; hookInitSucceeded_ = false; }
     hookThread_ = std::thread(&MainWindow::runHookLoop, this);
-
     std::unique_lock lock(hookInitMutex_);
     hookInitCv_.wait(lock, [&] { return hookInitCompleted_; });
-    if (!hookInitSucceeded_) {
-        throw std::runtime_error("failed to install global hooks");
-    }
+    if (!hookInitSucceeded_) throw std::runtime_error("failed to install global hooks");
 }
 
 void MainWindow::runHookLoop() {
     MSG msg;
     PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-
     hookThreadId_ = GetCurrentThreadId();
     keyboardHook_ = SetWindowsHookExW(WH_KEYBOARD_LL, &MainWindow::KeyboardHookProc, nullptr, 0);
     mouseHook_ = SetWindowsHookExW(WH_MOUSE_LL, &MainWindow::MouseHookProc, nullptr, 0);
-
-    {
-        std::lock_guard lock(hookInitMutex_);
-        hookInitSucceeded_ = (keyboardHook_ != nullptr && mouseHook_ != nullptr);
-        hookInitCompleted_ = true;
-    }
+    { std::lock_guard lock(hookInitMutex_); hookInitSucceeded_ = (keyboardHook_ && mouseHook_); hookInitCompleted_ = true; }
     hookInitCv_.notify_one();
-
     if (!hookInitSucceeded_) {
-        if (keyboardHook_ != nullptr) {
-            UnhookWindowsHookEx(keyboardHook_);
-            keyboardHook_ = nullptr;
-        }
-        if (mouseHook_ != nullptr) {
-            UnhookWindowsHookEx(mouseHook_);
-            mouseHook_ = nullptr;
-        }
-        hookThreadId_ = 0;
-        return;
+        if (keyboardHook_) { UnhookWindowsHookEx(keyboardHook_); keyboardHook_ = nullptr; }
+        if (mouseHook_) { UnhookWindowsHookEx(mouseHook_); mouseHook_ = nullptr; }
+        hookThreadId_ = 0; return;
     }
-
-    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-
-    if (keyboardHook_ != nullptr) {
-        UnhookWindowsHookEx(keyboardHook_);
-        keyboardHook_ = nullptr;
-    }
-    if (mouseHook_ != nullptr) {
-        UnhookWindowsHookEx(mouseHook_);
-        mouseHook_ = nullptr;
-    }
+    while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+    if (keyboardHook_) { UnhookWindowsHookEx(keyboardHook_); keyboardHook_ = nullptr; }
+    if (mouseHook_) { UnhookWindowsHookEx(mouseHook_); mouseHook_ = nullptr; }
     hookThreadId_ = 0;
 }
 
@@ -314,23 +298,16 @@ void MainWindow::loadConfig() {
     config_ = configStore_.Load();
     nextBindingId_ = 1;
     for (auto& binding : config_.bindings) {
-        if (binding.id == 0) {
-            binding.id = nextBindingId_++;
-            continue;
-        }
+        if (binding.id == 0) { binding.id = nextBindingId_++; continue; }
         nextBindingId_ = std::max(nextBindingId_, binding.id + 1);
     }
-
-    beepCheck_->setChecked(config_.beepEnabled);
-    updateHotkeyText();
-    refreshList();
     refreshHookState();
 }
 
 void MainWindow::saveConfig() {
     std::wstring error;
     if (!configStore_.Save(config_, error)) {
-        QMessageBox::warning(this, QString::fromStdWString(L"保存配置失败"), QString::fromStdWString(error));
+        QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
     }
 }
 
@@ -340,97 +317,46 @@ void MainWindow::applyBindingsToEngine() {
     updateStatusText();
 }
 
-void MainWindow::refreshList() {
-    tableWidget_->blockSignals(true);
-    tableWidget_->setRowCount(0);
-
-    for (int i = 0; i < static_cast<int>(config_.bindings.size()); ++i) {
-        const auto& binding = config_.bindings[static_cast<std::size_t>(i)];
-        tableWidget_->insertRow(i);
-
-        QTableWidgetItem* stateItem = new QTableWidgetItem();
-        stateItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        stateItem->setCheckState(binding.enabled ? Qt::Checked : Qt::Unchecked);
-        stateItem->setData(Qt::UserRole, static_cast<qulonglong>(binding.id));
-        tableWidget_->setItem(i, 0, stateItem);
-
-        QTableWidgetItem* keyItem = new QTableWidgetItem(QString::fromStdWString(GetKeyDisplayName(binding.key)));
-        tableWidget_->setItem(i, 1, keyItem);
-
-        QTableWidgetItem* modeItem = new QTableWidgetItem(QString::fromStdWString(RepeatModeToText(binding.mode)));
-        tableWidget_->setItem(i, 2, modeItem);
-
-        QTableWidgetItem* delayItem = new QTableWidgetItem(QString::number(binding.delayMs));
-        tableWidget_->setItem(i, 3, delayItem);
-    }
-    tableWidget_->blockSignals(false);
+void MainWindow::updateStatusText() {
+    keyPage_->setRunning(engine_.IsToolRunning());
 }
 
 void MainWindow::updateHotkeyText() {
     QString text = captureRequest_.has_value() && captureRequest_->target == CaptureRequest::Target::MainHotkey
-        ? QString::fromStdWString(L"请按下一个键...")
-        : (config_.controlHotkey.has_value() ? QString::fromStdWString(GetKeyDisplayName(*config_.controlHotkey)) : QString::fromStdWString(L"None"));
-    hotkeyEdit_->setText(text);
+        ? QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e...")
+        : (config_.controlHotkey.has_value() ? QString::fromStdWString(GetKeyDisplayName(*config_.controlHotkey)) : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
+    keyPage_->setHotkeyText(text);
+    settingsPage_->setHotkeyText(text);
 }
 
-void MainWindow::updateStatusText() {
-    QString status = engine_.IsToolRunning() ? QString::fromStdWString(L"已启动") : QString::fromStdWString(L"已停止");
-    QString hotkey = config_.controlHotkey.has_value() ? QString::fromStdWString(GetKeyDisplayName(*config_.controlHotkey)) : QString::fromStdWString(L"无");
+void MainWindow::updateStartButtonText() { /* handled by KeyPage::setRunning */ }
 
-#ifndef APP_VERSION
-#define APP_VERSION "2.0.0"
-#endif
-
-    QString text = QString::fromStdWString(L"版本: v") + QString(APP_VERSION) + QString::fromStdWString(L" | 状态: ") + status + QString::fromStdWString(L" | 当前控制键: ") + hotkey;
-    statusLabel_->setText(text);
-}
-
-void MainWindow::updateStartButtonText() {
-    startBtn_->setText(engine_.IsToolRunning() ? QString::fromStdWString(L"停止") : QString::fromStdWString(L"启动"));
-}
-
-void MainWindow::toggleToolRunning() {
-    setToolRunning(!engine_.IsToolRunning());
-}
+void MainWindow::toggleToolRunning() { setToolRunning(!engine_.IsToolRunning()); }
 
 void MainWindow::setToolRunning(bool running) {
-    if (!setToolRunningFast(running)) {
-        return;
-    }
+    if (!setToolRunningFast(running)) return;
     handleToolStateChanged(running);
 }
 
 bool MainWindow::setToolRunningFast(bool running) {
-    if (engine_.IsToolRunning() == running) {
-        return false;
-    }
-
+    if (engine_.IsToolRunning() == running) return false;
     controlHotkeyPressed_ = false;
     engine_.SetToolRunning(running);
     return true;
 }
 
 void MainWindow::handleToolStateChanged(bool running) {
-    updateStartButtonText();
-    updateStatusText();
+    keyPage_->setRunning(running);
     playToggleSound(running);
 }
 
 void MainWindow::playToggleSound(bool running) const {
-    if (!config_.beepEnabled) {
-        return;
-    }
-
-    const auto soundPath = resolveAudioPath(running ? L"按键开启.mp3" : L"按键关闭.mp3");
-    if (soundPath.empty()) {
-        return;
-    }
-
+    if (!config_.beepEnabled) return;
+    const auto soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
+    if (soundPath.empty()) return;
     mciSendStringW(L"close autokey_toggle_sound", nullptr, 0, nullptr);
     const std::wstring openCommand = L"open \"" + soundPath.wstring() + L"\" type mpegvideo alias autokey_toggle_sound";
-    if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) {
-        return;
-    }
+    if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) return;
     mciSendStringW(L"play autokey_toggle_sound from 0", nullptr, 0, nullptr);
 }
 
@@ -438,341 +364,134 @@ std::filesystem::path MainWindow::resolveAudioPath(const wchar_t* fileName) cons
     const auto parent1 = exeDir_.parent_path();
     const auto parent2 = parent1.parent_path();
     const std::array candidates{
-        exeDir_ / L"audio" / fileName,
-        exeDir_ / L"assets" / L"audio" / fileName,
-        parent1 / L"assets" / L"audio" / fileName,
-        parent2 / L"assets" / L"audio" / fileName,
+        exeDir_ / L"audio" / fileName, exeDir_ / L"assets" / L"audio" / fileName,
+        parent1 / L"assets" / L"audio" / fileName, parent2 / L"assets" / L"audio" / fileName,
     };
-
-    for (const auto& candidate : candidates) {
-        if (!candidate.empty() && std::filesystem::exists(candidate)) {
-            return candidate;
-        }
-    }
+    for (const auto& c : candidates) { if (!c.empty() && std::filesystem::exists(c)) return c; }
     return {};
 }
 
 bool MainWindow::IsHoldBindingEnabledForKey(const KeyDescriptor& key) const {
-    return std::any_of(config_.bindings.begin(), config_.bindings.end(), [&](const KeyBinding& binding) {
-        return binding.enabled && binding.mode == RepeatMode::Hold && binding.key == key;
-    });
-}
-
-bool MainWindow::IsHoldBindingEnabledForKeyRealtime(const KeyDescriptor& key) const {
-    const auto& bindings = config_.bindings;
-    return std::any_of(bindings.begin(), bindings.end(), [&](const KeyBinding& b) {
+    return std::any_of(config_.bindings.begin(), config_.bindings.end(), [&](const KeyBinding& b) {
         return b.enabled && b.mode == RepeatMode::Hold && b.key == key;
     });
 }
 
-void MainWindow::onAddBinding() {
-    openEditDialog(std::nullopt);
+bool MainWindow::IsHoldBindingEnabledForKeyRealtime(const KeyDescriptor& key) const {
+    return IsHoldBindingEnabledForKey(key);
 }
 
-void MainWindow::onDeleteSelected() {
-    std::vector<std::uint64_t> toDelete;
-    for (int i = 0; i < tableWidget_->rowCount(); ++i) {
-        if (tableWidget_->item(i, 0)->isSelected() || tableWidget_->item(i, 1)->isSelected()) {
-            toDelete.push_back(static_cast<std::uint64_t>(tableWidget_->item(i, 0)->data(Qt::UserRole).toULongLong()));
-        }
-    }
-    if (toDelete.empty()) {
-        return;
-    }
+void MainWindow::onAddBinding() { openEditDialog(std::nullopt); }
 
+void MainWindow::onEditBinding(std::uint64_t id) { openEditDialog(id); }
+
+void MainWindow::onDeleteBinding(std::uint64_t id) {
     config_.bindings.erase(
-        std::remove_if(config_.bindings.begin(), config_.bindings.end(), [&](const KeyBinding& binding) {
-            return std::find(toDelete.begin(), toDelete.end(), binding.id) != toDelete.end();
-        }),
+        std::remove_if(config_.bindings.begin(), config_.bindings.end(),
+            [id](const KeyBinding& b) { return b.id == id; }),
         config_.bindings.end());
-
-    refreshList();
+    keyPage_->setBindings(config_.bindings);
     applyBindingsToEngine();
     saveConfig();
+    refreshAllPages();
 }
 
-void MainWindow::onStartClicked() {
-    toggleToolRunning();
-}
-
-void MainWindow::onHotkeyEditClicked() {
-    captureRequest_ = CaptureRequest{CaptureRequest::Target::MainHotkey};
-    refreshHookState();
-    {
-        std::lock_guard lock(hookStateMutex_);
-        hookCaptureStartedTick_ = GetTickCount64();
-    }
-    updateHotkeyText();
-}
-
-void MainWindow::onBeepToggled() {
-    config_.beepEnabled = beepCheck_->isChecked();
-    saveConfig();
-}
-
-void MainWindow::onSettingsClicked() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QString::fromStdWString(L"设置"));
-    dialog.setWindowIcon(QIcon(":/assets/icon.png"));
-    dialog.setFixedSize(460, 440);
-
-    QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
-    mainLayout->setContentsMargins(12, 12, 12, 12);
-    mainLayout->setSpacing(12);
-
-    QTabWidget* tabWidget = new QTabWidget(&dialog);
-    mainLayout->addWidget(tabWidget);
-
-    // ==================== 设置页 ====================
-    QWidget* settingsPage = new QWidget();
-    QVBoxLayout* settingsLayout = new QVBoxLayout(settingsPage);
-    settingsLayout->setContentsMargins(16, 16, 16, 8);
-    settingsLayout->setSpacing(16);
-
-    // 关闭行为
-    QGroupBox* closeGroup = new QGroupBox(QString::fromStdWString(L"关闭窗口时"), settingsPage);
-    QVBoxLayout* closeLayout = new QVBoxLayout(closeGroup);
-
-    QRadioButton* radioAsk = new QRadioButton(QString::fromStdWString(L"每次询问"), closeGroup);
-    QRadioButton* radioMinimize = new QRadioButton(QString::fromStdWString(L"最小化到系统托盘"), closeGroup);
-    QRadioButton* radioExit = new QRadioButton(QString::fromStdWString(L"直接退出程序"), closeGroup);
-
-    if (config_.closeAction == CloseAction::Minimize) radioMinimize->setChecked(true);
-    else if (config_.closeAction == CloseAction::Exit) radioExit->setChecked(true);
-    else radioAsk->setChecked(true);
-
-    closeLayout->addWidget(radioAsk);
-    closeLayout->addWidget(radioMinimize);
-    closeLayout->addWidget(radioExit);
-    settingsLayout->addWidget(closeGroup);
-
-    // 配置文件
-    QGroupBox* configGroup = new QGroupBox(QString::fromStdWString(L"配置文件"), settingsPage);
-    QVBoxLayout* configLayout = new QVBoxLayout(configGroup);
-
-    QLabel* configPathLabel = new QLabel(QString::fromStdWString(configStore_.GetPath().wstring()), configGroup);
-    configPathLabel->setWordWrap(true);
-    configPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    configLayout->addWidget(configPathLabel);
-
-    QHBoxLayout* configBtnLayout = new QHBoxLayout();
-    QPushButton* openConfigFolderBtn = new QPushButton(QString::fromStdWString(L"打开文件夹"), configGroup);
-    QPushButton* changeConfigPathBtn = new QPushButton(QString::fromStdWString(L"自定义路径"), configGroup);
-    QPushButton* resetConfigPathBtn = new QPushButton(QString::fromStdWString(L"恢复默认"), configGroup);
-    openConfigFolderBtn->setMinimumHeight(28);
-    changeConfigPathBtn->setMinimumHeight(28);
-    resetConfigPathBtn->setMinimumHeight(28);
-    configBtnLayout->addWidget(openConfigFolderBtn);
-    configBtnLayout->addWidget(changeConfigPathBtn);
-    configBtnLayout->addWidget(resetConfigPathBtn);
-    configLayout->addLayout(configBtnLayout);
-    settingsLayout->addWidget(configGroup);
-
-    settingsLayout->addStretch();
-
-    connect(openConfigFolderBtn, &QPushButton::clicked, [this]() {
-        const auto folder = configStore_.GetPath().parent_path();
-        QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder.wstring())));
-    });
-
-    connect(changeConfigPathBtn, &QPushButton::clicked, [this, configPathLabel]() {
-        QString filePath = QFileDialog::getSaveFileName(this,
-            QString::fromStdWString(L"选择配置文件路径"),
-            QString::fromStdWString(configStore_.GetPath().wstring()),
-            QString::fromStdWString(L"JSON 文件 (*.json)"));
-        if (filePath.isEmpty()) return;
-
-        std::filesystem::path newPath = filePath.toStdWString();
-        // 确保目录存在
-        std::filesystem::create_directories(newPath.parent_path());
-
-        // 将当前配置保存到新路径
-        config_.customConfigPath = newPath.wstring();
-        configStore_.SetPath(newPath);
-        std::wstring error;
-        if (!configStore_.Save(config_, error)) {
-            QMessageBox::warning(this, QString::fromStdWString(L"保存失败"), QString::fromStdWString(error));
-            return;
-        }
-
-        // 同时更新默认位置的指向记录
-        saveDefaultConfigPointer();
-        configPathLabel->setText(QString::fromStdWString(newPath.wstring()));
-    });
-
-    connect(resetConfigPathBtn, &QPushButton::clicked, [this, configPathLabel]() {
-        std::filesystem::path defaultPath = getDefaultConfigPath();
-        if (configStore_.GetPath() == defaultPath) return;
-
-        config_.customConfigPath.clear();
-        configStore_.SetPath(defaultPath);
-        std::wstring error;
-        if (!configStore_.Save(config_, error)) {
-            QMessageBox::warning(this, QString::fromStdWString(L"保存失败"), QString::fromStdWString(error));
-            return;
-        }
-        saveDefaultConfigPointer();
-        configPathLabel->setText(QString::fromStdWString(defaultPath.wstring()));
-    });
-
-    tabWidget->addTab(settingsPage, QString::fromStdWString(L"设置"));
-
-    // ==================== 关于页 ====================
-    QWidget* aboutPage = new QWidget();
-    QVBoxLayout* aboutLayout = new QVBoxLayout(aboutPage);
-    aboutLayout->setContentsMargins(16, 16, 16, 8);
-    aboutLayout->setSpacing(16);
-
-    // 联系作者
-    QGroupBox* contactGroup = new QGroupBox(QString::fromStdWString(L"联系作者"), aboutPage);
-    QGridLayout* contactLayout = new QGridLayout(contactGroup);
-    contactLayout->setSpacing(8);
-
-    contactLayout->addWidget(new QLabel("QQ:", contactGroup), 0, 0);
-    QLineEdit* qqEdit = new QLineEdit("2033653725", contactGroup);
-    qqEdit->setReadOnly(true);
-    contactLayout->addWidget(qqEdit, 0, 1);
-    QPushButton* copyQqBtn = new QPushButton(QString::fromStdWString(L"复制"), contactGroup);
-    contactLayout->addWidget(copyQqBtn, 0, 2);
-
-    contactLayout->addWidget(new QLabel(QString::fromStdWString(L"邮箱:"), contactGroup), 1, 0);
-    QLineEdit* emailEdit = new QLineEdit("2033653725@qq.com", contactGroup);
-    emailEdit->setReadOnly(true);
-    contactLayout->addWidget(emailEdit, 1, 1);
-    QPushButton* copyEmailBtn = new QPushButton(QString::fromStdWString(L"复制"), contactGroup);
-    contactLayout->addWidget(copyEmailBtn, 1, 2);
-
-    aboutLayout->addWidget(contactGroup);
-
-    // 免责声明
-    QGroupBox* disclaimerGroup = new QGroupBox(QString::fromStdWString(L"免责声明"), aboutPage);
-    QVBoxLayout* disclaimerLayout = new QVBoxLayout(disclaimerGroup);
-    QLabel* disclaimerLabel = new QLabel(
-        QString::fromStdWString(
-            L"1. 本软件仅供学习和交流使用，请勿用于商业用途\n"
-            L"2. 使用本软件产生的一切后果由用户自行承担\n"
-            L"3. 作者不对软件使用造成的任何损失负责\n"
-            L"4. 禁止使用本软件进行任何违法活动"),
-        disclaimerGroup);
-    disclaimerLabel->setWordWrap(true);
-    disclaimerLayout->addWidget(disclaimerLabel);
-    aboutLayout->addWidget(disclaimerGroup);
-
-    aboutLayout->addStretch();
-
-    connect(copyQqBtn, &QPushButton::clicked, [qqEdit]() {
-        QApplication::clipboard()->setText(qqEdit->text());
-    });
-    connect(copyEmailBtn, &QPushButton::clicked, [emailEdit]() {
-        QApplication::clipboard()->setText(emailEdit->text());
-    });
-
-    tabWidget->addTab(aboutPage, QString::fromStdWString(L"关于"));
-
-    // ==================== 底部按钮 ====================
-    QHBoxLayout* btnLayout = new QHBoxLayout();
-    btnLayout->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromStdWString(L"确定"), &dialog);
-    okBtn->setMinimumSize(80, 32);
-    btnLayout->addWidget(okBtn);
-    mainLayout->addLayout(btnLayout);
-
-    connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
-
-    dialog.exec();
-
-    // 保存关闭行为设置
-    CloseAction newAction = CloseAction::Ask;
-    if (radioMinimize->isChecked()) newAction = CloseAction::Minimize;
-    else if (radioExit->isChecked()) newAction = CloseAction::Exit;
-
-    if (newAction != config_.closeAction) {
-        config_.closeAction = newAction;
+void MainWindow::onEnableToggled(std::uint64_t id, bool enabled) {
+    if (auto idx = findBindingIndex(id)) {
+        config_.bindings[*idx].enabled = enabled;
+        applyBindingsToEngine();
         saveConfig();
     }
 }
 
-void MainWindow::onListDoubleClicked(int row, int /*col*/) {
-    auto id = static_cast<std::uint64_t>(tableWidget_->item(row, 0)->data(Qt::UserRole).toULongLong());
-    openEditDialog(id);
+void MainWindow::onStartClicked() { toggleToolRunning(); }
+
+void MainWindow::onHotkeyEditClicked() {
+    captureRequest_ = CaptureRequest{CaptureRequest::Target::MainHotkey};
+    refreshHookState();
+    { std::lock_guard lock(hookStateMutex_); hookCaptureStartedTick_ = GetTickCount64(); }
+    updateHotkeyText();
 }
 
-void MainWindow::onItemChanged(QTableWidgetItem* item) {
-    if (item->column() == 0) {
-        auto id = static_cast<std::uint64_t>(item->data(Qt::UserRole).toULongLong());
-        if (auto idx = findBindingIndex(id)) {
-            config_.bindings[*idx].enabled = (item->checkState() == Qt::Checked);
-            applyBindingsToEngine();
-            saveConfig();
-        }
-    }
-}
-
-bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
-    if (event->type() == QEvent::MouseButtonPress) {
-        if (watched == hotkeyEdit_) {
-            onHotkeyEditClicked();
-            return true;
-        } else if (watched == editKeyBox_) {
-            currentEditKey_ = KeyDescriptor{};
-            editKeyBox_->setText(QString::fromStdWString(L"点击录制"));
-            captureRequest_ = CaptureRequest{CaptureRequest::Target::EditDialogKey};
-            refreshHookState();
-            {
-                std::lock_guard lock(hookStateMutex_);
-                hookCaptureStartedTick_ = GetTickCount64();
-            }
-            return true;
-        } else if (captureRequest_.has_value()) {
-            // Cancel capture if clicking outside
-            captureRequest_.reset();
-            refreshHookState();
-            updateHotkeyText();
-            if (editKeyBox_) {
-                editKeyBox_->setText(currentEditKey_.IsValid() ? QString::fromStdWString(GetKeyDisplayName(currentEditKey_)) : QString::fromStdWString(L"点击录制"));
-            }
-        }
-    }
-    return QMainWindow::eventFilter(watched, event);
+void MainWindow::onBeepToggled(bool enabled) {
+    config_.beepEnabled = enabled;
+    saveConfig();
 }
 
 void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
-    if (editDialog_) {
-        editDialog_->activateWindow();
-        return;
-    }
+    if (editDialog_) return;
 
-    QDialog dialog(this);
-    dialog.setWindowTitle(bindingId.has_value() ? QString::fromStdWString(L"编辑按键") : QString::fromStdWString(L"添加按键"));
-    dialog.setFixedSize(360, 240);
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle(bindingId.has_value()
+        ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
+        : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
+    dialog->setFixedSize(420, 300);
+    dialog->setWindowFlags(dialog->windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    dialog->setStyleSheet("QDialog { background: #FFFFFF; border-radius: 16px; }");
 
-    QVBoxLayout* layout = new QVBoxLayout(&dialog);
-    QGridLayout* form = new QGridLayout();
+    auto* layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
 
-    form->addWidget(new QLabel(QString::fromStdWString(L"按键:")), 0, 0);
-    editKeyBox_ = new QLineEdit();
+    // Key input
+    auto* keyRow = new QHBoxLayout();
+    auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), dialog);
+    keyLabel->setFont(Fluent::Typography::body());
+    keyLabel->setFixedWidth(70);
+    keyRow->addWidget(keyLabel);
+    editKeyBox_ = new FluentLineEdit(dialog);
     editKeyBox_->setReadOnly(true);
-    form->addWidget(editKeyBox_, 0, 1);
+    editKeyBox_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyRow->addWidget(editKeyBox_);
+    layout->addLayout(keyRow);
 
-    form->addWidget(new QLabel(QString::fromStdWString(L"模式:")), 1, 0);
-    editModeCombo_ = new QComboBox();
-    editModeCombo_->addItem(QString::fromStdWString(L"开关模式"));
-    editModeCombo_->addItem(QString::fromStdWString(L"按压模式"));
-    form->addWidget(editModeCombo_, 1, 1);
+    // Mode
+    auto* modeRow = new QHBoxLayout();
+    auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u6a21\u5f0f:"), dialog);
+    modeLabel->setFont(Fluent::Typography::body());
+    modeLabel->setFixedWidth(70);
+    modeRow->addWidget(modeLabel);
+    editModeCombo_ = new FluentComboBox(dialog);
+    editModeCombo_->addItem(QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f"));
+    editModeCombo_->addItem(QString::fromWCharArray(L"\u6309\u538b\u6a21\u5f0f"));
+    modeRow->addWidget(editModeCombo_);
+    layout->addLayout(modeRow);
 
-    form->addWidget(new QLabel(QString::fromStdWString(L"延迟(ms):")), 2, 0);
-    editDelayEdit_ = new QLineEdit();
-    form->addWidget(editDelayEdit_, 2, 1);
+    // Delay
+    auto* delayRow = new QHBoxLayout();
+    auto* delayLabel = new QLabel(QString::fromWCharArray(L"\u5ef6\u8fdf(ms):"), dialog);
+    delayLabel->setFont(Fluent::Typography::body());
+    delayLabel->setFixedWidth(70);
+    delayRow->addWidget(delayLabel);
+    editDelayEdit_ = new FluentLineEdit(dialog);
+    delayRow->addWidget(editDelayEdit_);
+    layout->addLayout(delayRow);
 
-    editEnabledCheck_ = new QCheckBox(QString::fromStdWString(L"启用此按键"));
-    form->addWidget(editEnabledCheck_, 3, 1);
+    // Enable switch
+    auto* enableRow = new QHBoxLayout();
+    auto* enableLabel = new QLabel(QString::fromWCharArray(L"\u542f\u7528\u6b64\u6309\u952e"), dialog);
+    enableLabel->setFont(Fluent::Typography::body());
+    enableRow->addWidget(enableLabel);
+    enableRow->addStretch();
+    editEnabledSwitch_ = new FluentSwitch(dialog);
+    enableRow->addWidget(editEnabledSwitch_);
+    layout->addLayout(enableRow);
 
-    layout->addLayout(form);
+    layout->addStretch();
 
-    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    layout->addWidget(buttons);
+    // Buttons
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), dialog);
+    cancelBtn->setFixedWidth(80);
+    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), dialog);
+    okBtn->setFixedWidth(80);
+    btnRow->addWidget(cancelBtn);
+    btnRow->addSpacing(8);
+    btnRow->addWidget(okBtn);
+    layout->addLayout(btnRow);
 
-    editDialog_ = &dialog;
+    editDialog_ = dialog;
     editingExisting_ = bindingId.has_value();
     editBindingId_ = bindingId.value_or(0);
     currentEditKey_ = KeyDescriptor{};
@@ -783,54 +502,50 @@ void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
             currentEditKey_ = b.key;
             editModeCombo_->setCurrentIndex(b.mode == RepeatMode::Hold ? 1 : 0);
             editDelayEdit_->setText(QString::number(b.delayMs));
-            editEnabledCheck_->setChecked(b.enabled);
+            editEnabledSwitch_->setChecked(b.enabled);
         }
     } else {
         editModeCombo_->setCurrentIndex(0);
         editDelayEdit_->setText(QString::number(config_.defaultDelayMs));
-        editEnabledCheck_->setChecked(true);
+        editEnabledSwitch_->setChecked(true);
     }
 
-    editKeyBox_->setText(currentEditKey_.IsValid() ? QString::fromStdWString(GetKeyDisplayName(currentEditKey_)) : QString::fromStdWString(L"点击录制"));
-
+    editKeyBox_->setText(currentEditKey_.IsValid()
+        ? QString::fromStdWString(GetKeyDisplayName(currentEditKey_)) : QString());
     editKeyBox_->installEventFilter(this);
 
-    connect(buttons, &QDialogButtonBox::accepted, [&]() {
+    connect(okBtn, &QPushButton::clicked, dialog, [this, dialog]() {
         if (!currentEditKey_.IsValid()) {
-            QMessageBox::warning(&dialog, QString::fromStdWString(L"参数无效"), QString::fromStdWString(L"请先录制一个按键或鼠标键。"));
+            QMessageBox::warning(dialog, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u6216\u9f20\u6807\u952e\u3002"));
             return;
         }
-        bool ok;
-        int delay = editDelayEdit_->text().toInt(&ok);
+        bool ok; int delay = editDelayEdit_->text().toInt(&ok);
         if (!ok || delay <= 0) {
-            QMessageBox::warning(&dialog, QString::fromStdWString(L"参数无效"), QString::fromStdWString(L"延迟必须是大于 0 的整数。"));
+            QMessageBox::warning(dialog, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u5ef6\u8fdf\u5fc5\u987b\u662f\u5927\u4e8e 0 \u7684\u6574\u6570\u3002"));
             return;
         }
-
-        // ⭐ 检查是否与启停快捷键冲突
         if (config_.controlHotkey.has_value() && *config_.controlHotkey == currentEditKey_) {
-            QMessageBox::warning(&dialog, QString::fromStdWString(L"按键冲突"),
-                QString::fromStdWString(L"该按键已被设置为启停快捷键，不能同时作为连发/按压按键。"));
+            QMessageBox::warning(dialog, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
             return;
         }
-
-        // ⭐ 检查是否与已有绑定重复（编辑时排除自身）
         for (const auto& b : config_.bindings) {
             if (b.key == currentEditKey_) {
                 if (editingExisting_ && b.id == editBindingId_) continue;
-                QMessageBox::warning(&dialog, QString::fromStdWString(L"按键重复"),
-                    QString::fromStdWString(L"该按键已被配置，不允许重复添加。"));
+                QMessageBox::warning(dialog, QString::fromWCharArray(L"\u6309\u952e\u91cd\u590d"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
                 return;
             }
         }
-
         if (editingExisting_) {
             if (auto idx = findBindingIndex(editBindingId_)) {
                 auto& b = config_.bindings[*idx];
                 b.key = currentEditKey_;
                 b.mode = editModeCombo_->currentIndex() == 1 ? RepeatMode::Hold : RepeatMode::Toggle;
                 b.delayMs = delay;
-                b.enabled = editEnabledCheck_->isChecked();
+                b.enabled = editEnabledSwitch_->isChecked();
             }
         } else {
             KeyBinding b;
@@ -838,19 +553,18 @@ void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
             b.key = currentEditKey_;
             b.mode = editModeCombo_->currentIndex() == 1 ? RepeatMode::Hold : RepeatMode::Toggle;
             b.delayMs = delay;
-            b.enabled = editEnabledCheck_->isChecked();
+            b.enabled = editEnabledSwitch_->isChecked();
             config_.bindings.push_back(b);
         }
-
-        refreshList();
+        keyPage_->setBindings(config_.bindings);
         applyBindingsToEngine();
         saveConfig();
-        dialog.accept();
+        refreshAllPages();
+        dialog->accept();
     });
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
 
-    dialog.exec();
-    
+    dialog->exec();
     captureRequest_.reset();
     refreshHookState();
     updateHotkeyText();
@@ -858,44 +572,34 @@ void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
     editKeyBox_ = nullptr;
 }
 
-void MainWindow::handleCapturedKey(quint64 encodedKey) {
-    onCapturedKeyInternal(DecodeKey(encodedKey));
-}
+void MainWindow::handleCapturedKey(quint64 encodedKey) { onCapturedKeyInternal(DecodeKey(encodedKey)); }
 
 void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
-    if (!captureRequest_.has_value()) {
-        return;
-    }
+    if (!captureRequest_.has_value()) return;
 
     if (captureRequest_->target == CaptureRequest::Target::MainHotkey) {
-        // ⭐ 先取消录制状态，再做后续处理（防止弹窗时鼠标点击触发新的录制）
         captureRequest_.reset();
         refreshHookState();
-
         if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
-            QMessageBox::warning(this, QString::fromStdWString(L"按键无效"),
-                QString::fromStdWString(L"为了防止影响正常操作，启停快捷键不能设置为鼠标左键或右键。\n请使用键盘按键或鼠标侧键。"));
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u65e0\u6548"),
+                QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
         } else {
-            // ⭐ 检查是否与已有绑定冲突
-            bool conflict = std::any_of(config_.bindings.begin(), config_.bindings.end(), [&](const KeyBinding& b) {
-                return b.key == key;
-            });
+            bool conflict = std::any_of(config_.bindings.begin(), config_.bindings.end(),
+                [&](const KeyBinding& b) { return b.key == key; });
             if (conflict) {
-                QMessageBox::warning(this, QString::fromStdWString(L"按键冲突"),
-                    QString::fromStdWString(L"该按键已被配置为连发/按压按键，不能同时作为启停快捷键。"));
+                QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b\u6309\u952e\u3002"));
             } else {
                 config_.controlHotkey = key;
                 saveConfig();
-                refreshHookState();  // ⭐ 立即同步到钩子线程，使新快捷键即时生效
+                refreshHookState();
             }
         }
         updateHotkeyText();
-        updateStatusText();  // ⭐ 同步更新底部状态栏
+        refreshAllPages();
     } else {
         currentEditKey_ = key;
-        if (editKeyBox_) {
-            editKeyBox_->setText(QString::fromStdWString(GetKeyDisplayName(key)));
-        }
+        if (editKeyBox_) editKeyBox_->setText(QString::fromStdWString(GetKeyDisplayName(key)));
         captureRequest_.reset();
         refreshHookState();
     }
@@ -903,85 +607,83 @@ void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
 
 void MainWindow::closeEvent(QCloseEvent *event) {
     saveConfig();
+    if (config_.closeAction == CloseAction::Minimize) { hide(); event->ignore(); return; }
+    if (config_.closeAction == CloseAction::Exit) { trayIcon_->hide(); event->accept(); return; }
 
-    if (config_.closeAction == CloseAction::Minimize) {
-        hide();
-        event->ignore();
-        return;
-    }
-    if (config_.closeAction == CloseAction::Exit) {
-        trayIcon_->hide();
-        event->accept();
-        return;
-    }
-
-    // CloseAction::Ask — 弹出询问对话框
     QDialog dialog(this);
-    dialog.setWindowTitle(QString::fromStdWString(L"关闭确认"));
-    dialog.setFixedSize(320, 160);
-
-    QVBoxLayout* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(20, 16, 20, 12);
+    dialog.setWindowTitle(QString::fromWCharArray(L"\u5173\u95ed\u786e\u8ba4"));
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    dialog.setFixedSize(360, 180);
+    dialog.setStyleSheet("QDialog { background: #FFFFFF; }");
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(24, 20, 24, 16);
     layout->setSpacing(12);
-
-    QLabel* label = new QLabel(QString::fromStdWString(L"您希望关闭程序还是最小化到系统托盘？"), &dialog);
+    auto* label = new QLabel(QString::fromWCharArray(L"\u60a8\u5e0c\u671b\u5173\u95ed\u7a0b\u5e8f\u8fd8\u662f\u6700\u5c0f\u5316\u5230\u7cfb\u7edf\u6258\u76d8\uff1f"), &dialog);
+    label->setFont(Fluent::Typography::body());
     label->setWordWrap(true);
     layout->addWidget(label);
-
-    QCheckBox* rememberCheck = new QCheckBox(QString::fromStdWString(L"记住我的选择"), &dialog);
+    auto* rememberCheck = new QCheckBox(QString::fromWCharArray(L"\u8bb0\u4f4f\u6211\u7684\u9009\u62e9"), &dialog);
+    rememberCheck->setFont(Fluent::Typography::body());
     layout->addWidget(rememberCheck);
-
-    QHBoxLayout* btnLayout = new QHBoxLayout();
+    layout->addStretch();
+    auto* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
-    QPushButton* minimizeBtn = new QPushButton(QString::fromStdWString(L"最小化到托盘"), &dialog);
-    QPushButton* exitBtn = new QPushButton(QString::fromStdWString(L"退出程序"), &dialog);
-    minimizeBtn->setMinimumHeight(28);
-    exitBtn->setMinimumHeight(28);
-    btnLayout->addWidget(minimizeBtn);
-    btnLayout->addWidget(exitBtn);
+    auto* minimizeBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6700\u5c0f\u5316\u5230\u6258\u76d8"), &dialog);
+    auto* exitBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u9000\u51fa\u7a0b\u5e8f"), &dialog);
+    minimizeBtn->setFixedWidth(120); exitBtn->setFixedWidth(100);
+    btnLayout->addWidget(minimizeBtn); btnLayout->addSpacing(8); btnLayout->addWidget(exitBtn);
     layout->addLayout(btnLayout);
 
     bool chosenExit = false;
     connect(minimizeBtn, &QPushButton::clicked, [&]() { chosenExit = false; dialog.accept(); });
     connect(exitBtn, &QPushButton::clicked, [&]() { chosenExit = true; dialog.accept(); });
 
-    dialog.exec();
-
-    if (rememberCheck->isChecked()) {
-        config_.closeAction = chosenExit ? CloseAction::Exit : CloseAction::Minimize;
-        saveConfig();
-    }
-
-    if (chosenExit) {
-        trayIcon_->hide();
-        event->accept();
-    } else {
-        hide();
+    // If user clicks X on dialog, just dismiss the dialog (do nothing)
+    if (dialog.exec() == QDialog::Rejected) {
         event->ignore();
+        return;
     }
+
+    if (rememberCheck->isChecked()) { config_.closeAction = chosenExit ? CloseAction::Exit : CloseAction::Minimize; saveConfig(); }
+    if (chosenExit) { trayIcon_->hide(); event->accept(); } else { hide(); event->ignore(); }
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        if (watched == editKeyBox_) {
+            currentEditKey_ = KeyDescriptor{};
+            editKeyBox_->setText(QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+            captureRequest_ = CaptureRequest{CaptureRequest::Target::EditDialogKey};
+            refreshHookState();
+            { std::lock_guard lock(hookStateMutex_); hookCaptureStartedTick_ = GetTickCount64(); }
+            return true;
+        } else if (captureRequest_.has_value()) {
+            captureRequest_.reset();
+            refreshHookState();
+            updateHotkeyText();
+            if (editKeyBox_) editKeyBox_->setText(currentEditKey_.IsValid()
+                ? QString::fromStdWString(GetKeyDisplayName(currentEditKey_)) : QString());
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::refreshHookState() {
     std::lock_guard lock(hookStateMutex_);
     hookControlHotkey_ = config_.controlHotkey;
     hookCaptureActive_ = captureRequest_.has_value();
-    if (!hookCaptureActive_) {
-        hookCaptureStartedTick_ = 0;
-    }
+    if (!hookCaptureActive_) hookCaptureStartedTick_ = 0;
 }
 
 std::optional<std::size_t> MainWindow::findBindingIndex(std::uint64_t id) const {
-    for (std::size_t i = 0; i < config_.bindings.size(); ++i) {
-        if (config_.bindings[i].id == id) {
-            return i;
-        }
-    }
+    for (std::size_t i = 0; i < config_.bindings.size(); ++i)
+        if (config_.bindings[i].id == id) return i;
     return std::nullopt;
 }
 
 std::wstring MainWindow::getExeDir() const {
     std::wstring path(MAX_PATH, L'\0');
-    const DWORD length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    DWORD length = GetModuleFileNameW(nullptr, path.data(), (DWORD)path.size());
     path.resize(length);
     PathRemoveFileSpecW(path.data());
     path.resize(wcslen(path.c_str()));
@@ -1000,16 +702,13 @@ std::filesystem::path MainWindow::getDefaultConfigPath() const {
 }
 
 std::filesystem::path MainWindow::getConfigPath() const {
-    // 默认路径下检查是否有自定义路径指向
     std::filesystem::path defaultPath = getDefaultConfigPath();
     std::filesystem::path pointerFile = defaultPath.parent_path() / L"config_path.txt";
-
     if (std::filesystem::exists(pointerFile)) {
         std::wifstream ifs(pointerFile);
         std::wstring customPath;
-        if (std::getline(ifs, customPath) && !customPath.empty() && std::filesystem::exists(customPath)) {
+        if (std::getline(ifs, customPath) && !customPath.empty() && std::filesystem::exists(customPath))
             return customPath;
-        }
     }
     return defaultPath;
 }
@@ -1017,146 +716,73 @@ std::filesystem::path MainWindow::getConfigPath() const {
 void MainWindow::saveDefaultConfigPointer() const {
     std::filesystem::path defaultPath = getDefaultConfigPath();
     std::filesystem::path pointerFile = defaultPath.parent_path() / L"config_path.txt";
-
-    if (config_.customConfigPath.empty()) {
-        // 删除指针文件
-        std::filesystem::remove(pointerFile);
-    } else {
-        std::wofstream ofs(pointerFile, std::ios::trunc);
-        ofs << config_.customConfigPath;
-    }
+    if (config_.customConfigPath.empty()) std::filesystem::remove(pointerFile);
+    else { std::wofstream ofs(pointerFile, std::ios::trunc); ofs << config_.customConfigPath; }
 }
 
-LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam) {
-    if (code < 0 || g_mainWindow == nullptr) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
+// ── Hook Procedures ─────────────────────────────────────────────────────────
 
+LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam) {
+    if (code < 0 || !g_mainWindow) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
     KeyDescriptor key{InputDevice::Keyboard, info->vkCode};
     const bool pressed = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
     const bool released = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
-    if (!pressed && !released) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
+    if (!pressed && !released) return CallNextHookEx(nullptr, code, wParam, lParam);
+    if (info->flags & LLKHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    if (info->flags & LLKHF_INJECTED)
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-
-    // 实时查询 Engine 状态，不依赖缓存
     const bool toolRunning = g_mainWindow->engine_.IsToolRunning();
-
     std::optional<KeyDescriptor> controlHotkey;
     bool captureActive = false;
-    {
-        std::lock_guard lock(g_mainWindow->hookStateMutex_);
-        controlHotkey = g_mainWindow->hookControlHotkey_;
-        captureActive = g_mainWindow->hookCaptureActive_;
-    }
+    { std::lock_guard lock(g_mainWindow->hookStateMutex_); controlHotkey = g_mainWindow->hookControlHotkey_; captureActive = g_mainWindow->hookCaptureActive_; }
 
     if (captureActive && pressed) {
-        const auto encodedKey = EncodeKey(key);
-        QMetaObject::invokeMethod(g_mainWindow, [window = g_mainWindow, encodedKey] {
-            window->handleCapturedKey(encodedKey);
-        }, Qt::QueuedConnection);
+        auto enc = EncodeKey(key);
+        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { w->handleCapturedKey(enc); }, Qt::QueuedConnection);
         return 1;
     }
-
-    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
-
-    if (isControlHotkey) {
+    const bool isCtrl = controlHotkey.has_value() && *controlHotkey == key;
+    if (isCtrl) {
         if (pressed && !g_mainWindow->controlHotkeyPressed_.exchange(true)) {
-            const bool newRunning = !toolRunning;
-            if (g_mainWindow->setToolRunningFast(newRunning)) {
-                QMetaObject::invokeMethod(g_mainWindow, [window = g_mainWindow, newRunning] {
-                    window->handleToolStateChanged(newRunning);
-                }, Qt::QueuedConnection);
-            }
-        } else if (released) {
-            g_mainWindow->controlHotkeyPressed_ = false;
-        }
+            bool nr = !toolRunning;
+            if (g_mainWindow->setToolRunningFast(nr))
+                QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, nr] { w->handleToolStateChanged(nr); }, Qt::QueuedConnection);
+        } else if (released) g_mainWindow->controlHotkeyPressed_ = false;
     }
-
-    // ⭐ 通过Hook追踪物理按键状态（OnPhysicalDown/Up内部已通过per-key时间戳过滤SendTap事件）
-    if (toolRunning) {
-        if (pressed) {
-            g_mainWindow->engine_.OnPhysicalDown(key);
-        } else if (released) {
-            g_mainWindow->engine_.OnPhysicalUp(key);
-        }
-    }
-
+    if (toolRunning) { if (pressed) g_mainWindow->engine_.OnPhysicalDown(key); else if (released) g_mainWindow->engine_.OnPhysicalUp(key); }
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
 LRESULT CALLBACK MainWindow::MouseHookProc(int code, WPARAM wParam, LPARAM lParam) {
-    if (code < 0 || g_mainWindow == nullptr) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
+    if (code < 0 || !g_mainWindow) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<MSLLHOOKSTRUCT*>(lParam);
-    if (!IsMouseDownMessage(wParam) && !IsMouseUpMessage(wParam)) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
+    if (!IsMouseDownMessage(wParam) && !IsMouseUpMessage(wParam)) return CallNextHookEx(nullptr, code, wParam, lParam);
     const KeyDescriptor key = MouseMessageToDescriptor(wParam, *info);
-    if (!key.IsValid()) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (info->flags & LLMHF_INJECTED)
-        return CallNextHookEx(nullptr, code, wParam, lParam);
+    if (!key.IsValid()) return CallNextHookEx(nullptr, code, wParam, lParam);
+    if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool pressed = IsMouseDownMessage(wParam);
     const bool released = IsMouseUpMessage(wParam);
-
-    // 实时查询 Engine 状态，不依赖缓存
     const bool toolRunning = g_mainWindow->engine_.IsToolRunning();
-
     std::optional<KeyDescriptor> controlHotkey;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
-    {
-        std::lock_guard lock(g_mainWindow->hookStateMutex_);
-        controlHotkey = g_mainWindow->hookControlHotkey_;
-        captureActive = g_mainWindow->hookCaptureActive_;
-        captureStartedTick = g_mainWindow->hookCaptureStartedTick_;
-    }
+    { std::lock_guard lock(g_mainWindow->hookStateMutex_); controlHotkey = g_mainWindow->hookControlHotkey_; captureActive = g_mainWindow->hookCaptureActive_; captureStartedTick = g_mainWindow->hookCaptureStartedTick_; }
 
     if (captureActive && pressed) {
-        if (GetTickCount64() - captureStartedTick < 150) {
-            return CallNextHookEx(nullptr, code, wParam, lParam);
-        }
-        const auto encodedKey = EncodeKey(key);
-        QMetaObject::invokeMethod(g_mainWindow, [window = g_mainWindow, encodedKey] {
-            window->handleCapturedKey(encodedKey);
-        }, Qt::QueuedConnection);
+        if (GetTickCount64() - captureStartedTick < 150) return CallNextHookEx(nullptr, code, wParam, lParam);
+        auto enc = EncodeKey(key);
+        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { w->handleCapturedKey(enc); }, Qt::QueuedConnection);
         return 1;
     }
-
-    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
-
-    if (isControlHotkey) {
+    const bool isCtrl = controlHotkey.has_value() && *controlHotkey == key;
+    if (isCtrl) {
         if (pressed && !g_mainWindow->controlHotkeyPressed_.exchange(true)) {
-            const bool newRunning = !toolRunning;
-            if (g_mainWindow->setToolRunningFast(newRunning)) {
-                QMetaObject::invokeMethod(g_mainWindow, [window = g_mainWindow, newRunning] {
-                    window->handleToolStateChanged(newRunning);
-                }, Qt::QueuedConnection);
-            }
-        } else if (released) {
-            g_mainWindow->controlHotkeyPressed_ = false;
-        }
+            bool nr = !toolRunning;
+            if (g_mainWindow->setToolRunningFast(nr))
+                QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, nr] { w->handleToolStateChanged(nr); }, Qt::QueuedConnection);
+        } else if (released) g_mainWindow->controlHotkeyPressed_ = false;
     }
-
-    // ⭐ 通过Hook追踪物理按键状态（OnPhysicalDown/Up内部已通过per-key时间戳过滤SendTap事件）
-    if (toolRunning) {
-        if (pressed) {
-            g_mainWindow->engine_.OnPhysicalDown(key);
-        } else if (released) {
-            g_mainWindow->engine_.OnPhysicalUp(key);
-        }
-    }
-
+    if (toolRunning) { if (pressed) g_mainWindow->engine_.OnPhysicalDown(key); else if (released) g_mainWindow->engine_.OnPhysicalUp(key); }
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }

@@ -1,5 +1,24 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource>
     <file>assets/icon.png</file>
+    <file>assets/factions/shaolin.png</file>
+    <file>assets/factions/wanhua.png</file>
+    <file>assets/factions/qixiu.png</file>
+    <file>assets/factions/chunyang.png</file>
+    <file>assets/factions/tiance.png</file>
+    <file>assets/factions/cangjian.png</file>
+    <file>assets/factions/wudu.png</file>
+    <file>assets/factions/tangmen.png</file>
+    <file>assets/factions/mingjiao.png</file>
+    <file>assets/factions/gaibang.png</file>
+    <file>assets/factions/cangyun.png</file>
+    <file>assets/factions/changge.png</file>
+    <file>assets/factions/badao.png</file>
+    <file>assets/factions/penglai.png</file>
+    <file>assets/factions/lingxuege.png</file>
+    <file>assets/factions/yantianzong.png</file>
+    <file>assets/factions/yaozong.png</file>
+    <file>assets/factions/daozong.png</file>
+    <file>assets/factions/wanling.png</file>
 </qresource>
 </RCC>

@@ -1,4 +1,4 @@
-#include "KeyPage.h"
+﻿#include "KeyPage.h"
 #include "../styles/DesignTokens.h"
 #include "../components/FluentTable.h"
 #include "../components/FluentButton.h"
@@ -6,6 +6,7 @@
 #include "../components/FluentSwitch.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentComboBox.h"
+#include "../../include/FactionTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,17 +14,21 @@
 #include <QLabel>
 #include <QEvent>
 #include <QCheckBox>
+#include <QPainter>
 
-// Common checkbox style with white checkmark on blue background
-static const char* kCheckBoxStyle =
-    "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
-    "QCheckBox::indicator:checked {"
-    "  background: #0078D4; border: 1px solid #0078D4;"
-    "  image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMTAgM0w1IDhMMiA1IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==);"
-    "}"
-    "QCheckBox::indicator:unchecked {"
-    "  background: #FFFFFF; border: 1.5px solid rgba(0,0,0,0.3); }"
-    ;
+// Generate checkbox style using current faction color
+static QString checkBoxStyle() {
+    QString color = FactionTheme::instance().primaryColor().name();
+    return QString(
+        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
+        "QCheckBox::indicator:checked {"
+        "  background: %1; border: 1px solid %1;"
+        "  image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMTAgM0w1IDhMMiA1IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==);"
+        "}"
+        "QCheckBox::indicator:unchecked {"
+        "  background: #FFFFFF; border: 1.5px solid rgba(0,0,0,0.3); }"
+    ).arg(color);
+}
 
 KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     setStyleSheet("KeyPage { background: #F5F7FA; }");
@@ -33,7 +38,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     layout->setContentsMargins(16, 12, 16, 12);
     layout->setSpacing(12);
 
-    // ═══ Left: Table Card ═══
+    // 鈺愨晲鈺?Left: Table Card 鈺愨晲鈺?
     auto* tableCard = new FluentCard(this);
 
     // -- Profile selector row --
@@ -104,11 +109,11 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     tableCard->contentLayout()->addWidget(table_, 1);
     layout->addWidget(tableCard, 5);
 
-    // ═══ Right panel ═══
+    // 鈺愨晲鈺?Right panel 鈺愨晲鈺?
     auto* rightLayout = new QVBoxLayout();
     rightLayout->setSpacing(16);
 
-    // -- Card 1: 快捷控制 --
+    // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(36);
@@ -127,7 +132,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
 
-    // -- Card 2: 启动触发 --
+    // -- Card 2: 鍚姩瑙﹀彂 --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
     auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
     hotkeyLabel->setFont(Fluent::Typography::caption());
@@ -142,15 +147,15 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addSpacing(8);
     beepCheck_ = new QCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
-    beepCheck_->setStyleSheet(kCheckBoxStyle);
+    beepCheck_->setStyleSheet(checkBoxStyle());
     triggerCard->contentLayout()->addWidget(beepCheck_);
     rightLayout->addWidget(triggerCard);
 
-    // -- Card 3: 混合模式 --
+    // -- Card 3: 娣峰悎妯″紡 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u6df7\u5408\u6a21\u5f0f"), this);
     mixedModeCheck_ = new QCheckBox(QString::fromWCharArray(L"\u542f\u7528\u6df7\u5408\u6a21\u5f0f"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedModeCheck_->setStyleSheet(kCheckBoxStyle);
+    mixedModeCheck_->setStyleSheet(checkBoxStyle());
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
     mixedCard->contentLayout()->addSpacing(4);
     auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\n\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\n\u677e\u5f00\u540e\u6062\u590d\u3002"), this);
@@ -165,7 +170,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     rightLayout->addStretch();
     layout->addLayout(rightLayout, 3);
 
-    // ═══ Connections ═══
+    // 鈺愨晲鈺?Connections 鈺愨晲鈺?
     connect(addBtn_, &QPushButton::clicked, this, &KeyPage::addRequested);
     connect(startBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
@@ -238,6 +243,14 @@ void KeyPage::setMixedMode(bool enabled) {
     mixedModeCheck_->blockSignals(false);
 }
 
+void KeyPage::updateThemeColors() {
+    QString style = checkBoxStyle();
+    beepCheck_->setStyleSheet(style);
+    mixedModeCheck_->setStyleSheet(style);
+    // Table checkboxes will be updated on next refreshTable()
+    refreshTable();
+}
+
 void KeyPage::updateStartBtnText() {
     QString keyStr = (hotkeyName_.isEmpty() || hotkeyName_ == QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"))
         ? "" : QString(" (%1)").arg(hotkeyName_);
@@ -261,7 +274,7 @@ void KeyPage::refreshTable() {
         checkLayout->setAlignment(Qt::AlignCenter);
         auto* checkBox = new QCheckBox(checkWidget);
         checkBox->setChecked(b.enabled);
-        checkBox->setStyleSheet(kCheckBoxStyle);
+        checkBox->setStyleSheet(checkBoxStyle());
         checkLayout->addWidget(checkBox);
         table_->setCellWidget(i, 0, checkWidget);
 

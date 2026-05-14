@@ -1,5 +1,6 @@
 ﻿#include "MainWindow.h"
 
+#include "FactionTheme.h"
 #include "ui/components/FluentSidebar.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentCard.h"
@@ -239,6 +240,18 @@ void MainWindow::setupUi() {
         config_.closeAction = action;
         saveConfig();
     });
+    connect(settingsPage_, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
+        config_.faction = factionId.toStdString();
+        FactionTheme::instance().setCurrent(factionId);
+        saveConfig();
+        // Force repaint of themed widgets
+        sidebar_->updateFactionIcon();
+        sidebar_->update();
+        for (auto* child : sidebar_->findChildren<QWidget*>()) child->update();
+        keyPage_->updateThemeColors();
+        keyPage_->update();
+        update();
+    });
 
     // Engine state signals
     connect(this, &MainWindow::capturedKey, this, &MainWindow::handleCapturedKey);
@@ -268,6 +281,10 @@ void MainWindow::navigateTo(const QString& pageId) {
 }
 
 void MainWindow::refreshAllPages() {
+    // Apply faction theme
+    FactionTheme::instance().setCurrent(QString::fromStdString(config_.faction));
+    sidebar_->updateFactionIcon();
+
     QString hotkey = config_.controlHotkey.has_value()
         ? QString::fromStdWString(GetKeyDisplayName(*config_.controlHotkey))
         : QString();
@@ -276,10 +293,12 @@ void MainWindow::refreshAllPages() {
     keyPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     keyPage_->setBeepEnabled(config_.beepEnabled);
     keyPage_->setMixedMode(config_.mixedMode);
+    keyPage_->updateThemeColors();
     refreshProfileCombo();
     settingsPage_->setConfig(config_);
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
+    settingsPage_->setFaction(QString::fromStdString(config_.faction));
 }
 
 void MainWindow::setupHooks() {

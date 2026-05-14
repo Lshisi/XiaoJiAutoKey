@@ -5,6 +5,8 @@
 #include <QWidget>
 #include <QLabel>
 
+class FluentComboBox;
+
 class SettingsPage : public QWidget {
     Q_OBJECT
 public:
@@ -13,6 +15,7 @@ public:
     void setConfig(const AppConfig& config);
     void setHotkeyText(const QString& text);
     void setConfigPath(const QString& path);
+    void setFaction(const QString& factionId);
 
 signals:
     void hotkeyEditClicked();
@@ -21,10 +24,12 @@ signals:
     void openConfigFolder();
     void changeConfigPath();
     void resetConfigPath();
+    void factionChanged(const QString& factionId);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     QLabel* configPathLabel_;
+    FluentComboBox* factionCombo_ = nullptr;
 };

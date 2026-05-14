@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.0.2 LANGUAGES CXX)
+project(XiaoJiAutoKey VERSION 1.0.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,7 @@ set(CORE_SOURCES
     src/AppTypes.cpp
     src/ConfigStore.cpp
     src/DdDriver.cpp
+    src/FactionTheme.cpp
     src/JsonLite.cpp
     src/ProfileManager.cpp
     src/RepeaterEngine.cpp

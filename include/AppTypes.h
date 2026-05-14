@@ -53,6 +53,7 @@ struct AppConfig {
     bool mixedMode = false;         // 混合模式：Hold按住时压制Toggle（默认关闭）
     CloseAction closeAction = CloseAction::Ask;
     std::wstring customConfigPath;  // 空表示使用默认路径
+    std::string faction = "none";   // 门派主题ID
     std::vector<KeyBinding> bindings;
 };
 

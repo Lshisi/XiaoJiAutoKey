@@ -107,6 +107,10 @@ AppConfig ConfigStore::Load() const {
         config.customConfigPath = ToWide(*customPath);
     }
 
+    if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty()) {
+        config.faction = *faction;
+    }
+
     if (const auto hotkeyText = GetStringField(*object, "controlHotkey"); hotkeyText.has_value()) {
         config.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
     }
@@ -162,6 +166,10 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
 
     if (!config.customConfigPath.empty()) {
         root.emplace("customConfigPath", ToUtf8(config.customConfigPath));
+    }
+
+    if (!config.faction.empty() && config.faction != "none") {
+        root.emplace("faction", config.faction);
     }
 
     jsonlite::Array bindings;

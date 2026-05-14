@@ -1,5 +1,6 @@
 #include "FluentSwitch.h"
 #include "../styles/DesignTokens.h"
+#include "../../include/FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -51,8 +52,8 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
     // Track
     QColor trackColor;
     if (position_ > 0.5) {
-        trackColor = Fluent::Colors::primary();
-        if (hovered_) trackColor = Fluent::Colors::primaryHover();
+        trackColor = FactionTheme::instance().primaryColor();
+        if (hovered_) trackColor = FactionTheme::instance().primaryColor().darker(115);
     } else {
         trackColor = QColor(0, 0, 0, 40);
         if (hovered_) trackColor = QColor(0, 0, 0, 55);

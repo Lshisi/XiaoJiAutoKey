@@ -2,6 +2,8 @@
 #include "../styles/DesignTokens.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentButton.h"
+#include "../components/FluentComboBox.h"
+#include "../../include/FactionTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -70,6 +72,33 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     configBtnRow->addStretch();
     configCard->contentLayout()->addLayout(configBtnRow);
     outerCard->contentLayout()->addWidget(configCard);
+    outerCard->contentLayout()->addSpacing(12);
+
+    // ── Inner card 3: 门派主题 ──
+    auto* factionCard = new FluentCard(QString::fromWCharArray(L"\u95e8\u6d3e\u4e3b\u9898"), this);
+    auto* factionRow = new QHBoxLayout();
+    auto* factionLabel = new QLabel(QString::fromWCharArray(L"\u5f53\u524d\u95e8\u6d3e"), this);
+    factionLabel->setFont(Fluent::Typography::body());
+    factionRow->addWidget(factionLabel);
+    factionRow->addStretch();
+    factionCombo_ = new FluentComboBox(this);
+    factionCombo_->setMinimumWidth(120);
+    factionCombo_->setFixedHeight(28);
+    const auto& factions = FactionTheme::instance().factions();
+    for (const auto& f : factions) {
+        factionCombo_->addItem(f.name, f.id);
+    }
+    factionRow->addWidget(factionCombo_);
+    factionCard->contentLayout()->addLayout(factionRow);
+    factionCard->contentLayout()->addSpacing(4);
+    auto* factionDesc = new QLabel(QString::fromWCharArray(L"\u5207\u6362\u95e8\u6d3e\u540e\uff0c\u754c\u9762\u4e3b\u9898\u8272\u548c\u88c5\u9970\u5143\u7d20\u4f1a\u968f\u4e4b\u53d8\u5316"), this);
+    factionDesc->setFont(Fluent::Typography::caption());
+    factionDesc->setWordWrap(true);
+    QPalette fdPal = factionDesc->palette();
+    fdPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    factionDesc->setPalette(fdPal);
+    factionCard->contentLayout()->addWidget(factionDesc);
+    outerCard->contentLayout()->addWidget(factionCard);
 
     outerCard->contentLayout()->addStretch();
     outerLayout->addWidget(outerCard, 1);
@@ -84,11 +113,27 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     connect(openBtn, &QPushButton::clicked, this, &SettingsPage::openConfigFolder);
     connect(changeBtn, &QPushButton::clicked, this, &SettingsPage::changeConfigPath);
     connect(resetBtn, &QPushButton::clicked, this, &SettingsPage::resetConfigPath);
+    connect(factionCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index < 0) return;
+        QString factionId = factionCombo_->itemData(index).toString();
+        emit factionChanged(factionId);
+    });
 }
 
 void SettingsPage::setConfig(const AppConfig&) {}
 void SettingsPage::setHotkeyText(const QString&) {}
 void SettingsPage::setConfigPath(const QString& path) { configPathLabel_->setText(path); }
+
+void SettingsPage::setFaction(const QString& factionId) {
+    factionCombo_->blockSignals(true);
+    for (int i = 0; i < factionCombo_->count(); ++i) {
+        if (factionCombo_->itemData(i).toString() == factionId) {
+            factionCombo_->setCurrentIndex(i);
+            break;
+        }
+    }
+    factionCombo_->blockSignals(false);
+}
 
 bool SettingsPage::eventFilter(QObject* watched, QEvent* event) {
     return QWidget::eventFilter(watched, event);

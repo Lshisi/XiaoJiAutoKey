@@ -1,5 +1,6 @@
 #include "FluentButton.h"
 #include "../styles/DesignTokens.h"
+#include "../../include/FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -77,8 +78,8 @@ void FluentButton::paintEvent(QPaintEvent*) {
 
     switch (style_) {
     case Primary: {
-        QColor base = Fluent::Colors::primary();
-        QColor hover = Fluent::Colors::primaryHover();
+        QColor base = FactionTheme::instance().primaryColor();
+        QColor hover = base.darker(115);
         bgColor = QColor(
             base.red() + (hover.red() - base.red()) * hoverProgress_,
             base.green() + (hover.green() - base.green()) * hoverProgress_,

@@ -1,5 +1,6 @@
 #include "FluentLineEdit.h"
 #include "../styles/DesignTokens.h"
+#include "../../include/FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -57,7 +58,7 @@ void FluentLineEdit::paintEvent(QPaintEvent* event) {
     // Border
     QColor borderColor = Fluent::Colors::border();
     if (focusProgress_ > 0) {
-        QColor focusColor = Fluent::Colors::primary();
+        QColor focusColor = FactionTheme::instance().primaryColor();
         borderColor = QColor(
             borderColor.red() + (focusColor.red() - borderColor.red()) * focusProgress_,
             borderColor.green() + (focusColor.green() - borderColor.green()) * focusProgress_,

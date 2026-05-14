@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QPushButton>
+#include <QLabel>
 #include <QVector>
 
 class FluentNavButton : public QPushButton {
@@ -31,6 +32,7 @@ public:
 
     void addNavItem(const QString& icon, const QString& label, const QString& pageId);
     void setCurrentPage(const QString& pageId);
+    void updateFactionIcon();
 
 signals:
     void pageSelected(const QString& pageId);
@@ -40,5 +42,6 @@ protected:
 
 private:
     QVBoxLayout* navLayout_;
+    QLabel* factionIconLabel_ = nullptr;
     QVector<QPair<FluentNavButton*, QString>> items_;
 };

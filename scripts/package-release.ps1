@@ -25,19 +25,19 @@ $audioDstDir = Join-Path $packageDir "audio"
 
 # Auto update version
 $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
-$cmakeListsContent = Get-Content $cmakeListsPath -Raw -Encoding UTF8
-if ($cmakeListsContent -match 'project\(\s*XiaoJiAutoKey\s+VERSION\s+(\d+)\.(\d+)\.(\d+)\s+LANGUAGES\s+CXX\s*\)') {
-    $major = [int]$matches[1]
-    $minor = [int]$matches[2]
-    $patch = [int]$matches[3] + 1
-    $newVersion = "$major.$minor.$patch"
-    $newContent = $cmakeListsContent -replace 'project\(\s*XiaoJiAutoKey\s+VERSION\s+\d+\.\d+\.\d+\s+LANGUAGES\s+CXX\s*\)', "project(XiaoJiAutoKey VERSION $newVersion LANGUAGES CXX)"
-    Set-Content -LiteralPath $cmakeListsPath -Value $newContent -NoNewline -Encoding UTF8
-    Write-Host "Updated version to $newVersion"
-} else {
-    Write-Warning "Could not find version string in CMakeLists.txt"
-}
-
+# Auto update version (disabled - manual version control)
+# $cmakeListsContent = Get-Content $cmakeListsPath -Raw -Encoding UTF8
+# if ($cmakeListsContent -match 'project\(\s*XiaoJiAutoKey\s+VERSION\s+(\d+)\.(\d+)\.(\d+)\s+LANGUAGES\s+CXX\s*\)') {
+#     $major = [int]$matches[1]
+#     $minor = [int]$matches[2]
+#     $patch = [int]$matches[3] + 1
+#     $newVersion = "$major.$minor.$patch"
+#     $newContent = $cmakeListsContent -replace 'project\(\s*XiaoJiAutoKey\s+VERSION\s+\d+\.\d+\.\d+\s+LANGUAGES\s+CXX\s*\)', "project(XiaoJiAutoKey VERSION $newVersion LANGUAGES CXX)"
+#     Set-Content -LiteralPath $cmakeListsPath -Value $newContent -NoNewline -Encoding UTF8
+#     Write-Host "Updated version to $newVersion"
+# } else {
+#     Write-Warning "Could not find version string in CMakeLists.txt"
+# }
 & $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64
 if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed"

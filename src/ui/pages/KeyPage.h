@@ -23,6 +23,7 @@ public:
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
     void setMixedMode(bool enabled);
+    void updateThemeColors();
     FluentLineEdit* hotkeyEditWidget() const { return hotkeyEdit_; }
 
     // Profile management

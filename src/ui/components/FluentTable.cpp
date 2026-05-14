@@ -22,6 +22,7 @@ void FluentTable::init() {
     horizontalHeader()->setFont(Fluent::Typography::caption());
     horizontalHeader()->setHighlightSections(false);
     horizontalHeader()->setStretchLastSection(false);
+    horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     setStyleSheet(
         "QTableWidget {"

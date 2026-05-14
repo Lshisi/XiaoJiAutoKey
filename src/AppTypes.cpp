@@ -97,7 +97,7 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key) {
 }
 
 std::wstring RepeatModeToText(RepeatMode mode) {
-    return mode == RepeatMode::Toggle ? L"开关模式" : L"按压模式";
+    return mode == RepeatMode::Toggle ? L"开关" : L"按压";
 }
 
 std::wstring DeviceToText(InputDevice device) {

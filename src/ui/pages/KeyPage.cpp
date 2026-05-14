@@ -88,12 +88,10 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     });
     table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
+    table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
     table_->setColumnWidth(0, 50);
-    table_->setColumnWidth(2, 80);
-    table_->setColumnWidth(3, 72);
     table_->setColumnWidth(4, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     table_->setStyleSheet(table_->styleSheet() +
@@ -271,9 +269,15 @@ void KeyPage::refreshTable() {
         hiddenItem->setData(Qt::UserRole, static_cast<qulonglong>(b.id));
         table_->setItem(i, 0, hiddenItem);
 
-        table_->setItem(i, 1, new QTableWidgetItem(QString::fromStdWString(GetKeyDisplayName(b.key))));
-        table_->setItem(i, 2, new QTableWidgetItem(QString::fromStdWString(RepeatModeToText(b.mode))));
-        table_->setItem(i, 3, new QTableWidgetItem(QString::number(b.delayMs)));
+        auto* keyItem = new QTableWidgetItem(QString::fromStdWString(GetKeyDisplayName(b.key)));
+        keyItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        table_->setItem(i, 1, keyItem);
+        auto* modeItem = new QTableWidgetItem(QString::fromStdWString(RepeatModeToText(b.mode)));
+        modeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        table_->setItem(i, 2, modeItem);
+        auto* delayItem = new QTableWidgetItem(QString::number(b.delayMs));
+        delayItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        table_->setItem(i, 3, delayItem);
 
         // Action icons (Segoe MDL2 Assets)
         auto* actionWidget = new QWidget();

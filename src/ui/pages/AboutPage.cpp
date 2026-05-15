@@ -71,6 +71,15 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     copyEmailBtn->setFixedSize(50, 24);
     emailRow->addWidget(copyEmailBtn);
     contactCard->contentLayout()->addLayout(emailRow);
+    auto* groupRow = new QHBoxLayout();
+    groupRow->addWidget(new QLabel(QString::fromWCharArray(L"QQ\u7fa4: "), this));
+    auto* groupLabel = new QLabel("REMOVED", this);
+    groupRow->addWidget(groupLabel);
+    groupRow->addStretch();
+    auto* copyGroupBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), this);
+    copyGroupBtn->setFixedSize(50, 24);
+    groupRow->addWidget(copyGroupBtn);
+    contactCard->contentLayout()->addLayout(groupRow);
     outerCard->contentLayout()->addWidget(contactCard);
     outerCard->contentLayout()->addSpacing(12);
 
@@ -93,4 +102,5 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
 
     connect(copyQqBtn, &QPushButton::clicked, [qqLabel]() { QApplication::clipboard()->setText(qqLabel->text()); });
     connect(copyEmailBtn, &QPushButton::clicked, [emailLabel]() { QApplication::clipboard()->setText(emailLabel->text()); });
+    connect(copyGroupBtn, &QPushButton::clicked, [groupLabel]() { QApplication::clipboard()->setText(groupLabel->text()); });
 }

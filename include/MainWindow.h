@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 #include "ConfigStore.h"
 #include "DdDriver.h"
+#include "MacroEngine.h"
 #include "ProfileManager.h"
 #include "RepeaterEngine.h"
 
@@ -23,6 +24,7 @@
 
 class FluentSidebar;
 class KeyPage;
+class MacroPage;
 class SettingsPage;
 class AboutPage;
 
@@ -58,6 +60,19 @@ private slots:
     void onProfileRename();
     void onProfileDelete();
 
+    // Macro management
+    void onMacroSwitched(quint64 macroId);
+    void onMacroAdd();
+    void onMacroRename();
+    void onMacroDelete();
+    void onMacroAddStep();
+    void onMacroEditStep(int stepIndex);
+    void onMacroDeleteStep(int stepIndex);
+    void onMacroHotkeyEditClicked();
+    void onMacroStartStopClicked();
+    void onMacroModeChanged(int modeIndex);
+    void onMacroLoopCountChanged(int count);
+
 signals:
     void capturedKey(quint64 encodedKey);
     void holdStateChanged();
@@ -65,7 +80,7 @@ signals:
 
 private:
     struct CaptureRequest {
-        enum class Target { MainHotkey, EditDialogKey };
+        enum class Target { MainHotkey, EditDialogKey, MacroHotkey };
         Target target = Target::MainHotkey;
     };
 
@@ -94,9 +109,14 @@ private:
     void onCapturedKeyInternal(const KeyDescriptor& key);
     void refreshHookState();
     void refreshAllPages();
+    void refreshMacroPage();
     void navigateTo(const QString& pageId);
     void switchToProfile(std::uint64_t profileId);
     void refreshProfileCombo();
+    void applyMacrosToEngine();
+    MacroConfig* findActiveMacro();
+    void loadMacros();
+    void saveMacros();
 
     static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK MouseHookProc(int code, WPARAM wParam, LPARAM lParam);
@@ -105,6 +125,7 @@ private:
     FluentSidebar* sidebar_;
     QStackedWidget* pageStack_;
     KeyPage* keyPage_;
+    MacroPage* macroPage_;
     SettingsPage* settingsPage_;
     AboutPage* aboutPage_;
 
@@ -117,13 +138,17 @@ private:
 
     // Core
     std::filesystem::path exeDir_;
+    std::filesystem::path macroConfigPath_;
     ProfileManager profileManager_;
     ConfigStore configStore_;
     AppConfig config_;
     std::uint64_t nextBindingId_ = 1;
+    std::uint64_t nextMacroId_ = 1;
+    std::uint64_t activeMacroId_ = 0;
 
     DdDriver driver_;
     RepeaterEngine engine_;
+    MacroEngine macroEngine_;
 
     std::optional<CaptureRequest> captureRequest_;
 

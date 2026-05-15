@@ -1,6 +1,7 @@
-﻿#include "MainWindow.h"
+#include "MainWindow.h"
 
 #include "FactionTheme.h"
+#include "MacroEngine.h"
 #include "ui/components/FluentSidebar.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentCard.h"
@@ -8,6 +9,7 @@
 #include "ui/components/FluentComboBox.h"
 #include "ui/components/FluentSwitch.h"
 #include "ui/pages/KeyPage.h"
+#include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/styles/DesignTokens.h"
@@ -27,6 +29,7 @@
 #include <QCheckBox>
 #include <QPainter>
 #include <QInputDialog>
+#include <QTimer>
 #include <shlwapi.h>
 #include <ShlObj.h>
 #include <mmsystem.h>
@@ -77,9 +80,11 @@ bool IsMouseUpMessage(WPARAM wParam) {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       exeDir_(getExeDir()),
+      macroConfigPath_(getDefaultConfigPath().parent_path() / L"macros.json"),
       profileManager_(getDefaultConfigPath().parent_path()),
       configStore_(getDefaultConfigPath()),
-      engine_(driver_) {
+      engine_(driver_),
+      macroEngine_(driver_) {
     g_mainWindow = this;
     profileManager_.Load();
     if (auto* active = profileManager_.ActiveProfile()) {
@@ -91,6 +96,7 @@ MainWindow::~MainWindow() {
     if (hookThreadId_ != 0) PostThreadMessageW(hookThreadId_, WM_QUIT, 0, 0);
     if (hookThread_.joinable()) hookThread_.join();
     engine_.StopThread();
+    macroEngine_.StopThread();
     if (g_mainWindow == this) g_mainWindow = nullptr;
 }
 
@@ -114,7 +120,10 @@ bool MainWindow::Initialize() {
         return false;
     }
     engine_.StartThread();
+    macroEngine_.StartThread();
+    loadMacros();
     applyBindingsToEngine();
+    applyMacrosToEngine();
     refreshAllPages();
     return true;
 }
@@ -140,7 +149,8 @@ void MainWindow::setupUi() {
     bodyLayout->setSpacing(0);
 
     sidebar_ = new FluentSidebar(this);
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u7ba1\u7406"), "keys");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u21BB"), QString::fromWCharArray(L"\u5b8f\u8bbe\u7f6e"), "macro");
     sidebar_->addNavItem(QString::fromWCharArray(L"\u2699"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
     sidebar_->addNavItem(QString::fromWCharArray(L"\u2139"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
     sidebar_->setCurrentPage("keys");
@@ -149,10 +159,12 @@ void MainWindow::setupUi() {
     // Page stack
     pageStack_ = new QStackedWidget(this);
     keyPage_ = new KeyPage(this);
+    macroPage_ = new MacroPage(this);
     settingsPage_ = new SettingsPage(this);
     aboutPage_ = new AboutPage(this);
 
     pageStack_->addWidget(keyPage_);
+    pageStack_->addWidget(macroPage_);
     pageStack_->addWidget(settingsPage_);
     pageStack_->addWidget(aboutPage_);
     pageStack_->setCurrentWidget(keyPage_);
@@ -160,7 +172,7 @@ void MainWindow::setupUi() {
 
     rootLayout->addLayout(bodyLayout, 1);
 
-    // ── Bottom status bar ──
+    // ���� Bottom status bar ����
     auto* statusBar = new QWidget(this);
     statusBar->setFixedHeight(24);
     statusBar->setStyleSheet("background: #F5F7FA; border-top: 1px solid rgba(0,0,0,0.08);");
@@ -197,6 +209,19 @@ void MainWindow::setupUi() {
     connect(keyPage_, &KeyPage::profileAddRequested, this, &MainWindow::onProfileAdd);
     connect(keyPage_, &KeyPage::profileRenameRequested, this, &MainWindow::onProfileRename);
     connect(keyPage_, &KeyPage::profileDeleteRequested, this, &MainWindow::onProfileDelete);
+
+    // MacroPage signals
+    connect(macroPage_, &MacroPage::macroSwitched, this, &MainWindow::onMacroSwitched);
+    connect(macroPage_, &MacroPage::macroAddRequested, this, &MainWindow::onMacroAdd);
+    connect(macroPage_, &MacroPage::macroRenameRequested, this, &MainWindow::onMacroRename);
+    connect(macroPage_, &MacroPage::macroDeleteRequested, this, &MainWindow::onMacroDelete);
+    connect(macroPage_, &MacroPage::addStepRequested, this, &MainWindow::onMacroAddStep);
+    connect(macroPage_, &MacroPage::editStepRequested, this, &MainWindow::onMacroEditStep);
+    connect(macroPage_, &MacroPage::deleteStepRequested, this, &MainWindow::onMacroDeleteStep);
+    connect(macroPage_, &MacroPage::startStopClicked, this, &MainWindow::onMacroStartStopClicked);
+    connect(macroPage_, &MacroPage::hotkeyEditClicked, this, &MainWindow::onMacroHotkeyEditClicked);
+    connect(macroPage_, &MacroPage::modeChanged, this, &MainWindow::onMacroModeChanged);
+    connect(macroPage_, &MacroPage::loopCountChanged, this, &MainWindow::onMacroLoopCountChanged);
 
     // SettingsPage signals
     connect(settingsPage_, &SettingsPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
@@ -243,7 +268,7 @@ void MainWindow::setupUi() {
     connect(settingsPage_, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         config_.faction = factionId.toStdString();
         FactionTheme::instance().setCurrent(factionId);
-        saveConfig();
+        saveMacros();  // faction is global, stored with macros
         // Force repaint of themed widgets
         sidebar_->updateFactionIcon();
         sidebar_->update();
@@ -257,6 +282,17 @@ void MainWindow::setupUi() {
     connect(this, &MainWindow::capturedKey, this, &MainWindow::handleCapturedKey);
     connect(this, &MainWindow::holdStateChanged, this, &MainWindow::updateStatusText);
     connect(this, &MainWindow::toolStateChanged, this, &MainWindow::handleToolStateChanged);
+
+    // Macro state polling timer
+    auto* macroStateTimer = new QTimer(this);
+    connect(macroStateTimer, &QTimer::timeout, this, [this]() {
+        auto* macro = findActiveMacro();
+        if (macro) {
+            bool running = macroEngine_.IsRunning(macro->id);
+            macroPage_->setRunning(running);
+        }
+    });
+    macroStateTimer->start(100);
 
     // System tray
     trayIcon_ = new QSystemTrayIcon(QIcon(":/assets/icon.png"), this);
@@ -276,6 +312,7 @@ void MainWindow::setupUi() {
 
 void MainWindow::navigateTo(const QString& pageId) {
     if (pageId == "keys") pageStack_->setCurrentWidget(keyPage_);
+    else if (pageId == "macro") pageStack_->setCurrentWidget(macroPage_);
     else if (pageId == "settings") pageStack_->setCurrentWidget(settingsPage_);
     else if (pageId == "about") pageStack_->setCurrentWidget(aboutPage_);
 }
@@ -295,6 +332,8 @@ void MainWindow::refreshAllPages() {
     keyPage_->setMixedMode(config_.mixedMode);
     keyPage_->updateThemeColors();
     refreshProfileCombo();
+    refreshMacroPage();
+    macroPage_->updateThemeColors();
     settingsPage_->setConfig(config_);
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
@@ -329,7 +368,12 @@ void MainWindow::runHookLoop() {
 }
 
 void MainWindow::loadConfig() {
+    auto savedFaction = config_.faction;  // Preserve global faction
     config_ = configStore_.Load();
+    // Clear macros from profile config (they are stored separately)
+    config_.macros.clear();
+    // Restore global faction (not per-profile)
+    config_.faction = savedFaction;
     nextBindingId_ = 1;
     for (auto& binding : config_.bindings) {
         if (binding.id == 0) { binding.id = nextBindingId_++; continue; }
@@ -343,6 +387,49 @@ void MainWindow::saveConfig() {
     if (!configStore_.Save(config_, error)) {
         QMessageBox::warning(this, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
     }
+}
+
+void MainWindow::loadMacros() {
+    config_.macros.clear();
+    nextMacroId_ = 1;
+
+    if (std::filesystem::exists(macroConfigPath_)) {
+        ConfigStore macroStore(macroConfigPath_);
+        AppConfig macroConfig = macroStore.Load();
+        config_.macros = std::move(macroConfig.macros);
+        // Load global faction from this file
+        if (!macroConfig.faction.empty() && macroConfig.faction != "none") {
+            config_.faction = macroConfig.faction;
+        }
+    }
+
+    for (auto& macro : config_.macros) {
+        if (macro.id == 0) { macro.id = nextMacroId_++; continue; }
+        nextMacroId_ = std::max(nextMacroId_, macro.id + 1);
+    }
+
+    if (config_.macros.empty()) {
+        MacroConfig defaultMacro;
+        defaultMacro.id = nextMacroId_++;
+        defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
+        defaultMacro.enabled = true;
+        config_.macros.push_back(defaultMacro);
+    }
+
+    if (activeMacroId_ == 0 || std::none_of(config_.macros.begin(), config_.macros.end(),
+        [this](const MacroConfig& m) { return m.id == activeMacroId_; })) {
+        activeMacroId_ = config_.macros.front().id;
+    }
+}
+
+void MainWindow::saveMacros() {
+    // Save macros + global faction to the dedicated file
+    AppConfig macroOnly;
+    macroOnly.macros = config_.macros;
+    macroOnly.faction = config_.faction;
+    ConfigStore macroStore(macroConfigPath_);
+    std::wstring error;
+    macroStore.Save(macroOnly, error);
 }
 
 void MainWindow::applyBindingsToEngine() {
@@ -459,7 +546,7 @@ void MainWindow::onMixedModeToggled(bool enabled) {
     saveConfig();
 }
 
-// ── Profile Management ──────────────────────────────────────────────────────
+// ���� Profile Management ������������������������������������������������������������������������������������������������������������
 
 void MainWindow::onProfileSwitched(quint64 profileId) {
     if (profileId == profileManager_.ActiveId()) return;
@@ -520,18 +607,60 @@ void MainWindow::onProfileDelete() {
 }
 
 void MainWindow::switchToProfile(std::uint64_t profileId) {
+    if (profileId == profileManager_.ActiveId()) return;
+
     // Stop engine before switching
     if (engine_.IsToolRunning()) {
         setToolRunning(false);
     }
 
-    profileManager_.SetActive(profileId);
-    auto* profile = profileManager_.ActiveProfile();
-    if (!profile) return;
+    // Load the target profile's config to check for conflicts BEFORE switching
+    auto* targetProfile = profileManager_.FindById(profileId);
+    if (!targetProfile) return;
 
-    configStore_.SetPath(profile->configPath);
+    ConfigStore targetStore(targetProfile->configPath);
+    AppConfig targetConfig = targetStore.Load();
+
+    // Check for conflicts between target profile and ACTIVE macro only
+    QString conflicts;
+    auto* activeMacro = findActiveMacro();
+    if (activeMacro && activeMacro->triggerKey.has_value()) {
+        const auto& macroKey = *activeMacro->triggerKey;
+        if (targetConfig.controlHotkey.has_value() && *targetConfig.controlHotkey == macroKey) {
+            conflicts += QString::fromWCharArray(L"\u8fde\u53d1\u542f\u505c\u952e\u201c") +
+                QString::fromStdWString(GetKeyDisplayName(*targetConfig.controlHotkey)) +
+                QString::fromWCharArray(L"\u201d\u4e0e\u5b8f\u201c") +
+                QString::fromStdWString(activeMacro->name) +
+                QString::fromWCharArray(L"\u201d\u7684\u542f\u505c\u952e\u51b2\u7a81\n");
+        }
+        for (const auto& b : targetConfig.bindings) {
+            if (b.key == macroKey) {
+                conflicts += QString::fromWCharArray(L"\u8fde\u53d1\u6309\u952e\u201c") +
+                    QString::fromStdWString(GetKeyDisplayName(b.key)) +
+                    QString::fromWCharArray(L"\u201d\u4e0e\u5b8f\u201c") +
+                    QString::fromStdWString(activeMacro->name) +
+                    QString::fromWCharArray(L"\u201d\u7684\u542f\u505c\u952e\u51b2\u7a81\n");
+            }
+        }
+    }
+    if (!conflicts.isEmpty()) {
+        QMessageBox::warning(this, QString::fromWCharArray(L"\u65e0\u6cd5\u5207\u6362"),
+            QString::fromWCharArray(L"\u76ee\u6807\u914d\u7f6e\u4e0e\u5f53\u524d\u5b8f\u8bbe\u7f6e\u5b58\u5728\u51b2\u7a81\uff0c\u8bf7\u5148\u8c03\u6574\uff1a\n\n") + conflicts);
+        // Revert combo selection
+        refreshProfileCombo();
+        return;
+    }
+
+    // No conflicts, proceed with switch
+    profileManager_.SetActive(profileId);
+
+    auto savedMacros = std::move(config_.macros);
+    configStore_.SetPath(targetProfile->configPath);
     loadConfig();
+    config_.macros = std::move(savedMacros);
+
     applyBindingsToEngine();
+    applyMacrosToEngine();
     refreshAllPages();
 }
 
@@ -541,6 +670,337 @@ void MainWindow::refreshProfileCombo() {
         profiles.emplace_back(p.id, QString::fromStdWString(p.name));
     }
     keyPage_->setProfiles(profiles, profileManager_.ActiveId());
+}
+
+// ���� Macro Management ����������������������������������������������������������������������������������������������������������������
+
+void MainWindow::applyMacrosToEngine() {
+    macroEngine_.UpdateMacros(config_.macros);
+}
+
+MacroConfig* MainWindow::findActiveMacro() {
+    for (auto& m : config_.macros) {
+        if (m.id == activeMacroId_) return &m;
+    }
+    return nullptr;
+}
+
+void MainWindow::refreshMacroPage() {
+    std::vector<std::pair<std::uint64_t, QString>> macroList;
+    for (const auto& m : config_.macros) {
+        macroList.emplace_back(m.id, QString::fromStdWString(m.name));
+    }
+    macroPage_->setMacroProfiles(macroList, activeMacroId_);
+
+    if (auto* macro = findActiveMacro()) {
+        macroPage_->setSteps(macro->steps);
+        macroPage_->setMode(macro->triggerMode);
+        macroPage_->setLoopCount(macro->loopCount);
+        QString hotkeyText = macro->triggerKey.has_value()
+            ? QString::fromStdWString(GetKeyDisplayName(*macro->triggerKey))
+            : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e");
+        macroPage_->setHotkeyText(hotkeyText);
+    } else {
+        macroPage_->setSteps({});
+        macroPage_->setMode(MacroTriggerMode::Toggle);
+        macroPage_->setLoopCount(0);
+        macroPage_->setHotkeyText(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
+    }
+}
+
+void MainWindow::onMacroSwitched(quint64 macroId) {
+    if (macroId == activeMacroId_) return;
+    activeMacroId_ = macroId;
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroAdd() {
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+        QString::fromWCharArray(L"\u65b0\u5efa\u5b8f"),
+        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5b8f\u540d\u79f0:"),
+        QLineEdit::Normal, QString(), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    MacroConfig macro;
+    macro.id = nextMacroId_++;
+    macro.name = name.trimmed().toStdWString();
+    macro.enabled = true;
+    config_.macros.push_back(macro);
+    activeMacroId_ = macro.id;
+    applyMacrosToEngine();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroRename() {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+        QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f"),
+        QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
+        QLineEdit::Normal, QString::fromStdWString(macro->name), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    macro->name = name.trimmed().toStdWString();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroDelete() {
+    if (config_.macros.size() <= 1) {
+        QMessageBox::information(this,
+            QString::fromWCharArray(L"\u65e0\u6cd5\u5220\u9664"),
+            QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u5b8f\u914d\u7f6e\u3002"));
+        return;
+    }
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+
+    auto result = QMessageBox::question(this,
+        QString::fromWCharArray(L"\u5220\u9664\u5b8f"),
+        QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u5b8f\u201c") +
+            QString::fromStdWString(macro->name) +
+            QString::fromWCharArray(L"\u201d\u5417\uff1f"),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (result != QMessageBox::Yes) return;
+
+    config_.macros.erase(
+        std::remove_if(config_.macros.begin(), config_.macros.end(),
+            [this](const MacroConfig& m) { return m.id == activeMacroId_; }),
+        config_.macros.end());
+    activeMacroId_ = config_.macros.empty() ? 0 : config_.macros.front().id;
+    applyMacrosToEngine();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroAddStep() {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QString::fromWCharArray(L"\u6dfb\u52a0\u6b65\u9aa4"));
+    dialog.setFixedSize(360, 180);
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    dialog.setStyleSheet("QDialog { background: #FFFFFF; }");
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(24, 20, 24, 16);
+    layout->setSpacing(12);
+
+    auto* keyRow = new QHBoxLayout();
+    auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), &dialog);
+    keyLabel->setFont(Fluent::Typography::body());
+    keyLabel->setFixedWidth(70);
+    keyRow->addWidget(keyLabel);
+    auto* keyEdit = new FluentLineEdit(&dialog);
+    keyEdit->setReadOnly(true);
+    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyRow->addWidget(keyEdit);
+    layout->addLayout(keyRow);
+
+    auto* delayRow = new QHBoxLayout();
+    auto* delayLabel = new QLabel(QString::fromWCharArray(L"\u95f4\u9694(ms):"), &dialog);
+    delayLabel->setFont(Fluent::Typography::body());
+    delayLabel->setFixedWidth(70);
+    delayRow->addWidget(delayLabel);
+    auto* delayEdit = new FluentLineEdit(&dialog);
+    delayEdit->setText("50");
+    delayRow->addWidget(delayEdit);
+    layout->addLayout(delayRow);
+
+    layout->addStretch();
+
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), &dialog);
+    cancelBtn->setFixedWidth(80);
+    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), &dialog);
+    okBtn->setFixedWidth(80);
+    btnRow->addWidget(cancelBtn);
+    btnRow->addSpacing(8);
+    btnRow->addWidget(okBtn);
+    layout->addLayout(btnRow);
+
+    KeyDescriptor capturedKey{};
+    auto* prevEditKeyBox = editKeyBox_;
+    editKeyBox_ = keyEdit;
+    keyEdit->installEventFilter(this);
+
+    auto captureConn = connect(this, &MainWindow::capturedKey, &dialog, [&](quint64 encodedKey) {
+        KeyDescriptor k = DecodeKey(encodedKey);
+        if (k.device == InputDevice::Mouse && (k.code == VK_LBUTTON || k.code == VK_RBUTTON)) {
+            keyEdit->setText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+            return;  // reject left/right mouse
+        }
+        capturedKey = k;
+        keyEdit->setText(QString::fromStdWString(GetKeyDisplayName(capturedKey)));
+        captureRequest_.reset();
+        refreshHookState();
+    });
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, &dialog, [&]() {
+        if (!capturedKey.IsValid()) {
+            QMessageBox::warning(&dialog, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u3002"));
+            return;
+        }
+        bool ok = false;
+        int delay = delayEdit->text().toInt(&ok);
+        if (!ok || delay <= 0) delay = 50;
+        macro->steps.push_back({capturedKey, delay});
+        dialog.accept();
+    });
+
+    dialog.exec();
+    disconnect(captureConn);
+    editKeyBox_ = prevEditKeyBox;
+    captureRequest_.reset();
+    refreshHookState();
+
+    applyMacrosToEngine();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroEditStep(int stepIndex) {
+    auto* macro = findActiveMacro();
+    if (!macro || stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) return;
+    auto& step = macro->steps[stepIndex];
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4"));
+    dialog.setFixedSize(360, 180);
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    dialog.setStyleSheet("QDialog { background: #FFFFFF; }");
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(24, 20, 24, 16);
+    layout->setSpacing(12);
+
+    auto* keyRow = new QHBoxLayout();
+    auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), &dialog);
+    keyLabel->setFont(Fluent::Typography::body());
+    keyLabel->setFixedWidth(70);
+    keyRow->addWidget(keyLabel);
+    auto* keyEdit = new FluentLineEdit(&dialog);
+    keyEdit->setReadOnly(true);
+    keyEdit->setText(QString::fromStdWString(GetKeyDisplayName(step.key)));
+    keyRow->addWidget(keyEdit);
+    layout->addLayout(keyRow);
+
+    auto* delayRow = new QHBoxLayout();
+    auto* delayLabel = new QLabel(QString::fromWCharArray(L"\u95f4\u9694(ms):"), &dialog);
+    delayLabel->setFont(Fluent::Typography::body());
+    delayLabel->setFixedWidth(70);
+    delayRow->addWidget(delayLabel);
+    auto* delayEdit = new FluentLineEdit(&dialog);
+    delayEdit->setText(QString::number(step.delayAfterMs));
+    delayRow->addWidget(delayEdit);
+    layout->addLayout(delayRow);
+
+    layout->addStretch();
+
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), &dialog);
+    cancelBtn->setFixedWidth(80);
+    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), &dialog);
+    okBtn->setFixedWidth(80);
+    btnRow->addWidget(cancelBtn);
+    btnRow->addSpacing(8);
+    btnRow->addWidget(okBtn);
+    layout->addLayout(btnRow);
+
+    KeyDescriptor capturedKey = step.key;
+    auto* prevEditKeyBox = editKeyBox_;
+    editKeyBox_ = keyEdit;
+    keyEdit->installEventFilter(this);
+
+    auto captureConn = connect(this, &MainWindow::capturedKey, &dialog, [&](quint64 encodedKey) {
+        KeyDescriptor k = DecodeKey(encodedKey);
+        if (k.device == InputDevice::Mouse && (k.code == VK_LBUTTON || k.code == VK_RBUTTON)) {
+            keyEdit->setText(QString::fromStdWString(GetKeyDisplayName(capturedKey)));
+            return;  // reject left/right mouse
+        }
+        capturedKey = k;
+        keyEdit->setText(QString::fromStdWString(GetKeyDisplayName(capturedKey)));
+        captureRequest_.reset();
+        refreshHookState();
+    });
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, &dialog, [&]() {
+        if (!capturedKey.IsValid()) return;
+        bool ok = false;
+        int delay = delayEdit->text().toInt(&ok);
+        if (!ok || delay <= 0) delay = 50;
+        step.key = capturedKey;
+        step.delayAfterMs = delay;
+        dialog.accept();
+    });
+
+    dialog.exec();
+    disconnect(captureConn);
+    editKeyBox_ = prevEditKeyBox;
+    captureRequest_.reset();
+    refreshHookState();
+
+    applyMacrosToEngine();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroDeleteStep(int stepIndex) {
+    auto* macro = findActiveMacro();
+    if (!macro || stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) return;
+    macro->steps.erase(macro->steps.begin() + stepIndex);
+    applyMacrosToEngine();
+    saveMacros();
+    refreshMacroPage();
+}
+
+void MainWindow::onMacroStartStopClicked() {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+
+    bool isRunning = macroEngine_.IsRunning(macro->id);
+    if (isRunning) {
+        macroEngine_.StopAll();
+    } else {
+        // Simulate trigger down to start the macro
+        if (macro->triggerKey.has_value()) {
+            macroEngine_.OnTriggerDown(*macro->triggerKey);
+        }
+    }
+    macroPage_->setRunning(!isRunning);
+}
+
+void MainWindow::onMacroHotkeyEditClicked() {
+    captureRequest_ = CaptureRequest{CaptureRequest::Target::MacroHotkey};
+    refreshHookState();
+    { std::lock_guard lock(hookStateMutex_); hookCaptureStartedTick_ = GetTickCount64(); }
+    macroPage_->setHotkeyText(QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+}
+
+void MainWindow::onMacroModeChanged(int modeIndex) {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+    macro->triggerMode = modeIndex == 1 ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
+    applyMacrosToEngine();
+    saveMacros();
+}
+
+void MainWindow::onMacroLoopCountChanged(int count) {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+    macro->loopCount = count;
+    applyMacrosToEngine();
+    saveMacros();
 }
 
 void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
@@ -656,6 +1116,17 @@ void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
                 QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
             return;
         }
+        // Check conflict with active macro's trigger key
+        {
+            auto* activeMacro = findActiveMacro();
+            if (activeMacro && activeMacro->triggerKey.has_value() && *activeMacro->triggerKey == currentEditKey_) {
+                QMessageBox::warning(dialog, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u201c") +
+                    QString::fromStdWString(activeMacro->name) +
+                    QString::fromWCharArray(L"\u201d\u7684\u542f\u505c\u5feb\u6377\u952e\u4f7f\u7528\u3002"));
+                return;
+            }
+        }
         for (const auto& b : config_.bindings) {
             if (b.key == currentEditKey_) {
                 if (editingExisting_ && b.id == editBindingId_) continue;
@@ -709,19 +1180,55 @@ void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
             QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u65e0\u6548"),
                 QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
         } else {
+            // Check conflict with repeater bindings
             bool conflict = std::any_of(config_.bindings.begin(), config_.bindings.end(),
                 [&](const KeyBinding& b) { return b.key == key; });
             if (conflict) {
                 QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
                     QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b\u6309\u952e\u3002"));
             } else {
-                config_.controlHotkey = key;
-                saveConfig();
-                refreshHookState();
+                // Check conflict with active macro's trigger key only
+                auto* activeMacro = findActiveMacro();
+                if (activeMacro && activeMacro->triggerKey.has_value() && *activeMacro->triggerKey == key) {
+                    QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                        QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u201c") +
+                        QString::fromStdWString(activeMacro->name) +
+                        QString::fromWCharArray(L"\u201d\u7684\u542f\u505c\u5feb\u6377\u952e\u4f7f\u7528\u3002"));
+                } else {
+                    config_.controlHotkey = key;
+                    saveConfig();
+                    refreshHookState();
+                }
             }
         }
         updateHotkeyText();
         refreshAllPages();
+    } else if (captureRequest_->target == CaptureRequest::Target::MacroHotkey) {
+        captureRequest_.reset();
+        refreshHookState();
+        if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u65e0\u6548"),
+                QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
+        } else if (config_.controlHotkey.has_value() && *config_.controlHotkey == key) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u8fde\u53d1\u542f\u505c\u5feb\u6377\u952e\u3002"));
+        } else {
+            // Check conflict with repeater bindings
+            bool bindingConflict = std::any_of(config_.bindings.begin(), config_.bindings.end(),
+                [&](const KeyBinding& b) { return b.key == key; });
+            if (bindingConflict) {
+                QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b\u6309\u952e\u3002"));
+            } else {
+                auto* activeMacro = findActiveMacro();
+                if (activeMacro) {
+                    activeMacro->triggerKey = key;
+                    applyMacrosToEngine();
+                    saveMacros();
+                }
+            }
+        }
+        refreshMacroPage();
     } else {
         currentEditKey_ = key;
         if (editKeyBox_) editKeyBox_->setText(QString::fromStdWString(GetKeyDisplayName(key)));
@@ -845,7 +1352,7 @@ void MainWindow::saveDefaultConfigPointer() const {
     else { std::wofstream ofs(pointerFile, std::ios::trunc); ofs << config_.customConfigPath; }
 }
 
-// ── Hook Procedures ─────────────────────────────────────────────────────────
+// ���� Hook Procedures ������������������������������������������������������������������������������������������������������������������
 
 LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam) {
     if (code < 0 || !g_mainWindow) return CallNextHookEx(nullptr, code, wParam, lParam);
@@ -863,7 +1370,7 @@ LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lP
 
     if (captureActive && pressed) {
         auto enc = EncodeKey(key);
-        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { w->handleCapturedKey(enc); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { emit w->capturedKey(enc); }, Qt::QueuedConnection);
         return 1;
     }
     const bool isCtrl = controlHotkey.has_value() && *controlHotkey == key;
@@ -875,6 +1382,9 @@ LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lP
         } else if (released) g_mainWindow->controlHotkeyPressed_ = false;
     }
     if (toolRunning) { if (pressed) g_mainWindow->engine_.OnPhysicalDown(key); else if (released) g_mainWindow->engine_.OnPhysicalUp(key); }
+    // Macro trigger keys (always active regardless of toolRunning)
+    if (pressed) g_mainWindow->macroEngine_.OnTriggerDown(key);
+    else if (released) g_mainWindow->macroEngine_.OnTriggerUp(key);
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
@@ -897,7 +1407,7 @@ LRESULT CALLBACK MainWindow::MouseHookProc(int code, WPARAM wParam, LPARAM lPara
     if (captureActive && pressed) {
         if (GetTickCount64() - captureStartedTick < 150) return CallNextHookEx(nullptr, code, wParam, lParam);
         auto enc = EncodeKey(key);
-        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { w->handleCapturedKey(enc); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { emit w->capturedKey(enc); }, Qt::QueuedConnection);
         return 1;
     }
     const bool isCtrl = controlHotkey.has_value() && *controlHotkey == key;
@@ -909,5 +1419,8 @@ LRESULT CALLBACK MainWindow::MouseHookProc(int code, WPARAM wParam, LPARAM lPara
         } else if (released) g_mainWindow->controlHotkeyPressed_ = false;
     }
     if (toolRunning) { if (pressed) g_mainWindow->engine_.OnPhysicalDown(key); else if (released) g_mainWindow->engine_.OnPhysicalUp(key); }
+    // Macro trigger keys (always active regardless of toolRunning)
+    if (pressed) g_mainWindow->macroEngine_.OnTriggerDown(key);
+    else if (released) g_mainWindow->macroEngine_.OnTriggerUp(key);
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }

@@ -46,6 +46,27 @@ enum class CloseAction {
     Exit,       // 直接退出
 };
 
+// ── 宏相关类型 ─────────────────────────────────
+enum class MacroTriggerMode {
+    Toggle,     // 按一次开始，再按一次停止
+    Hold,       // 按住执行，松开停止
+};
+
+struct MacroStep {
+    KeyDescriptor key;
+    int delayAfterMs = 50;  // 该步骤执行后的等待时间(ms)
+};
+
+struct MacroConfig {
+    std::uint64_t id = 0;
+    std::wstring name;                          // 宏名称
+    std::vector<MacroStep> steps;               // 按键序列
+    MacroTriggerMode triggerMode = MacroTriggerMode::Toggle;
+    std::optional<KeyDescriptor> triggerKey;     // 触发/启停快捷键
+    int loopCount = 0;                          // 0 = 无限循环
+    bool enabled = true;
+};
+
 struct AppConfig {
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = 10;
@@ -55,6 +76,7 @@ struct AppConfig {
     std::wstring customConfigPath;  // 空表示使用默认路径
     std::string faction = "none";   // 门派主题ID
     std::vector<KeyBinding> bindings;
+    std::vector<MacroConfig> macros;
 };
 
 std::wstring ToWide(const std::string& text);

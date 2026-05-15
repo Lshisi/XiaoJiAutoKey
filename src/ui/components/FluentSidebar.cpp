@@ -59,7 +59,7 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
     }
 
     // Icon
-    QFont iconFont("Segoe UI", 9);
+    QFont iconFont("Segoe UI", 11);
     p.setFont(iconFont);
     p.setPen(active_ ? FactionTheme::instance().primaryColor() : Fluent::Colors::textSecondary());
     p.drawText(QRectF(r.left() + 10, r.top(), 20, r.height()), Qt::AlignCenter, icon_);

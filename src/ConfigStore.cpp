@@ -116,37 +116,86 @@ AppConfig ConfigStore::Load() const {
     }
 
     const auto bindingsIt = object->find("bindings");
-    if (bindingsIt == object->end()) {
-        return config;
+    if (bindingsIt != object->end()) {
+        const auto* bindings = bindingsIt->second.AsArray();
+        if (bindings != nullptr) {
+            for (const auto& item : *bindings) {
+                const auto* entry = item.AsObject();
+                if (entry == nullptr) {
+                    continue;
+                }
+
+                const auto keyText = GetStringField(*entry, "key");
+                const auto key = keyText.has_value() ? StorageToKeyDescriptor(ToWide(*keyText)) : std::nullopt;
+                const auto delay = GetIntField(*entry, "delayMs");
+                if (!key.has_value() || !delay.has_value() || *delay <= 0) {
+                    continue;
+                }
+
+                KeyBinding binding;
+                binding.id = GetUInt64Field(*entry, "id").value_or(0);
+                binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
+                binding.key = *key;
+                binding.delayMs = *delay;
+
+                const auto mode = GetStringField(*entry, "mode").value_or("toggle");
+                binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
+                config.bindings.push_back(binding);
+            }
+        }
     }
 
-    const auto* bindings = bindingsIt->second.AsArray();
-    if (bindings == nullptr) {
-        return config;
-    }
+    // Load macros
+    const auto macrosIt = object->find("macros");
+    if (macrosIt != object->end()) {
+        const auto* macros = macrosIt->second.AsArray();
+        if (macros != nullptr) {
+            for (const auto& item : *macros) {
+                const auto* entry = item.AsObject();
+                if (entry == nullptr) continue;
 
-    for (const auto& item : *bindings) {
-        const auto* entry = item.AsObject();
-        if (entry == nullptr) {
-            continue;
+                MacroConfig macro;
+                macro.id = GetUInt64Field(*entry, "id").value_or(0);
+                macro.enabled = GetBoolField(*entry, "enabled").value_or(true);
+
+                if (auto name = GetStringField(*entry, "name")) {
+                    macro.name = ToWide(*name);
+                }
+
+                auto modeStr = GetStringField(*entry, "triggerMode").value_or("toggle");
+                macro.triggerMode = (modeStr == "hold") ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
+
+                if (auto triggerText = GetStringField(*entry, "triggerKey")) {
+                    macro.triggerKey = StorageToKeyDescriptor(ToWide(*triggerText));
+                }
+
+                macro.loopCount = GetIntField(*entry, "loopCount").value_or(0);
+
+                // Load steps
+                auto stepsIt = entry->find("steps");
+                if (stepsIt != entry->end()) {
+                    if (auto* stepsArr = stepsIt->second.AsArray()) {
+                        for (const auto& stepItem : *stepsArr) {
+                            if (auto* stepObj = stepItem.AsObject()) {
+                                MacroStep step;
+                                if (auto keyText = GetStringField(*stepObj, "key")) {
+                                    auto k = StorageToKeyDescriptor(ToWide(*keyText));
+                                    if (k.has_value()) step.key = *k;
+                                }
+                                step.delayAfterMs = GetIntField(*stepObj, "delayAfterMs").value_or(50);
+                                if (step.key.IsValid()) {
+                                    macro.steps.push_back(step);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!macro.name.empty()) {
+                    config.macros.push_back(std::move(macro));
+                }
+            }
         }
-
-        const auto keyText = GetStringField(*entry, "key");
-        const auto key = keyText.has_value() ? StorageToKeyDescriptor(ToWide(*keyText)) : std::nullopt;
-        const auto delay = GetIntField(*entry, "delayMs");
-        if (!key.has_value() || !delay.has_value() || *delay <= 0) {
-            continue;
-        }
-
-        KeyBinding binding;
-        binding.id = GetUInt64Field(*entry, "id").value_or(0);
-        binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
-        binding.key = *key;
-        binding.delayMs = *delay;
-
-        const auto mode = GetStringField(*entry, "mode").value_or("toggle");
-        binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
-        config.bindings.push_back(binding);
     }
 
     return config;
@@ -185,6 +234,31 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     }
 
     root.emplace("bindings", std::move(bindings));
+
+    // Save macros
+    jsonlite::Array macros;
+    macros.reserve(config.macros.size());
+    for (const auto& macro : config.macros) {
+        jsonlite::Object entry;
+        entry.emplace("id", static_cast<double>(macro.id));
+        entry.emplace("enabled", macro.enabled);
+        entry.emplace("name", ToUtf8(macro.name));
+        entry.emplace("triggerMode", std::string(macro.triggerMode == MacroTriggerMode::Hold ? "hold" : "toggle"));
+        entry.emplace("triggerKey", ToUtf8(KeyDescriptorToStorage(macro.triggerKey)));
+        entry.emplace("loopCount", macro.loopCount);
+
+        jsonlite::Array steps;
+        for (const auto& step : macro.steps) {
+            jsonlite::Object stepObj;
+            stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
+            stepObj.emplace("delayAfterMs", step.delayAfterMs);
+            steps.emplace_back(std::move(stepObj));
+        }
+        entry.emplace("steps", std::move(steps));
+        macros.emplace_back(std::move(entry));
+    }
+    root.emplace("macros", std::move(macros));
+
     const std::string content = jsonlite::Stringify(root) + "\n";
 
     std::ofstream file(configPath_, std::ios::binary | std::ios::trunc);

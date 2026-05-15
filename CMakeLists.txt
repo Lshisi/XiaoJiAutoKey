@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.0.3 LANGUAGES CXX)
+project(XiaoJiAutoKey VERSION 1.0.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,6 +27,7 @@ set(CORE_SOURCES
     src/DdDriver.cpp
     src/FactionTheme.cpp
     src/JsonLite.cpp
+    src/MacroEngine.cpp
     src/ProfileManager.cpp
     src/RepeaterEngine.cpp
 )
@@ -44,6 +45,7 @@ set(UI_COMPONENT_SOURCES
 
 set(UI_PAGE_SOURCES
     src/ui/pages/KeyPage.cpp
+    src/ui/pages/MacroPage.cpp
     src/ui/pages/SettingsPage.cpp
     src/ui/pages/AboutPage.cpp
 )
@@ -61,12 +63,14 @@ set(UI_COMPONENT_HEADERS
 
 set(UI_PAGE_HEADERS
     src/ui/pages/KeyPage.h
+    src/ui/pages/MacroPage.h
     src/ui/pages/SettingsPage.h
     src/ui/pages/AboutPage.h
 )
 
 add_executable(XiaoJiAutoKey WIN32
     include/MainWindow.h
+    include/MacroEngine.h
     src/main.cpp
     src/MainWindow.cpp
     ${CORE_SOURCES}

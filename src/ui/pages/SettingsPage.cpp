@@ -152,6 +152,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     btnGroup->addButton(radioAsk, 0);
     btnGroup->addButton(radioMin, 1);
     btnGroup->addButton(radioExit, 2);
+    closeActionGroup_ = btnGroup;
     closeCard->contentLayout()->addWidget(radioAsk);
     closeCard->contentLayout()->addWidget(radioMin);
     closeCard->contentLayout()->addWidget(radioExit);
@@ -246,6 +247,16 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 void SettingsPage::setConfig(const AppConfig&) {}
 void SettingsPage::setHotkeyText(const QString&) {}
 void SettingsPage::setConfigPath(const QString& path) { configPathLabel_->setText(path); }
+
+void SettingsPage::setCloseAction(CloseAction action) {
+    if (!closeActionGroup_) return;
+    int id = 0;
+    if (action == CloseAction::Minimize) id = 1;
+    else if (action == CloseAction::Exit) id = 2;
+    closeActionGroup_->blockSignals(true);
+    if (auto* btn = closeActionGroup_->button(id)) btn->setChecked(true);
+    closeActionGroup_->blockSignals(false);
+}
 
 void SettingsPage::setCustomSoundPaths(const QString& onPath, const QString& offPath) {
     soundOnPathEdit_->setText(onPath);

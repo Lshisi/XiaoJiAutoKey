@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <QLabel>
 
+class QButtonGroup;
 class FluentComboBox;
 class FluentLineEdit;
 
@@ -16,6 +17,7 @@ public:
     void setConfig(const AppConfig& config);
     void setHotkeyText(const QString& text);
     void setConfigPath(const QString& path);
+    void setCloseAction(CloseAction action);
     void setFaction(const QString& factionId);
     void setCustomSoundPaths(const QString& onPath, const QString& offPath);
 
@@ -39,6 +41,7 @@ private:
     static bool isValidAudioFile(const QString& path);
 
     QLabel* configPathLabel_;
+    QButtonGroup* closeActionGroup_ = nullptr;
     FluentComboBox* factionCombo_ = nullptr;
     FluentLineEdit* soundOnPathEdit_ = nullptr;
     FluentLineEdit* soundOffPathEdit_ = nullptr;

@@ -520,6 +520,7 @@ void MainWindow::refreshAllPages() {
     settingsPage_->setConfig(config_);
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
+    settingsPage_->setCloseAction(config_.closeAction);
     settingsPage_->setFaction(QString::fromStdString(config_.faction));
     settingsPage_->setCustomSoundPaths(
         QString::fromStdWString(config_.customSoundOn),

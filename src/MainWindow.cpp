@@ -125,7 +125,7 @@ void MainWindow::setupUi() {
     setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e~"));
     setWindowIcon(QIcon(":/assets/icon.png"));
     resize(780, 560);
-    setMinimumSize(720, 500);
+    setMinimumSize(720, 560);
 
     QWidget* centralWidget = new QWidget(this);
     centralWidget->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::pageBg().name()));
@@ -243,6 +243,9 @@ void MainWindow::setupUi() {
     connect(keyPage_, &KeyPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
     connect(keyPage_, &KeyPage::beepToggled, this, &MainWindow::onBeepToggled);
     connect(keyPage_, &KeyPage::mixedModeToggled, this, &MainWindow::onMixedModeToggled);
+    connect(keyPage_, &KeyPage::pauseKeyAddClicked, this, &MainWindow::onPauseKeyAdd);
+    connect(keyPage_, &KeyPage::pauseKeyDeleteClicked, this, &MainWindow::onPauseKeyDelete);
+    connect(keyPage_, &KeyPage::soundSettingsClicked, this, &MainWindow::onSoundSettingsClicked);
 
     // Profile signals
     connect(keyPage_, &KeyPage::profileSwitched, this, &MainWindow::onProfileSwitched);
@@ -307,6 +310,10 @@ void MainWindow::setupUi() {
         macroPage_->updateThemeColors();
         update();
     });
+    connect(settingsPage_, &SettingsPage::customSoundOnChanged, this, &MainWindow::onCustomSoundOnChanged);
+    connect(settingsPage_, &SettingsPage::customSoundOffChanged, this, &MainWindow::onCustomSoundOffChanged);
+    connect(settingsPage_, &SettingsPage::customSoundOnReset, this, &MainWindow::onCustomSoundOnReset);
+    connect(settingsPage_, &SettingsPage::customSoundOffReset, this, &MainWindow::onCustomSoundOffReset);
 
     // Engine state signals
     connect(this, &MainWindow::capturedKey, this, &MainWindow::handleCapturedKey);
@@ -505,6 +512,7 @@ void MainWindow::refreshAllPages() {
     keyPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     keyPage_->setBeepEnabled(config_.beepEnabled);
     keyPage_->setMixedMode(profile->mixedMode);
+    keyPage_->setPauseKeys(profile->pauseKeys);
     keyPage_->updateThemeColors();
     refreshProfileCombo();
     refreshMacroPage();
@@ -513,6 +521,9 @@ void MainWindow::refreshAllPages() {
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
     settingsPage_->setFaction(QString::fromStdString(config_.faction));
+    settingsPage_->setCustomSoundPaths(
+        QString::fromStdWString(config_.customSoundOn),
+        QString::fromStdWString(config_.customSoundOff));
 }
 
 void MainWindow::refreshProfileCombo() {
@@ -554,6 +565,7 @@ void MainWindow::applyBindingsToEngine() {
     if (!profile) return;
     engine_.UpdateBindings(profile->bindings);
     engine_.SetMixedMode(profile->mixedMode);
+    engine_.SetPauseKeys(profile->pauseKeys);
     refreshHookState();
     updateStatusText();
 }
@@ -617,8 +629,22 @@ void MainWindow::handleToolStateChanged(bool running) {
 
 void MainWindow::playToggleSound(bool running) const {
     if (!config_.beepEnabled) return;
-    const auto soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
+
+    std::filesystem::path soundPath;
+    // 优先使用自定义提示音
+    if (running && !config_.customSoundOn.empty()) {
+        soundPath = config_.customSoundOn;
+        if (!std::filesystem::exists(soundPath)) soundPath.clear();
+    } else if (!running && !config_.customSoundOff.empty()) {
+        soundPath = config_.customSoundOff;
+        if (!std::filesystem::exists(soundPath)) soundPath.clear();
+    }
+    // 回退到默认内置音频
+    if (soundPath.empty()) {
+        soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
+    }
     if (soundPath.empty()) return;
+
     mciSendStringW(L"close autokey_toggle_sound", nullptr, 0, nullptr);
     const std::wstring openCommand = L"open \"" + soundPath.wstring() + L"\" type mpegvideo alias autokey_toggle_sound";
     if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) return;
@@ -699,6 +725,147 @@ void MainWindow::onMixedModeToggled(bool enabled) {
     saveConfig();
 }
 
+// ── Pause Key Management ────────────────────────────────────────────────────
+
+void MainWindow::onPauseKeyAdd() {
+    auto* profile = activeProfile();
+    if (!profile) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u6309\u952e"));
+    dialog.setFixedSize(320, 140);
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    dialog.setStyleSheet("QDialog { background: #FFFFFF; }");
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(24, 20, 24, 16);
+    layout->setSpacing(12);
+
+    auto* keyRow = new QHBoxLayout();
+    auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), &dialog);
+    keyLabel->setFont(Fluent::Typography::body());
+    keyLabel->setFixedWidth(50);
+    keyRow->addWidget(keyLabel);
+    auto* keyEdit = new FluentLineEdit(&dialog);
+    keyEdit->setReadOnly(true);
+    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyRow->addWidget(keyEdit);
+    layout->addLayout(keyRow);
+
+    layout->addStretch();
+
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), &dialog);
+    cancelBtn->setFixedWidth(80);
+    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), &dialog);
+    okBtn->setFixedWidth(80);
+    btnRow->addWidget(cancelBtn);
+    btnRow->addSpacing(8);
+    btnRow->addWidget(okBtn);
+    layout->addLayout(btnRow);
+
+    KeyDescriptor capturedKey{};
+    auto* prevEditKeyBox = editKeyBox_;
+    editKeyBox_ = keyEdit;
+    keyEdit->installEventFilter(this);
+
+    auto captureConn = connect(this, &MainWindow::capturedKey, &dialog, [&](quint64 encodedKey) {
+        KeyDescriptor k = DecodeKey(encodedKey);
+        if (k.device == InputDevice::Mouse && (k.code == VK_LBUTTON || k.code == VK_RBUTTON)) {
+            keyEdit->setText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+            return;
+        }
+        capturedKey = k;
+        keyEdit->setText(QString::fromStdWString(GetKeyDisplayName(capturedKey)));
+        captureRequest_.reset();
+        refreshHookState();
+    });
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, &dialog, [&]() {
+        if (!capturedKey.IsValid()) {
+            QMessageBox::warning(&dialog, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u3002"));
+            return;
+        }
+        // 检查冲突：不能和启停快捷键相同
+        if (profile->controlHotkey.has_value() && *profile->controlHotkey == capturedKey) {
+            QMessageBox::warning(&dialog, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
+            return;
+        }
+        // 检查冲突：不能和已有的暂停键重复
+        for (const auto& pk : profile->pauseKeys) {
+            if (pk == capturedKey) {
+                QMessageBox::warning(&dialog, QString::fromWCharArray(L"\u6309\u952e\u91cd\u590d"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u5728\u6682\u505c\u952e\u5217\u8868\u4e2d\u3002"));
+                return;
+            }
+        }
+        // 检查冲突：不能和连发按键相同
+        for (const auto& b : profile->bindings) {
+            if (b.key == capturedKey) {
+                QMessageBox::warning(&dialog, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
+                    QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1\u6309\u952e\u3002"));
+                return;
+            }
+        }
+        profile->pauseKeys.push_back(capturedKey);
+        dialog.accept();
+    });
+
+    dialogOpen_ = true;
+    dialog.exec();
+    dialogOpen_ = false;
+    disconnect(captureConn);
+    editKeyBox_ = prevEditKeyBox;
+    captureRequest_.reset();
+    refreshHookState();
+
+    applyBindingsToEngine();
+    saveConfig();
+    keyPage_->setPauseKeys(profile->pauseKeys);
+}
+
+void MainWindow::onPauseKeyDelete(int index) {
+    auto* profile = activeProfile();
+    if (!profile) return;
+    if (index < 0 || index >= static_cast<int>(profile->pauseKeys.size())) return;
+    profile->pauseKeys.erase(profile->pauseKeys.begin() + index);
+    applyBindingsToEngine();
+    saveConfig();
+    keyPage_->setPauseKeys(profile->pauseKeys);
+}
+
+void MainWindow::onSoundSettingsClicked() {
+    // 跳转到全局设置页
+    sidebar_->setCurrentPage("settings");
+    navigateTo("settings");
+}
+
+// ── Custom Sound Management ─────────────────────────────────────────────────
+
+void MainWindow::onCustomSoundOnChanged(const QString& path) {
+    config_.customSoundOn = path.toStdWString();
+    saveConfig();
+}
+
+void MainWindow::onCustomSoundOffChanged(const QString& path) {
+    config_.customSoundOff = path.toStdWString();
+    saveConfig();
+}
+
+void MainWindow::onCustomSoundOnReset() {
+    config_.customSoundOn.clear();
+    saveConfig();
+}
+
+void MainWindow::onCustomSoundOffReset() {
+    config_.customSoundOff.clear();
+    saveConfig();
+}
+
 // ── Profile Management ──────────────────────────────────────────────────────
 
 void MainWindow::onProfileSwitched(quint64 profileId) {
@@ -707,11 +874,13 @@ void MainWindow::onProfileSwitched(quint64 profileId) {
 }
 
 void MainWindow::onProfileAdd() {
+    dialogOpen_ = true;
     bool ok = false;
     QString name = QInputDialog::getText(this,
         QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u914d\u7f6e\u540d\u79f0:"),
         QLineEdit::Normal, QString(), &ok);
+    dialogOpen_ = false;
     if (!ok || name.trimmed().isEmpty()) return;
 
     ProfileConfig newProfile;
@@ -732,11 +901,13 @@ void MainWindow::onProfileRename() {
     auto* profile = activeProfile();
     if (!profile) return;
 
+    dialogOpen_ = true;
     bool ok = false;
     QString name = QInputDialog::getText(this,
         QString::fromWCharArray(L"\u91cd\u547d\u540d\u914d\u7f6e"),
         QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
         QLineEdit::Normal, QString::fromStdWString(profile->name), &ok);
+    dialogOpen_ = false;
     if (!ok || name.trimmed().isEmpty()) return;
 
     profile->name = name.trimmed().toStdWString();
@@ -755,12 +926,14 @@ void MainWindow::onProfileDelete() {
     auto* profile = activeProfile();
     if (!profile) return;
 
+    dialogOpen_ = true;
     auto result = QMessageBox::question(this,
         QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e"),
         QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u914d\u7f6e\u201c") +
             QString::fromStdWString(profile->name) +
             QString::fromWCharArray(L"\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002"),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    dialogOpen_ = false;
     if (result != QMessageBox::Yes) return;
 
     std::uint64_t deletedId = profile->id;
@@ -794,11 +967,13 @@ void MainWindow::onMacroAdd() {
     auto* profile = activeProfile();
     if (!profile) return;
 
+    dialogOpen_ = true;
     bool ok = false;
     QString name = QInputDialog::getText(this,
         QString::fromWCharArray(L"\u65b0\u5efa\u5b8f"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5b8f\u540d\u79f0:"),
         QLineEdit::Normal, QString(), &ok);
+    dialogOpen_ = false;
     if (!ok || name.trimmed().isEmpty()) return;
 
     MacroConfig macro;
@@ -816,11 +991,13 @@ void MainWindow::onMacroRename() {
     auto* macro = findActiveMacro();
     if (!macro) return;
 
+    dialogOpen_ = true;
     bool ok = false;
     QString name = QInputDialog::getText(this,
         QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f"),
         QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
         QLineEdit::Normal, QString::fromStdWString(macro->name), &ok);
+    dialogOpen_ = false;
     if (!ok || name.trimmed().isEmpty()) return;
 
     macro->name = name.trimmed().toStdWString();
@@ -841,12 +1018,14 @@ void MainWindow::onMacroDelete() {
     auto* macro = findActiveMacro();
     if (!macro) return;
 
+    dialogOpen_ = true;
     auto result = QMessageBox::question(this,
         QString::fromWCharArray(L"\u5220\u9664\u5b8f"),
         QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u5b8f\u201c") +
             QString::fromStdWString(macro->name) +
             QString::fromWCharArray(L"\u201d\u5417\uff1f"),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    dialogOpen_ = false;
     if (result != QMessageBox::Yes) return;
 
     profile->macros.erase(
@@ -944,7 +1123,9 @@ void MainWindow::onMacroAddStep() {
         dialog.accept();
     });
 
+    dialogOpen_ = true;
     dialog.exec();
+    dialogOpen_ = false;
     disconnect(captureConn);
     editKeyBox_ = prevEditKeyBox;
     captureRequest_.reset();
@@ -1038,7 +1219,9 @@ void MainWindow::onMacroEditStep(int stepIndex) {
         dialog.accept();
     });
 
+    dialogOpen_ = true;
     dialog.exec();
+    dialogOpen_ = false;
     disconnect(captureConn);
     editKeyBox_ = prevEditKeyBox;
     captureRequest_.reset();
@@ -1247,7 +1430,9 @@ void MainWindow::openEditDialog(std::optional<std::uint64_t> bindingId) {
     });
     connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
 
+    dialogOpen_ = true;
     dialog->exec();
+    dialogOpen_ = false;
     captureRequest_.reset();
     refreshHookState();
     updateHotkeyText();
@@ -1373,10 +1558,13 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     connect(minimizeBtn, &QPushButton::clicked, [&]() { chosenExit = false; dialog.accept(); });
     connect(exitBtn, &QPushButton::clicked, [&]() { chosenExit = true; dialog.accept(); });
 
+    dialogOpen_ = true;
     if (dialog.exec() == QDialog::Rejected) {
+        dialogOpen_ = false;
         event->ignore();
         return;
     }
+    dialogOpen_ = false;
 
     if (rememberCheck->isChecked()) { config_.closeAction = chosenExit ? CloseAction::Exit : CloseAction::Minimize; saveConfig(); }
     if (chosenExit) { trayIcon_->hide(); event->accept(); } else { hide(); event->ignore(); }
@@ -1486,6 +1674,9 @@ LRESULT CALLBACK MainWindow::KeyboardHookProc(int code, WPARAM wParam, LPARAM lP
         return 1;
     }
 
+    // 弹窗打开时，屏蔽启停快捷键和宏触发（但不屏蔽按键录制）
+    if (g_mainWindow->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
+
     // 连发模式（activeMode == 0）：响应连发快捷键和物理按键
     if (activeMode == 0) {
         const bool isCtrl = controlHotkey.has_value() && *controlHotkey == key;
@@ -1531,6 +1722,9 @@ LRESULT CALLBACK MainWindow::MouseHookProc(int code, WPARAM wParam, LPARAM lPara
         QMetaObject::invokeMethod(g_mainWindow, [w = g_mainWindow, enc] { emit w->capturedKey(enc); }, Qt::QueuedConnection);
         return 1;
     }
+
+    // 弹窗打开时，屏蔽启停快捷键和宏触发
+    if (g_mainWindow->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     // 连发模式（activeMode == 0）：响应连发快捷键和物理按键
     if (activeMode == 0) {

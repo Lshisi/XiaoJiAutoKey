@@ -50,6 +50,7 @@ public:
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
     void SetMixedMode(bool enabled);
+    void SetPauseKeys(const std::vector<KeyDescriptor>& keys);
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
@@ -76,6 +77,11 @@ private:
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> physicalDown_;
     bool toolRunning_ = false;
     bool mixedMode_ = false;  // 混合模式：Hold压制Toggle
+
+    // 暂停按键
+    std::vector<KeyDescriptor> pauseKeys_;
+    std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;  // 当前按住的暂停键
+    bool IsPauseActive() const;
 
     // ⭐ per-key计数器：SendTap前+2，Hook事件到达时-1，计数器>0就忽略
     std::unordered_map<std::uint64_t, int> ignoreCount_;

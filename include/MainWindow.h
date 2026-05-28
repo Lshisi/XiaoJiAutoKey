@@ -54,6 +54,17 @@ private slots:
     void handleCapturedKey(quint64 encodedKey);
     void handleToolStateChanged(bool running);
 
+    // Pause key management
+    void onPauseKeyAdd();
+    void onPauseKeyDelete(int index);
+    void onSoundSettingsClicked();
+
+    // Custom sound management
+    void onCustomSoundOnChanged(const QString& path);
+    void onCustomSoundOffChanged(const QString& path);
+    void onCustomSoundOnReset();
+    void onCustomSoundOffReset();
+
     // Profile management
     void onProfileSwitched(quint64 profileId);
     void onProfileAdd();
@@ -172,6 +183,9 @@ private:
     std::optional<KeyDescriptor> hookControlHotkey_;
     bool hookCaptureActive_ = false;
     ULONGLONG hookCaptureStartedTick_ = 0;
+
+    // 弹窗打开时屏蔽启停快捷键和宏触发（atomic，hook线程直接读取）
+    std::atomic<bool> dialogOpen_{false};
 
     std::thread hookThread_;
     std::atomic<DWORD> hookThreadId_{0};

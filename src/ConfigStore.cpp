@@ -183,6 +183,11 @@ AppConfig ConfigStore::Load() const {
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
 
+    if (const auto soundOn = GetStringField(*object, "customSoundOn"); soundOn.has_value() && !soundOn->empty())
+        config.customSoundOn = ToWide(*soundOn);
+    if (const auto soundOff = GetStringField(*object, "customSoundOff"); soundOff.has_value() && !soundOff->empty())
+        config.customSoundOff = ToWide(*soundOff);
+
     config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);
 
     // Load profiles
@@ -203,6 +208,19 @@ AppConfig ConfigStore::Load() const {
                     profile.defaultDelayMs = *delay;
                 if (auto mixed = GetBoolField(*pObj, "mixedMode"); mixed.has_value())
                     profile.mixedMode = *mixed;
+
+                // Load pause keys
+                const auto pauseKeysIt = pObj->find("pauseKeys");
+                if (pauseKeysIt != pObj->end()) {
+                    if (const auto* pauseArr = pauseKeysIt->second.AsArray()) {
+                        for (const auto& pkItem : *pauseArr) {
+                            if (const auto* pkStr = pkItem.AsString()) {
+                                auto pk = StorageToKeyDescriptor(ToWide(*pkStr));
+                                if (pk.has_value()) profile.pauseKeys.push_back(*pk);
+                            }
+                        }
+                    }
+                }
 
                 profile.bindings = LoadBindings(*pObj);
                 profile.macros = LoadMacros(*pObj);
@@ -249,6 +267,11 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     if (!config.faction.empty() && config.faction != "none")
         root.emplace("faction", config.faction);
 
+    if (!config.customSoundOn.empty())
+        root.emplace("customSoundOn", ToUtf8(config.customSoundOn));
+    if (!config.customSoundOff.empty())
+        root.emplace("customSoundOff", ToUtf8(config.customSoundOff));
+
     root.emplace("activeProfileId", static_cast<double>(config.activeProfileId));
 
     // Profiles
@@ -261,6 +284,15 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
         pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
         pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
         pObj.emplace("mixedMode", profile.mixedMode);
+
+        // Serialize pause keys
+        jsonlite::Array pauseKeysArr;
+        for (const auto& pk : profile.pauseKeys) {
+            pauseKeysArr.emplace_back(ToUtf8(KeyDescriptorToStorage(pk)));
+        }
+        if (!pauseKeysArr.empty())
+            pObj.emplace("pauseKeys", std::move(pauseKeysArr));
+
         pObj.emplace("bindings", SerializeBindings(profile.bindings));
         pObj.emplace("macros", SerializeMacros(profile.macros));
         profilesArr.emplace_back(std::move(pObj));

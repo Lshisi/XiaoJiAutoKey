@@ -6,6 +6,7 @@
 #include <QLabel>
 
 class FluentComboBox;
+class FluentLineEdit;
 
 class SettingsPage : public QWidget {
     Q_OBJECT
@@ -16,6 +17,7 @@ public:
     void setHotkeyText(const QString& text);
     void setConfigPath(const QString& path);
     void setFaction(const QString& factionId);
+    void setCustomSoundPaths(const QString& onPath, const QString& offPath);
 
 signals:
     void hotkeyEditClicked();
@@ -25,11 +27,19 @@ signals:
     void changeConfigPath();
     void resetConfigPath();
     void factionChanged(const QString& factionId);
+    void customSoundOnChanged(const QString& path);
+    void customSoundOffChanged(const QString& path);
+    void customSoundOnReset();
+    void customSoundOffReset();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    static bool isValidAudioFile(const QString& path);
+
     QLabel* configPathLabel_;
     FluentComboBox* factionCombo_ = nullptr;
+    FluentLineEdit* soundOnPathEdit_ = nullptr;
+    FluentLineEdit* soundOffPathEdit_ = nullptr;
 };

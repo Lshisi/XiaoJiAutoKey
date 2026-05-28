@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QCheckBox>
+#include <QHBoxLayout>
 #include <vector>
 
 class FluentTable;
@@ -23,6 +24,7 @@ public:
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
     void setMixedMode(bool enabled);
+    void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void updateThemeColors();
     FluentLineEdit* hotkeyEditWidget() const { return hotkeyEdit_; }
 
@@ -38,6 +40,9 @@ signals:
     void hotkeyEditClicked();
     void beepToggled(bool enabled);
     void mixedModeToggled(bool enabled);
+    void pauseKeyAddClicked();
+    void pauseKeyDeleteClicked(int index);
+    void soundSettingsClicked();
 
     // Profile signals
     void profileSwitched(quint64 profileId);
@@ -51,6 +56,7 @@ protected:
 private:
     void refreshTable();
     void updateStartBtnText();
+    void refreshPauseKeyList();
 
     FluentTable* table_;
     FluentButton* addBtn_;
@@ -61,8 +67,13 @@ private:
     QCheckBox* mixedModeCheck_;
     QLabel* statusLabel_;
     std::vector<KeyBinding> bindings_;
+    std::vector<KeyDescriptor> pauseKeys_;
     QString hotkeyName_;
     bool running_ = false;
+
+    // Pause key UI
+    QWidget* pauseKeyListWidget_ = nullptr;
+    QHBoxLayout* pauseKeyListLayout_ = nullptr;
 
     // Profile UI
     FluentComboBox* profileCombo_;

@@ -36,6 +36,16 @@ void RepeaterEngine::SetMixedMode(bool enabled) {
     mixedMode_ = enabled;
 }
 
+void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
+    std::lock_guard lock(mutex_);
+    pauseKeys_ = keys;
+    pauseKeysDown_.clear();
+}
+
+bool RepeaterEngine::IsPauseActive() const {
+    return !pauseKeysDown_.empty();
+}
+
 // ── 启停 ─────────────────────────────
 void RepeaterEngine::SetToolRunning(bool running) {
     {
@@ -46,6 +56,7 @@ void RepeaterEngine::SetToolRunning(bool running) {
         physicalDown_.clear();
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
+        pauseKeysDown_.clear();
 
         for (auto& t : tasks_) {
             t.lastFire = 0;
@@ -65,6 +76,14 @@ void RepeaterEngine::SetToolRunning(bool running) {
 void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+
+    // 暂停键追踪
+    for (const auto& pk : pauseKeys_) {
+        if (pk == key) {
+            pauseKeysDown_.insert(key);
+            break;
+        }
+    }
 
     // ⭐ Hold模式key的独立追踪
     if (IsHoldBinding(key)) {
@@ -94,6 +113,9 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
 void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+
+    // 暂停键追踪
+    pauseKeysDown_.erase(key);
 
     // ⭐ Hold模式key的独立追踪：用独立的KEYUP计数器过滤SendTap的KEYUP
     if (IsHoldBinding(key)) {
@@ -145,6 +167,7 @@ void RepeaterEngine::ReleaseAll() {
         physicalDown_.clear();
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
+        pauseKeysDown_.clear();
         ResetAllLocked();
     }
 
@@ -197,6 +220,7 @@ void RepeaterEngine::WorkerLoop() {
             std::lock_guard lock(mutex_);
 
             const bool holdActive = IsHoldActive();
+            const bool pauseActive = IsPauseActive();
 
             for (auto& t : tasks_) {
                 if (!t.config.enabled) continue;
@@ -214,7 +238,7 @@ void RepeaterEngine::WorkerLoop() {
                     continue;
                 }
 
-                // Toggle模式：仅在混合模式开启时被Hold激活压制
+                // Toggle模式：仅在混合模式开启时被Hold激活压制，或暂停键按住时压制
                 if (t.config.mode == RepeatMode::Toggle) {
                     if (!toolRunning_) {
                         if (t.isDown) {
@@ -223,7 +247,7 @@ void RepeaterEngine::WorkerLoop() {
                         }
                         continue;
                     }
-                    if (mixedMode_ && holdActive) {
+                    if ((mixedMode_ && holdActive) || pauseActive) {
                         if (t.isDown) {
                             toSend.push_back({t.config.key, false});
                             t.isDown = false;

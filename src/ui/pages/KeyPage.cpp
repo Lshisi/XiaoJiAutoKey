@@ -107,6 +107,37 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
         "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
     );
     tableCard->contentLayout()->addWidget(table_, 1);
+
+    // -- 暂停按键区域（表格下方） --
+    auto* pauseSeparator = new QWidget(this);
+    pauseSeparator->setFixedHeight(1);
+    pauseSeparator->setStyleSheet("background: rgba(0,0,0,0.06);");
+    tableCard->contentLayout()->addWidget(pauseSeparator);
+    tableCard->contentLayout()->addSpacing(8);
+
+    auto* pauseRow = new QHBoxLayout();
+    pauseRow->setSpacing(6);
+    auto* pauseLabel = new QLabel(QString::fromWCharArray(L"\u6682\u505c\u952e:"), this);
+    pauseLabel->setFont(Fluent::Typography::caption());
+    QPalette pauseLabelPal = pauseLabel->palette();
+    pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    pauseLabel->setPalette(pauseLabelPal);
+    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
+    pauseRow->addWidget(pauseLabel);
+
+    pauseKeyListWidget_ = new QWidget(this);
+    pauseKeyListLayout_ = new QHBoxLayout(pauseKeyListWidget_);
+    pauseKeyListLayout_->setContentsMargins(0, 0, 0, 0);
+    pauseKeyListLayout_->setSpacing(4);
+    pauseRow->addWidget(pauseKeyListWidget_, 1);
+
+    auto* pauseAddBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
+    pauseAddBtn->setFixedSize(24, 24);
+    pauseAddBtn->setFont(QFont("Segoe MDL2 Assets", 9));
+    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u952e"));
+    pauseRow->addWidget(pauseAddBtn);
+    tableCard->contentLayout()->addLayout(pauseRow);
+
     layout->addWidget(tableCard, 5);
 
     // 鈺愨晲鈺?Right panel 鈺愨晲鈺?
@@ -145,10 +176,18 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
     triggerCard->contentLayout()->addWidget(hotkeyEdit_);
     triggerCard->contentLayout()->addSpacing(8);
+    auto* beepRow = new QHBoxLayout();
     beepCheck_ = new QCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
     beepCheck_->setStyleSheet(checkBoxStyle());
-    triggerCard->contentLayout()->addWidget(beepCheck_);
+    beepRow->addWidget(beepCheck_);
+    beepRow->addStretch();
+    auto* soundSettingsBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE713)), this);  // settings gear icon
+    soundSettingsBtn->setFixedSize(24, 24);
+    soundSettingsBtn->setFont(QFont("Segoe MDL2 Assets", 10));
+    soundSettingsBtn->setToolTip(QString::fromWCharArray(L"\u81ea\u5b9a\u4e49\u63d0\u793a\u97f3"));
+    beepRow->addWidget(soundSettingsBtn);
+    triggerCard->contentLayout()->addLayout(beepRow);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 连发优先 --
@@ -176,6 +215,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
+    connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
+    connect(soundSettingsBtn, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
     hotkeyEdit_->installEventFilter(this);
 
     // Profile connections
@@ -249,6 +290,55 @@ void KeyPage::updateThemeColors() {
     mixedModeCheck_->setStyleSheet(style);
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
+}
+
+void KeyPage::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
+    pauseKeys_ = keys;
+    refreshPauseKeyList();
+}
+
+void KeyPage::refreshPauseKeyList() {
+    // Clear existing items
+    QLayoutItem* item;
+    while ((item = pauseKeyListLayout_->takeAt(0)) != nullptr) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+
+    if (pauseKeys_.empty()) {
+        auto* emptyLabel = new QLabel(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"), pauseKeyListWidget_);
+        emptyLabel->setFont(Fluent::Typography::caption());
+        QPalette ePal = emptyLabel->palette();
+        ePal.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());
+        emptyLabel->setPalette(ePal);
+        pauseKeyListLayout_->addWidget(emptyLabel);
+    } else {
+        for (int i = 0; i < static_cast<int>(pauseKeys_.size()); ++i) {
+            auto* tag = new QWidget(pauseKeyListWidget_);
+            tag->setStyleSheet("background: rgba(0,0,0,0.05); border-radius: 4px;");
+            auto* tagLayout = new QHBoxLayout(tag);
+            tagLayout->setContentsMargins(6, 2, 2, 2);
+            tagLayout->setSpacing(2);
+
+            auto* keyLabel = new QLabel(QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i])), tag);
+            keyLabel->setFont(Fluent::Typography::caption());
+            tagLayout->addWidget(keyLabel);
+
+            auto* delBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);  // X icon
+            delBtn->setFixedSize(18, 18);
+            delBtn->setFont(QFont("Segoe MDL2 Assets", 7));
+            tagLayout->addWidget(delBtn);
+
+            pauseKeyListLayout_->addWidget(tag);
+
+            connect(delBtn, &QPushButton::clicked, this, [this, i]() {
+                emit pauseKeyDeleteClicked(i);
+            });
+        }
+    }
+    pauseKeyListLayout_->addStretch();
 }
 
 void KeyPage::updateStartBtnText() {

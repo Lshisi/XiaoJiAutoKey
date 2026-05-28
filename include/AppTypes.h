@@ -74,6 +74,7 @@ struct ProfileConfig {
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = 10;
     bool mixedMode = false;         // 连发优先：Hold按住时压制Toggle（默认关闭）
+    std::vector<KeyDescriptor> pauseKeys;  // 暂停按键列表：按住时暂停所有开关模式连发
     std::vector<KeyBinding> bindings;
     std::vector<MacroConfig> macros;
 };
@@ -85,6 +86,10 @@ struct AppConfig {
     CloseAction closeAction = CloseAction::Ask;
     std::wstring customConfigPath;  // 空表示使用默认路径
     std::string faction = "none";   // 门派主题ID
+
+    // 自定义提示音路径（空表示使用默认内置音频）
+    std::wstring customSoundOn;     // 开启提示音路径
+    std::wstring customSoundOff;    // 关闭提示音路径
 
     // 配置方案管理
     std::uint64_t activeProfileId = 0;

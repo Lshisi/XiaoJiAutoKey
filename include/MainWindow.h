@@ -11,6 +11,7 @@
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include <QLabel>
+#include <QPushButton>
 
 #include <Windows.h>
 #include <atomic>
@@ -111,6 +112,8 @@ private:
     void refreshProfileCombo();
     void applyMacrosToEngine();
     MacroConfig* findActiveMacro();
+    void updateModeSwitchStyle();
+    [[nodiscard]] bool isAnyEngineRunning() const;
 
     // Profile helpers
     ProfileConfig* activeProfile();
@@ -126,6 +129,10 @@ private:
     // UI Components
     FluentSidebar* sidebar_;
     QStackedWidget* pageStack_;
+    QWidget* keySettingsContainer_;
+    QStackedWidget* keyMacroStack_;
+    QPushButton* modeRepeatBtn_;
+    QPushButton* modeMacroBtn_;
     KeyPage* keyPage_;
     MacroPage* macroPage_;
     SettingsPage* settingsPage_;
@@ -172,4 +179,7 @@ private:
     std::condition_variable hookInitCv_;
     bool hookInitCompleted_ = false;
     bool hookInitSucceeded_ = false;
+
+    // 当前激活的模式：0=按键连发, 1=宏循环
+    std::atomic<int> activeMode_{0};
 };

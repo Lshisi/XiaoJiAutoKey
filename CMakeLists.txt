@@ -28,7 +28,6 @@ set(CORE_SOURCES
     src/FactionTheme.cpp
     src/JsonLite.cpp
     src/MacroEngine.cpp
-    src/ProfileManager.cpp
     src/RepeaterEngine.cpp
 )
 

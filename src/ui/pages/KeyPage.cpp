@@ -151,9 +151,9 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(beepCheck_);
     rightLayout->addWidget(triggerCard);
 
-    // -- Card 3: 娣峰悎妯″紡 --
-    auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u6df7\u5408\u6a21\u5f0f"), this);
-    mixedModeCheck_ = new QCheckBox(QString::fromWCharArray(L"\u542f\u7528\u6df7\u5408\u6a21\u5f0f"), this);
+    // -- Card 3: 连发优先 --
+    auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
+    mixedModeCheck_ = new QCheckBox(QString::fromWCharArray(L"\u542f\u7528\u8fde\u53d1\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
     mixedModeCheck_->setStyleSheet(checkBoxStyle());
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);

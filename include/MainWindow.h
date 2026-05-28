@@ -4,7 +4,6 @@
 #include "ConfigStore.h"
 #include "DdDriver.h"
 #include "MacroEngine.h"
-#include "ProfileManager.h"
 #include "RepeaterEngine.h"
 
 #include <QMainWindow>
@@ -100,8 +99,6 @@ private:
     std::optional<std::size_t> findBindingIndex(std::uint64_t id) const;
     [[nodiscard]] std::wstring getExeDir() const;
     [[nodiscard]] std::filesystem::path getDefaultConfigPath() const;
-    [[nodiscard]] std::filesystem::path getConfigPath() const;
-    void saveDefaultConfigPointer() const;
     [[nodiscard]] bool IsHoldBindingEnabledForKey(const KeyDescriptor& key) const;
     [[nodiscard]] bool IsHoldBindingEnabledForKeyRealtime(const KeyDescriptor& key) const;
 
@@ -111,12 +108,17 @@ private:
     void refreshAllPages();
     void refreshMacroPage();
     void navigateTo(const QString& pageId);
-    void switchToProfile(std::uint64_t profileId);
     void refreshProfileCombo();
     void applyMacrosToEngine();
     MacroConfig* findActiveMacro();
-    void loadMacros();
-    void saveMacros();
+
+    // Profile helpers
+    ProfileConfig* activeProfile();
+    const ProfileConfig* activeProfile() const;
+    void switchToProfile(std::uint64_t profileId);
+    std::uint64_t nextProfileId() const;
+    std::uint64_t nextBindingIdInProfile() const;
+    std::uint64_t nextMacroIdInProfile() const;
 
     static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK MouseHookProc(int code, WPARAM wParam, LPARAM lParam);
@@ -138,12 +140,8 @@ private:
 
     // Core
     std::filesystem::path exeDir_;
-    std::filesystem::path macroConfigPath_;
-    ProfileManager profileManager_;
     ConfigStore configStore_;
     AppConfig config_;
-    std::uint64_t nextBindingId_ = 1;
-    std::uint64_t nextMacroId_ = 1;
     std::uint64_t activeMacroId_ = 0;
 
     DdDriver driver_;

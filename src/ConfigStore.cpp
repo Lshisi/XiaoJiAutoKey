@@ -9,236 +9,121 @@ namespace {
 
 std::optional<std::string> GetStringField(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
-    if (it == object.end()) {
-        return std::nullopt;
-    }
-    if (const auto* value = it->second.AsString()) {
-        return *value;
-    }
+    if (it == object.end()) return std::nullopt;
+    if (const auto* value = it->second.AsString()) return *value;
     return std::nullopt;
 }
 
 std::optional<bool> GetBoolField(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
-    if (it == object.end()) {
-        return std::nullopt;
-    }
-    if (const auto* value = it->second.AsBool()) {
-        return *value;
-    }
+    if (it == object.end()) return std::nullopt;
+    if (const auto* value = it->second.AsBool()) return *value;
     return std::nullopt;
 }
 
 std::optional<int> GetIntField(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
-    if (it == object.end()) {
-        return std::nullopt;
-    }
-    if (const auto* value = it->second.AsNumber()) {
-        return static_cast<int>(*value);
-    }
+    if (it == object.end()) return std::nullopt;
+    if (const auto* value = it->second.AsNumber()) return static_cast<int>(*value);
     return std::nullopt;
 }
 
 std::optional<std::uint64_t> GetUInt64Field(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
-    if (it == object.end()) {
-        return std::nullopt;
-    }
-    if (const auto* value = it->second.AsNumber()) {
-        return static_cast<std::uint64_t>(*value);
-    }
+    if (it == object.end()) return std::nullopt;
+    if (const auto* value = it->second.AsNumber()) return static_cast<std::uint64_t>(*value);
     return std::nullopt;
 }
 
-}  // namespace
+std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
+    std::vector<KeyBinding> result;
+    const auto bindingsIt = object.find("bindings");
+    if (bindingsIt == object.end()) return result;
+    const auto* bindings = bindingsIt->second.AsArray();
+    if (!bindings) return result;
 
-ConfigStore::ConfigStore(std::filesystem::path configPath) : configPath_(std::move(configPath)) {}
+    for (const auto& item : *bindings) {
+        const auto* entry = item.AsObject();
+        if (!entry) continue;
 
-AppConfig ConfigStore::Load() const {
-    AppConfig config;
+        const auto keyText = GetStringField(*entry, "key");
+        const auto key = keyText.has_value() ? StorageToKeyDescriptor(ToWide(*keyText)) : std::nullopt;
+        const auto delay = GetIntField(*entry, "delayMs");
+        if (!key.has_value() || !delay.has_value() || *delay <= 0) continue;
 
-    if (!std::filesystem::exists(configPath_)) {
-        return config;
+        KeyBinding binding;
+        binding.id = GetUInt64Field(*entry, "id").value_or(0);
+        binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
+        binding.key = *key;
+        binding.delayMs = *delay;
+        const auto mode = GetStringField(*entry, "mode").value_or("toggle");
+        binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
+        result.push_back(binding);
     }
-
-    std::ifstream file(configPath_, std::ios::binary);
-    if (!file) {
-        return config;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-
-    jsonlite::Value root;
-    std::string error;
-    if (!jsonlite::Parse(buffer.str(), root, error)) {
-        return config;
-    }
-
-    const auto* object = root.AsObject();
-    if (object == nullptr) {
-        return config;
-    }
-
-    if (const auto defaultDelay = GetIntField(*object, "defaultDelayMs"); defaultDelay.has_value() && *defaultDelay > 0) {
-        config.defaultDelayMs = *defaultDelay;
-    }
-
-    if (const auto beepEnabled = GetBoolField(*object, "beepEnabled"); beepEnabled.has_value()) {
-        config.beepEnabled = *beepEnabled;
-    }
-
-    if (const auto mixedMode = GetBoolField(*object, "mixedMode"); mixedMode.has_value()) {
-        config.mixedMode = *mixedMode;
-    }
-
-    if (const auto closeActionStr = GetStringField(*object, "closeAction"); closeActionStr.has_value()) {
-        if (*closeActionStr == "minimize") {
-            config.closeAction = CloseAction::Minimize;
-        } else if (*closeActionStr == "exit") {
-            config.closeAction = CloseAction::Exit;
-        } else {
-            config.closeAction = CloseAction::Ask;
-        }
-    }
-
-    if (const auto customPath = GetStringField(*object, "customConfigPath"); customPath.has_value() && !customPath->empty()) {
-        config.customConfigPath = ToWide(*customPath);
-    }
-
-    if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty()) {
-        config.faction = *faction;
-    }
-
-    if (const auto hotkeyText = GetStringField(*object, "controlHotkey"); hotkeyText.has_value()) {
-        config.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
-    }
-
-    const auto bindingsIt = object->find("bindings");
-    if (bindingsIt != object->end()) {
-        const auto* bindings = bindingsIt->second.AsArray();
-        if (bindings != nullptr) {
-            for (const auto& item : *bindings) {
-                const auto* entry = item.AsObject();
-                if (entry == nullptr) {
-                    continue;
-                }
-
-                const auto keyText = GetStringField(*entry, "key");
-                const auto key = keyText.has_value() ? StorageToKeyDescriptor(ToWide(*keyText)) : std::nullopt;
-                const auto delay = GetIntField(*entry, "delayMs");
-                if (!key.has_value() || !delay.has_value() || *delay <= 0) {
-                    continue;
-                }
-
-                KeyBinding binding;
-                binding.id = GetUInt64Field(*entry, "id").value_or(0);
-                binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
-                binding.key = *key;
-                binding.delayMs = *delay;
-
-                const auto mode = GetStringField(*entry, "mode").value_or("toggle");
-                binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
-                config.bindings.push_back(binding);
-            }
-        }
-    }
-
-    // Load macros
-    const auto macrosIt = object->find("macros");
-    if (macrosIt != object->end()) {
-        const auto* macros = macrosIt->second.AsArray();
-        if (macros != nullptr) {
-            for (const auto& item : *macros) {
-                const auto* entry = item.AsObject();
-                if (entry == nullptr) continue;
-
-                MacroConfig macro;
-                macro.id = GetUInt64Field(*entry, "id").value_or(0);
-                macro.enabled = GetBoolField(*entry, "enabled").value_or(true);
-
-                if (auto name = GetStringField(*entry, "name")) {
-                    macro.name = ToWide(*name);
-                }
-
-                auto modeStr = GetStringField(*entry, "triggerMode").value_or("toggle");
-                macro.triggerMode = (modeStr == "hold") ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
-
-                if (auto triggerText = GetStringField(*entry, "triggerKey")) {
-                    macro.triggerKey = StorageToKeyDescriptor(ToWide(*triggerText));
-                }
-
-                macro.loopCount = GetIntField(*entry, "loopCount").value_or(0);
-
-                // Load steps
-                auto stepsIt = entry->find("steps");
-                if (stepsIt != entry->end()) {
-                    if (auto* stepsArr = stepsIt->second.AsArray()) {
-                        for (const auto& stepItem : *stepsArr) {
-                            if (auto* stepObj = stepItem.AsObject()) {
-                                MacroStep step;
-                                if (auto keyText = GetStringField(*stepObj, "key")) {
-                                    auto k = StorageToKeyDescriptor(ToWide(*keyText));
-                                    if (k.has_value()) step.key = *k;
-                                }
-                                step.delayAfterMs = GetIntField(*stepObj, "delayAfterMs").value_or(50);
-                                if (step.key.IsValid()) {
-                                    macro.steps.push_back(step);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (!macro.name.empty()) {
-                    config.macros.push_back(std::move(macro));
-                }
-            }
-        }
-    }
-
-    return config;
+    return result;
 }
 
-bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
-    jsonlite::Object root;
-    root.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(config.controlHotkey)));
-    root.emplace("defaultDelayMs", config.defaultDelayMs);
-    root.emplace("beepEnabled", config.beepEnabled);
-    root.emplace("mixedMode", config.mixedMode);
+std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
+    std::vector<MacroConfig> result;
+    const auto macrosIt = object.find("macros");
+    if (macrosIt == object.end()) return result;
+    const auto* macros = macrosIt->second.AsArray();
+    if (!macros) return result;
 
-    std::string closeActionStr = "ask";
-    if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
-    else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
-    root.emplace("closeAction", closeActionStr);
+    for (const auto& item : *macros) {
+        const auto* entry = item.AsObject();
+        if (!entry) continue;
 
-    if (!config.customConfigPath.empty()) {
-        root.emplace("customConfigPath", ToUtf8(config.customConfigPath));
+        MacroConfig macro;
+        macro.id = GetUInt64Field(*entry, "id").value_or(0);
+        macro.enabled = GetBoolField(*entry, "enabled").value_or(true);
+        if (auto name = GetStringField(*entry, "name")) macro.name = ToWide(*name);
+        auto modeStr = GetStringField(*entry, "triggerMode").value_or("toggle");
+        macro.triggerMode = (modeStr == "hold") ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
+        if (auto triggerText = GetStringField(*entry, "triggerKey"))
+            macro.triggerKey = StorageToKeyDescriptor(ToWide(*triggerText));
+        macro.loopCount = GetIntField(*entry, "loopCount").value_or(0);
+
+        auto stepsIt = entry->find("steps");
+        if (stepsIt != entry->end()) {
+            if (auto* stepsArr = stepsIt->second.AsArray()) {
+                for (const auto& stepItem : *stepsArr) {
+                    if (auto* stepObj = stepItem.AsObject()) {
+                        MacroStep step;
+                        if (auto keyText = GetStringField(*stepObj, "key")) {
+                            auto k = StorageToKeyDescriptor(ToWide(*keyText));
+                            if (k.has_value()) step.key = *k;
+                        }
+                        step.delayAfterMs = GetIntField(*stepObj, "delayAfterMs").value_or(50);
+                        if (step.key.IsValid()) macro.steps.push_back(step);
+                    }
+                }
+            }
+        }
+        if (!macro.name.empty()) result.push_back(std::move(macro));
     }
+    return result;
+}
 
-    if (!config.faction.empty() && config.faction != "none") {
-        root.emplace("faction", config.faction);
-    }
-
-    jsonlite::Array bindings;
-    bindings.reserve(config.bindings.size());
-    for (const auto& binding : config.bindings) {
+jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
+    jsonlite::Array arr;
+    arr.reserve(bindings.size());
+    for (const auto& b : bindings) {
         jsonlite::Object entry;
-        entry.emplace("id", static_cast<double>(binding.id));
-        entry.emplace("enabled", binding.enabled);
-        entry.emplace("key", ToUtf8(KeyDescriptorToStorage(binding.key)));
-        entry.emplace("mode", std::string(binding.mode == RepeatMode::Hold ? "hold" : "toggle"));
-        entry.emplace("delayMs", binding.delayMs);
-        bindings.emplace_back(std::move(entry));
+        entry.emplace("id", static_cast<double>(b.id));
+        entry.emplace("enabled", b.enabled);
+        entry.emplace("key", ToUtf8(KeyDescriptorToStorage(b.key)));
+        entry.emplace("mode", std::string(b.mode == RepeatMode::Hold ? "hold" : "toggle"));
+        entry.emplace("delayMs", b.delayMs);
+        arr.emplace_back(std::move(entry));
     }
+    return arr;
+}
 
-    root.emplace("bindings", std::move(bindings));
-
-    // Save macros
-    jsonlite::Array macros;
-    macros.reserve(config.macros.size());
-    for (const auto& macro : config.macros) {
+jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
+    jsonlite::Array arr;
+    arr.reserve(macros.size());
+    for (const auto& macro : macros) {
         jsonlite::Object entry;
         entry.emplace("id", static_cast<double>(macro.id));
         entry.emplace("enabled", macro.enabled);
@@ -255,21 +140,144 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
             steps.emplace_back(std::move(stepObj));
         }
         entry.emplace("steps", std::move(steps));
-        macros.emplace_back(std::move(entry));
+        arr.emplace_back(std::move(entry));
     }
-    root.emplace("macros", std::move(macros));
+    return arr;
+}
+
+}  // namespace
+
+ConfigStore::ConfigStore(std::filesystem::path configPath) : configPath_(std::move(configPath)) {}
+
+AppConfig ConfigStore::Load() const {
+    AppConfig config;
+
+    if (!std::filesystem::exists(configPath_)) return config;
+
+    std::ifstream file(configPath_, std::ios::binary);
+    if (!file) return config;
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    jsonlite::Value root;
+    std::string error;
+    if (!jsonlite::Parse(buffer.str(), root, error)) return config;
+
+    const auto* object = root.AsObject();
+    if (!object) return config;
+
+    // Global settings
+    if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
+        config.beepEnabled = *beep;
+
+    if (const auto closeStr = GetStringField(*object, "closeAction"); closeStr.has_value()) {
+        if (*closeStr == "minimize") config.closeAction = CloseAction::Minimize;
+        else if (*closeStr == "exit") config.closeAction = CloseAction::Exit;
+        else config.closeAction = CloseAction::Ask;
+    }
+
+    if (const auto customPath = GetStringField(*object, "customConfigPath"); customPath.has_value() && !customPath->empty())
+        config.customConfigPath = ToWide(*customPath);
+
+    if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
+        config.faction = *faction;
+
+    config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);
+
+    // Load profiles
+    const auto profilesIt = object->find("profiles");
+    if (profilesIt != object->end()) {
+        const auto* profilesArr = profilesIt->second.AsArray();
+        if (profilesArr) {
+            for (const auto& pItem : *profilesArr) {
+                const auto* pObj = pItem.AsObject();
+                if (!pObj) continue;
+
+                ProfileConfig profile;
+                profile.id = GetUInt64Field(*pObj, "id").value_or(0);
+                if (auto name = GetStringField(*pObj, "name")) profile.name = ToWide(*name);
+                if (auto hotkeyText = GetStringField(*pObj, "controlHotkey"))
+                    profile.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
+                if (auto delay = GetIntField(*pObj, "defaultDelayMs"); delay.has_value() && *delay > 0)
+                    profile.defaultDelayMs = *delay;
+                if (auto mixed = GetBoolField(*pObj, "mixedMode"); mixed.has_value())
+                    profile.mixedMode = *mixed;
+
+                profile.bindings = LoadBindings(*pObj);
+                profile.macros = LoadMacros(*pObj);
+
+                if (profile.id > 0 && !profile.name.empty())
+                    config.profiles.push_back(std::move(profile));
+            }
+        }
+    }
+
+    // If no profiles loaded, create a default one
+    if (config.profiles.empty()) {
+        ProfileConfig def;
+        def.id = 1;
+        def.name = L"\u9ed8\u8ba4\u914d\u7f6e";
+        config.profiles.push_back(def);
+        config.activeProfileId = 1;
+    }
+
+    // Validate activeProfileId
+    bool found = false;
+    for (const auto& p : config.profiles) {
+        if (p.id == config.activeProfileId) { found = true; break; }
+    }
+    if (!found) config.activeProfileId = config.profiles.front().id;
+
+    return config;
+}
+
+bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
+    jsonlite::Object root;
+
+    // Global settings
+    root.emplace("beepEnabled", config.beepEnabled);
+
+    std::string closeActionStr = "ask";
+    if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
+    else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
+    root.emplace("closeAction", closeActionStr);
+
+    if (!config.customConfigPath.empty())
+        root.emplace("customConfigPath", ToUtf8(config.customConfigPath));
+
+    if (!config.faction.empty() && config.faction != "none")
+        root.emplace("faction", config.faction);
+
+    root.emplace("activeProfileId", static_cast<double>(config.activeProfileId));
+
+    // Profiles
+    jsonlite::Array profilesArr;
+    profilesArr.reserve(config.profiles.size());
+    for (const auto& profile : config.profiles) {
+        jsonlite::Object pObj;
+        pObj.emplace("id", static_cast<double>(profile.id));
+        pObj.emplace("name", ToUtf8(profile.name));
+        pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
+        pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
+        pObj.emplace("mixedMode", profile.mixedMode);
+        pObj.emplace("bindings", SerializeBindings(profile.bindings));
+        pObj.emplace("macros", SerializeMacros(profile.macros));
+        profilesArr.emplace_back(std::move(pObj));
+    }
+    root.emplace("profiles", std::move(profilesArr));
 
     const std::string content = jsonlite::Stringify(root) + "\n";
 
     std::ofstream file(configPath_, std::ios::binary | std::ios::trunc);
     if (!file) {
-        error = L"无法写入配置文件";
+        error = L"\u65e0\u6cd5\u5199\u5165\u914d\u7f6e\u6587\u4ef6";
         return false;
     }
 
     file.write(content.data(), static_cast<std::streamsize>(content.size()));
     if (!file.good()) {
-        error = L"写入配置文件失败";
+        error = L"\u5199\u5165\u914d\u7f6e\u6587\u4ef6\u5931\u8d25";
         return false;
     }
     return true;

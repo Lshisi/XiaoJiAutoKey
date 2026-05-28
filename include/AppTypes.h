@@ -67,16 +67,28 @@ struct MacroConfig {
     bool enabled = true;
 };
 
-struct AppConfig {
+// ── 配置方案（Profile）─────────────────────────
+struct ProfileConfig {
+    std::uint64_t id = 0;
+    std::wstring name;
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = 10;
+    bool mixedMode = false;         // 连发优先：Hold按住时压制Toggle（默认关闭）
+    std::vector<KeyBinding> bindings;
+    std::vector<MacroConfig> macros;
+};
+
+// ── 全局配置 ───────────────────────────────────
+struct AppConfig {
+    // 全局设置
     bool beepEnabled = true;
-    bool mixedMode = false;         // 混合模式：Hold按住时压制Toggle（默认关闭）
     CloseAction closeAction = CloseAction::Ask;
     std::wstring customConfigPath;  // 空表示使用默认路径
     std::string faction = "none";   // 门派主题ID
-    std::vector<KeyBinding> bindings;
-    std::vector<MacroConfig> macros;
+
+    // 配置方案管理
+    std::uint64_t activeProfileId = 0;
+    std::vector<ProfileConfig> profiles;
 };
 
 std::wstring ToWide(const std::string& text);

@@ -7,7 +7,7 @@
 #include <QCheckBox>
 #include <vector>
 
-class FluentTable;
+class DraggableTable;
 class FluentButton;
 class FluentLineEdit;
 class FluentSwitch;
@@ -36,6 +36,7 @@ signals:
     void editStepRequested(int stepIndex);
     void deleteStepRequested(int stepIndex);
     void stepEnableToggled(int stepIndex, bool enabled);
+    void stepMoveRequested(int fromIndex, int toIndex);
 
     // Macro profile management
     void macroSwitched(quint64 macroId);
@@ -55,7 +56,7 @@ protected:
 private:
     void refreshTable();
 
-    FluentTable* table_;
+    DraggableTable* table_;
     FluentButton* addBtn_;
     FluentButton* startBtn_;
     FluentButton* stopBtn_;

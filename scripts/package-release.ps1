@@ -142,6 +142,12 @@ if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
 
+# Ensure no config.json is included in the package
+$configInPackage = Join-Path $packageDir "config.json"
+if (Test-Path $configInPackage) {
+    Remove-Item $configInPackage -Force
+}
+
 Compress-Archive -Path $packageDir -DestinationPath $zipPath -Force
 
 Write-Host "Package ready:"

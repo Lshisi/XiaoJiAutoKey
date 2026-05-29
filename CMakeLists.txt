@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.0.5 LANGUAGES CXX)
+project(XiaoJiAutoKey VERSION 1.0.6 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -40,6 +40,7 @@ set(UI_COMPONENT_SOURCES
     src/ui/components/FluentLineEdit.cpp
     src/ui/components/FluentComboBox.cpp
     src/ui/components/FluentTable.cpp
+    src/ui/components/DraggableTable.cpp
 )
 
 set(UI_PAGE_SOURCES
@@ -58,6 +59,7 @@ set(UI_COMPONENT_HEADERS
     src/ui/components/FluentLineEdit.h
     src/ui/components/FluentComboBox.h
     src/ui/components/FluentTable.h
+    src/ui/components/DraggableTable.h
 )
 
 set(UI_PAGE_HEADERS

@@ -26,8 +26,6 @@ signals:
     void beepToggled(bool enabled);
     void closeActionChanged(CloseAction action);
     void openConfigFolder();
-    void changeConfigPath();
-    void resetConfigPath();
     void factionChanged(const QString& factionId);
     void customSoundOnChanged(const QString& path);
     void customSoundOffChanged(const QString& path);

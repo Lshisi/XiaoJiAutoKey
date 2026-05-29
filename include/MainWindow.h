@@ -79,6 +79,7 @@ private slots:
     void onMacroAddStep();
     void onMacroEditStep(int stepIndex);
     void onMacroDeleteStep(int stepIndex);
+    void onMacroMoveStep(int fromIndex, int toIndex);
     void onMacroHotkeyEditClicked();
     void onMacroStartStopClicked();
     void onMacroModeChanged(int modeIndex);

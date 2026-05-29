@@ -1,6 +1,6 @@
 #include "MacroPage.h"
 #include "../styles/DesignTokens.h"
-#include "../components/FluentTable.h"
+#include "../components/DraggableTable.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentLineEdit.h"
 #include "../components/FluentComboBox.h"
@@ -70,9 +70,9 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     tableCard->contentLayout()->addLayout(headerRow);
 
     // Steps table
-    table_ = new FluentTable(0, 4, this);
+    table_ = new DraggableTable(0, 4, this);
     table_->setHorizontalHeaderLabels({
-        QString::fromWCharArray(L"\u5e8f\u53f7"),
+        QString(),
         QString::fromWCharArray(L"\u6309\u952e"),
         QString::fromWCharArray(L"\u95f4\u9694 (ms)"),
         QString::fromWCharArray(L"\u64cd\u4f5c")
@@ -81,9 +81,10 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    table_->setColumnWidth(0, 50);
+    table_->setColumnWidth(0, 32);
     table_->setColumnWidth(3, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    table_->verticalHeader()->setVisible(false);
     table_->setStyleSheet(table_->styleSheet() +
         "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
         "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 3px; min-height: 30px; }"
@@ -157,6 +158,9 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(stopBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(hotkeyEdit_, &QLineEdit::cursorPositionChanged, this, [](){ /* dummy */ });
     hotkeyEdit_->installEventFilter(this);
+
+    // 拖拽排序
+    connect(table_, &DraggableTable::rowMoveRequested, this, &MacroPage::stepMoveRequested);
 
     connect(macroCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         if (index < 0) return;
@@ -267,10 +271,11 @@ void MacroPage::refreshTable() {
         const auto& step = steps_[i];
         table_->insertRow(i);
 
-        // Sequence number
-        auto* numItem = new QTableWidgetItem(QString::number(i + 1));
-        numItem->setTextAlignment(Qt::AlignCenter);
-        table_->setItem(i, 0, numItem);
+        // Drag handle (first column)
+        auto* handleItem = new QTableWidgetItem(QString::fromWCharArray(L"\u2261"));  // ≡
+        handleItem->setTextAlignment(Qt::AlignCenter);
+        handleItem->setToolTip(QString::fromWCharArray(L"\u62D6\u52A8\u6392\u5E8F"));
+        table_->setItem(i, 0, handleItem);
 
         // Key name
         auto* keyItem = new QTableWidgetItem(QString::fromStdWString(GetKeyDisplayName(step.key)));

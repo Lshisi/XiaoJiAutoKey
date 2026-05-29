@@ -24,7 +24,6 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QUrl>
-#include <QFileDialog>
 #include <QLabel>
 #include <QCheckBox>
 #include <QPainter>
@@ -261,6 +260,7 @@ void MainWindow::setupUi() {
     connect(macroPage_, &MacroPage::addStepRequested, this, &MainWindow::onMacroAddStep);
     connect(macroPage_, &MacroPage::editStepRequested, this, &MainWindow::onMacroEditStep);
     connect(macroPage_, &MacroPage::deleteStepRequested, this, &MainWindow::onMacroDeleteStep);
+    connect(macroPage_, &MacroPage::stepMoveRequested, this, &MainWindow::onMacroMoveStep);
     connect(macroPage_, &MacroPage::startStopClicked, this, &MainWindow::onMacroStartStopClicked);
     connect(macroPage_, &MacroPage::hotkeyEditClicked, this, &MainWindow::onMacroHotkeyEditClicked);
     connect(macroPage_, &MacroPage::modeChanged, this, &MainWindow::onMacroModeChanged);
@@ -272,27 +272,6 @@ void MainWindow::setupUi() {
     connect(settingsPage_, &SettingsPage::openConfigFolder, this, [this]() {
         const auto folder = configStore_.GetPath().parent_path();
         QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder.wstring())));
-    });
-    connect(settingsPage_, &SettingsPage::changeConfigPath, this, [this]() {
-        QString filePath = QFileDialog::getSaveFileName(this,
-            QString::fromWCharArray(L"\u9009\u62e9\u914d\u7f6e\u6587\u4ef6\u8def\u5f84"),
-            QString::fromStdWString(configStore_.GetPath().wstring()),
-            QString::fromWCharArray(L"JSON \u6587\u4ef6 (*.json)"));
-        if (filePath.isEmpty()) return;
-        std::filesystem::path newPath = filePath.toStdWString();
-        std::filesystem::create_directories(newPath.parent_path());
-        config_.customConfigPath = newPath.wstring();
-        configStore_.SetPath(newPath);
-        saveConfig();
-        settingsPage_->setConfigPath(QString::fromStdWString(newPath.wstring()));
-    });
-    connect(settingsPage_, &SettingsPage::resetConfigPath, this, [this]() {
-        std::filesystem::path defaultPath = getDefaultConfigPath();
-        if (configStore_.GetPath() == defaultPath) return;
-        config_.customConfigPath.clear();
-        configStore_.SetPath(defaultPath);
-        saveConfig();
-        settingsPage_->setConfigPath(QString::fromStdWString(defaultPath.wstring()));
     });
     connect(settingsPage_, &SettingsPage::closeActionChanged, this, [this](CloseAction action) {
         config_.closeAction = action;
@@ -451,15 +430,6 @@ void MainWindow::switchToProfile(std::uint64_t profileId) {
 
 void MainWindow::loadConfig() {
     config_ = configStore_.Load();
-
-    // Handle custom config path redirect
-    if (!config_.customConfigPath.empty()) {
-        std::filesystem::path customPath = config_.customConfigPath;
-        if (customPath != configStore_.GetPath() && std::filesystem::exists(customPath)) {
-            configStore_.SetPath(customPath);
-            config_ = configStore_.Load();
-        }
-    }
 
     // Ensure IDs are valid
     for (auto& profile : config_.profiles) {
@@ -1249,6 +1219,21 @@ void MainWindow::onMacroDeleteStep(int stepIndex) {
     refreshMacroPage();
 }
 
+void MainWindow::onMacroMoveStep(int fromIndex, int toIndex) {
+    auto* macro = findActiveMacro();
+    if (!macro) return;
+    int count = static_cast<int>(macro->steps.size());
+    if (fromIndex < 0 || fromIndex >= count || toIndex < 0 || toIndex >= count) return;
+    if (fromIndex == toIndex) return;
+    // 移动步骤：从原位置取出，插入到目标位置
+    MacroStep step = macro->steps[fromIndex];
+    macro->steps.erase(macro->steps.begin() + fromIndex);
+    macro->steps.insert(macro->steps.begin() + toIndex, step);
+    applyMacrosToEngine();
+    saveConfig();
+    refreshMacroPage();
+}
+
 void MainWindow::onMacroStartStopClicked() {
     auto* macro = findActiveMacro();
     if (!macro) return;
@@ -1635,13 +1620,6 @@ std::wstring MainWindow::getExeDir() const {
 }
 
 std::filesystem::path MainWindow::getDefaultConfigPath() const {
-    wchar_t* appDataPath = nullptr;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appDataPath))) {
-        std::filesystem::path configDir = std::filesystem::path(appDataPath) / L"XiaoJiAutoKey";
-        CoTaskMemFree(appDataPath);
-        std::filesystem::create_directories(configDir);
-        return configDir / L"config.json";
-    }
     return std::filesystem::path(exeDir_) / L"config.json";
 }
 

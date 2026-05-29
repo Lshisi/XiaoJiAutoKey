@@ -172,13 +172,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     auto* configBtnRow = new QHBoxLayout();
     auto* openBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00\u6587\u4ef6\u5939"), this);
     openBtn->setFixedHeight(28);
-    auto* changeBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u81ea\u5b9a\u4e49\u8def\u5f84"), this);
-    changeBtn->setFixedHeight(28);
-    auto* resetBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6062\u590d\u9ed8\u8ba4"), this);
-    resetBtn->setFixedHeight(28);
     configBtnRow->addWidget(openBtn);
-    configBtnRow->addWidget(changeBtn);
-    configBtnRow->addWidget(resetBtn);
     configBtnRow->addStretch();
     configCard->contentLayout()->addLayout(configBtnRow);
     outerCard->contentLayout()->addWidget(configCard);
@@ -197,8 +191,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         emit closeActionChanged(action);
     });
     connect(openBtn, &QPushButton::clicked, this, &SettingsPage::openConfigFolder);
-    connect(changeBtn, &QPushButton::clicked, this, &SettingsPage::changeConfigPath);
-    connect(resetBtn, &QPushButton::clicked, this, &SettingsPage::resetConfigPath);
     connect(factionCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         if (index < 0) return;
         QString factionId = factionCombo_->itemData(index).toString();

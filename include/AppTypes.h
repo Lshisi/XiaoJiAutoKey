@@ -84,7 +84,6 @@ struct AppConfig {
     // 全局设置
     bool beepEnabled = true;
     CloseAction closeAction = CloseAction::Ask;
-    std::wstring customConfigPath;  // 空表示使用默认路径
     std::string faction = "none";   // 门派主题ID
 
     // 自定义提示音路径（空表示使用默认内置音频）

@@ -152,7 +152,20 @@ ConfigStore::ConfigStore(std::filesystem::path configPath) : configPath_(std::mo
 AppConfig ConfigStore::Load() const {
     AppConfig config;
 
-    if (!std::filesystem::exists(configPath_)) return config;
+    if (!std::filesystem::exists(configPath_)) {
+        // 首次运行：创建默认配置
+        ProfileConfig def;
+        def.id = 1;
+        def.name = L"\u9ed8\u8ba4\u914d\u7f6e";
+        MacroConfig defaultMacro;
+        defaultMacro.id = 1;
+        defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
+        defaultMacro.enabled = true;
+        def.macros.push_back(defaultMacro);
+        config.profiles.push_back(def);
+        config.activeProfileId = 1;
+        return config;
+    }
 
     std::ifstream file(configPath_, std::ios::binary);
     if (!file) return config;
@@ -176,9 +189,6 @@ AppConfig ConfigStore::Load() const {
         else if (*closeStr == "exit") config.closeAction = CloseAction::Exit;
         else config.closeAction = CloseAction::Ask;
     }
-
-    if (const auto customPath = GetStringField(*object, "customConfigPath"); customPath.has_value() && !customPath->empty())
-        config.customConfigPath = ToWide(*customPath);
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
@@ -236,6 +246,11 @@ AppConfig ConfigStore::Load() const {
         ProfileConfig def;
         def.id = 1;
         def.name = L"\u9ed8\u8ba4\u914d\u7f6e";
+        MacroConfig defaultMacro;
+        defaultMacro.id = 1;
+        defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
+        defaultMacro.enabled = true;
+        def.macros.push_back(defaultMacro);
         config.profiles.push_back(def);
         config.activeProfileId = 1;
     }
@@ -260,9 +275,6 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
     else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
     root.emplace("closeAction", closeActionStr);
-
-    if (!config.customConfigPath.empty())
-        root.emplace("customConfigPath", ToUtf8(config.customConfigPath));
 
     if (!config.faction.empty() && config.faction != "none")
         root.emplace("faction", config.faction);

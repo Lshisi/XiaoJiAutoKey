@@ -577,7 +577,13 @@ void MainWindow::applyMacrosToEngine() {
         macroEngine_.UpdateMacros({});
         return;
     }
-    macroEngine_.UpdateMacros(profile->macros);
+    // 只把当前激活的宏传给引擎（不同宏可以设置相同触发键，同一时间只激活一个）
+    auto* macro = findActiveMacro();
+    if (macro) {
+        macroEngine_.UpdateMacros({*macro});
+    } else {
+        macroEngine_.UpdateMacros({});
+    }
 }
 
 MacroConfig* MainWindow::findActiveMacro() {
@@ -961,6 +967,7 @@ void MainWindow::onProfileDelete() {
 void MainWindow::onMacroSwitched(quint64 macroId) {
     if (macroId == activeMacroId_) return;
     activeMacroId_ = macroId;
+    applyMacrosToEngine();
     refreshMacroPage();
 }
 
@@ -1486,32 +1493,18 @@ void MainWindow::onCapturedKeyInternal(const KeyDescriptor& key) {
             QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u65e0\u6548"),
                 QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
         } else {
-            // Check conflict with other macros in this profile
-            bool otherMacroConflict = false;
-            for (const auto& m : profile->macros) {
-                if (m.id != activeMacroId_ && m.triggerKey.has_value() && *m.triggerKey == key) {
+            auto* activeMacro = findActiveMacro();
+            if (activeMacro) {
+                // Check conflict with this macro's own step keys
+                bool stepConflict = std::any_of(activeMacro->steps.begin(), activeMacro->steps.end(),
+                    [&](const MacroStep& s) { return s.key == key; });
+                if (stepConflict) {
                     QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
-                        QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5b8f\u201c") +
-                        QString::fromStdWString(m.name) +
-                        QString::fromWCharArray(L"\u201d\u4f7f\u7528\u3002"));
-                    otherMacroConflict = true;
-                    break;
-                }
-            }
-            if (!otherMacroConflict) {
-                auto* activeMacro = findActiveMacro();
-                if (activeMacro) {
-                    // Check conflict with this macro's own step keys
-                    bool stepConflict = std::any_of(activeMacro->steps.begin(), activeMacro->steps.end(),
-                        [&](const MacroStep& s) { return s.key == key; });
-                    if (stepConflict) {
-                        QMessageBox::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"),
-                            QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u7684\u6b65\u9aa4\u4e2d\u4f7f\u7528\u3002"));
-                    } else {
-                        activeMacro->triggerKey = key;
-                        applyMacrosToEngine();
-                        saveConfig();
-                    }
+                        QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u7684\u6b65\u9aa4\u4e2d\u4f7f\u7528\u3002"));
+                } else {
+                    activeMacro->triggerKey = key;
+                    applyMacrosToEngine();
+                    saveConfig();
                 }
             }
         }

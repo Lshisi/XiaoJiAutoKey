@@ -87,8 +87,14 @@ struct AppConfig {
     std::string faction = "none";   // 门派主题ID
 
     // 自定义提示音路径（空表示使用默认内置音频）
-    std::wstring customSoundOn;     // 开启提示音路径
-    std::wstring customSoundOff;    // 关闭提示音路径
+    std::wstring customSoundOn;     // 按键开启提示音路径
+    std::wstring customSoundOff;    // 按键关闭提示音路径
+    int soundVolume = 80;           // 按键提示音音量（0-100）
+
+    bool macroBeepEnabled = true;   // 宏循环是否开启启停提示音
+    std::wstring macroSoundOn;      // 宏开启提示音路径
+    std::wstring macroSoundOff;     // 宏关闭提示音路径
+    int macroSoundVolume = 80;      // 宏提示音音量（0-100）
 
     // 配置方案管理
     std::uint64_t activeProfileId = 0;

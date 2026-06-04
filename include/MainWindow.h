@@ -49,6 +49,7 @@ private slots:
     void onStartClicked();
     void onHotkeyEditClicked();
     void onBeepToggled(bool enabled);
+    void onMacroBeepToggled(bool enabled);
     void onMixedModeToggled(bool enabled);
     void updateStatusText();
     void handleCapturedKey(quint64 encodedKey);
@@ -58,12 +59,6 @@ private slots:
     void onPauseKeyAdd();
     void onPauseKeyDelete(int index);
     void onSoundSettingsClicked();
-
-    // Custom sound management
-    void onCustomSoundOnChanged(const QString& path);
-    void onCustomSoundOffChanged(const QString& path);
-    void onCustomSoundOnReset();
-    void onCustomSoundOffReset();
 
     // Profile management
     void onProfileSwitched(quint64 profileId);
@@ -107,7 +102,9 @@ private:
     void toggleToolRunning();
     void setToolRunning(bool running);
     bool setToolRunningFast(bool running);
-    void playToggleSound(bool running) const;
+    void playToggleSound(bool running, bool macroMode = false) const;
+    void playSoundFile(const std::filesystem::path& soundPath, int volume, const wchar_t* alias) const;
+    std::filesystem::path resolveToggleSoundPath(bool running, bool macroMode = false) const;
     std::filesystem::path resolveAudioPath(const wchar_t* fileName) const;
     std::optional<std::size_t> findBindingIndex(std::uint64_t id) const;
     [[nodiscard]] std::wstring getExeDir() const;
@@ -184,6 +181,7 @@ private:
     std::optional<KeyDescriptor> hookControlHotkey_;
     bool hookCaptureActive_ = false;
     ULONGLONG hookCaptureStartedTick_ = 0;
+    bool lastMacroRunning_ = false;
 
     // 弹窗打开时屏蔽启停快捷键和宏触发（atomic，hook线程直接读取）
     std::atomic<bool> dialogOpen_{false};

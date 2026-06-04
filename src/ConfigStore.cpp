@@ -2,6 +2,7 @@
 
 #include "JsonLite.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -197,6 +198,16 @@ AppConfig ConfigStore::Load() const {
         config.customSoundOn = ToWide(*soundOn);
     if (const auto soundOff = GetStringField(*object, "customSoundOff"); soundOff.has_value() && !soundOff->empty())
         config.customSoundOff = ToWide(*soundOff);
+    if (const auto volume = GetIntField(*object, "soundVolume"); volume.has_value())
+        config.soundVolume = std::clamp(*volume, 0, 100);
+    if (const auto macroBeep = GetBoolField(*object, "macroBeepEnabled"); macroBeep.has_value())
+        config.macroBeepEnabled = *macroBeep;
+    if (const auto soundOn = GetStringField(*object, "macroSoundOn"); soundOn.has_value() && !soundOn->empty())
+        config.macroSoundOn = ToWide(*soundOn);
+    if (const auto soundOff = GetStringField(*object, "macroSoundOff"); soundOff.has_value() && !soundOff->empty())
+        config.macroSoundOff = ToWide(*soundOff);
+    if (const auto volume = GetIntField(*object, "macroSoundVolume"); volume.has_value())
+        config.macroSoundVolume = std::clamp(*volume, 0, 100);
 
     config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);
 
@@ -283,6 +294,13 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
         root.emplace("customSoundOn", ToUtf8(config.customSoundOn));
     if (!config.customSoundOff.empty())
         root.emplace("customSoundOff", ToUtf8(config.customSoundOff));
+    root.emplace("soundVolume", std::clamp(config.soundVolume, 0, 100));
+    root.emplace("macroBeepEnabled", config.macroBeepEnabled);
+    if (!config.macroSoundOn.empty())
+        root.emplace("macroSoundOn", ToUtf8(config.macroSoundOn));
+    if (!config.macroSoundOff.empty())
+        root.emplace("macroSoundOff", ToUtf8(config.macroSoundOff));
+    root.emplace("macroSoundVolume", std::clamp(config.macroSoundVolume, 0, 100));
 
     root.emplace("activeProfileId", static_cast<double>(config.activeProfileId));
 

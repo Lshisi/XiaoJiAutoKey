@@ -23,6 +23,7 @@ public:
     void setSteps(const std::vector<MacroStep>& steps);
     void setRunning(bool running);
     void setHotkeyText(const QString& text);
+    void setBeepEnabled(bool enabled);
     void setMode(MacroTriggerMode mode);
     void setLoopCount(int count);
     void updateThemeColors();
@@ -47,6 +48,8 @@ signals:
     // Control
     void startStopClicked();
     void hotkeyEditClicked();
+    void beepToggled(bool enabled);
+    void soundSettingsClicked();
     void modeChanged(int modeIndex);
     void loopCountChanged(int count);
 
@@ -61,6 +64,8 @@ private:
     FluentButton* startBtn_;
     FluentButton* stopBtn_;
     FluentLineEdit* hotkeyEdit_;
+    QCheckBox* beepCheck_;
+    FluentButton* soundSettingsBtn_ = nullptr;
     FluentComboBox* modeCombo_;
     FluentLineEdit* loopEdit_;
     QLabel* loopLabel_;

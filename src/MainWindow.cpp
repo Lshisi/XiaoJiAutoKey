@@ -29,12 +29,18 @@
 #include <QPainter>
 #include <QInputDialog>
 #include <QTimer>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QLineEdit>
+#include <QSlider>
+#include <QStringList>
 #include <shlwapi.h>
 #include <ShlObj.h>
 #include <mmsystem.h>
 #include <windowsx.h>
 #include <dwmapi.h>
 #include <array>
+#include <algorithm>
 #include <fstream>
 #include <stdexcept>
 
@@ -43,6 +49,16 @@
 namespace {
 
 MainWindow* g_mainWindow = nullptr;
+
+const QStringList kSupportedAudioExtensions = {
+    "mp3", "wav", "wma", "mid", "midi"
+};
+
+bool IsValidAudioFile(const QString& path) {
+    QFileInfo info(path);
+    if (!info.exists() || !info.isFile()) return false;
+    return kSupportedAudioExtensions.contains(info.suffix().toLower());
+}
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -263,12 +279,13 @@ void MainWindow::setupUi() {
     connect(macroPage_, &MacroPage::stepMoveRequested, this, &MainWindow::onMacroMoveStep);
     connect(macroPage_, &MacroPage::startStopClicked, this, &MainWindow::onMacroStartStopClicked);
     connect(macroPage_, &MacroPage::hotkeyEditClicked, this, &MainWindow::onMacroHotkeyEditClicked);
+    connect(macroPage_, &MacroPage::beepToggled, this, &MainWindow::onMacroBeepToggled);
+    connect(macroPage_, &MacroPage::soundSettingsClicked, this, &MainWindow::onSoundSettingsClicked);
     connect(macroPage_, &MacroPage::modeChanged, this, &MainWindow::onMacroModeChanged);
     connect(macroPage_, &MacroPage::loopCountChanged, this, &MainWindow::onMacroLoopCountChanged);
 
     // SettingsPage signals
     connect(settingsPage_, &SettingsPage::hotkeyEditClicked, this, &MainWindow::onHotkeyEditClicked);
-    connect(settingsPage_, &SettingsPage::beepToggled, this, &MainWindow::onBeepToggled);
     connect(settingsPage_, &SettingsPage::openConfigFolder, this, [this]() {
         const auto folder = configStore_.GetPath().parent_path();
         QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder.wstring())));
@@ -289,11 +306,6 @@ void MainWindow::setupUi() {
         macroPage_->updateThemeColors();
         update();
     });
-    connect(settingsPage_, &SettingsPage::customSoundOnChanged, this, &MainWindow::onCustomSoundOnChanged);
-    connect(settingsPage_, &SettingsPage::customSoundOffChanged, this, &MainWindow::onCustomSoundOffChanged);
-    connect(settingsPage_, &SettingsPage::customSoundOnReset, this, &MainWindow::onCustomSoundOnReset);
-    connect(settingsPage_, &SettingsPage::customSoundOffReset, this, &MainWindow::onCustomSoundOffReset);
-
     // Engine state signals
     connect(this, &MainWindow::capturedKey, this, &MainWindow::handleCapturedKey);
     connect(this, &MainWindow::holdStateChanged, this, &MainWindow::updateStatusText);
@@ -307,6 +319,10 @@ void MainWindow::setupUi() {
             bool running = macroEngine_.IsRunning(macro->id);
             macroPage_->setRunning(running);
             updateModeSwitchStyle();
+            if (running != lastMacroRunning_) {
+                lastMacroRunning_ = running;
+                playToggleSound(running, true);
+            }
         }
     });
     macroStateTimer->start(100);
@@ -486,15 +502,14 @@ void MainWindow::refreshAllPages() {
     keyPage_->updateThemeColors();
     refreshProfileCombo();
     refreshMacroPage();
+    macroPage_->setBeepEnabled(config_.macroBeepEnabled);
     macroPage_->updateThemeColors();
     settingsPage_->setConfig(config_);
     settingsPage_->setHotkeyText(hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey);
     settingsPage_->setConfigPath(QString::fromStdWString(configStore_.GetPath().wstring()));
     settingsPage_->setCloseAction(config_.closeAction);
     settingsPage_->setFaction(QString::fromStdString(config_.faction));
-    settingsPage_->setCustomSoundPaths(
-        QString::fromStdWString(config_.customSoundOn),
-        QString::fromStdWString(config_.customSoundOff));
+    settingsPage_->setCustomSoundPaths(QString(), QString());
 }
 
 void MainWindow::refreshProfileCombo() {
@@ -519,6 +534,7 @@ void MainWindow::refreshMacroPage() {
         macroPage_->setSteps(macro->steps);
         macroPage_->setMode(macro->triggerMode);
         macroPage_->setLoopCount(macro->loopCount);
+        lastMacroRunning_ = macroEngine_.IsRunning(macro->id);
         QString hotkeyText = macro->triggerKey.has_value()
             ? QString::fromStdWString(GetKeyDisplayName(*macro->triggerKey))
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e");
@@ -604,28 +620,55 @@ void MainWindow::handleToolStateChanged(bool running) {
     playToggleSound(running);
 }
 
-void MainWindow::playToggleSound(bool running) const {
-    if (!config_.beepEnabled) return;
+void MainWindow::playToggleSound(bool running, bool macroMode) const {
+    if (macroMode) {
+        if (!config_.macroBeepEnabled) return;
+    } else if (!config_.beepEnabled) {
+        return;
+    }
 
+    const auto soundPath = resolveToggleSoundPath(running, macroMode);
+    if (soundPath.empty()) return;
+    playSoundFile(soundPath,
+        macroMode ? config_.macroSoundVolume : config_.soundVolume,
+        macroMode ? L"autokey_macro_toggle_sound" : L"autokey_toggle_sound");
+}
+
+void MainWindow::playSoundFile(const std::filesystem::path& soundPath, int volume, const wchar_t* alias) const {
+    if (soundPath.empty()) return;
+
+    const std::wstring aliasName(alias);
+    mciSendStringW((L"close " + aliasName).c_str(), nullptr, 0, nullptr);
+    const std::wstring openCommand = L"open \"" + soundPath.wstring() + L"\" type mpegvideo alias " + aliasName;
+    if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) return;
+
+    const int mciVolume = std::clamp(volume, 0, 100) * 10;
+    const std::wstring volumeCommand = L"setaudio " + aliasName + L" volume to " + std::to_wstring(mciVolume);
+    mciSendStringW(volumeCommand.c_str(), nullptr, 0, nullptr);
+    mciSendStringW((L"play " + aliasName + L" from 0").c_str(), nullptr, 0, nullptr);
+}
+
+std::filesystem::path MainWindow::resolveToggleSoundPath(bool running, bool macroMode) const {
     std::filesystem::path soundPath;
     // 优先使用自定义提示音
-    if (running && !config_.customSoundOn.empty()) {
-        soundPath = config_.customSoundOn;
+    const auto& customOn = macroMode ? config_.macroSoundOn : config_.customSoundOn;
+    const auto& customOff = macroMode ? config_.macroSoundOff : config_.customSoundOff;
+    if (running && !customOn.empty()) {
+        soundPath = customOn;
         if (!std::filesystem::exists(soundPath)) soundPath.clear();
-    } else if (!running && !config_.customSoundOff.empty()) {
-        soundPath = config_.customSoundOff;
+    } else if (!running && !customOff.empty()) {
+        soundPath = customOff;
         if (!std::filesystem::exists(soundPath)) soundPath.clear();
     }
     // 回退到默认内置音频
     if (soundPath.empty()) {
-        soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
+        if (macroMode) {
+            soundPath = resolveAudioPath(running ? L"\u5b8f\u5f00\u542f.mp3" : L"\u5b8f\u5173\u95ed.mp3");
+        } else {
+            soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
+        }
     }
-    if (soundPath.empty()) return;
-
-    mciSendStringW(L"close autokey_toggle_sound", nullptr, 0, nullptr);
-    const std::wstring openCommand = L"open \"" + soundPath.wstring() + L"\" type mpegvideo alias autokey_toggle_sound";
-    if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) return;
-    mciSendStringW(L"play autokey_toggle_sound from 0", nullptr, 0, nullptr);
+    return soundPath;
 }
 
 std::filesystem::path MainWindow::resolveAudioPath(const wchar_t* fileName) const {
@@ -691,6 +734,13 @@ void MainWindow::onHotkeyEditClicked() {
 
 void MainWindow::onBeepToggled(bool enabled) {
     config_.beepEnabled = enabled;
+    keyPage_->setBeepEnabled(enabled);
+    saveConfig();
+}
+
+void MainWindow::onMacroBeepToggled(bool enabled) {
+    config_.macroBeepEnabled = enabled;
+    macroPage_->setBeepEnabled(enabled);
     saveConfig();
 }
 
@@ -816,30 +866,178 @@ void MainWindow::onPauseKeyDelete(int index) {
 }
 
 void MainWindow::onSoundSettingsClicked() {
-    // 跳转到全局设置页
-    sidebar_->setCurrentPage("settings");
-    navigateTo("settings");
-}
+    const bool macroMode = keyMacroStack_->currentWidget() == macroPage_;
+    QDialog dialog(this);
+    dialog.setWindowTitle(macroMode
+        ? QString::fromWCharArray(L"\u5b8f\u97f3\u6548\u8bbe\u7f6e")
+        : QString::fromWCharArray(L"\u6309\u952e\u97f3\u6548\u8bbe\u7f6e"));
+    dialog.setFixedSize(430, 260);
+    dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    const QString accentColor = FactionTheme::instance().primaryColor().name();
+    dialog.setStyleSheet(QString(
+        "QDialog { background: #FFFFFF; }"
+        "QLabel { color: #202020; }"
+        "QSlider::groove:horizontal { height: 4px; background: rgba(0,0,0,0.10); border-radius: 2px; }"
+        "QSlider::handle:horizontal { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; background: %1; }"
+        "QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
+    ).arg(accentColor));
 
-// ── Custom Sound Management ─────────────────────────────────────────────────
+    QString soundOnPath = QString::fromStdWString(macroMode ? config_.macroSoundOn : config_.customSoundOn);
+    QString soundOffPath = QString::fromStdWString(macroMode ? config_.macroSoundOff : config_.customSoundOff);
+    int soundVolume = std::clamp(macroMode ? config_.macroSoundVolume : config_.soundVolume, 0, 100);
 
-void MainWindow::onCustomSoundOnChanged(const QString& path) {
-    config_.customSoundOn = path.toStdWString();
-    saveConfig();
-}
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(22, 18, 22, 18);
+    layout->setSpacing(10);
 
-void MainWindow::onCustomSoundOffChanged(const QString& path) {
-    config_.customSoundOff = path.toStdWString();
-    saveConfig();
-}
+    auto* titleRow = new QHBoxLayout();
+    auto* titleIcon = new QLabel(QString(QChar(0xE189)), &dialog);
+    titleIcon->setFont(QFont("Segoe MDL2 Assets", 18));
+    titleIcon->setFixedWidth(28);
+    titleRow->addWidget(titleIcon);
+    auto* title = new QLabel(macroMode
+        ? QString::fromWCharArray(L"\u5b8f\u97f3\u6548\u8bbe\u7f6e")
+        : QString::fromWCharArray(L"\u6309\u952e\u97f3\u6548\u8bbe\u7f6e"), &dialog);
+    title->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(title);
+    titleRow->addStretch();
+    auto* closeBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), &dialog);
+    closeBtn->setFont(QFont("Segoe MDL2 Assets", 10));
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setToolTip(QString::fromWCharArray(L"\u5173\u95ed"));
+    titleRow->addWidget(closeBtn);
+    layout->addLayout(titleRow);
 
-void MainWindow::onCustomSoundOnReset() {
-    config_.customSoundOn.clear();
-    saveConfig();
-}
+    auto createSoundRow = [&](const QString& labelText, QString* pathValue, bool running) {
+        auto* row = new QHBoxLayout();
+        row->setSpacing(8);
 
-void MainWindow::onCustomSoundOffReset() {
-    config_.customSoundOff.clear();
+        auto* label = new QLabel(labelText, &dialog);
+        label->setFont(Fluent::Typography::body());
+        label->setFixedWidth(76);
+        row->addWidget(label);
+
+        auto* pathEdit = new FluentLineEdit(&dialog);
+        pathEdit->setReadOnly(true);
+        pathEdit->setPlaceholderText(QString::fromWCharArray(L"\u9ed8\u8ba4\u5185\u7f6e\u97f3\u6548"));
+        pathEdit->setText(*pathValue);
+        pathEdit->setCursor(Qt::PointingHandCursor);
+        pathEdit->setToolTip(QString::fromWCharArray(L"\u70b9\u51fb\u9009\u62e9\u97f3\u9891"));
+        row->addWidget(pathEdit, 1);
+
+        auto* previewBtn = new FluentButton(FluentButton::Primary, QString(QChar(0xE768)), &dialog);
+        previewBtn->setFont(QFont("Segoe MDL2 Assets", 11));
+        previewBtn->setFixedSize(32, 30);
+        previewBtn->setToolTip(QString::fromWCharArray(L"\u8bd5\u542c"));
+        row->addWidget(previewBtn);
+
+        auto* resetBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), &dialog);
+        resetBtn->setFont(QFont("Segoe MDL2 Assets", 12));
+        resetBtn->setFixedSize(30, 30);
+        resetBtn->setToolTip(QString::fromWCharArray(L"\u6062\u590d\u9ed8\u8ba4"));
+        row->addWidget(resetBtn);
+
+        connect(pathEdit, &FluentLineEdit::clicked, &dialog, [&, pathValue, pathEdit, running]() {
+            const QString caption = running
+                ? (macroMode ? QString::fromWCharArray(L"\u9009\u62e9\u5b8f\u5f00\u542f\u97f3\u6548") : QString::fromWCharArray(L"\u9009\u62e9\u6309\u952e\u5f00\u542f\u97f3\u6548"))
+                : (macroMode ? QString::fromWCharArray(L"\u9009\u62e9\u5b8f\u5173\u95ed\u97f3\u6548") : QString::fromWCharArray(L"\u9009\u62e9\u6309\u952e\u5173\u95ed\u97f3\u6548"));
+            QString filePath = QFileDialog::getOpenFileName(&dialog,
+                caption,
+                QString(),
+                QString::fromWCharArray(L"\u97f3\u9891\u6587\u4ef6 (*.mp3 *.wav *.wma *.mid *.midi)"));
+            if (filePath.isEmpty()) return;
+            if (!IsValidAudioFile(filePath)) {
+                QMessageBox::warning(&dialog,
+                    QString::fromWCharArray(L"\u683c\u5f0f\u4e0d\u652f\u6301"),
+                    QString::fromWCharArray(L"\u8bf7\u9009\u62e9 mp3\u3001wav\u3001wma\u3001mid \u683c\u5f0f\u7684\u97f3\u9891\u6587\u4ef6\u3002"));
+                return;
+            }
+            *pathValue = filePath;
+            pathEdit->setText(filePath);
+        });
+
+        connect(previewBtn, &QPushButton::clicked, &dialog, [&, pathValue, running]() {
+            std::filesystem::path previewPath;
+            if (!pathValue->isEmpty()) previewPath = pathValue->toStdWString();
+            if (previewPath.empty() || !std::filesystem::exists(previewPath)) {
+                previewPath = resolveToggleSoundPath(running, macroMode);
+            }
+            playSoundFile(previewPath, soundVolume, L"autokey_preview_sound");
+        });
+
+        connect(resetBtn, &QPushButton::clicked, &dialog, [pathValue, pathEdit]() {
+            pathValue->clear();
+            pathEdit->clear();
+        });
+
+        layout->addLayout(row);
+    };
+
+    createSoundRow(QString::fromWCharArray(L"\u6309\u952e\u5f00\u542f"), &soundOnPath, true);
+    createSoundRow(QString::fromWCharArray(L"\u6309\u952e\u5173\u95ed"), &soundOffPath, false);
+
+    auto* volumeRow = new QHBoxLayout();
+    volumeRow->setSpacing(8);
+    auto* volumeLabel = new QLabel(QString::fromWCharArray(L"\u97f3\u91cf"), &dialog);
+    volumeLabel->setFont(Fluent::Typography::body());
+    volumeLabel->setFixedWidth(76);
+    volumeRow->addWidget(volumeLabel);
+    auto* volumeSlider = new QSlider(Qt::Horizontal, &dialog);
+    volumeSlider->setRange(0, 100);
+    volumeSlider->setValue(soundVolume);
+    volumeRow->addWidget(volumeSlider, 1);
+    auto* volumeValueLabel = new QLabel(QString::number(soundVolume) + "%", &dialog);
+    volumeValueLabel->setFont(Fluent::Typography::caption());
+    volumeValueLabel->setFixedWidth(42);
+    volumeValueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    volumeRow->addWidget(volumeValueLabel);
+    layout->addLayout(volumeRow);
+
+    auto* desc = new QLabel(QString::fromWCharArray(L"\u652f\u6301 mp3\u3001wav\u3001wma\u3001mid \u683c\u5f0f\uff1b\u6e05\u7a7a\u8def\u5f84\u540e\u4f7f\u7528\u5185\u7f6e\u9ed8\u8ba4\u97f3\u6548\u3002"), &dialog);
+    desc->setFont(Fluent::Typography::caption());
+    desc->setWordWrap(true);
+    QPalette descPal = desc->palette();
+    descPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    desc->setPalette(descPal);
+    layout->addWidget(desc);
+
+    layout->addStretch();
+
+    auto* buttonRow = new QHBoxLayout();
+    buttonRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), &dialog);
+    cancelBtn->setFixedWidth(82);
+    auto* saveBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u4fdd\u5b58"), &dialog);
+    saveBtn->setFixedWidth(94);
+    buttonRow->addWidget(cancelBtn);
+    buttonRow->addSpacing(8);
+    buttonRow->addWidget(saveBtn);
+    layout->addLayout(buttonRow);
+
+    connect(volumeSlider, &QSlider::valueChanged, &dialog, [&](int value) {
+        soundVolume = value;
+        volumeValueLabel->setText(QString::number(value) + "%");
+    });
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(saveBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    dialogOpen_ = true;
+    const int result = dialog.exec();
+    dialogOpen_ = false;
+    mciSendStringW(L"close autokey_preview_sound", nullptr, 0, nullptr);
+
+    if (result != QDialog::Accepted) return;
+
+    if (macroMode) {
+        config_.macroSoundOn = soundOnPath.toStdWString();
+        config_.macroSoundOff = soundOffPath.toStdWString();
+        config_.macroSoundVolume = soundVolume;
+    } else {
+        config_.customSoundOn = soundOnPath.toStdWString();
+        config_.customSoundOff = soundOffPath.toStdWString();
+        config_.soundVolume = soundVolume;
+    }
     saveConfig();
 }
 

@@ -27,20 +27,12 @@ signals:
     void closeActionChanged(CloseAction action);
     void openConfigFolder();
     void factionChanged(const QString& factionId);
-    void customSoundOnChanged(const QString& path);
-    void customSoundOffChanged(const QString& path);
-    void customSoundOnReset();
-    void customSoundOffReset();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    static bool isValidAudioFile(const QString& path);
-
     QLabel* configPathLabel_;
     QButtonGroup* closeActionGroup_ = nullptr;
     FluentComboBox* factionCombo_ = nullptr;
-    FluentLineEdit* soundOnPathEdit_ = nullptr;
-    FluentLineEdit* soundOffPathEdit_ = nullptr;
 };

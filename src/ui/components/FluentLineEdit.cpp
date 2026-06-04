@@ -4,6 +4,7 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QMouseEvent>
 
 FluentLineEdit::FluentLineEdit(QWidget* parent) : QLineEdit(parent) { init(); }
 FluentLineEdit::FluentLineEdit(const QString& text, QWidget* parent) : QLineEdit(text, parent) { init(); }
@@ -40,6 +41,11 @@ void FluentLineEdit::focusOutEvent(QFocusEvent* event) {
     focusAnim_->setStartValue(focusProgress_);
     focusAnim_->setEndValue(0.0);
     focusAnim_->start();
+}
+
+void FluentLineEdit::mousePressEvent(QMouseEvent* event) {
+    QLineEdit::mousePressEvent(event);
+    if (event->button() == Qt::LeftButton) emit clicked();
 }
 
 void FluentLineEdit::paintEvent(QPaintEvent* event) {

@@ -182,11 +182,11 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     beepCheck_->setStyleSheet(checkBoxStyle());
     beepRow->addWidget(beepCheck_);
     beepRow->addStretch();
-    auto* soundSettingsBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE713)), this);  // settings gear icon
-    soundSettingsBtn->setFixedSize(24, 24);
-    soundSettingsBtn->setFont(QFont("Segoe MDL2 Assets", 10));
-    soundSettingsBtn->setToolTip(QString::fromWCharArray(L"\u81ea\u5b9a\u4e49\u63d0\u793a\u97f3"));
-    beepRow->addWidget(soundSettingsBtn);
+    soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);  // sound icon
+    soundSettingsBtn_->setFixedSize(32, 28);
+    soundSettingsBtn_->setFont(QFont("Segoe MDL2 Assets", 12));
+    soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
+    beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
     rightLayout->addWidget(triggerCard);
 
@@ -216,7 +216,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
-    connect(soundSettingsBtn, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
+    connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
     hotkeyEdit_->installEventFilter(this);
 
     // Profile connections
@@ -263,6 +263,7 @@ void KeyPage::setRunning(bool running) {
     profileDeleteBtn_->setEnabled(!running && bindings_.size() > 0);
     table_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
+    if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
     mixedModeCheck_->setEnabled(!running);
 }
 

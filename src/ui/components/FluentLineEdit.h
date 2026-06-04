@@ -13,10 +13,14 @@ public:
     qreal focusProgress() const { return focusProgress_; }
     void setFocusProgress(qreal v);
 
+signals:
+    void clicked();
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void focusInEvent(QFocusEvent* event) override;
     void focusOutEvent(QFocusEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 
 private:
     void init();

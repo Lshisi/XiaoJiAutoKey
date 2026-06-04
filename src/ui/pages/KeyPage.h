@@ -64,6 +64,7 @@ private:
     FluentButton* stopBtn_;
     FluentLineEdit* hotkeyEdit_;
     QCheckBox* beepCheck_;
+    FluentButton* soundSettingsBtn_ = nullptr;
     QCheckBox* mixedModeCheck_;
     QLabel* statusLabel_;
     std::vector<KeyBinding> bindings_;

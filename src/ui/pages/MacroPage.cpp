@@ -14,6 +14,19 @@
 #include <QEvent>
 #include <QIntValidator>
 
+static QString checkBoxStyle() {
+    QString color = FactionTheme::instance().primaryColor().name();
+    return QString(
+        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
+        "QCheckBox::indicator:checked {"
+        "  background: %1; border: 1px solid %1;"
+        "  image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMTAgM0w1IDhMMiA1IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==);"
+        "}"
+        "QCheckBox::indicator:unchecked {"
+        "  background: #FFFFFF; border: 1.5px solid rgba(0,0,0,0.3); }"
+    ).arg(color);
+}
+
 MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     setStyleSheet("MacroPage { background: #F5F7FA; }");
     setAttribute(Qt::WA_StyledBackground, true);
@@ -123,6 +136,19 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     hotkeyEdit_->setReadOnly(true);
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
     triggerCard->contentLayout()->addWidget(hotkeyEdit_);
+    triggerCard->contentLayout()->addSpacing(8);
+    auto* beepRow = new QHBoxLayout();
+    beepCheck_ = new QCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
+    beepCheck_->setFont(Fluent::Typography::body());
+    beepCheck_->setStyleSheet(checkBoxStyle());
+    beepRow->addWidget(beepCheck_);
+    beepRow->addStretch();
+    soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);
+    soundSettingsBtn_->setFixedSize(32, 28);
+    soundSettingsBtn_->setFont(QFont("Segoe MDL2 Assets", 12));
+    soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
+    beepRow->addWidget(soundSettingsBtn_);
+    triggerCard->contentLayout()->addLayout(beepRow);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 模式设置 --
@@ -156,6 +182,8 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(addBtn_, &QPushButton::clicked, this, &MacroPage::addStepRequested);
     connect(startBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
+    connect(beepCheck_, &QCheckBox::toggled, this, &MacroPage::beepToggled);
+    connect(soundSettingsBtn_, &QPushButton::clicked, this, &MacroPage::soundSettingsClicked);
     connect(hotkeyEdit_, &QLineEdit::cursorPositionChanged, this, [](){ /* dummy */ });
     hotkeyEdit_->installEventFilter(this);
 
@@ -234,6 +262,8 @@ void MacroPage::setRunning(bool running) {
     modeCombo_->setEnabled(!running);
     loopEdit_->setEnabled(!running);
     hotkeyEdit_->setEnabled(!running);
+    beepCheck_->setEnabled(!running);
+    if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
 }
 
 void MacroPage::setHotkeyText(const QString& text) {
@@ -246,7 +276,14 @@ void MacroPage::setHotkeyText(const QString& text) {
     stopBtn_->setText(QString::fromWCharArray(L"\u25A0  \u505c\u6b62") + keyStr);
 }
 
+void MacroPage::setBeepEnabled(bool enabled) {
+    beepCheck_->blockSignals(true);
+    beepCheck_->setChecked(enabled);
+    beepCheck_->blockSignals(false);
+}
+
 void MacroPage::updateThemeColors() {
+    beepCheck_->setStyleSheet(checkBoxStyle());
     refreshTable();
 }
 

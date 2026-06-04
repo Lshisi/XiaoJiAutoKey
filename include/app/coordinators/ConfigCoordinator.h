@@ -18,7 +18,6 @@ public:
     struct Context {
         QWidget* parent = nullptr;
         AppConfig* config = nullptr;
-        std::uint64_t* activeMacroId = nullptr;
         std::function<void()> refreshHookState;
     };
 

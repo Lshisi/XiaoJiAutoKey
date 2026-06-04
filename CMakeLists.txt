@@ -72,6 +72,7 @@ set(UI_PAGE_HEADERS
 add_executable(XiaoJiAutoKey WIN32
     include/app/input/GlobalInputHook.h
     include/app/input/InputKeyUtils.h
+    include/app/config/ActiveConfigValidator.h
     include/app/controllers/ControllerResult.h
     include/app/config/ConfigNormalizer.h
     include/app/coordinators/SettingsCoordinator.h
@@ -92,6 +93,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/services/AppPaths.h
     include/app/services/SoundService.h
     include/app/dialogs/BindingEditDialog.h
+    include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
@@ -99,6 +101,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/SoundSettingsDialog.h
     include/core/MacroEngine.h
     src/app/input/GlobalInputHook.cpp
+    src/app/config/ActiveConfigValidator.cpp
     src/app/config/ConfigNormalizer.cpp
     src/app/coordinators/SettingsCoordinator.cpp
     src/app/coordinators/ProfileCoordinator.cpp
@@ -120,6 +123,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
     src/app/services/SoundService.cpp
+    src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/BindingEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp
     src/app/dialogs/KeyCaptureDialogBase.cpp

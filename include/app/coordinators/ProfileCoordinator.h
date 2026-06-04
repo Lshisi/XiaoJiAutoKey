@@ -45,7 +45,6 @@ private:
     void onProfileAdd();
     void onProfileRename();
     void onProfileDelete();
-    void resetActiveMacro();
     void stopEnginesForProfileChange();
 
     Context context_;

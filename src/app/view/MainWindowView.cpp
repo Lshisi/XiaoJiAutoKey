@@ -1,7 +1,5 @@
 #include "view/MainWindowView.h"
 
-#include "FactionTheme.h"
-#include "ui/components/FluentButton.h"
 #include "ui/components/FluentSidebar.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/pages/KeyPage.h"
@@ -34,54 +32,23 @@ void MainWindowView::setup(QMainWindow* window) {
     bodyLayout->setSpacing(0);
 
     sidebar_ = new FluentSidebar(window);
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u8bbe\u7f6e"), "keys");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
+    sidebar_->addNavItem(QString::fromWCharArray(L"\u2630"), QString::fromWCharArray(L"\u5b8f\u5faa\u73af"), "macro");
     sidebar_->addNavItem(QString::fromWCharArray(L"\u2699"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
     sidebar_->addNavItem(QString::fromWCharArray(L"\u2139"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
     sidebar_->setCurrentPage("keys");
     bodyLayout->addWidget(sidebar_);
 
     pageStack_ = new QStackedWidget(window);
-    keySettingsContainer_ = new QWidget(window);
-
-    auto* ksLayout = new QVBoxLayout(keySettingsContainer_);
-    ksLayout->setContentsMargins(0, 0, 0, 0);
-    ksLayout->setSpacing(0);
-
-    auto* switchBar = new QWidget(keySettingsContainer_);
-    switchBar->setFixedHeight(40);
-    switchBar->setStyleSheet("background: #FFFFFF; border-bottom: 1px solid rgba(0,0,0,0.06);");
-    auto* switchLayout = new QHBoxLayout(switchBar);
-    switchLayout->setContentsMargins(16, 4, 16, 4);
-    switchLayout->setSpacing(0);
-
-    modeRepeatBtn_ = new QPushButton(QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), switchBar);
-    modeMacroBtn_ = new QPushButton(QString::fromWCharArray(L"\u5b8f\u5faa\u73af"), switchBar);
-    modeRepeatBtn_->setFixedHeight(30);
-    modeMacroBtn_->setFixedHeight(30);
-    modeRepeatBtn_->setMinimumWidth(90);
-    modeMacroBtn_->setMinimumWidth(90);
-    modeRepeatBtn_->setCursor(Qt::PointingHandCursor);
-    modeMacroBtn_->setCursor(Qt::PointingHandCursor);
-
-    switchLayout->addWidget(modeRepeatBtn_);
-    switchLayout->addWidget(modeMacroBtn_);
-    switchLayout->addStretch();
-    ksLayout->addWidget(switchBar);
-
-    keyMacroStack_ = new QStackedWidget(keySettingsContainer_);
     keyPage_ = new KeyPage(window);
     macroPage_ = new MacroPage(window);
-    keyMacroStack_->addWidget(keyPage_);
-    keyMacroStack_->addWidget(macroPage_);
-    keyMacroStack_->setCurrentWidget(keyPage_);
-    ksLayout->addWidget(keyMacroStack_, 1);
-
-    pageStack_->addWidget(keySettingsContainer_);
     settingsPage_ = new SettingsPage(window);
     aboutPage_ = new AboutPage(window);
+    pageStack_->addWidget(keyPage_);
+    pageStack_->addWidget(macroPage_);
     pageStack_->addWidget(settingsPage_);
     pageStack_->addWidget(aboutPage_);
-    pageStack_->setCurrentWidget(keySettingsContainer_);
+    pageStack_->setCurrentWidget(keyPage_);
     bodyLayout->addWidget(pageStack_, 1);
     rootLayout->addLayout(bodyLayout, 1);
 
@@ -129,46 +96,24 @@ void MainWindowView::setup(QMainWindow* window) {
 }
 
 void MainWindowView::navigateTo(const QString& pageId) {
-    if (pageId == "keys") pageStack_->setCurrentWidget(keySettingsContainer_);
+    if (pageId == "keys") pageStack_->setCurrentWidget(keyPage_);
+    else if (pageId == "macro") pageStack_->setCurrentWidget(macroPage_);
     else if (pageId == "settings") pageStack_->setCurrentWidget(settingsPage_);
     else if (pageId == "about") pageStack_->setCurrentWidget(aboutPage_);
 }
 
 void MainWindowView::showRepeatPage() {
-    keyMacroStack_->setCurrentWidget(keyPage_);
+    pageStack_->setCurrentWidget(keyPage_);
+    sidebar_->setCurrentPage("keys");
 }
 
 void MainWindowView::showMacroPage() {
-    keyMacroStack_->setCurrentWidget(macroPage_);
+    pageStack_->setCurrentWidget(macroPage_);
+    sidebar_->setCurrentPage("macro");
 }
 
 bool MainWindowView::isRepeatPageActive() const {
-    return keyMacroStack_->currentWidget() == keyPage_;
-}
-
-void MainWindowView::updateModeSwitchStyle(bool anyEngineRunning) {
-    const bool repeatActive = isRepeatPageActive();
-
-    const QString activeStyle = QString(
-        "QPushButton { background: %1; color: white; border: none; border-radius: 6px; "
-        "font-size: 13px; font-weight: 500; padding: 4px 16px; }"
-    ).arg(FactionTheme::instance().primaryColor().name());
-
-    const QString inactiveStyle = QString(
-        "QPushButton { background: transparent; color: %1; border: none; border-radius: 6px; "
-        "font-size: 13px; padding: 4px 16px; }"
-        "QPushButton:hover { background: rgba(0,0,0,0.04); }"
-    ).arg(anyEngineRunning ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.6)");
-
-    const QString disabledStyle = QString(
-        "QPushButton { background: transparent; color: rgba(0,0,0,0.25); border: none; border-radius: 6px; "
-        "font-size: 13px; padding: 4px 16px; }"
-    );
-
-    modeRepeatBtn_->setStyleSheet(repeatActive ? activeStyle : (anyEngineRunning ? disabledStyle : inactiveStyle));
-    modeMacroBtn_->setStyleSheet(!repeatActive ? activeStyle : (anyEngineRunning ? disabledStyle : inactiveStyle));
-    modeRepeatBtn_->setEnabled(!anyEngineRunning || repeatActive);
-    modeMacroBtn_->setEnabled(!anyEngineRunning || !repeatActive);
+    return pageStack_->currentWidget() == keyPage_;
 }
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
@@ -183,17 +128,4 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
 
 void MainWindowView::hideTrayIcon() {
     if (trayIcon_) trayIcon_->hide();
-}
-
-void MainWindowView::connectModeSwitches(QObject* receiver, std::function<bool()> canSwitch, std::function<void(int)> modeChanged) {
-    QObject::connect(modeRepeatBtn_, &QPushButton::clicked, receiver, [this, canSwitch, modeChanged]() {
-        if (!canSwitch()) return;
-        showRepeatPage();
-        modeChanged(0);
-    });
-    QObject::connect(modeMacroBtn_, &QPushButton::clicked, receiver, [this, canSwitch, modeChanged]() {
-        if (!canSwitch()) return;
-        showMacroPage();
-        modeChanged(1);
-    });
 }

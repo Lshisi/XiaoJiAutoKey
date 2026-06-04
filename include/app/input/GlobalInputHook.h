@@ -24,7 +24,6 @@ public:
     void setCaptureActive(bool active);
     void setCaptureStartedTick(ULONGLONG tick);
     void setDialogOpen(bool open);
-    void setActiveMode(int mode);
     void setRepeatRunning(bool running);
 
 signals:
@@ -57,5 +56,4 @@ private:
     std::atomic<bool> dialogOpen_{false};
     std::atomic<bool> repeatRunning_{false};
     std::atomic<bool> controlHotkeyPressed_{false};
-    std::atomic<int> activeMode_{0};
 };

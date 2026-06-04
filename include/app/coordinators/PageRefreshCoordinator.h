@@ -18,7 +18,6 @@ public:
     struct Context {
         MainWindowView* view = nullptr;
         AppConfig* config = nullptr;
-        std::uint64_t* activeMacroId = nullptr;
         RepeaterEngine* repeaterEngine = nullptr;
         MacroEngine* macroEngine = nullptr;
         std::filesystem::path configPath;

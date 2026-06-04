@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
+#include "controllers/ControllerResult.h"
 
 #include <QObject>
 #include <functional>
@@ -33,6 +34,7 @@ public:
         std::function<void()> refreshAll;
         std::function<void()> refreshMacroPage;
         std::function<void()> refreshHookState;
+        std::function<ControllerResult(const KeyDescriptor&)> validateHotkeyCandidate;
     };
 
     explicit CaptureCoordinator(QObject* parent = nullptr);

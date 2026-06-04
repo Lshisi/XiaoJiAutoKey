@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <cstdint>
 #include <functional>
 
 class GlobalInputHook;
@@ -35,4 +36,5 @@ private:
     void openSettings();
 
     Context context_;
+    mutable std::uint64_t lastToggleSoundTick_ = 0;
 };

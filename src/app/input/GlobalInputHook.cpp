@@ -67,10 +67,6 @@ void GlobalInputHook::setDialogOpen(bool open) {
     dialogOpen_ = open;
 }
 
-void GlobalInputHook::setActiveMode(int mode) {
-    activeMode_ = mode;
-}
-
 void GlobalInputHook::setRepeatRunning(bool running) {
     repeatRunning_ = running;
     if (!running) controlHotkeyPressed_ = false;
@@ -117,7 +113,6 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 
     auto* hook = g_hookInstance;
     const bool repeatRunning = hook->repeatRunning_.load();
-    const int activeMode = hook->activeMode_.load();
     std::optional<KeyDescriptor> controlHotkey;
     bool captureActive = false;
     {
@@ -134,27 +129,22 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    if (activeMode == 0) {
-        const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
-        if (isControlHotkey) {
-            if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
-                QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
-            } else if (released) {
-                hook->controlHotkeyPressed_ = false;
-            }
-        }
-        if (repeatRunning) {
-            QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-                emit hook->physicalKeyChanged(key, pressed);
-            }, Qt::QueuedConnection);
+    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
+    if (isControlHotkey) {
+        if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
+            QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
+        } else if (released) {
+            hook->controlHotkeyPressed_ = false;
         }
     }
-
-    if (activeMode == 1) {
+    if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->macroTriggerChanged(key, pressed);
+            emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);
     }
+    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+        emit hook->macroTriggerChanged(key, pressed);
+    }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
@@ -170,7 +160,6 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     auto* hook = g_hookInstance;
     const bool pressed = IsMouseDownMessage(wParam);
     const bool repeatRunning = hook->repeatRunning_.load();
-    const int activeMode = hook->activeMode_.load();
     std::optional<KeyDescriptor> controlHotkey;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
@@ -190,27 +179,22 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    if (activeMode == 0) {
-        const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
-        if (isControlHotkey) {
-            if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
-                QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
-            } else if (!pressed) {
-                hook->controlHotkeyPressed_ = false;
-            }
-        }
-        if (repeatRunning) {
-            QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-                emit hook->physicalKeyChanged(key, pressed);
-            }, Qt::QueuedConnection);
+    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
+    if (isControlHotkey) {
+        if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
+            QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
+        } else if (!pressed) {
+            hook->controlHotkeyPressed_ = false;
         }
     }
-
-    if (activeMode == 1) {
+    if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->macroTriggerChanged(key, pressed);
+            emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);
     }
+    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+        emit hook->macroTriggerChanged(key, pressed);
+    }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }

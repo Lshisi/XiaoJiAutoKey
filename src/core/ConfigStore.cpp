@@ -162,9 +162,10 @@ AppConfig ConfigStore::Load() const {
         defaultMacro.id = 1;
         defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
         defaultMacro.enabled = true;
-        def.macros.push_back(defaultMacro);
         config.profiles.push_back(def);
         config.activeProfileId = 1;
+        config.macros.push_back(defaultMacro);
+        config.activeMacroId = 1;
         return config;
     }
 
@@ -210,6 +211,8 @@ AppConfig ConfigStore::Load() const {
         config.macroSoundVolume = std::clamp(*volume, 0, 100);
 
     config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);
+    config.activeMacroId = GetUInt64Field(*object, "activeMacroId").value_or(0);
+    config.macros = LoadMacros(*object);
 
     // Load profiles
     const auto profilesIt = object->find("profiles");
@@ -244,7 +247,6 @@ AppConfig ConfigStore::Load() const {
                 }
 
                 profile.bindings = LoadBindings(*pObj);
-                profile.macros = LoadMacros(*pObj);
 
                 if (profile.id > 0 && !profile.name.empty())
                     config.profiles.push_back(std::move(profile));
@@ -261,9 +263,17 @@ AppConfig ConfigStore::Load() const {
         defaultMacro.id = 1;
         defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
         defaultMacro.enabled = true;
-        def.macros.push_back(defaultMacro);
         config.profiles.push_back(def);
         config.activeProfileId = 1;
+    }
+
+    if (config.macros.empty()) {
+        MacroConfig defaultMacro;
+        defaultMacro.id = 1;
+        defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
+        defaultMacro.enabled = true;
+        config.macros.push_back(defaultMacro);
+        config.activeMacroId = 1;
     }
 
     // Validate activeProfileId
@@ -303,6 +313,8 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     root.emplace("macroSoundVolume", std::clamp(config.macroSoundVolume, 0, 100));
 
     root.emplace("activeProfileId", static_cast<double>(config.activeProfileId));
+    root.emplace("activeMacroId", static_cast<double>(config.activeMacroId));
+    root.emplace("macros", SerializeMacros(config.macros));
 
     // Profiles
     jsonlite::Array profilesArr;
@@ -324,7 +336,6 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
             pObj.emplace("pauseKeys", std::move(pauseKeysArr));
 
         pObj.emplace("bindings", SerializeBindings(profile.bindings));
-        pObj.emplace("macros", SerializeMacros(profile.macros));
         profilesArr.emplace_back(std::move(pObj));
     }
     root.emplace("profiles", std::move(profilesArr));

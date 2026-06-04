@@ -12,6 +12,8 @@ public:
 
     [[nodiscard]] ProfileConfig* activeProfile();
     [[nodiscard]] const ProfileConfig* activeProfile() const;
+    [[nodiscard]] ProfileConfig* profileById(std::uint64_t profileId);
+    [[nodiscard]] const ProfileConfig* profileById(std::uint64_t profileId) const;
 
     [[nodiscard]] std::uint64_t nextProfileId() const;
     [[nodiscard]] std::uint64_t nextBindingId() const;

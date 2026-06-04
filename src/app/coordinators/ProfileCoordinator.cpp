@@ -1,7 +1,9 @@
 #include "coordinators/ProfileCoordinator.h"
 
+#include "config/ActiveConfigValidator.h"
 #include "controllers/MacroController.h"
 #include "controllers/ProfileController.h"
+#include "dialogs/AppMessageDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
@@ -27,17 +29,24 @@ void ProfileCoordinator::switchToProfile(std::uint64_t profileId) {
     if (!context_.config || !context_.profileController || !context_.macroController) return;
     if (profileId == context_.config->activeProfileId) return;
 
+    const auto* targetProfile = context_.profileController->profileById(profileId);
+    auto validation = ActiveConfigValidator::validateActiveHotkeys(
+        targetProfile,
+        context_.macroController->activeMacro());
+    if (!validation.ok) {
+        if (context_.refreshProfileCombo) context_.refreshProfileCombo();
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
     stopEnginesForProfileChange();
 
     auto result = context_.profileController->switchProfile(profileId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u914d\u7f6e\u5207\u6362\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u914d\u7f6e\u5207\u6362\u5931\u8d25"), result.message);
         return;
     }
-    resetActiveMacro();
-
     if (context_.applyBindings) context_.applyBindings();
-    if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();
 }
@@ -63,13 +72,11 @@ void ProfileCoordinator::onProfileAdd() {
     std::uint64_t createdProfileId = 0;
     auto result = context_.profileController->addProfile(name, createdProfileId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e\u5931\u8d25"), result.message);
         return;
     }
 
-    resetActiveMacro();
     if (context_.applyBindings) context_.applyBindings();
-    if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();
 }
@@ -90,7 +97,7 @@ void ProfileCoordinator::onProfileRename() {
 
     auto result = context_.profileController->renameActiveProfile(name);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5931\u8d25"), result.message);
         return;
     }
     if (context_.saveConfig) context_.saveConfig();
@@ -100,7 +107,7 @@ void ProfileCoordinator::onProfileRename() {
 void ProfileCoordinator::onProfileDelete() {
     if (!context_.config || !context_.inputHook || !context_.profileController || !context_.macroController) return;
     if (context_.config->profiles.size() <= 1) {
-        QMessageBox::information(context_.parent,
+        AppMessageDialog::information(context_.parent,
             QString::fromWCharArray(L"\u65e0\u6cd5\u5220\u9664"),
             QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u914d\u7f6e\u65b9\u6848\u3002"));
         return;
@@ -122,24 +129,20 @@ void ProfileCoordinator::onProfileDelete() {
     std::uint64_t newActiveProfileId = 0;
     auto result = context_.profileController->deleteActiveProfile(newActiveProfileId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e\u5931\u8d25"), result.message);
         return;
     }
-    resetActiveMacro();
 
     if (context_.applyBindings) context_.applyBindings();
-    if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();
-}
-
-void ProfileCoordinator::resetActiveMacro() {
-    if (context_.macroController) context_.macroController->resetActiveMacro();
 }
 
 void ProfileCoordinator::stopEnginesForProfileChange() {
     if (context_.repeaterEngine && context_.repeaterEngine->IsToolRunning() && context_.setRepeatRunning) {
         context_.setRepeatRunning(false);
     }
-    if (context_.macroEngine) context_.macroEngine->StopAll();
+    if (context_.macroEngine) {
+        context_.macroEngine->StopAll();
+    }
 }

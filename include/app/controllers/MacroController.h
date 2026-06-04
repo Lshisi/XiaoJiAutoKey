@@ -7,12 +7,14 @@
 
 class MacroController {
 public:
-    MacroController(AppConfig& config, std::uint64_t& activeMacroId);
+    explicit MacroController(AppConfig& config);
 
     [[nodiscard]] MacroConfig* activeMacro();
     [[nodiscard]] const MacroConfig* activeMacro() const;
+    [[nodiscard]] MacroConfig* macroById(std::uint64_t macroId);
+    [[nodiscard]] const MacroConfig* macroById(std::uint64_t macroId) const;
     [[nodiscard]] std::uint64_t nextMacroId() const;
-    [[nodiscard]] static std::uint64_t nextMacroId(const ProfileConfig& profile);
+    [[nodiscard]] static std::uint64_t nextMacroId(const AppConfig& config);
 
     void resetActiveMacro();
     void ensureActiveMacro();
@@ -31,11 +33,8 @@ public:
     ControllerResult setLoopCount(int count);
 
 private:
-    [[nodiscard]] ProfileConfig* activeProfile();
-    [[nodiscard]] const ProfileConfig* activeProfile() const;
     [[nodiscard]] ControllerResult validateStepKey(const MacroConfig& macro, const KeyDescriptor& key) const;
     [[nodiscard]] ControllerResult validateTriggerKey(const MacroConfig& macro, const KeyDescriptor& key) const;
 
     AppConfig& config_;
-    std::uint64_t& activeMacroId_;
 };

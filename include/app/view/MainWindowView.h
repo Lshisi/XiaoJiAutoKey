@@ -2,10 +2,8 @@
 
 #include <QMainWindow>
 #include <QMenu>
-#include <QPushButton>
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
-#include <functional>
 
 class AboutPage;
 class FluentSidebar;
@@ -20,10 +18,8 @@ public:
     void navigateTo(const QString& pageId);
     void showRepeatPage();
     void showMacroPage();
-    void updateModeSwitchStyle(bool anyEngineRunning);
     void updateFactionVisuals(QMainWindow* window);
     void hideTrayIcon();
-    void connectModeSwitches(QObject* receiver, std::function<bool()> canSwitch, std::function<void(int)> modeChanged);
 
     [[nodiscard]] bool isRepeatPageActive() const;
 
@@ -37,10 +33,6 @@ public:
 private:
     FluentSidebar* sidebar_ = nullptr;
     QStackedWidget* pageStack_ = nullptr;
-    QWidget* keySettingsContainer_ = nullptr;
-    QStackedWidget* keyMacroStack_ = nullptr;
-    QPushButton* modeRepeatBtn_ = nullptr;
-    QPushButton* modeMacroBtn_ = nullptr;
     KeyPage* keyPage_ = nullptr;
     MacroPage* macroPage_ = nullptr;
     SettingsPage* settingsPage_ = nullptr;

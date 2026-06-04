@@ -1,6 +1,7 @@
 #include "coordinators/EngineHookCoordinator.h"
 
 #include "input/GlobalInputHook.h"
+#include "dialogs/AppMessageDialog.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
 
@@ -14,6 +15,17 @@ void EngineHookCoordinator::bind(Context context) {
         if (context_.capturedKey) context_.capturedKey(encodedKey);
     });
     connect(context_.hook, &GlobalInputHook::controlHotkeyPressed, this, [this]() {
+        if (context_.repeaterEngine && !context_.repeaterEngine->IsToolRunning() && context_.validateActiveConfig) {
+            auto validation = context_.validateActiveConfig();
+            if (!validation.ok) {
+                if (!conflictPromptVisible_) {
+                    conflictPromptVisible_ = true;
+                    AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                    conflictPromptVisible_ = false;
+                }
+                return;
+            }
+        }
         if (context_.toggleRepeatRunning) context_.toggleRepeatRunning();
     });
     connect(context_.hook, &GlobalInputHook::physicalKeyChanged, this, [this](const KeyDescriptor& key, bool pressed) {
@@ -23,7 +35,23 @@ void EngineHookCoordinator::bind(Context context) {
     });
     connect(context_.hook, &GlobalInputHook::macroTriggerChanged, this, [this](const KeyDescriptor& key, bool pressed) {
         if (!context_.macroEngine) return;
-        if (pressed) context_.macroEngine->OnTriggerDown(key);
+        if (pressed) {
+            const auto triggerKey = context_.macroTriggerKey ? context_.macroTriggerKey() : std::nullopt;
+            if (triggerKey.has_value() && *triggerKey == key
+                && !context_.macroEngine->HasActiveMacro()
+                && context_.validateActiveConfig) {
+                auto validation = context_.validateActiveConfig();
+                if (!validation.ok) {
+                    if (!conflictPromptVisible_) {
+                        conflictPromptVisible_ = true;
+                        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                        conflictPromptVisible_ = false;
+                    }
+                    return;
+                }
+            }
+            context_.macroEngine->OnTriggerDown(key);
+        }
         else context_.macroEngine->OnTriggerUp(key);
     });
 }
@@ -36,6 +64,5 @@ void EngineHookCoordinator::refreshState() {
     if (!context_.hook) return;
     context_.hook->setControlHotkey(context_.controlHotkey ? context_.controlHotkey() : std::nullopt);
     context_.hook->setCaptureActive(context_.captureActive ? context_.captureActive() : false);
-    context_.hook->setActiveMode(context_.activeMode ? context_.activeMode() : 0);
     context_.hook->setRepeatRunning(context_.repeatRunning ? context_.repeatRunning() : false);
 }

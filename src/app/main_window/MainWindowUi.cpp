@@ -5,6 +5,7 @@
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
+#include "config/ActiveConfigValidator.h"
 
 #include <QTimer>
 
@@ -20,32 +21,22 @@ void MainWindow::setupUi() {
         [this]() { engineHookCoordinator_.refreshState(); },
         [this](bool running, bool macroMode) { soundCoordinator_.playToggleSound(running, macroMode); }
     });
-    engineStateCoordinator_.updateModeSwitchStyle();
 
     configCoordinator_.bind(ConfigCoordinator::Context{
         this,
         &config_,
-        &activeMacroId_,
         [this]() { engineHookCoordinator_.refreshState(); }
     });
 
     pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{
         &view_,
         &config_,
-        &activeMacroId_,
         &engine_,
         &macroEngine_,
         configCoordinator_.configPath(),
         [this]() { return profileController_.activeProfile(); },
         [this]() { return macroController_.activeMacro(); }
     });
-    view_.connectModeSwitches(this,
-        [this]() { return engineStateCoordinator_.canSwitchMode(); },
-        [this](int mode) {
-            activeMode_.store(mode);
-            engineStateCoordinator_.updateModeSwitchStyle();
-        });
-
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
     });
@@ -61,7 +52,8 @@ void MainWindow::setupUi() {
         [this]() { engineStateCoordinator_.applyBindings(); },
         [this]() { configCoordinator_.save(); },
         [this]() { pageRefreshCoordinator_.refreshAll(); },
-        [this](bool enabled) { config_.beepEnabled = enabled; }
+        [this](bool enabled) { config_.beepEnabled = enabled; },
+        [this]() { return macroController_.activeMacro(); }
     });
 
     profileCoordinator_.bind(ProfileCoordinator::Context{
@@ -94,11 +86,17 @@ void MainWindow::setupUi() {
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
         [this]() { pageRefreshCoordinator_.refreshMacro(); },
-        [this]() { engineStateCoordinator_.updateModeSwitchStyle(); },
+        [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this](bool running) { soundCoordinator_.playToggleSound(running, true); },
         [this](bool enabled) {
             config_.macroBeepEnabled = enabled;
             configCoordinator_.save();
+        },
+        [this]() { return profileController_.activeProfile(); },
+        [this]() {
+            return ActiveConfigValidator::validateActiveHotkeys(
+                profileController_.activeProfile(),
+                macroController_.activeMacro());
         }
     });
 
@@ -124,7 +122,13 @@ void MainWindow::setupUi() {
         [this]() { configCoordinator_.save(); },
         [this]() { pageRefreshCoordinator_.refreshAll(); },
         [this]() { pageRefreshCoordinator_.refreshMacro(); },
-        [this]() { engineHookCoordinator_.refreshState(); }
+        [this]() { engineHookCoordinator_.refreshState(); },
+        [this](const KeyDescriptor& key) {
+            return ActiveConfigValidator::validateHotkeyCandidate(
+                key,
+                profileController_.activeProfile(),
+                macroController_.activeMacro());
+        }
     });
 
     soundCoordinator_.bind(SoundCoordinator::Context{

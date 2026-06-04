@@ -58,12 +58,6 @@ void EngineStateCoordinator::applyBindings() {
 void EngineStateCoordinator::applyMacros() {
     if (!context_.macroEngine) return;
 
-    auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
-    if (!profile) {
-        context_.macroEngine->UpdateMacros({});
-        return;
-    }
-
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
     if (macro) {
         context_.macroEngine->UpdateMacros({*macro});
@@ -77,23 +71,7 @@ void EngineStateCoordinator::updateRepeatStatus() {
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
 }
 
-void EngineStateCoordinator::updateModeSwitchStyle() {
-    if (!context_.view) return;
-    context_.view->updateModeSwitchStyle(isAnyEngineRunning());
-}
-
-bool EngineStateCoordinator::canSwitchMode() const {
-    return !isAnyEngineRunning();
-}
-
-bool EngineStateCoordinator::isAnyEngineRunning() const {
-    const bool repeatRunning = context_.repeaterEngine && context_.repeaterEngine->IsToolRunning();
-    const bool macroRunning = context_.macroEngine && context_.macroEngine->HasActiveMacro();
-    return repeatRunning || macroRunning;
-}
-
 void EngineStateCoordinator::handleRepeatStateChanged(bool running) {
     if (context_.view) context_.view->keyPage()->setRunning(running);
-    updateModeSwitchStyle();
     if (context_.playToggleSound) context_.playToggleSound(running, false);
 }

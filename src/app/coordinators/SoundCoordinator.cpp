@@ -7,6 +7,7 @@
 #include "ui/pages/MacroPage.h"
 
 #include <QDialog>
+#include <Windows.h>
 
 SoundCoordinator::SoundCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -23,6 +24,11 @@ void SoundCoordinator::bind(Context context) {
 void SoundCoordinator::playToggleSound(bool running, bool macroMode) const {
     if (!context_.config || !context_.service) return;
 
+    const auto now = static_cast<std::uint64_t>(GetTickCount64());
+    if (lastToggleSoundTick_ != 0 && now - lastToggleSoundTick_ < 150) {
+        return;
+    }
+
     if (macroMode) {
         if (!context_.config->macroBeepEnabled) return;
     } else if (!context_.config->beepEnabled) {
@@ -37,6 +43,7 @@ void SoundCoordinator::playToggleSound(bool running, bool macroMode) const {
     context_.service->playFile(soundPath,
         macroMode ? context_.config->macroSoundVolume : context_.config->soundVolume,
         macroMode ? L"autokey_macro_toggle_sound" : L"autokey_toggle_sound");
+    lastToggleSoundTick_ = now;
 }
 
 void SoundCoordinator::openSettings() {

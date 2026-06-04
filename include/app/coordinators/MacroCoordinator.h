@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
+#include "controllers/ControllerResult.h"
 
 #include <QObject>
 #include <cstdint>
@@ -27,9 +28,11 @@ public:
         std::function<void()> applyMacros;
         std::function<void()> saveConfig;
         std::function<void()> refreshMacroPage;
-        std::function<void()> updateModeSwitchStyle;
+        std::function<void(bool)> setRepeatRunning;
         std::function<void(bool)> playToggleSound;
         std::function<void(bool)> setMacroBeepEnabled;
+        std::function<ProfileConfig*()> activeProfile;
+        std::function<ControllerResult()> validateActiveConfig;
     };
 
     explicit MacroCoordinator(QObject* parent = nullptr);
@@ -50,6 +53,7 @@ private:
     void onMacroModeChanged(int modeIndex);
     void onMacroLoopCountChanged(int count);
     void onMacroBeepToggled(bool enabled);
+    void stopAllForConfigChange();
 
     Context context_;
     bool lastMacroRunning_ = false;

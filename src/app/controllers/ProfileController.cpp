@@ -19,6 +19,20 @@ const ProfileConfig* ProfileController::activeProfile() const {
     return config_.profiles.empty() ? nullptr : &config_.profiles.front();
 }
 
+ProfileConfig* ProfileController::profileById(std::uint64_t profileId) {
+    for (auto& profile : config_.profiles) {
+        if (profile.id == profileId) return &profile;
+    }
+    return nullptr;
+}
+
+const ProfileConfig* ProfileController::profileById(std::uint64_t profileId) const {
+    for (const auto& profile : config_.profiles) {
+        if (profile.id == profileId) return &profile;
+    }
+    return nullptr;
+}
+
 std::uint64_t ProfileController::nextProfileId() const {
     std::uint64_t maxId = 0;
     for (const auto& profile : config_.profiles) maxId = std::max(maxId, profile.id);
@@ -37,9 +51,7 @@ std::uint64_t ProfileController::nextBindingId(const ProfileConfig& profile) {
 }
 
 ControllerResult ProfileController::switchProfile(std::uint64_t profileId) {
-    auto exists = std::any_of(config_.profiles.begin(), config_.profiles.end(),
-        [profileId](const ProfileConfig& profile) { return profile.id == profileId; });
-    if (!exists) return ControllerResult::failure(QString::fromWCharArray(L"\u914d\u7f6e\u65b9\u6848\u4e0d\u5b58\u5728\u3002"));
+    if (!profileById(profileId)) return ControllerResult::failure(QString::fromWCharArray(L"\u914d\u7f6e\u65b9\u6848\u4e0d\u5b58\u5728\u3002"));
     config_.activeProfileId = profileId;
     return ControllerResult::success();
 }
@@ -51,12 +63,6 @@ ControllerResult ProfileController::addProfile(const QString& name, std::uint64_
     ProfileConfig profile;
     profile.id = nextProfileId();
     profile.name = trimmed.toStdWString();
-
-    MacroConfig defaultMacro;
-    defaultMacro.id = 1;
-    defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
-    defaultMacro.enabled = true;
-    profile.macros.push_back(defaultMacro);
 
     createdProfileId = profile.id;
     config_.profiles.push_back(std::move(profile));

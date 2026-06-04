@@ -62,16 +62,13 @@ void PageRefreshCoordinator::refreshProfiles() {
 }
 
 void PageRefreshCoordinator::refreshMacro() {
-    if (!context_.view || !context_.activeMacroId || !context_.macroEngine) return;
-
-    auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
-    if (!profile) return;
+    if (!context_.view || !context_.config || !context_.macroEngine) return;
 
     std::vector<std::pair<std::uint64_t, QString>> macroList;
-    for (const auto& macro : profile->macros) {
+    for (const auto& macro : context_.config->macros) {
         macroList.emplace_back(macro.id, QString::fromStdWString(macro.name));
     }
-    context_.view->macroPage()->setMacroProfiles(macroList, *context_.activeMacroId);
+    context_.view->macroPage()->setMacroProfiles(macroList, context_.config->activeMacroId);
 
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
     if (macro) {

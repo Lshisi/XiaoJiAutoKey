@@ -1,6 +1,8 @@
 #include "coordinators/MacroCoordinator.h"
 
+#include "config/ActiveConfigValidator.h"
 #include "controllers/MacroController.h"
+#include "dialogs/AppMessageDialog.h"
 #include "dialogs/MacroStepDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
@@ -38,7 +40,6 @@ void MacroCoordinator::pollRunningState() {
 
     const bool running = context_.engine->IsRunning(macro->id);
     context_.page->setRunning(running);
-    if (context_.updateModeSwitchStyle) context_.updateModeSwitchStyle();
     if (running != lastMacroRunning_) {
         lastMacroRunning_ = running;
         if (context_.playToggleSound) context_.playToggleSound(running);
@@ -50,9 +51,21 @@ void MacroCoordinator::onMacroSwitched(std::uint64_t macroId) {
     auto* current = context_.controller->activeMacro();
     if (current && current->id == macroId) return;
 
+    const auto* targetMacro = context_.controller->macroById(macroId);
+    auto validation = ActiveConfigValidator::validateActiveHotkeys(
+        context_.activeProfile ? context_.activeProfile() : nullptr,
+        targetMacro);
+    if (!validation.ok) {
+        if (context_.refreshMacroPage) context_.refreshMacroPage();
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
+    stopAllForConfigChange();
+
     auto result = context_.controller->switchMacro(macroId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u5207\u6362\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5207\u6362\u5b8f\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -74,7 +87,7 @@ void MacroCoordinator::onMacroAdd() {
     std::uint64_t createdMacroId = 0;
     auto result = context_.controller->addMacro(name, createdMacroId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u5b8f\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -98,7 +111,7 @@ void MacroCoordinator::onMacroRename() {
 
     auto result = context_.controller->renameActiveMacro(name);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f\u5931\u8d25"), result.message);
         return;
     }
     if (context_.saveConfig) context_.saveConfig();
@@ -123,7 +136,7 @@ void MacroCoordinator::onMacroDelete() {
     std::uint64_t newActiveMacroId = 0;
     auto result = context_.controller->deleteActiveMacro(newActiveMacroId);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u5b8f\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -139,9 +152,18 @@ void MacroCoordinator::onMacroAddStep() {
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
+    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+        editResult.key,
+        context_.activeProfile ? context_.activeProfile() : nullptr,
+        context_.controller->activeMacro());
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
     auto result = context_.controller->addStep(editResult.key, editResult.delayAfterMs);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -160,9 +182,18 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
+    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+        editResult.key,
+        context_.activeProfile ? context_.activeProfile() : nullptr,
+        macro);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
     auto result = context_.controller->updateStep(stepIndex, editResult.key, editResult.delayAfterMs);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -196,11 +227,23 @@ void MacroCoordinator::onMacroStartStopClicked() {
     const bool running = context_.engine->IsRunning(macro->id);
     if (running) {
         context_.engine->StopAll();
-    } else if (macro->triggerKey.has_value()) {
+    } else {
+        if (!macro->triggerKey.has_value()) {
+            AppMessageDialog::warning(context_.parent,
+                QString::fromWCharArray(L"\u65e0\u6cd5\u542f\u52a8"),
+                QString::fromWCharArray(L"\u8bf7\u5148\u8bbe\u7f6e\u5b8f\u5faa\u73af\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
+            return;
+        }
+        if (context_.validateActiveConfig) {
+            auto validation = context_.validateActiveConfig();
+            if (!validation.ok) {
+                AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                return;
+            }
+        }
         context_.engine->OnTriggerDown(*macro->triggerKey);
     }
     context_.page->setRunning(!running);
-    if (context_.updateModeSwitchStyle) context_.updateModeSwitchStyle();
 }
 
 void MacroCoordinator::onMacroModeChanged(int modeIndex) {
@@ -223,4 +266,11 @@ void MacroCoordinator::onMacroBeepToggled(bool enabled) {
     if (!context_.page) return;
     if (context_.setMacroBeepEnabled) context_.setMacroBeepEnabled(enabled);
     context_.page->setBeepEnabled(enabled);
+}
+
+void MacroCoordinator::stopAllForConfigChange() {
+    if (context_.setRepeatRunning) context_.setRepeatRunning(false);
+    if (context_.engine) context_.engine->StopAll();
+    if (context_.page) context_.page->setRunning(false);
+    lastMacroRunning_ = false;
 }

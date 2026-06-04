@@ -24,8 +24,6 @@
 
 #include <QMainWindow>
 
-#include <atomic>
-
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -49,7 +47,6 @@ private:
     AppPaths appPaths_;
     ConfigCoordinator configCoordinator_;
     AppConfig config_;
-    std::uint64_t activeMacroId_ = 0;
     ProfileController profileController_;
     MacroController macroController_;
 
@@ -69,6 +66,4 @@ private:
     CloseCoordinator closeCoordinator_;
     EngineStateCoordinator engineStateCoordinator_;
 
-    // 0 = key repeat mode, 1 = macro loop mode.
-    std::atomic<int> activeMode_{0};
 };

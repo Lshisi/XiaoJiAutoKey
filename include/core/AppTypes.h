@@ -74,7 +74,6 @@ struct ProfileConfig {
     bool mixedMode = false;
     std::vector<KeyDescriptor> pauseKeys;
     std::vector<KeyBinding> bindings;
-    std::vector<MacroConfig> macros;
 };
 
 struct AppConfig {
@@ -92,6 +91,8 @@ struct AppConfig {
 
     std::uint64_t activeProfileId = 0;
     std::vector<ProfileConfig> profiles;
+    std::uint64_t activeMacroId = 0;
+    std::vector<MacroConfig> macros;
 };
 
 std::wstring ToWide(const std::string& text);

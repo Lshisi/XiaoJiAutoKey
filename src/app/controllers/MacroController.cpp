@@ -3,67 +3,58 @@
 #include <Windows.h>
 #include <algorithm>
 
-MacroController::MacroController(AppConfig& config, std::uint64_t& activeMacroId)
-    : config_(config), activeMacroId_(activeMacroId) {}
-
-ProfileConfig* MacroController::activeProfile() {
-    for (auto& profile : config_.profiles) {
-        if (profile.id == config_.activeProfileId) return &profile;
-    }
-    return config_.profiles.empty() ? nullptr : &config_.profiles.front();
-}
-
-const ProfileConfig* MacroController::activeProfile() const {
-    for (const auto& profile : config_.profiles) {
-        if (profile.id == config_.activeProfileId) return &profile;
-    }
-    return config_.profiles.empty() ? nullptr : &config_.profiles.front();
-}
+MacroController::MacroController(AppConfig& config) : config_(config) {}
 
 MacroConfig* MacroController::activeMacro() {
-    auto* profile = activeProfile();
-    if (!profile) return nullptr;
-    for (auto& macro : profile->macros) {
-        if (macro.id == activeMacroId_) return &macro;
+    for (auto& macro : config_.macros) {
+        if (macro.id == config_.activeMacroId) return &macro;
     }
     return nullptr;
 }
 
 const MacroConfig* MacroController::activeMacro() const {
-    const auto* profile = activeProfile();
-    if (!profile) return nullptr;
-    for (const auto& macro : profile->macros) {
-        if (macro.id == activeMacroId_) return &macro;
+    for (const auto& macro : config_.macros) {
+        if (macro.id == config_.activeMacroId) return &macro;
+    }
+    return nullptr;
+}
+
+MacroConfig* MacroController::macroById(std::uint64_t macroId) {
+    for (auto& macro : config_.macros) {
+        if (macro.id == macroId) return &macro;
+    }
+    return nullptr;
+}
+
+const MacroConfig* MacroController::macroById(std::uint64_t macroId) const {
+    for (const auto& macro : config_.macros) {
+        if (macro.id == macroId) return &macro;
     }
     return nullptr;
 }
 
 std::uint64_t MacroController::nextMacroId() const {
-    if (const auto* profile = activeProfile()) return nextMacroId(*profile);
-    return 1;
+    return nextMacroId(config_);
 }
 
-std::uint64_t MacroController::nextMacroId(const ProfileConfig& profile) {
+std::uint64_t MacroController::nextMacroId(const AppConfig& config) {
     std::uint64_t maxId = 0;
-    for (const auto& macro : profile.macros) maxId = std::max(maxId, macro.id);
+    for (const auto& macro : config.macros) maxId = std::max(maxId, macro.id);
     return maxId + 1;
 }
 
 void MacroController::resetActiveMacro() {
-    auto* profile = activeProfile();
-    if (!profile) return;
-
-    if (profile->macros.empty()) {
+    if (config_.macros.empty()) {
         MacroConfig macro;
         macro.id = 1;
         macro.name = L"\u9ed8\u8ba4\u5b8f";
         macro.enabled = true;
-        profile->macros.push_back(macro);
+        config_.macros.push_back(macro);
     }
 
-    if (activeMacroId_ == 0 || std::none_of(profile->macros.begin(), profile->macros.end(),
-        [this](const MacroConfig& macro) { return macro.id == activeMacroId_; })) {
-        activeMacroId_ = profile->macros.front().id;
+    if (config_.activeMacroId == 0 || std::none_of(config_.macros.begin(), config_.macros.end(),
+        [this](const MacroConfig& macro) { return macro.id == config_.activeMacroId; })) {
+        config_.activeMacroId = config_.macros.front().id;
     }
 }
 
@@ -72,32 +63,24 @@ void MacroController::ensureActiveMacro() {
 }
 
 ControllerResult MacroController::switchMacro(std::uint64_t macroId) {
-    auto* profile = activeProfile();
-    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+    if (!macroById(macroId)) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
-    const bool exists = std::any_of(profile->macros.begin(), profile->macros.end(),
-        [macroId](const MacroConfig& macro) { return macro.id == macroId; });
-    if (!exists) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
-
-    activeMacroId_ = macroId;
+    config_.activeMacroId = macroId;
     return ControllerResult::success();
 }
 
 ControllerResult MacroController::addMacro(const QString& name, std::uint64_t& createdMacroId) {
-    auto* profile = activeProfile();
-    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
-
     const QString trimmed = name.trimmed();
     if (trimmed.isEmpty()) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a\u3002"));
 
     MacroConfig macro;
-    macro.id = nextMacroId(*profile);
+    macro.id = nextMacroId(config_);
     macro.name = trimmed.toStdWString();
     macro.enabled = true;
     createdMacroId = macro.id;
 
-    profile->macros.push_back(std::move(macro));
-    activeMacroId_ = createdMacroId;
+    config_.macros.push_back(std::move(macro));
+    config_.activeMacroId = createdMacroId;
     return ControllerResult::success();
 }
 
@@ -113,9 +96,7 @@ ControllerResult MacroController::renameActiveMacro(const QString& name) {
 }
 
 ControllerResult MacroController::deleteActiveMacro(std::uint64_t& newActiveMacroId) {
-    auto* profile = activeProfile();
-    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
-    if (profile->macros.size() <= 1) {
+    if (config_.macros.size() <= 1) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u5b8f\u914d\u7f6e\u3002"));
     }
 
@@ -123,13 +104,13 @@ ControllerResult MacroController::deleteActiveMacro(std::uint64_t& newActiveMacr
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
     const std::uint64_t deletedId = macro->id;
-    profile->macros.erase(
-        std::remove_if(profile->macros.begin(), profile->macros.end(),
+    config_.macros.erase(
+        std::remove_if(config_.macros.begin(), config_.macros.end(),
             [deletedId](const MacroConfig& item) { return item.id == deletedId; }),
-        profile->macros.end());
+        config_.macros.end());
 
-    newActiveMacroId = profile->macros.empty() ? 0 : profile->macros.front().id;
-    activeMacroId_ = newActiveMacroId;
+    newActiveMacroId = config_.macros.empty() ? 0 : config_.macros.front().id;
+    config_.activeMacroId = newActiveMacroId;
     return ControllerResult::success();
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
+#include "controllers/ControllerResult.h"
 
 #include <QObject>
 #include <functional>
@@ -9,6 +10,7 @@
 class GlobalInputHook;
 class MacroEngine;
 class RepeaterEngine;
+class QWidget;
 
 class EngineHookCoordinator : public QObject {
     Q_OBJECT
@@ -20,10 +22,12 @@ public:
         MacroEngine* macroEngine = nullptr;
         std::function<void()> toggleRepeatRunning;
         std::function<std::optional<KeyDescriptor>()> controlHotkey;
+        std::function<std::optional<KeyDescriptor>()> macroTriggerKey;
         std::function<bool()> captureActive;
-        std::function<int()> activeMode;
         std::function<bool()> repeatRunning;
         std::function<void(quint64)> capturedKey;
+        std::function<ControllerResult()> validateActiveConfig;
+        QWidget* parent = nullptr;
     };
 
     explicit EngineHookCoordinator(QObject* parent = nullptr);
@@ -34,4 +38,5 @@ public:
 
 private:
     Context context_;
+    bool conflictPromptVisible_ = false;
 };

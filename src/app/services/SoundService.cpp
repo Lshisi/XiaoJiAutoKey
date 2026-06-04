@@ -56,7 +56,7 @@ std::filesystem::path SoundService::resolveToggleSoundPath(
 
     if (soundPath.empty()) {
         if (macroMode) {
-            soundPath = resolveAudioPath(running ? L"\u5b8f\u5f00\u542f.mp3" : L"\u5b8f\u5173\u95ed.mp3");
+            soundPath = resolveAudioPath(running ? L"\u5faa\u73af\u5f00\u542f.mp3" : L"\u5faa\u73af\u5173\u95ed.mp3");
         } else {
             soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.mp3" : L"\u6309\u952e\u5173\u95ed.mp3");
         }

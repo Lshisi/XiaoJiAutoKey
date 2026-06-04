@@ -13,10 +13,10 @@ void ConfigCoordinator::bind(Context context) {
 }
 
 void ConfigCoordinator::load() {
-    if (!context_.config || !context_.activeMacroId) return;
+    if (!context_.config) return;
 
     *context_.config = store_.Load();
-    ConfigNormalizer::normalize(*context_.config, *context_.activeMacroId);
+    ConfigNormalizer::normalize(*context_.config);
     if (context_.refreshHookState) context_.refreshHookState();
 }
 

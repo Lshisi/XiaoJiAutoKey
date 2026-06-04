@@ -37,10 +37,6 @@ public:
     void applyBindings();
     void applyMacros();
     void updateRepeatStatus();
-    void updateModeSwitchStyle();
-
-    [[nodiscard]] bool canSwitchMode() const;
-    [[nodiscard]] bool isAnyEngineRunning() const;
 
 private:
     void handleRepeatStateChanged(bool running);

@@ -1,13 +1,14 @@
 #include "coordinators/KeyBindingsCoordinator.h"
 
+#include "config/ActiveConfigValidator.h"
 #include "controllers/ProfileController.h"
+#include "dialogs/AppMessageDialog.h"
 #include "dialogs/BindingEditDialog.h"
 #include "dialogs/PauseKeyDialog.h"
 #include "RepeaterEngine.h"
 #include "ui/pages/KeyPage.h"
 
 #include <QDialog>
-#include <QMessageBox>
 
 KeyBindingsCoordinator::KeyBindingsCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -50,6 +51,16 @@ void KeyBindingsCoordinator::onDeleteBinding(std::uint64_t id) {
 
 void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
     if (!context_.controller) return;
+    if (enabled) {
+        auto validation = ActiveConfigValidator::validateActiveHotkeys(
+            context_.controller->activeProfile(),
+            context_.activeMacro ? context_.activeMacro() : nullptr);
+        if (!validation.ok) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+            if (context_.refreshAll) context_.refreshAll();
+            return;
+        }
+    }
     auto result = context_.controller->setBindingEnabled(id, enabled);
     if (!result.ok) return;
     if (context_.applyBindings) context_.applyBindings();
@@ -58,7 +69,17 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
 
 void KeyBindingsCoordinator::onStartClicked() {
     if (!context_.engine || !context_.setRepeatRunning) return;
-    context_.setRepeatRunning(!context_.engine->IsToolRunning());
+    const bool shouldStart = !context_.engine->IsToolRunning();
+    if (shouldStart && context_.controller) {
+        auto validation = ActiveConfigValidator::validateActiveHotkeys(
+            context_.controller->activeProfile(),
+            context_.activeMacro ? context_.activeMacro() : nullptr);
+        if (!validation.ok) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+            return;
+        }
+    }
+    context_.setRepeatRunning(shouldStart);
 }
 
 void KeyBindingsCoordinator::onHotkeyEditClicked() {
@@ -89,9 +110,18 @@ void KeyBindingsCoordinator::onPauseKeyAdd() {
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
+    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+        dialog.editResult().key,
+        profile,
+        context_.activeMacro ? context_.activeMacro() : nullptr);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
     auto result = context_.controller->addPauseKey(dialog.editResult().key);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
     }
     if (context_.applyBindings) context_.applyBindings();
@@ -128,9 +158,18 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
+    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+        editResult.key,
+        profile,
+        context_.activeMacro ? context_.activeMacro() : nullptr);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
     auto result = context_.controller->upsertBinding(bindingId, editResult.key, editResult.mode, editResult.delayMs, editResult.enabled);
     if (!result.ok) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
     }
 

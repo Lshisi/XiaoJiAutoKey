@@ -9,7 +9,7 @@ MainWindow::MainWindow(QWidget* parent)
       appPaths_(),
       configCoordinator_(appPaths_.configPath(), this),
       profileController_(config_),
-      macroController_(config_, activeMacroId_),
+      macroController_(config_),
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),

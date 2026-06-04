@@ -2,6 +2,7 @@
 
 #include "controllers/MacroController.h"
 #include "controllers/ProfileController.h"
+#include "dialogs/AppMessageDialog.h"
 #include "dialogs/KeyCaptureDialogBase.h"
 #include "input/GlobalInputHook.h"
 #include "input/InputKeyUtils.h"
@@ -9,7 +10,6 @@
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 
-#include <QMessageBox>
 #include <Windows.h>
 
 CaptureCoordinator::CaptureCoordinator(QObject* parent) : QObject(parent) {}
@@ -84,9 +84,19 @@ void CaptureCoordinator::handleDecodedKey(const KeyDescriptor& key) {
         if (context_.refreshHookState) context_.refreshHookState();
         if (!context_.profileController) return;
 
+        if (context_.validateHotkeyCandidate) {
+            auto validation = context_.validateHotkeyCandidate(key);
+            if (!validation.ok) {
+                AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                updateHotkeyText();
+                if (context_.refreshAll) context_.refreshAll();
+                return;
+            }
+        }
+
         auto result = context_.profileController->setControlHotkey(key);
         if (!result.ok) {
-            QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         } else {
             if (context_.saveConfig) context_.saveConfig();
             if (context_.refreshHookState) context_.refreshHookState();
@@ -101,9 +111,18 @@ void CaptureCoordinator::handleDecodedKey(const KeyDescriptor& key) {
         if (context_.refreshHookState) context_.refreshHookState();
         if (!context_.macroController) return;
 
+        if (context_.validateHotkeyCandidate) {
+            auto validation = context_.validateHotkeyCandidate(key);
+            if (!validation.ok) {
+                AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                if (context_.refreshMacroPage) context_.refreshMacroPage();
+                return;
+            }
+        }
+
         auto result = context_.macroController->setTriggerKey(key);
         if (!result.ok) {
-            QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         } else {
             if (context_.applyMacros) context_.applyMacros();
             if (context_.saveConfig) context_.saveConfig();

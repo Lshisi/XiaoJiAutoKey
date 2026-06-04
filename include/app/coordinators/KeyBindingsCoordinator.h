@@ -29,6 +29,7 @@ public:
         std::function<void()> saveConfig;
         std::function<void()> refreshAll;
         std::function<void(bool)> setBeepEnabled;
+        std::function<MacroConfig*()> activeMacro;
     };
 
     explicit KeyBindingsCoordinator(QObject* parent = nullptr);

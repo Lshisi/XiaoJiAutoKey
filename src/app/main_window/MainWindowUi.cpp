@@ -1,0 +1,159 @@
+#include "MainWindow.h"
+
+#include "FactionTheme.h"
+#include "ui/components/FluentSidebar.h"
+#include "ui/pages/KeyPage.h"
+#include "ui/pages/MacroPage.h"
+#include "ui/pages/SettingsPage.h"
+
+#include <QTimer>
+
+void MainWindow::setupUi() {
+    view_.setup(this);
+    engineStateCoordinator_.bind(EngineStateCoordinator::Context{
+        &view_,
+        &engine_,
+        &macroEngine_,
+        &inputHook_,
+        [this]() { return profileController_.activeProfile(); },
+        [this]() { return macroController_.activeMacro(); },
+        [this]() { engineHookCoordinator_.refreshState(); },
+        [this](bool running, bool macroMode) { soundCoordinator_.playToggleSound(running, macroMode); }
+    });
+    engineStateCoordinator_.updateModeSwitchStyle();
+
+    configCoordinator_.bind(ConfigCoordinator::Context{
+        this,
+        &config_,
+        &activeMacroId_,
+        [this]() { engineHookCoordinator_.refreshState(); }
+    });
+
+    pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{
+        &view_,
+        &config_,
+        &activeMacroId_,
+        &engine_,
+        &macroEngine_,
+        configCoordinator_.configPath(),
+        [this]() { return profileController_.activeProfile(); },
+        [this]() { return macroController_.activeMacro(); }
+    });
+    view_.connectModeSwitches(this,
+        [this]() { return engineStateCoordinator_.canSwitchMode(); },
+        [this](int mode) {
+            activeMode_.store(mode);
+            engineStateCoordinator_.updateModeSwitchStyle();
+        });
+
+    connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
+        view_.navigateTo(pageId);
+    });
+
+    keyBindingsCoordinator_.bind(KeyBindingsCoordinator::Context{
+        this,
+        view_.keyPage(),
+        &profileController_,
+        &engine_,
+        [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
+        [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
+        [this]() { engineStateCoordinator_.applyBindings(); },
+        [this]() { configCoordinator_.save(); },
+        [this]() { pageRefreshCoordinator_.refreshAll(); },
+        [this](bool enabled) { config_.beepEnabled = enabled; }
+    });
+
+    profileCoordinator_.bind(ProfileCoordinator::Context{
+        this,
+        view_.keyPage(),
+        &config_,
+        &profileController_,
+        &macroController_,
+        &engine_,
+        &macroEngine_,
+        &inputHook_,
+        [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
+        [this]() { engineStateCoordinator_.applyBindings(); },
+        [this]() { engineStateCoordinator_.applyMacros(); },
+        [this]() { configCoordinator_.save(); },
+        [this]() { pageRefreshCoordinator_.refreshAll(); },
+        [this]() { pageRefreshCoordinator_.refreshProfiles(); }
+    });
+
+    connect(view_.macroPage(), &MacroPage::hotkeyEditClicked, this, [this]() {
+        captureCoordinator_.startMacroHotkeyCapture();
+    });
+    macroCoordinator_.bind(MacroCoordinator::Context{
+        this,
+        view_.macroPage(),
+        &macroController_,
+        &macroEngine_,
+        &inputHook_,
+        [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
+        [this]() { engineStateCoordinator_.applyMacros(); },
+        [this]() { configCoordinator_.save(); },
+        [this]() { pageRefreshCoordinator_.refreshMacro(); },
+        [this]() { engineStateCoordinator_.updateModeSwitchStyle(); },
+        [this](bool running) { soundCoordinator_.playToggleSound(running, true); },
+        [this](bool enabled) {
+            config_.macroBeepEnabled = enabled;
+            configCoordinator_.save();
+        }
+    });
+
+    settingsCoordinator_.bind(SettingsCoordinator::Context{
+        view_.settingsPage(),
+        &config_,
+        configCoordinator_.configPath(),
+        this,
+        [this]() { configCoordinator_.save(); },
+        [this]() { view_.updateFactionVisuals(this); },
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+    });
+
+    captureCoordinator_.bind(CaptureCoordinator::Context{
+        this,
+        view_.keyPage(),
+        view_.macroPage(),
+        view_.settingsPage(),
+        &profileController_,
+        &macroController_,
+        &inputHook_,
+        [this]() { engineStateCoordinator_.applyMacros(); },
+        [this]() { configCoordinator_.save(); },
+        [this]() { pageRefreshCoordinator_.refreshAll(); },
+        [this]() { pageRefreshCoordinator_.refreshMacro(); },
+        [this]() { engineHookCoordinator_.refreshState(); }
+    });
+
+    soundCoordinator_.bind(SoundCoordinator::Context{
+        this,
+        view_.keyPage(),
+        view_.macroPage(),
+        &config_,
+        &soundService_,
+        &inputHook_,
+        [this]() { return !view_.isRepeatPageActive(); },
+        [this]() { configCoordinator_.save(); }
+    });
+
+    closeCoordinator_.bind(CloseCoordinator::Context{
+        this,
+        &view_,
+        &config_,
+        &inputHook_,
+        [this]() { configCoordinator_.save(); },
+        [this]() { hide(); }
+    });
+
+    auto* macroStateTimer = new QTimer(this);
+    connect(macroStateTimer, &QTimer::timeout, this, [this]() {
+        macroCoordinator_.pollRunningState();
+    });
+    macroStateTimer->start(100);
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    closeCoordinator_.handleClose(event);
+}

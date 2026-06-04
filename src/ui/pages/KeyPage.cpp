@@ -1,4 +1,4 @@
-﻿#include "KeyPage.h"
+#include "KeyPage.h"
 #include "../styles/DesignTokens.h"
 #include "../components/FluentTable.h"
 #include "../components/FluentButton.h"
@@ -6,7 +6,7 @@
 #include "../components/FluentSwitch.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentComboBox.h"
-#include "../../include/FactionTheme.h"
+#include "FactionTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -38,7 +38,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     layout->setContentsMargins(16, 12, 16, 12);
     layout->setSpacing(12);
 
-    // 鈺愨晲鈺?Left: Table Card 鈺愨晲鈺?
+    // Left: table card
     auto* tableCard = new FluentCard(this);
 
     // -- Profile selector row --
@@ -140,7 +140,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     layout->addWidget(tableCard, 5);
 
-    // 鈺愨晲鈺?Right panel 鈺愨晲鈺?
+    // Right panel
     auto* rightLayout = new QVBoxLayout();
     rightLayout->setSpacing(16);
 
@@ -163,7 +163,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
 
-    // -- Card 2: 鍚姩瑙﹀彂 --
+    // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
     auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
     hotkeyLabel->setFont(Fluent::Typography::caption());
@@ -209,7 +209,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     rightLayout->addStretch();
     layout->addLayout(rightLayout, 3);
 
-    // 鈺愨晲鈺?Connections 鈺愨晲鈺?
+    // Connections
     connect(addBtn_, &QPushButton::clicked, this, &KeyPage::addRequested);
     connect(startBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
@@ -260,7 +260,7 @@ void KeyPage::setRunning(bool running) {
     profileCombo_->setEnabled(!running);
     profileAddBtn_->setEnabled(!running);
     profileRenameBtn_->setEnabled(!running);
-    profileDeleteBtn_->setEnabled(!running && bindings_.size() > 0);
+    profileDeleteBtn_->setEnabled(!running && profileCombo_->count() > 1);
     table_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);

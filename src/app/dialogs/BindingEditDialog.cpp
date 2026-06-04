@@ -1,0 +1,117 @@
+#include "dialogs/BindingEditDialog.h"
+
+#include "ui/components/FluentButton.h"
+#include "ui/components/FluentComboBox.h"
+#include "ui/components/FluentLineEdit.h"
+#include "ui/components/FluentSwitch.h"
+#include "ui/styles/DesignTokens.h"
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QVBoxLayout>
+
+BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs, QWidget* parent)
+    : KeyCaptureDialogBase(parent) {
+    setWindowTitle(existing.has_value()
+        ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
+        : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
+    setFixedSize(420, 300);
+    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    setStyleSheet("QDialog { background: #FFFFFF; border-radius: 16px; }");
+
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
+
+    auto* keyRow = new QHBoxLayout();
+    auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), this);
+    keyLabel->setFont(Fluent::Typography::body());
+    keyLabel->setFixedWidth(70);
+    keyRow->addWidget(keyLabel);
+    auto* keyEdit = new FluentLineEdit(this);
+    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyRow->addWidget(keyEdit);
+    layout->addLayout(keyRow);
+    setCaptureEditor(keyEdit);
+
+    auto* modeRow = new QHBoxLayout();
+    auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u6a21\u5f0f:"), this);
+    modeLabel->setFont(Fluent::Typography::body());
+    modeLabel->setFixedWidth(70);
+    modeRow->addWidget(modeLabel);
+    modeCombo_ = new FluentComboBox(this);
+    modeCombo_->addItem(QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f"));
+    modeCombo_->addItem(QString::fromWCharArray(L"\u6309\u538b\u6a21\u5f0f"));
+    modeRow->addWidget(modeCombo_);
+    layout->addLayout(modeRow);
+
+    auto* delayRow = new QHBoxLayout();
+    auto* delayLabel = new QLabel(QString::fromWCharArray(L"\u5ef6\u8fdf(ms):"), this);
+    delayLabel->setFont(Fluent::Typography::body());
+    delayLabel->setFixedWidth(70);
+    delayRow->addWidget(delayLabel);
+    delayEdit_ = new FluentLineEdit(this);
+    delayRow->addWidget(delayEdit_);
+    layout->addLayout(delayRow);
+
+    auto* enableRow = new QHBoxLayout();
+    auto* enableLabel = new QLabel(QString::fromWCharArray(L"\u542f\u7528\u6b64\u6309\u952e"), this);
+    enableLabel->setFont(Fluent::Typography::body());
+    enableRow->addWidget(enableLabel);
+    enableRow->addStretch();
+    enabledSwitch_ = new FluentSwitch(this);
+    enableRow->addWidget(enabledSwitch_);
+    layout->addLayout(enableRow);
+
+    layout->addStretch();
+
+    auto* btnRow = new QHBoxLayout();
+    btnRow->addStretch();
+    auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), this);
+    cancelBtn->setFixedWidth(80);
+    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), this);
+    okBtn->setFixedWidth(80);
+    btnRow->addWidget(cancelBtn);
+    btnRow->addSpacing(8);
+    btnRow->addWidget(okBtn);
+    layout->addLayout(btnRow);
+
+    if (existing.has_value()) {
+        setCapturedKey(existing->key);
+        modeCombo_->setCurrentIndex(existing->mode == RepeatMode::Hold ? 1 : 0);
+        delayEdit_->setText(QString::number(existing->delayMs));
+        enabledSwitch_->setChecked(existing->enabled);
+    } else {
+        modeCombo_->setCurrentIndex(0);
+        delayEdit_->setText(QString::number(defaultDelayMs));
+        enabledSwitch_->setChecked(true);
+    }
+
+    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, this, [this]() {
+        if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u6216\u9f20\u6807\u952e\u3002"));
+            return;
+        }
+        bool ok = false;
+        int delay = delayEdit_->text().toInt(&ok);
+        if (!ok || delay <= 0) {
+            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u5ef6\u8fdf\u5fc5\u987b\u662f\u5927\u4e8e 0 \u7684\u6574\u6570\u3002"));
+            return;
+        }
+        accept();
+    });
+}
+
+BindingEditResult BindingEditDialog::editResult() const {
+    BindingEditResult value;
+    value.key = *capturedKey();
+    value.mode = modeCombo_->currentIndex() == 1 ? RepeatMode::Hold : RepeatMode::Toggle;
+    value.delayMs = delayEdit_->text().toInt();
+    value.enabled = enabledSwitch_->isChecked();
+    return value;
+}

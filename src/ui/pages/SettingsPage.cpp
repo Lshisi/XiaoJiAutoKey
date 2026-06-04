@@ -4,7 +4,7 @@
 #include "../components/FluentButton.h"
 #include "../components/FluentLineEdit.h"
 #include "../components/FluentComboBox.h"
-#include "../../include/FactionTheme.h"
+#include "FactionTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>

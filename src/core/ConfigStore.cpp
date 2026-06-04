@@ -154,7 +154,7 @@ AppConfig ConfigStore::Load() const {
     AppConfig config;
 
     if (!std::filesystem::exists(configPath_)) {
-        // 首次运行：创建默认配置
+        // First run: create the default profile and macro.
         ProfileConfig def;
         def.id = 1;
         def.name = L"\u9ed8\u8ba4\u914d\u7f6e";

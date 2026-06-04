@@ -25,6 +25,22 @@
 
 ## 技术架构
 
+### 分层结构
+
+项目按职责拆成 `app`、`core`、`ui` 三层：
+
+- `core`：纯业务和底层能力，包括 `AppTypes`、`ConfigStore`、`DdDriver`、`RepeaterEngine`、`MacroEngine`。
+- `ui`：Qt Widgets 页面和 Fluent 风格组件，包括 `KeyPage`、`MacroPage`、`SettingsPage`、`AboutPage`。
+- `app`：应用层装配和协调，包括主窗口、全局输入 hook、controller、coordinator、dialog、service。
+
+`MainWindow` 现在只负责应用启动、UI 接线、hook 启动和关闭事件协调。具体功能拆到独立模块：
+
+- `GlobalInputHook`：管理全局键盘/鼠标 hook 线程和状态，通过 Qt signal 发出捕获键、启停热键、物理按键变化和宏触发变化。
+- `SoundService`：解析默认音频、播放提示音、处理音量和 MCI alias。
+- `ProfileController` / `MacroController`：修改 `AppConfig`，分配 ID，处理配置方案、连发按键、暂停键、宏和宏步骤的业务校验。
+- `BindingEditDialog` / `MacroStepDialog` / `PauseKeyDialog` / `SoundSettingsDialog`：只负责 UI 输入，返回结构化结果，不直接修改配置。
+- `*Coordinator`：连接页面 signal、controller、engine、config 保存和页面刷新，让窗口类不再承载具体业务流程。
+
 ### UI 框架
 
 使用 Qt 5 Widgets 构建现代化 Fluent Design 风格界面，侧边栏导航，支持静态链接编译为单文件 exe 分发。
@@ -38,54 +54,63 @@
 
 ### 配置系统
 
-采用统一单文件配置存储（`ConfigStore`），所有配置方案内联在同一个 JSON 文件中。每个配置方案（`ProfileConfig`）包含独立的按键列表、宏配置、启停快捷键、暂停键和连发优先设置。
+采用统一单文件配置存储（`ConfigStore`），所有配置方案内联在同一个 JSON 文件中。`ConfigCoordinator` 负责加载、保存、默认值规范化和保存失败提示。每个配置方案（`ProfileConfig`）包含独立的按键列表、宏配置、启停快捷键、暂停键和连发优先设置。
 
-### 按键引擎
+### 输入与引擎
 
-- 独立工作线程（`RepeaterEngine`）以 1ms tick 驱动，按配置间隔发送按键
-- 通过 DD 驱动（`ddKey_` / `ddBtn_`）进行驱动级按键模拟
-- 全局低级钩子（`WH_KEYBOARD_LL` / `WH_MOUSE_LL`）追踪物理按键状态
-- 支持暂停键：按住暂停键时所有 Toggle 模式连发暂停
-
-### 宏引擎
-
-- 独立工作线程（`MacroEngine`）驱动宏序列执行
-- 支持 Toggle（按一次开始/再按停止）和 Hold（按住执行/松开停止）两种触发模式
-- 每个宏有独立的触发快捷键
-- 支持设置循环次数（0 = 无限循环）
+- `RepeaterEngine`：独立工作线程以 1ms tick 驱动，按配置间隔发送连发按键。
+- `MacroEngine`：独立工作线程驱动宏序列执行，支持 Toggle 和 Hold 两种触发模式。
+- `GlobalInputHook`：安装 `WH_KEYBOARD_LL` / `WH_MOUSE_LL`，追踪物理按键状态，并根据当前模式转发到连发或宏引擎。
+- `EngineHookCoordinator`：把 hook signal 连接到 engine，不让 hook 直接访问窗口或业务状态。
+- `EngineStateCoordinator`：统一处理连发启停、bindings/macros 应用、运行状态刷新和模式切换禁用。
 
 ### 模式互斥
 
 按键连发和宏循环通过 `activeMode_` 原子变量实现互斥：
-- `activeMode_ == 0`：连发模式，Hook 响应连发快捷键和物理按键
-- `activeMode_ == 1`：宏模式，Hook 响应宏触发键
+- `activeMode_ == 0`：连发模式，hook 响应连发快捷键和物理按键。
+- `activeMode_ == 1`：宏模式，hook 响应宏触发键。
 
 运行时不允许切换模式，UI 按钮自动禁用。
 
-### 连发优先与暂停键的实现
+### 连发优先与暂停键
 
-连发优先（原混合模式）通过 `mixedMode_` 标志控制。暂停键通过 `pauseKeys_` + `pauseKeysDown_` 集合追踪。两者独立工作，任一条件满足时 Toggle 模式连发暂停。
+连发优先（原混合模式）通过 `mixedMode_` 控制。暂停键通过 `pauseKeys_` + `pauseKeysDown_` 追踪。两者独立工作，任一条件满足时 Toggle 模式连发暂停。
 
 由于 DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，系统需要可靠地区分物理事件和自身注入事件。采用双轨追踪机制：
 
-- `physicalDown_` + `ignoreCount_`：通用物理按键状态追踪，用计数器过滤 SendTap 产生的事件
-- `holdPhysicalDown_` + `holdUpIgnoreCount_`：Hold 模式按键的独立物理状态追踪
+- `physicalDown_` + `ignoreCount_`：通用物理按键状态追踪，用计数器过滤 SendTap 产生的事件。
+- `holdPhysicalDown_` + `holdUpIgnoreCount_`：Hold 模式按键的独立物理状态追踪。
 
 ## 目录结构
 
 ```
 ├── CMakeLists.txt          # CMake 构建配置，Qt5 依赖
-├── include/                # 头文件
-│   ├── AppTypes.h          # 类型定义（KeyDescriptor, KeyBinding, ProfileConfig, MacroConfig 等）
-│   ├── ConfigStore.h       # JSON 配置读写（统一单文件存储）
-│   ├── DdDriver.h          # DD 驱动封装
-│   ├── MacroEngine.h       # 宏引擎
-│   ├── MainWindow.h        # Qt 主窗口 + 全局钩子
-│   └── RepeaterEngine.h    # 连发引擎（含暂停键支持）
-├── src/                    # 实现代码
-│   ├── ui/components/      # Fluent Design 组件
-│   ├── ui/pages/           # 页面（KeyPage, MacroPage, SettingsPage, AboutPage）
-│   └── ui/styles/          # 设计令牌和主题
+├── include/
+│   ├── app/
+│   │   ├── MainWindow.h
+│   │   ├── config/         # 配置规范化
+│   │   ├── controllers/    # ProfileController / MacroController
+│   │   ├── coordinators/   # 页面 signal、controller、engine、config 的协调层
+│   │   ├── dialogs/        # 按键、宏步骤、暂停键、音效、关闭确认弹窗
+│   │   ├── input/          # GlobalInputHook 和按键工具
+│   │   ├── services/       # AppPaths / SoundService
+│   │   └── view/           # MainWindowView
+│   └── core/               # AppTypes、ConfigStore、DdDriver、RepeaterEngine、MacroEngine
+├── src/
+│   ├── app/
+│   │   ├── main_window/    # MainWindow 剩余窗口级协调代码
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── coordinators/
+│   │   ├── dialogs/
+│   │   ├── input/
+│   │   ├── services/
+│   │   └── view/
+│   ├── core/               # 核心业务和底层实现
+│   └── ui/
+│       ├── components/     # Fluent Design 组件
+│       ├── pages/          # 页面（KeyPage, MacroPage, SettingsPage, AboutPage）
+│       └── styles/         # 设计令牌和主题
 ├── assets/                 # 图标、音频、门派图标资源
 ├── third_party/dd/         # DD 驱动 DLL
 └── scripts/                # 构建和打包脚本
@@ -119,9 +144,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
 XiaoJiAutoKey/
 ├── XiaoJiAutoKey.exe   # 主程序（静态链接 Qt，无需额外 DLL）
 ├── audio/              # 启停提示音（按键开启/关闭、宏开启/关闭）
-├── driver/             # DD 驱动 DLL（DD32.dll / DD64.dll）
-└── logs/               # 日志目录
+└── driver/             # DD 驱动 DLL（DD32.dll / DD64.dll）
 ```
+
+`config.json` 和 `logs/` 都是运行时生成内容，不应进入发布包。
 
 ## 运行准备
 

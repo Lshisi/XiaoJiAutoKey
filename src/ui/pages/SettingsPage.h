@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../include/AppTypes.h"
+#include "AppTypes.h"
 
 #include <QWidget>
 #include <QLabel>

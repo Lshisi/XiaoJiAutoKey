@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.20)
 
 project(XiaoJiAutoKey VERSION 1.0.6 LANGUAGES CXX)
 
@@ -22,13 +22,13 @@ set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
 set(AUTOKEY_DD_DLL64 "${AUTOKEY_DD_DIR}/DD64.dll")
 
 set(CORE_SOURCES
-    src/AppTypes.cpp
-    src/ConfigStore.cpp
-    src/DdDriver.cpp
-    src/FactionTheme.cpp
-    src/JsonLite.cpp
-    src/MacroEngine.cpp
-    src/RepeaterEngine.cpp
+    src/core/AppTypes.cpp
+    src/core/ConfigStore.cpp
+    src/core/DdDriver.cpp
+    src/core/FactionTheme.cpp
+    src/core/JsonLite.cpp
+    src/core/MacroEngine.cpp
+    src/core/RepeaterEngine.cpp
 )
 
 set(UI_COMPONENT_SOURCES
@@ -70,10 +70,62 @@ set(UI_PAGE_HEADERS
 )
 
 add_executable(XiaoJiAutoKey WIN32
-    include/MainWindow.h
-    include/MacroEngine.h
-    src/main.cpp
-    src/MainWindow.cpp
+    include/app/input/GlobalInputHook.h
+    include/app/input/InputKeyUtils.h
+    include/app/controllers/ControllerResult.h
+    include/app/config/ConfigNormalizer.h
+    include/app/coordinators/SettingsCoordinator.h
+    include/app/coordinators/ProfileCoordinator.h
+    include/app/coordinators/MacroCoordinator.h
+    include/app/coordinators/KeyBindingsCoordinator.h
+    include/app/coordinators/EngineHookCoordinator.h
+    include/app/coordinators/SoundCoordinator.h
+    include/app/coordinators/CaptureCoordinator.h
+    include/app/coordinators/PageRefreshCoordinator.h
+    include/app/coordinators/CloseCoordinator.h
+    include/app/coordinators/ConfigCoordinator.h
+    include/app/coordinators/EngineStateCoordinator.h
+    include/app/controllers/MacroController.h
+    include/app/MainWindow.h
+    include/app/view/MainWindowView.h
+    include/app/controllers/ProfileController.h
+    include/app/services/AppPaths.h
+    include/app/services/SoundService.h
+    include/app/dialogs/BindingEditDialog.h
+    include/app/dialogs/CloseConfirmDialog.h
+    include/app/dialogs/KeyCaptureDialogBase.h
+    include/app/dialogs/MacroStepDialog.h
+    include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/SoundSettingsDialog.h
+    include/core/MacroEngine.h
+    src/app/input/GlobalInputHook.cpp
+    src/app/config/ConfigNormalizer.cpp
+    src/app/coordinators/SettingsCoordinator.cpp
+    src/app/coordinators/ProfileCoordinator.cpp
+    src/app/coordinators/MacroCoordinator.cpp
+    src/app/coordinators/KeyBindingsCoordinator.cpp
+    src/app/coordinators/EngineHookCoordinator.cpp
+    src/app/coordinators/SoundCoordinator.cpp
+    src/app/coordinators/CaptureCoordinator.cpp
+    src/app/coordinators/PageRefreshCoordinator.cpp
+    src/app/coordinators/CloseCoordinator.cpp
+    src/app/coordinators/ConfigCoordinator.cpp
+    src/app/coordinators/EngineStateCoordinator.cpp
+    src/app/controllers/MacroController.cpp
+    src/app/main.cpp
+    src/app/main_window/MainWindow.cpp
+    src/app/main_window/MainWindowHooks.cpp
+    src/app/main_window/MainWindowUi.cpp
+    src/app/view/MainWindowView.cpp
+    src/app/controllers/ProfileController.cpp
+    src/app/services/AppPaths.cpp
+    src/app/services/SoundService.cpp
+    src/app/dialogs/BindingEditDialog.cpp
+    src/app/dialogs/CloseConfirmDialog.cpp
+    src/app/dialogs/KeyCaptureDialogBase.cpp
+    src/app/dialogs/MacroStepDialog.cpp
+    src/app/dialogs/PauseKeyDialog.cpp
+    src/app/dialogs/SoundSettingsDialog.cpp
     ${CORE_SOURCES}
     ${UI_COMPONENT_SOURCES}
     ${UI_COMPONENT_HEADERS}
@@ -84,8 +136,18 @@ add_executable(XiaoJiAutoKey WIN32
 )
 
 target_include_directories(XiaoJiAutoKey PRIVATE
-    include
+    include/app
+    include/core
     src
+    src/app
+    src/app/main_window
+    src/app/controllers
+    src/app/services
+    src/app/input
+    src/app/view
+    src/app/config
+    src/app/coordinators
+    src/core
     src/ui
     src/ui/styles
     src/ui/components

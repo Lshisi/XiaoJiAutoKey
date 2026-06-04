@@ -9,19 +9,16 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-
-
-// ── Key hash ─────────────────────────────
 struct KeyDescriptorHash {
     std::size_t operator()(const KeyDescriptor& k) const noexcept {
         return (static_cast<std::uint64_t>(k.device) << 32) ^ k.code;
     }
 };
 
-// ── 配置 ────────────────────────────────
 struct TaskConfig {
     std::uint64_t id = 0;
     KeyDescriptor key;
@@ -30,12 +27,11 @@ struct TaskConfig {
     bool enabled = true;
 };
 
-// ── Runtime（状态机版：支持 down/up 分离发送） ─────────────
 struct TaskRuntime {
     TaskConfig config;
     ULONGLONG lastFire = 0;
-    bool isDown = false;        // 当前是否处于 down 状态（等待发 up）
-    ULONGLONG downTime = 0;     // 发 down 的时间戳
+    bool isDown = false;
+    ULONGLONG downTime = 0;
 };
 
 class RepeaterEngine {
@@ -70,26 +66,20 @@ private:
     std::thread worker_;
 
     mutable std::mutex mutex_;
-
     std::vector<TaskRuntime> tasks_;
 
-    // 物理按键状态追踪（由Hook维护）
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> physicalDown_;
     bool toolRunning_ = false;
-    bool mixedMode_ = false;  // 混合模式：Hold压制Toggle
+    bool mixedMode_ = false;
 
-    // 暂停按键
     std::vector<KeyDescriptor> pauseKeys_;
-    std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;  // 当前按住的暂停键
+    std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;
     bool IsPauseActive() const;
 
-    // ⭐ per-key计数器：SendTap前+2，Hook事件到达时-1，计数器>0就忽略
     std::unordered_map<std::uint64_t, int> ignoreCount_;
     void BeforeSend(const KeyDescriptor& key);
     bool ShouldIgnore(const KeyDescriptor& key);
 
-    // ⭐ Hold模式key的独立物理状态追踪（不受ignoreCount影响）
-    // 使用独立的KEYUP计数器来过滤SendTap产生的KEYUP
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> holdPhysicalDown_;
     std::unordered_map<std::uint64_t, int> holdUpIgnoreCount_;
     bool IsHoldBinding(const KeyDescriptor& key) const;

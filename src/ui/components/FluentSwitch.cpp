@@ -1,6 +1,6 @@
 #include "FluentSwitch.h"
 #include "../styles/DesignTokens.h"
-#include "../../include/FactionTheme.h"
+#include "FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>

@@ -1,24 +1,32 @@
 #include "dialogs/PauseKeyDialog.h"
 
+#include "dialogs/AppMessageDialog.h"
+#include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentLineEdit.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 PauseKeyDialog::PauseKeyDialog(QWidget* parent) : KeyCaptureDialogBase(parent) {
     setWindowTitle(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u6309\u952e"));
-    setFixedSize(320, 140);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    setStyleSheet("QDialog { background: #FFFFFF; }");
+    setFixedSize(320, 178);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(24, 20, 24, 16);
+    layout->setContentsMargins(24, 18, 24, 16);
     layout->setSpacing(12);
+
+    auto* titleRow = new QHBoxLayout();
+    titleRow->setSpacing(8);
+    auto* titleLabel = new QLabel(windowTitle(), this);
+    titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(titleLabel);
+    titleRow->addStretch();
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
+    layout->addLayout(titleRow);
 
     auto* keyRow = new QHBoxLayout();
     auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), this);
@@ -47,7 +55,7 @@ PauseKeyDialog::PauseKeyDialog(QWidget* parent) : KeyCaptureDialogBase(parent) {
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
-            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+            AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
                 QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u3002"));
             return;
         }

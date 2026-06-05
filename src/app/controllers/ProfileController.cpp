@@ -163,6 +163,12 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }
 
+    for (const auto& pauseKey : profile->pauseKeys) {
+        if (pauseKey == key) {
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002"));
+        }
+    }
+
     for (const auto& binding : profile->bindings) {
         if (binding.key != key) continue;
         if (bindingId.has_value() && binding.id == *bindingId) continue;

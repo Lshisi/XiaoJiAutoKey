@@ -1,22 +1,24 @@
 #include "dialogs/AppMessageDialog.h"
 
+#include "dialogs/DialogChrome.h"
 #include "FactionTheme.h"
 #include "ui/components/FluentButton.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 AppMessageDialog::AppMessageDialog(Kind kind, const QString& title, const QString& message, QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(title);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    DialogChrome::apply(this);
     setModal(true);
     setFixedSize(360, 170);
     setStyleSheet(
-        "QDialog { background: #FFFFFF; }"
         "QLabel#messageIcon { border-radius: 18px; color: white; font-size: 20px; font-weight: 600; }"
     );
 
@@ -74,4 +76,23 @@ void AppMessageDialog::warning(QWidget* parent, const QString& title, const QStr
 void AppMessageDialog::information(QWidget* parent, const QString& title, const QString& message) {
     AppMessageDialog dialog(Kind::Information, title, message, parent);
     dialog.exec();
+}
+
+void AppMessageDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
+}
+
+void AppMessageDialog::mousePressEvent(QMouseEvent* event) {
+    if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mousePressEvent(event);
+}
+
+void AppMessageDialog::mouseMoveEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mouseMoveEvent(event);
+}
+
+void AppMessageDialog::mouseReleaseEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseRelease(event, dragging_)) return;
+    QDialog::mouseReleaseEvent(event);
 }

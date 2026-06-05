@@ -1,8 +1,7 @@
 #include "coordinators/ConfigCoordinator.h"
 
 #include "config/ConfigNormalizer.h"
-
-#include <QMessageBox>
+#include "dialogs/AppMessageDialog.h"
 
 ConfigCoordinator::ConfigCoordinator(std::filesystem::path configPath, QObject* parent)
     : QObject(parent),
@@ -25,7 +24,7 @@ void ConfigCoordinator::save() {
 
     std::wstring error;
     if (!store_.Save(*context_.config, error)) {
-        QMessageBox::warning(context_.parent, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
     }
 }
 

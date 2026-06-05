@@ -3,8 +3,11 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <algorithm>
+#include <limits>
 #include <Windows.h>
 #include <QApplication>
+#include <QCursor>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -28,6 +31,39 @@ QString LoopText(const MacroConfig* macro) {
     if (!macro) return QString::fromWCharArray(L"\u65e0\u5b8f");
     if (macro->loopCount <= 0) return QString::fromWCharArray(L"\u65e0\u9650\u5faa\u73af");
     return QString::number(macro->loopCount) + QString::fromWCharArray(L"\u6b21\u5faa\u73af");
+}
+
+const QScreen* nearestScreenForPoint(const QPoint& point) {
+    if (const auto* screen = QGuiApplication::screenAt(point)) {
+        return screen;
+    }
+
+    const auto screens = QGuiApplication::screens();
+    const QScreen* nearest = nullptr;
+    qint64 nearestDistance = std::numeric_limits<qint64>::max();
+    for (const auto* screen : screens) {
+        const QRect area = screen->availableGeometry();
+        const int dx = point.x() < area.left()
+            ? area.left() - point.x()
+            : (point.x() > area.right() ? point.x() - area.right() : 0);
+        const int dy = point.y() < area.top()
+            ? area.top() - point.y()
+            : (point.y() > area.bottom() ? point.y() - area.bottom() : 0);
+        const qint64 distance = static_cast<qint64>(dx) * dx + static_cast<qint64>(dy) * dy;
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = screen;
+        }
+    }
+
+    return nearest ? nearest : QGuiApplication::primaryScreen();
+}
+
+const QScreen* defaultOverlayScreen() {
+    if (const auto* screen = QGuiApplication::screenAt(QCursor::pos())) {
+        return screen;
+    }
+    return QGuiApplication::primaryScreen();
 }
 
 }  // namespace
@@ -267,7 +303,7 @@ void StatusOverlayWindow::showEvent(QShowEvent* event) {
 }
 
 QPoint StatusOverlayWindow::defaultPosition() const {
-    const auto* screen = QGuiApplication::primaryScreen();
+    const auto* screen = defaultOverlayScreen();
     if (!screen) return QPoint(6, 6);
     const QRect area = screen->availableGeometry();
     return area.topLeft() + QPoint(6, 6);
@@ -279,7 +315,10 @@ QPoint StatusOverlayWindow::positionFromConfig(const AppConfig& config) const {
 }
 
 QPoint StatusOverlayWindow::boundedPosition(const QPoint& position) const {
-    const auto* screen = QGuiApplication::primaryScreen();
+    const QPoint anchor = dragging_
+        ? QCursor::pos()
+        : position + QPoint(width() / 2, height() / 2);
+    const auto* screen = nearestScreenForPoint(anchor);
     if (!screen) return position;
 
     const QRect area = screen->availableGeometry();

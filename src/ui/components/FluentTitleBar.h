@@ -4,6 +4,8 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QColor>
 
 class FluentTitleBar : public QWidget {
     Q_OBJECT
@@ -15,7 +17,6 @@ public:
 
 signals:
     void minimizeClicked();
-    void maximizeClicked();
     void closeClicked();
 
 protected:
@@ -27,11 +28,11 @@ protected:
 
 private:
     QPushButton* createCaptionButton(const QString& icon, const QString& tooltip);
+    QWidget* createTrafficLight(const QColor& color);
 
     QLabel* iconLabel_;
     QLabel* titleLabel_;
     QPushButton* minBtn_;
-    QPushButton* maxBtn_;
     QPushButton* closeBtn_;
 
     QPoint dragPos_;

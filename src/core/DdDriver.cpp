@@ -25,6 +25,74 @@ std::optional<std::pair<int, int>> ToMouseCodes(std::uint32_t vk) {
     }
 }
 
+using DDToDcFn = int(__stdcall*)(int);
+
+std::optional<int> ModifierDdCode(std::uint32_t vk) {
+    switch (vk) {
+    case VK_SHIFT:
+    case VK_LSHIFT:
+        return 500;
+    case VK_RSHIFT:
+        return 511;
+    case VK_CONTROL:
+    case VK_LCONTROL:
+        return 600;
+    case VK_RCONTROL:
+        return 607;
+    case VK_LWIN:
+        return 601;
+    case VK_RWIN:
+        return 605;
+    case VK_MENU:
+    case VK_LMENU:
+        return 602;
+    case VK_RMENU:
+        return 604;
+    default:
+        return std::nullopt;
+    }
+}
+
+std::optional<int> NumpadDdCode(std::uint32_t vk) {
+    if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) {
+        return 800 + static_cast<int>(vk - VK_NUMPAD0);
+    }
+
+    switch (vk) {
+    case VK_NUMLOCK:
+        return 810;
+    case VK_DIVIDE:
+        return 811;
+    case VK_MULTIPLY:
+        return 812;
+    case VK_SUBTRACT:
+        return 813;
+    case VK_ADD:
+        return 814;
+    case kNumpadEnterKeyCode:
+        return 815;
+    case VK_DECIMAL:
+        return 816;
+    default:
+        return std::nullopt;
+    }
+}
+
+int ResolveKeyboardDdCode(DDToDcFn ddToDc, std::uint32_t vk) {
+    if (const auto modifierCode = ModifierDdCode(vk); modifierCode.has_value()) {
+        return *modifierCode;
+    }
+    if (const auto numpadCode = NumpadDdCode(vk); numpadCode.has_value()) {
+        return *numpadCode;
+    }
+
+    int ddCode = ddToDc(static_cast<int>(vk));
+    if (ddCode > 0) {
+        return ddCode;
+    }
+    return ddCode;
+}
+
 }  // namespace
 
 DdDriver::~DdDriver() {
@@ -154,7 +222,7 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
         ddBtn_(mouseCodes->first);
         --simulateDepth_;
     } else {
-        const int ddCode = ddToDc_(static_cast<int>(key.code));
+        const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
         if (ddCode <= 0) return false;
         ++simulateDepth_;
         RegisterPress(key);
@@ -180,7 +248,7 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
         RegisterRelease(key);
         --simulateDepth_;
     } else {
-        const int ddCode = ddToDc_(static_cast<int>(key.code));
+        const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
         if (ddCode <= 0) return false;
         ++simulateDepth_;
         ddKey_(ddCode, 2);
@@ -211,7 +279,7 @@ void DdDriver::ReleaseAll() {
             continue;
         }
 
-        const int ddCode = ddToDc_(static_cast<int>(code));
+        const int ddCode = ResolveKeyboardDdCode(ddToDc_, code);
         if (ddCode > 0) {
             ddKey_(ddCode, 2);
         }
@@ -227,7 +295,7 @@ void DdDriver::ClearAllStates() {
 }
 
 bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
-    const int ddCode = ddToDc_(static_cast<int>(vk));
+    const int ddCode = ResolveKeyboardDdCode(ddToDc_, vk);
     if (ddCode <= 0) {
         return false;
     }

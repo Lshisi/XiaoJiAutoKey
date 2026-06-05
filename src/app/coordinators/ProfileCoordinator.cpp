@@ -4,14 +4,12 @@
 #include "controllers/MacroController.h"
 #include "controllers/ProfileController.h"
 #include "dialogs/AppMessageDialog.h"
+#include "dialogs/ConfigConfirmDialog.h"
+#include "dialogs/ConfigNameDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
 #include "ui/pages/KeyPage.h"
-
-#include <QInputDialog>
-#include <QLineEdit>
-#include <QMessageBox>
 
 ProfileCoordinator::ProfileCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -59,11 +57,12 @@ void ProfileCoordinator::onProfileAdd() {
     if (!context_.inputHook || !context_.profileController || !context_.macroController) return;
 
     context_.inputHook->setDialogOpen(true);
-    bool ok = false;
-    QString name = QInputDialog::getText(context_.parent,
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
         QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u914d\u7f6e\u540d\u79f0:"),
-        QLineEdit::Normal, QString(), &ok);
+        QString(),
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 
@@ -87,11 +86,12 @@ void ProfileCoordinator::onProfileRename() {
     if (!profile) return;
 
     context_.inputHook->setDialogOpen(true);
-    bool ok = false;
-    QString name = QInputDialog::getText(context_.parent,
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
         QString::fromWCharArray(L"\u91cd\u547d\u540d\u914d\u7f6e"),
         QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
-        QLineEdit::Normal, QString::fromStdWString(profile->name), &ok);
+        QString::fromStdWString(profile->name),
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 
@@ -117,14 +117,14 @@ void ProfileCoordinator::onProfileDelete() {
     if (!profile) return;
 
     context_.inputHook->setDialogOpen(true);
-    auto answer = QMessageBox::question(context_.parent,
+    const bool confirmed = ConfigConfirmDialog::confirm(context_.parent,
         QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e"),
         QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u914d\u7f6e\u201c") +
             QString::fromStdWString(profile->name) +
             QString::fromWCharArray(L"\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002"),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        QString::fromWCharArray(L"\u5220\u9664"));
     context_.inputHook->setDialogOpen(false);
-    if (answer != QMessageBox::Yes) return;
+    if (!confirmed) return;
 
     std::uint64_t newActiveProfileId = 0;
     auto result = context_.profileController->deleteActiveProfile(newActiveProfileId);

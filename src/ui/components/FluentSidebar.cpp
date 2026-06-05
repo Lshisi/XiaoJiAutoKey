@@ -4,8 +4,75 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QPen>
 #include <QPixmap>
 #include <QHBoxLayout>
+
+namespace {
+void drawKeyboardIcon(QPainter& p, const QRectF& rect, const QColor& color) {
+    QPen pen(color, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(rect.adjusted(1.5, 4.5, -1.5, -4.5), 2.5, 2.5);
+    p.setBrush(color);
+    const qreal y = rect.center().y() + 1;
+    for (int row = 0; row < 2; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            p.drawRoundedRect(QRectF(rect.left() + 5 + col * 3.3, y - 3 + row * 4, 1.6, 1.6), 0.6, 0.6);
+        }
+    }
+}
+
+void drawListIcon(QPainter& p, const QRectF& rect, const QColor& color) {
+    QPen pen(color, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    for (int i = 0; i < 3; ++i) {
+        const qreal y = rect.top() + 5.5 + i * 5.0;
+        p.drawLine(QPointF(rect.left() + 5, y), QPointF(rect.right() - 4, y));
+    }
+}
+
+void drawGearIcon(QPainter& p, const QRectF& rect, const QColor& color) {
+    const QPointF c = rect.center();
+    QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    for (int i = 0; i < 8; ++i) {
+        p.save();
+        p.translate(c);
+        p.rotate(i * 45);
+        p.drawLine(QPointF(0, -8.0), QPointF(0, -6.0));
+        p.restore();
+    }
+    p.drawEllipse(c, 5.7, 5.7);
+    p.drawEllipse(c, 2.0, 2.0);
+}
+
+void drawInfoIcon(QPainter& p, const QRectF& rect, const QColor& color) {
+    QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawEllipse(rect.adjusted(3.0, 3.0, -3.0, -3.0));
+    p.drawPoint(QPointF(rect.center().x(), rect.top() + 6.4));
+    p.drawLine(QPointF(rect.center().x(), rect.top() + 9.5), QPointF(rect.center().x(), rect.bottom() - 5.0));
+}
+
+void drawNavIcon(QPainter& p, const QRectF& rect, const QString& iconId, const QColor& color) {
+    if (iconId == QStringLiteral("keys")) {
+        drawKeyboardIcon(p, rect, color);
+    } else if (iconId == QStringLiteral("macro")) {
+        drawListIcon(p, rect, color);
+    } else if (iconId == QStringLiteral("settings")) {
+        drawGearIcon(p, rect, color);
+    } else if (iconId == QStringLiteral("about")) {
+        drawInfoIcon(p, rect, color);
+    } else {
+        p.setPen(color);
+        p.setFont(QFont("Segoe UI Symbol", 11));
+        p.drawText(rect, Qt::AlignCenter, iconId);
+    }
+}
+}
 
 // ── FluentNavButton ─────────────────────────────
 // 横向按钮：左侧图标 + 右侧文字，类似 Windows 设置的导航列表
@@ -60,10 +127,8 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
     }
 
     // Icon
-    QFont iconFont("Segoe UI", 11);
-    p.setFont(iconFont);
-    p.setPen(active_ ? palette.accent : Fluent::Colors::textSecondary());
-    p.drawText(QRectF(r.left() + 10, r.top(), 20, r.height()), Qt::AlignCenter, icon_);
+    drawNavIcon(p, QRectF(r.left() + 10, r.top() + 6, 20, r.height() - 12),
+        icon_, active_ ? palette.accent : Fluent::Colors::textSecondary());
 
     // Label
     p.setFont(Fluent::Typography::body());

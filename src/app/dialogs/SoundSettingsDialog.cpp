@@ -1,5 +1,7 @@
 #include "dialogs/SoundSettingsDialog.h"
 
+#include "dialogs/AppMessageDialog.h"
+#include "dialogs/DialogChrome.h"
 #include "FactionTheme.h"
 #include "services/SoundService.h"
 #include "ui/components/FluentButton.h"
@@ -9,7 +11,8 @@
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMessageBox>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QSlider>
 #include <QVBoxLayout>
@@ -31,11 +34,10 @@ SoundSettingsDialog::SoundSettingsDialog(
         ? QString::fromWCharArray(L"\u5b8f\u97f3\u6548\u8bbe\u7f6e")
         : QString::fromWCharArray(L"\u6309\u952e\u97f3\u6548\u8bbe\u7f6e"));
     setFixedSize(430, 260);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    DialogChrome::apply(this);
 
     const QString accentColor = FactionTheme::instance().palette().accent.name();
     setStyleSheet(QString(
-        "QDialog { background: #FFFFFF; }"
         "QLabel { color: #202020; }"
         "QSlider::groove:horizontal { height: 4px; background: rgba(0,0,0,0.10); border-radius: 2px; }"
         "QSlider::handle:horizontal { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; background: %1; }"
@@ -55,11 +57,7 @@ SoundSettingsDialog::SoundSettingsDialog(
     title->setFont(Fluent::Typography::cardTitle());
     titleRow->addWidget(title);
     titleRow->addStretch();
-    auto* closeBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), this);
-    closeBtn->setFont(QFont("Segoe MDL2 Assets", 10));
-    closeBtn->setFixedSize(28, 28);
-    closeBtn->setToolTip(QString::fromWCharArray(L"\u5173\u95ed"));
-    titleRow->addWidget(closeBtn);
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
     layout->addLayout(titleRow);
 
     addSoundRow(QString::fromWCharArray(L"\u6309\u952e\u5f00\u542f"), &soundOnPath_, true);
@@ -107,13 +105,31 @@ SoundSettingsDialog::SoundSettingsDialog(
         soundVolume_ = value;
         volumeValueLabel->setText(QString::number(value) + "%");
     });
-    connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(saveBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
 
 SoundSettingsResult SoundSettingsDialog::settings() const {
     return {soundOnPath_.toStdWString(), soundOffPath_.toStdWString(), soundVolume_};
+}
+
+void SoundSettingsDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
+}
+
+void SoundSettingsDialog::mousePressEvent(QMouseEvent* event) {
+    if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mousePressEvent(event);
+}
+
+void SoundSettingsDialog::mouseMoveEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mouseMoveEvent(event);
+}
+
+void SoundSettingsDialog::mouseReleaseEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseRelease(event, dragging_)) return;
+    QDialog::mouseReleaseEvent(event);
 }
 
 void SoundSettingsDialog::addSoundRow(const QString& labelText, QString* pathValue, bool running) {
@@ -156,7 +172,7 @@ void SoundSettingsDialog::addSoundRow(const QString& labelText, QString* pathVal
             QString::fromWCharArray(L"\u97f3\u9891\u6587\u4ef6 (*.mp3 *.wav *.wma *.mid *.midi)"));
         if (filePath.isEmpty()) return;
         if (!soundService_.isValidAudioFile(filePath)) {
-            QMessageBox::warning(this,
+            AppMessageDialog::warning(this,
                 QString::fromWCharArray(L"\u683c\u5f0f\u4e0d\u652f\u6301"),
                 QString::fromWCharArray(L"\u8bf7\u9009\u62e9 mp3\u3001wav\u3001wma\u3001mid \u683c\u5f0f\u7684\u97f3\u9891\u6587\u4ef6\u3002"));
             return;

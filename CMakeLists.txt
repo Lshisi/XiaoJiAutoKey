@@ -37,6 +37,7 @@ set(UI_COMPONENT_SOURCES
     src/ui/components/FluentButton.cpp
     src/ui/components/FluentCard.cpp
     src/ui/components/FluentSwitch.cpp
+    src/ui/components/FluentCheckBox.cpp
     src/ui/components/FluentLineEdit.cpp
     src/ui/components/FluentComboBox.cpp
     src/ui/components/FluentTable.cpp
@@ -56,6 +57,7 @@ set(UI_COMPONENT_HEADERS
     src/ui/components/FluentButton.h
     src/ui/components/FluentCard.h
     src/ui/components/FluentSwitch.h
+    src/ui/components/FluentCheckBox.h
     src/ui/components/FluentLineEdit.h
     src/ui/components/FluentComboBox.h
     src/ui/components/FluentTable.h
@@ -95,6 +97,8 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/services/SoundService.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
+    include/app/dialogs/ConfigConfirmDialog.h
+    include/app/dialogs/ConfigNameDialog.h
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
@@ -126,6 +130,9 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/services/AppPaths.cpp
     src/app/services/SoundService.cpp
     src/app/dialogs/AppMessageDialog.cpp
+    src/app/dialogs/ConfigConfirmDialog.cpp
+    src/app/dialogs/ConfigNameDialog.cpp
+    src/app/dialogs/DialogChrome.cpp
     src/app/dialogs/BindingEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp
     src/app/dialogs/KeyCaptureDialogBase.cpp

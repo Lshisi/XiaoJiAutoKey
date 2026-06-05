@@ -1,12 +1,13 @@
 #include "dialogs/MacroStepDialog.h"
 
+#include "dialogs/AppMessageDialog.h"
+#include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentLineEdit.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -15,13 +16,20 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6b65\u9aa4"));
-    setFixedSize(360, 180);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    setStyleSheet("QDialog { background: #FFFFFF; }");
+    setFixedSize(360, 218);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(24, 20, 24, 16);
+    layout->setContentsMargins(24, 18, 24, 16);
     layout->setSpacing(12);
+
+    auto* titleRow = new QHBoxLayout();
+    titleRow->setSpacing(8);
+    auto* titleLabel = new QLabel(windowTitle(), this);
+    titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(titleLabel);
+    titleRow->addStretch();
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
+    layout->addLayout(titleRow);
 
     auto* keyRow = new QHBoxLayout();
     auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), this);
@@ -66,7 +74,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
-            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+            AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
                 QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u3002"));
             return;
         }

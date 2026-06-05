@@ -5,6 +5,7 @@
 #include "../components/FluentLineEdit.h"
 #include "../components/FluentComboBox.h"
 #include "../components/FluentCard.h"
+#include "../components/FluentCheckBox.h"
 #include "FactionTheme.h"
 
 #include <QVBoxLayout>
@@ -13,19 +14,6 @@
 #include <QLabel>
 #include <QEvent>
 #include <QIntValidator>
-
-static QString checkBoxStyle() {
-    QString color = FactionTheme::instance().palette().accent.name();
-    return QString(
-        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
-        "QCheckBox::indicator:checked {"
-        "  background: %1; border: 1px solid %1;"
-        "  image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMTAgM0w1IDhMMiA1IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==);"
-        "}"
-        "QCheckBox::indicator:unchecked {"
-        "  background: #FFFFFF; border: 1.5px solid rgba(0,0,0,0.3); }"
-    ).arg(color);
-}
 
 MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
@@ -77,8 +65,8 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     headerRow->addWidget(title);
     headerRow->addStretch();
     addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6b65\u9aa4"), this);
-    addBtn_->setFixedHeight(30);
-    addBtn_->setMinimumWidth(100);
+    addBtn_->setFixedHeight(28);
+    addBtn_->setMinimumWidth(92);
     headerRow->addWidget(addBtn_);
     tableCard->contentLayout()->addLayout(headerRow);
 
@@ -108,15 +96,9 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     // -- Card 1: 快捷控制 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
-    startBtn_->setFixedHeight(36);
+    startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
-    controlCard->contentLayout()->addSpacing(4);
-    stopBtn_ = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u25A0  \u505c\u6b62"), this);
-    stopBtn_->setFixedHeight(36);
-    stopBtn_->setEnabled(false);
-    controlCard->contentLayout()->addWidget(stopBtn_);
     rightLayout->addWidget(controlCard);
-    rightLayout->addStretch(1);
 
     // -- Card 2: 启动触发 --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
@@ -132,9 +114,8 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(hotkeyEdit_);
     triggerCard->contentLayout()->addSpacing(8);
     auto* beepRow = new QHBoxLayout();
-    beepCheck_ = new QCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
+    beepCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
-    beepCheck_->setStyleSheet(checkBoxStyle());
     beepRow->addWidget(beepCheck_);
     beepRow->addStretch();
     soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);
@@ -143,12 +124,10 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
-    statusOverlayCheck_ = new QCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
+    statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
     statusOverlayCheck_->setFont(Fluent::Typography::body());
-    statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
-    rightLayout->addStretch(1);
 
     // -- Card 3: 模式设置 --
     auto* modeCard = new FluentCard(QString::fromWCharArray(L"\u6a21\u5f0f\u8bbe\u7f6e"), this);
@@ -173,12 +152,12 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     loopEdit_->setValidator(new QIntValidator(0, 99999, this));
     modeCard->contentLayout()->addWidget(loopEdit_);
     rightLayout->addWidget(modeCard);
+    rightLayout->addStretch(1);
     layout->addLayout(rightLayout, 3);
 
     // ── Connections ──
     connect(addBtn_, &QPushButton::clicked, this, &MacroPage::addStepRequested);
     connect(startBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
-    connect(stopBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &MacroPage::beepToggled);
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &MacroPage::statusOverlayToggled);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &MacroPage::soundSettingsClicked);
@@ -249,8 +228,9 @@ void MacroPage::setLoopCount(int count) {
 
 void MacroPage::setRunning(bool running) {
     running_ = running;
-    startBtn_->setEnabled(!running);
-    stopBtn_->setEnabled(running);
+    startBtn_->setEnabled(true);
+    startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
+    updateStartBtnText();
     addBtn_->setEnabled(!running);
     table_->setEnabled(!running);
     macroCombo_->setEnabled(!running);
@@ -268,11 +248,15 @@ void MacroPage::setRunning(bool running) {
 void MacroPage::setHotkeyText(const QString& text) {
     hotkeyEdit_->setText(text);
     hotkeyName_ = text;
-    // Update button text with hotkey hint
+    updateStartBtnText();
+}
+
+void MacroPage::updateStartBtnText() {
     QString keyStr = (hotkeyName_.isEmpty() || hotkeyName_ == QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"))
         ? "" : QString(" (%1)").arg(hotkeyName_);
-    startBtn_->setText(QString::fromWCharArray(L"\u25B6  \u542f\u52a8") + keyStr);
-    stopBtn_->setText(QString::fromWCharArray(L"\u25A0  \u505c\u6b62") + keyStr);
+    startBtn_->setText((running_
+        ? QString::fromWCharArray(L"\u25A0  \u505c\u6b62")
+        : QString::fromWCharArray(L"\u25B6  \u542f\u52a8")) + keyStr);
 }
 
 void MacroPage::setBeepEnabled(bool enabled) {
@@ -293,8 +277,8 @@ void MacroPage::updateThemeColors() {
     table_->refreshThemeStyle();
     macroCombo_->refreshThemeStyle();
     modeCombo_->refreshThemeStyle();
-    beepCheck_->setStyleSheet(checkBoxStyle());
-    if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(checkBoxStyle());
+    beepCheck_->update();
+    if (statusOverlayCheck_) statusOverlayCheck_->update();
     refreshTable();
 }
 

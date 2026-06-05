@@ -1,10 +1,18 @@
 #include "dialogs/KeyCaptureDialogBase.h"
 
+#include "dialogs/DialogChrome.h"
 #include "input/InputKeyUtils.h"
 #include "ui/components/FluentLineEdit.h"
 
 #include <QEvent>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include <Windows.h>
+
+KeyCaptureDialogBase::KeyCaptureDialogBase(QWidget* parent)
+    : QDialog(parent) {
+    DialogChrome::apply(this);
+}
 
 void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
     KeyDescriptor key = DecodeKey(encodedKey);
@@ -22,6 +30,25 @@ void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
 
 std::optional<KeyDescriptor> KeyCaptureDialogBase::capturedKey() const {
     return capturedKey_;
+}
+
+void KeyCaptureDialogBase::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
+}
+
+void KeyCaptureDialogBase::mousePressEvent(QMouseEvent* event) {
+    if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mousePressEvent(event);
+}
+
+void KeyCaptureDialogBase::mouseMoveEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mouseMoveEvent(event);
+}
+
+void KeyCaptureDialogBase::mouseReleaseEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseRelease(event, dragging_)) return;
+    QDialog::mouseReleaseEvent(event);
 }
 
 void KeyCaptureDialogBase::setCaptureEditor(FluentLineEdit* editor) {

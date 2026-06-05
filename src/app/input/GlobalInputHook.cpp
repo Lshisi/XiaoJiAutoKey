@@ -105,7 +105,7 @@ void GlobalInputHook::runHookLoop() {
 LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam) {
     if (code < 0 || !g_hookInstance) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-    KeyDescriptor key{InputDevice::Keyboard, info->vkCode};
+    const KeyDescriptor key = KeyboardHookKeyDescriptor(info->vkCode, info->scanCode, info->flags);
     const bool pressed = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
     const bool released = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
     if (!pressed && !released) return CallNextHookEx(nullptr, code, wParam, lParam);

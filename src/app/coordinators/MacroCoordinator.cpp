@@ -3,15 +3,14 @@
 #include "config/ActiveConfigValidator.h"
 #include "controllers/MacroController.h"
 #include "dialogs/AppMessageDialog.h"
+#include "dialogs/ConfigConfirmDialog.h"
+#include "dialogs/ConfigNameDialog.h"
 #include "dialogs/MacroStepDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "ui/pages/MacroPage.h"
 
 #include <QDialog>
-#include <QInputDialog>
-#include <QLineEdit>
-#include <QMessageBox>
 
 MacroCoordinator::MacroCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -77,11 +76,12 @@ void MacroCoordinator::onMacroAdd() {
     if (!context_.inputHook || !context_.controller) return;
 
     context_.inputHook->setDialogOpen(true);
-    bool ok = false;
-    QString name = QInputDialog::getText(context_.parent,
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
         QString::fromWCharArray(L"\u65b0\u5efa\u5b8f"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5b8f\u540d\u79f0:"),
-        QLineEdit::Normal, QString(), &ok);
+        QString(),
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 
@@ -102,11 +102,12 @@ void MacroCoordinator::onMacroRename() {
     if (!macro) return;
 
     context_.inputHook->setDialogOpen(true);
-    bool ok = false;
-    QString name = QInputDialog::getText(context_.parent,
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
         QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f"),
         QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
-        QLineEdit::Normal, QString::fromStdWString(macro->name), &ok);
+        QString::fromStdWString(macro->name),
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 
@@ -125,14 +126,14 @@ void MacroCoordinator::onMacroDelete() {
     if (!macro) return;
 
     context_.inputHook->setDialogOpen(true);
-    auto answer = QMessageBox::question(context_.parent,
+    const bool confirmed = ConfigConfirmDialog::confirm(context_.parent,
         QString::fromWCharArray(L"\u5220\u9664\u5b8f"),
         QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u5b8f\u201c") +
             QString::fromStdWString(macro->name) +
             QString::fromWCharArray(L"\u201d\u5417\uff1f"),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        QString::fromWCharArray(L"\u5220\u9664"));
     context_.inputHook->setDialogOpen(false);
-    if (answer != QMessageBox::Yes) return;
+    if (!confirmed) return;
 
     std::uint64_t newActiveMacroId = 0;
     auto result = context_.controller->deleteActiveMacro(newActiveMacroId);

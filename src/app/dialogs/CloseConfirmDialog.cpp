@@ -1,30 +1,37 @@
 #include "dialogs/CloseConfirmDialog.h"
 
+#include "dialogs/DialogChrome.h"
+#include "ui/components/FluentCheckBox.h"
 #include "ui/components/FluentButton.h"
 #include "ui/styles/DesignTokens.h"
 
-#include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 CloseConfirmDialog::CloseConfirmDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle(QString::fromWCharArray(L"\u5173\u95ed\u786e\u8ba4"));
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    setFixedSize(360, 180);
-    setStyleSheet("QDialog { background: #FFFFFF; }");
+    DialogChrome::apply(this);
+    setFixedSize(360, 204);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(24, 20, 24, 16);
-    layout->setSpacing(12);
+    layout->setContentsMargins(24, 16, 24, 16);
+    layout->setSpacing(10);
+
+    auto* titleRow = new QHBoxLayout();
+    titleRow->addStretch();
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
+    layout->addLayout(titleRow);
 
     auto* label = new QLabel(QString::fromWCharArray(L"\u60a8\u5e0c\u671b\u5173\u95ed\u7a0b\u5e8f\u8fd8\u662f\u6700\u5c0f\u5316\u5230\u7cfb\u7edf\u6258\u76d8\uff1f"), this);
     label->setFont(Fluent::Typography::body());
     label->setWordWrap(true);
     layout->addWidget(label);
 
-    auto* rememberCheck = new QCheckBox(QString::fromWCharArray(L"\u8bb0\u4f4f\u6211\u7684\u9009\u62e9"), this);
+    auto* rememberCheck = new FluentCheckBox(QString::fromWCharArray(L"\u8bb0\u4f4f\u6211\u7684\u9009\u62e9"), this);
     rememberCheck->setFont(Fluent::Typography::body());
     layout->addWidget(rememberCheck);
     layout->addStretch();
@@ -54,4 +61,23 @@ CloseConfirmDialog::CloseConfirmDialog(QWidget* parent) : QDialog(parent) {
 
 CloseConfirmResult CloseConfirmDialog::decision() const {
     return {exitSelected_, rememberSelected_};
+}
+
+void CloseConfirmDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
+}
+
+void CloseConfirmDialog::mousePressEvent(QMouseEvent* event) {
+    if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mousePressEvent(event);
+}
+
+void CloseConfirmDialog::mouseMoveEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+    QDialog::mouseMoveEvent(event);
+}
+
+void CloseConfirmDialog::mouseReleaseEvent(QMouseEvent* event) {
+    if (DialogChrome::mouseRelease(event, dragging_)) return;
+    QDialog::mouseReleaseEvent(event);
 }

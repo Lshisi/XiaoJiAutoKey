@@ -24,6 +24,9 @@ int main(int argc, char *argv[]) {
     // 提升时钟精度到 1ms
     timeBeginPeriod(1);
 
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+
     QApplication app(argc, argv);
     app.setStyle(QStyleFactory::create("Fusion"));
 

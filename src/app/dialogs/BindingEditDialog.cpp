@@ -1,5 +1,7 @@
 #include "dialogs/BindingEditDialog.h"
 
+#include "dialogs/AppMessageDialog.h"
+#include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentComboBox.h"
 #include "ui/components/FluentLineEdit.h"
@@ -8,7 +10,6 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QComboBox>
 #include <QVBoxLayout>
@@ -18,13 +19,20 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(420, 340);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    setStyleSheet("QDialog { background: #FFFFFF; border-radius: 16px; }");
+    setFixedSize(420, 368);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setContentsMargins(24, 18, 24, 22);
     layout->setSpacing(16);
+
+    auto* titleRow = new QHBoxLayout();
+    titleRow->setSpacing(8);
+    auto* titleLabel = new QLabel(windowTitle(), this);
+    titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(titleLabel);
+    titleRow->addStretch();
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
+    layout->addLayout(titleRow);
 
     auto* keyRow = new QHBoxLayout();
     auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), this);
@@ -111,14 +119,14 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     });
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
-            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+            AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
                 QString::fromWCharArray(L"\u8bf7\u5148\u5f55\u5236\u4e00\u4e2a\u6309\u952e\u6216\u9f20\u6807\u952e\u3002"));
             return;
         }
         bool ok = false;
         int delay = delayEdit_->text().toInt(&ok);
         if (!ok || delay <= 0) {
-            QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+            AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
                 QString::fromWCharArray(L"\u5ef6\u8fdf\u5fc5\u987b\u662f\u5927\u4e8e 0 \u7684\u6574\u6570\u3002"));
             return;
         }

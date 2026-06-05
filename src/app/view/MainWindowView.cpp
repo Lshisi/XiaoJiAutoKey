@@ -1,6 +1,7 @@
 #include "view/MainWindowView.h"
 
 #include "ui/components/FluentSidebar.h"
+#include "ui/components/FluentTitleBar.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
@@ -10,35 +11,124 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCursor>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QScreen>
+#include <QTimer>
 #include <QVBoxLayout>
+#include <QWindow>
+
+namespace {
+QRect currentAvailableGeometry() {
+    if (auto* screen = QApplication::screenAt(QCursor::pos())) {
+        return screen->availableGeometry();
+    }
+    if (auto* screen = QApplication::primaryScreen()) {
+        return screen->availableGeometry();
+    }
+    return QRect(0, 0, 1920, 1080);
+}
+
+QSize scaledInitialWindowSize(const QRect& available) {
+    constexpr int baseWidth = 780;
+    constexpr int baseHeight = 560;
+    constexpr int baseScreenWidth = 1920;
+    constexpr int baseScreenHeight = 1080;
+
+    const double widthScale = static_cast<double>(available.width()) / baseScreenWidth;
+    const double heightScale = static_cast<double>(available.height()) / baseScreenHeight;
+    const double widthSizeScale = qBound(1.0, qMin(widthScale, heightScale), 2.0);
+    const int extraHeight = qMax(0, available.height() - baseScreenHeight);
+
+    const int scaledWidth = static_cast<int>(baseWidth * widthSizeScale + 0.5);
+    const int scaledHeight = baseHeight + static_cast<int>(extraHeight * 0.18 + 0.5);
+    const int maxWidth = qMax(720, available.width() - 80);
+    const int maxHeight = qMin(qMax(560, available.height() - 80), 700);
+
+    return QSize(
+        qBound(780, scaledWidth, maxWidth),
+        qBound(560, scaledHeight, maxHeight)
+    );
+}
+
+void applyScreenAwareWindowSize(QMainWindow* window, QScreen* screen, bool centerOnScreen) {
+    if (!window || window->isMinimized()) {
+        return;
+    }
+
+    const QRect available = screen ? screen->availableGeometry() : currentAvailableGeometry();
+    const QSize size = scaledInitialWindowSize(available);
+    const QPoint center = centerOnScreen ? available.center() : window->geometry().center();
+
+    QRect geometry(QPoint(center.x() - size.width() / 2, center.y() - size.height() / 2), size);
+    const int minX = available.left();
+    const int minY = available.top();
+    const int maxX = qMax(minX, available.right() - geometry.width() + 1);
+    const int maxY = qMax(minY, available.bottom() - geometry.height() + 1);
+    geometry.moveTopLeft(QPoint(
+        qBound(minX, geometry.left(), maxX),
+        qBound(minY, geometry.top(), maxY)
+    ));
+
+    window->setGeometry(geometry);
+}
+
+void bindScreenChangeResize(QMainWindow* window) {
+    QTimer::singleShot(0, window, [window]() {
+        auto* handle = window ? window->windowHandle() : nullptr;
+        if (!handle) {
+            return;
+        }
+
+        QObject::connect(handle, &QWindow::screenChanged, window, [window](QScreen* screen) {
+            applyScreenAwareWindowSize(window, screen, false);
+        });
+    });
+}
+}
 
 void MainWindowView::setup(QMainWindow* window) {
     window->setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e~"));
     window->setWindowIcon(QIcon(":/assets/icon.png"));
-    window->resize(780, 560);
+    window->setWindowFlags((window->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowMaximizeButtonHint);
+    window->setAttribute(Qt::WA_TranslucentBackground, true);
+
+    applyScreenAwareWindowSize(window, nullptr, true);
     window->setMinimumSize(720, 560);
+    bindScreenChangeResize(window);
 
     auto* centralWidget = new QWidget(window);
     centralWidget->setObjectName("mainWindowRoot");
-    centralWidget->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; }")
+    centralWidget->setStyleSheet(QString(
+        "QWidget#mainWindowRoot {"
+        "  background: %1;"
+        "  border: none;"
+        "  border-radius: 10px;"
+        "}")
         .arg(FactionTheme::instance().palette().surfaceTint.name()));
     window->setCentralWidget(centralWidget);
 
     auto* rootLayout = new QVBoxLayout(centralWidget);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setContentsMargins(1, 1, 1, 1);
     rootLayout->setSpacing(0);
+
+    auto* titleBar = new FluentTitleBar(window);
+    titleBar->setTitle(window->windowTitle());
+    titleBar->setIcon(window->windowIcon());
+    rootLayout->addWidget(titleBar);
+    QObject::connect(titleBar, &FluentTitleBar::minimizeClicked, window, &QMainWindow::showMinimized);
+    QObject::connect(titleBar, &FluentTitleBar::closeClicked, window, &QMainWindow::close);
 
     auto* bodyLayout = new QHBoxLayout();
     bodyLayout->setContentsMargins(0, 0, 0, 0);
     bodyLayout->setSpacing(0);
 
     sidebar_ = new FluentSidebar(window);
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2328"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2630"), QString::fromWCharArray(L"\u5b8f\u5faa\u73af"), "macro");
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2699"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
-    sidebar_->addNavItem(QString::fromWCharArray(L"\u2139"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
+    sidebar_->addNavItem(QStringLiteral("keys"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
+    sidebar_->addNavItem(QStringLiteral("macro"), QString::fromWCharArray(L"\u5b8f\u5faa\u73af"), "macro");
+    sidebar_->addNavItem(QStringLiteral("settings"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
+    sidebar_->addNavItem(QStringLiteral("about"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
     sidebar_->setCurrentPage("keys");
     bodyLayout->addWidget(sidebar_);
 
@@ -58,7 +148,13 @@ void MainWindowView::setup(QMainWindow* window) {
     auto* statusBar = new QWidget(window);
     statusBar->setObjectName("appStatusBar");
     statusBar->setFixedHeight(24);
-    statusBar->setStyleSheet(QString("QWidget#appStatusBar { background: %1; border-top: 1px solid rgba(0,0,0,0.08); }")
+    statusBar->setStyleSheet(QString(
+        "QWidget#appStatusBar {"
+        "  background: %1;"
+        "  border-top: 1px solid rgba(0,0,0,0.08);"
+        "  border-bottom-left-radius: 10px;"
+        "  border-bottom-right-radius: 10px;"
+        "}")
         .arg(FactionTheme::instance().palette().surfaceTint.name()));
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
@@ -123,11 +219,22 @@ bool MainWindowView::isRepeatPageActive() const {
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     if (window->centralWidget()) {
-        window->centralWidget()->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; }")
+        window->centralWidget()->setStyleSheet(QString(
+            "QWidget#mainWindowRoot {"
+            "  background: %1;"
+            "  border: none;"
+            "  border-radius: 10px;"
+            "}")
             .arg(FactionTheme::instance().palette().surfaceTint.name()));
     }
     if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
-        statusBar->setStyleSheet(QString("QWidget#appStatusBar { background: %1; border-top: 1px solid rgba(0,0,0,0.08); }")
+        statusBar->setStyleSheet(QString(
+            "QWidget#appStatusBar {"
+            "  background: %1;"
+            "  border-top: 1px solid rgba(0,0,0,0.08);"
+            "  border-bottom-left-radius: 10px;"
+            "  border-bottom-right-radius: 10px;"
+            "}")
             .arg(FactionTheme::instance().palette().surfaceTint.name()));
     }
     sidebar_->updateFactionIcon();

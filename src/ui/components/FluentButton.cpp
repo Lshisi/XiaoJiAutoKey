@@ -4,6 +4,80 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QFontMetricsF>
+
+namespace {
+enum class ButtonGlyph { None, Play, Stop, Add };
+
+struct ButtonContent {
+    ButtonGlyph glyph = ButtonGlyph::None;
+    QString label;
+};
+
+ButtonContent parseButtonContent(const QString& text) {
+    ButtonContent content;
+    content.label = text;
+    if (text.startsWith(QString(QChar(0x25B6)))) {
+        content.glyph = ButtonGlyph::Play;
+        content.label = text.mid(1).trimmed();
+    } else if (text.startsWith(QString(QChar(0x25A0)))) {
+        content.glyph = ButtonGlyph::Stop;
+        content.label = text.mid(1).trimmed();
+    } else if (text.startsWith(QStringLiteral("+"))) {
+        content.glyph = ButtonGlyph::Add;
+        content.label = text.mid(1).trimmed();
+    }
+    return content;
+}
+
+void drawButtonGlyph(QPainter& p, ButtonGlyph glyph, const QRectF& rect, const QColor& color) {
+    p.setPen(Qt::NoPen);
+    p.setBrush(color);
+    const QPointF c = rect.center();
+    if (glyph == ButtonGlyph::Play) {
+        QPainterPath path;
+        path.moveTo(c.x() - 2.6, c.y() - 4.0);
+        path.lineTo(c.x() - 2.6, c.y() + 4.0);
+        path.lineTo(c.x() + 4.0, c.y());
+        path.closeSubpath();
+        p.drawPath(path);
+    } else if (glyph == ButtonGlyph::Stop) {
+        p.drawRoundedRect(QRectF(c.x() - 3.4, c.y() - 3.4, 6.8, 6.8), 1.0, 1.0);
+    } else if (glyph == ButtonGlyph::Add) {
+        QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(QPointF(c.x() - 4.0, c.y()), QPointF(c.x() + 4.0, c.y()));
+        p.drawLine(QPointF(c.x(), c.y() - 4.0), QPointF(c.x(), c.y() + 4.0));
+    }
+}
+
+void drawButtonContent(QPainter& p, const QRectF& rect, const QString& text, const QFont& font, const QColor& color) {
+    const ButtonContent content = parseButtonContent(text);
+    p.setFont(font);
+    p.setPen(color);
+
+    if (content.glyph == ButtonGlyph::None) {
+        p.drawText(rect, Qt::AlignCenter, content.label);
+        return;
+    }
+
+    const QFontMetricsF metrics(font);
+    const qreal iconWidth = 10.0;
+    const qreal gap = content.label.isEmpty() ? 0.0 : 6.0;
+    const qreal textWidth = content.label.isEmpty() ? 0.0 : metrics.horizontalAdvance(content.label);
+    const qreal totalWidth = iconWidth + gap + textWidth;
+    const qreal left = rect.center().x() - totalWidth / 2.0;
+    const QRectF iconRect(left, rect.top(), iconWidth, rect.height());
+    drawButtonGlyph(p, content.glyph, iconRect, color);
+
+    if (!content.label.isEmpty()) {
+        p.setPen(color);
+        const QRectF textRect(left + iconWidth + gap, rect.top(), textWidth + 1, rect.height());
+        p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, content.label);
+    }
+}
+}
 
 FluentButton::FluentButton(const QString& text, QWidget* parent)
     : QPushButton(text, parent)
@@ -54,6 +128,7 @@ void FluentButton::leaveEvent(QEvent*) {
 void FluentButton::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::TextAntialiasing);
 
     QRectF r = rect().adjusted(0, 0, -1, -1);
     QPainterPath path;
@@ -70,9 +145,7 @@ void FluentButton::paintEvent(QPaintEvent*) {
         p.setPen(Qt::NoPen);
         p.drawPath(path);
         if (borderColor.alpha() > 0) { p.setPen(QPen(borderColor, 1)); p.setBrush(Qt::NoBrush); p.drawPath(path); }
-        p.setPen(textColor);
-        p.setFont(font());
-        p.drawText(r, Qt::AlignCenter, text());
+        drawButtonContent(p, r, text(), font(), textColor);
         return;
     }
 
@@ -126,8 +199,5 @@ void FluentButton::paintEvent(QPaintEvent*) {
         p.drawPath(path);
     }
 
-    // Text
-    p.setPen(textColor);
-    p.setFont(font());
-    p.drawText(r, Qt::AlignCenter, text());
+    drawButtonContent(p, r, text(), font(), textColor);
 }

@@ -6,6 +6,7 @@
 #include "../components/FluentSwitch.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentComboBox.h"
+#include "../components/FluentCheckBox.h"
 #include "FactionTheme.h"
 
 #include <QVBoxLayout>
@@ -15,19 +16,47 @@
 #include <QEvent>
 #include <QCheckBox>
 #include <QPainter>
+#include <QPainterPath>
 
-// Generate checkbox style using current faction color
-static QString checkBoxStyle() {
-    QString color = FactionTheme::instance().palette().accent.name();
-    return QString(
-        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
-        "QCheckBox::indicator:checked {"
-        "  background: %1; border: 1px solid %1;"
-        "  image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBkPSJNMTAgM0w1IDhMMiA1IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==);"
-        "}"
-        "QCheckBox::indicator:unchecked {"
-        "  background: #FFFFFF; border: 1.5px solid rgba(0,0,0,0.3); }"
-    ).arg(color);
+namespace {
+class PriorityIconWidget : public QWidget {
+public:
+    enum class Kind { None, Disabled, Enabled };
+
+    explicit PriorityIconWidget(Kind kind, QWidget* parent = nullptr)
+        : QWidget(parent), kind_(kind) {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        setStyleSheet("background: transparent;");
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        const QPointF c = rect().center();
+        const QColor color = kind_ == Kind::Enabled
+            ? QColor(0x20, 0x20, 0x20)
+            : Fluent::Colors::textSecondary();
+        QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+
+        if (kind_ == Kind::None) {
+            p.drawLine(QPointF(c.x() - 3.8, c.y()), QPointF(c.x() + 3.8, c.y()));
+        } else if (kind_ == Kind::Disabled) {
+            p.drawLine(QPointF(c.x() - 3.6, c.y() - 3.6), QPointF(c.x() + 3.6, c.y() + 3.6));
+            p.drawLine(QPointF(c.x() + 3.6, c.y() - 3.6), QPointF(c.x() - 3.6, c.y() + 3.6));
+        } else {
+            QPainterPath path;
+            path.moveTo(c.x() - 4.4, c.y() + 0.4);
+            path.lineTo(c.x() - 1.2, c.y() + 3.4);
+            path.lineTo(c.x() + 4.8, c.y() - 4.0);
+            p.drawPath(path);
+        }
+    }
+
+private:
+    Kind kind_;
+};
 }
 
 KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
@@ -78,8 +107,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     headerRow->addWidget(title);
     headerRow->addStretch();
     addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6309\u952e"), this);
-    addBtn_->setFixedHeight(30);
-    addBtn_->setMinimumWidth(100);
+    addBtn_->setFixedHeight(28);
+    addBtn_->setMinimumWidth(92);
     headerRow->addWidget(addBtn_);
     tableCard->contentLayout()->addLayout(headerRow);
 
@@ -142,13 +171,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
-    startBtn_->setFixedHeight(36);
+    startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
-    controlCard->contentLayout()->addSpacing(4);
-    stopBtn_ = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u25A0  \u505c\u6b62"), this);
-    stopBtn_->setFixedHeight(36);
-    stopBtn_->setEnabled(false);  // Initially disabled (not running)
-    controlCard->contentLayout()->addWidget(stopBtn_);
     controlCard->contentLayout()->addSpacing(4);
     statusLabel_ = new QLabel(QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"), this);
     statusLabel_->setFont(Fluent::Typography::caption());
@@ -157,7 +181,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     statusLabel_->setPalette(sPal);
     controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
-    rightLayout->addStretch(1);
 
     // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
@@ -173,9 +196,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(hotkeyEdit_);
     triggerCard->contentLayout()->addSpacing(8);
     auto* beepRow = new QHBoxLayout();
-    beepCheck_ = new QCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
+    beepCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
-    beepCheck_->setStyleSheet(checkBoxStyle());
     beepRow->addWidget(beepCheck_);
     beepRow->addStretch();
     soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);  // sound icon
@@ -184,18 +206,15 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
-    statusOverlayCheck_ = new QCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
+    statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
     statusOverlayCheck_->setFont(Fluent::Typography::body());
-    statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
-    rightLayout->addStretch(1);
 
     // -- Card 3: 连发优先 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
-    mixedModeCheck_ = new QCheckBox(QString::fromWCharArray(L"\u542f\u7528\u8fde\u53d1\u4f18\u5148"), this);
+    mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u542f\u7528\u8fde\u53d1\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedModeCheck_->setStyleSheet(checkBoxStyle());
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
     mixedCard->contentLayout()->addSpacing(4);
     auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\n\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\n\u677e\u5f00\u540e\u6062\u590d\u3002"), this);
@@ -206,12 +225,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
     rightLayout->addWidget(mixedCard);
+    rightLayout->addStretch(1);
     layout->addLayout(rightLayout, 3);
 
     // Connections
     connect(addBtn_, &QPushButton::clicked, this, &KeyPage::addRequested);
     connect(startBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
-    connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &KeyPage::statusOverlayToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
@@ -248,8 +267,9 @@ void KeyPage::setBindings(const std::vector<KeyBinding>& bindings) {
 void KeyPage::setRunning(bool running) {
     running_ = running;
     // Enable/disable buttons based on state
-    startBtn_->setEnabled(!running);
-    stopBtn_->setEnabled(running);
+    startBtn_->setEnabled(true);
+    startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
+    updateStartBtnText();
     statusLabel_->setText(running
         ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
         : QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"));
@@ -297,10 +317,9 @@ void KeyPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
     profileCombo_->refreshThemeStyle();
-    QString style = checkBoxStyle();
-    beepCheck_->setStyleSheet(style);
-    if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(style);
-    mixedModeCheck_->setStyleSheet(style);
+    beepCheck_->update();
+    if (statusOverlayCheck_) statusOverlayCheck_->update();
+    mixedModeCheck_->update();
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
 }
@@ -362,8 +381,9 @@ void KeyPage::refreshPauseKeyList() {
 void KeyPage::updateStartBtnText() {
     QString keyStr = (hotkeyName_.isEmpty() || hotkeyName_ == QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"))
         ? "" : QString(" (%1)").arg(hotkeyName_);
-    startBtn_->setText(QString::fromWCharArray(L"\u25B6  \u542f\u52a8") + keyStr);
-    stopBtn_->setText(QString::fromWCharArray(L"\u25A0  \u505c\u6b62") + keyStr);
+    startBtn_->setText((running_
+        ? QString::fromWCharArray(L"\u25A0  \u505c\u6b62")
+        : QString::fromWCharArray(L"\u25B6  \u542f\u52a8")) + keyStr);
 }
 
 void KeyPage::refreshTable() {
@@ -380,9 +400,8 @@ void KeyPage::refreshTable() {
         auto* checkLayout = new QHBoxLayout(checkWidget);
         checkLayout->setContentsMargins(0, 0, 0, 0);
         checkLayout->setAlignment(Qt::AlignCenter);
-        auto* checkBox = new QCheckBox(checkWidget);
+        auto* checkBox = new FluentCheckBox(QString(), checkWidget);
         checkBox->setChecked(b.enabled);
-        checkBox->setStyleSheet(checkBoxStyle());
         checkLayout->addWidget(checkBox);
         table_->setCellWidget(i, 0, checkWidget);
 
@@ -396,20 +415,19 @@ void KeyPage::refreshTable() {
         auto* modeItem = new QTableWidgetItem(QString::fromStdWString(RepeatModeToText(b.mode)));
         modeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         table_->setItem(i, 2, modeItem);
-        QString mixedText = QString::fromWCharArray(L"-");
+        auto mixedKind = PriorityIconWidget::Kind::None;
         QString mixedTip = QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f\u4e0d\u53c2\u4e0e\u8fde\u53d1\u4f18\u5148");
         if (b.mode == RepeatMode::Hold) {
-            mixedText = b.suppressMixedMode
-                ? QString::fromWCharArray(L"\u00d7")
-                : QString::fromWCharArray(L"\u2713");
+            mixedKind = b.suppressMixedMode
+                ? PriorityIconWidget::Kind::Disabled
+                : PriorityIconWidget::Kind::Enabled;
             mixedTip = b.suppressMixedMode
                 ? QString::fromWCharArray(L"\u4e0d\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4e0d\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1")
                 : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
         }
-        auto* mixedItem = new QTableWidgetItem(mixedText);
-        mixedItem->setTextAlignment(Qt::AlignCenter);
-        mixedItem->setToolTip(mixedTip);
-        table_->setItem(i, 3, mixedItem);
+        auto* mixedWidget = new PriorityIconWidget(mixedKind);
+        mixedWidget->setToolTip(mixedTip);
+        table_->setCellWidget(i, 3, mixedWidget);
         auto* delayItem = new QTableWidgetItem(QString::number(b.delayMs));
         delayItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         table_->setItem(i, 4, delayItem);

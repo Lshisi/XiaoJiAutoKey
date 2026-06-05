@@ -64,7 +64,6 @@ private:
     FluentTable* table_;
     FluentButton* addBtn_;
     FluentButton* startBtn_;
-    FluentButton* stopBtn_;
     FluentLineEdit* hotkeyEdit_;
     QCheckBox* beepCheck_;
     QCheckBox* statusOverlayCheck_ = nullptr;

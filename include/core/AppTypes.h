@@ -110,6 +110,11 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key);
 std::wstring RepeatModeToText(RepeatMode mode);
 std::wstring DeviceToText(InputDevice device);
 
+constexpr std::uint32_t kNumpadEnterKeyCode = 0x0100000D;
+
+KeyDescriptor NormalizeKeyDescriptor(const KeyDescriptor& key);
+KeyDescriptor KeyboardHookKeyDescriptor(std::uint32_t vkCode, std::uint32_t scanCode, std::uint32_t flags);
+
 std::wstring KeyDescriptorToStorage(const KeyDescriptor& key);
 std::wstring KeyDescriptorToStorage(const std::optional<KeyDescriptor>& key);
 std::optional<KeyDescriptor> StorageToKeyDescriptor(const std::wstring& text);

@@ -46,6 +46,42 @@ std::wstring MouseButtonName(std::uint32_t vk) {
     }
 }
 
+std::wstring NumpadKeyName(std::uint32_t vk) {
+    if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) {
+        return L"Num " + std::to_wstring(vk - VK_NUMPAD0);
+    }
+
+    switch (vk) {
+    case VK_NUMLOCK:
+        return L"Num Lock";
+    case VK_DIVIDE:
+        return L"Num /";
+    case VK_MULTIPLY:
+        return L"Num *";
+    case VK_SUBTRACT:
+        return L"Num -";
+    case VK_ADD:
+        return L"Num +";
+    case VK_DECIMAL:
+        return L"Num .";
+    default:
+        return {};
+    }
+}
+
+std::uint32_t NormalizeKeyboardVirtualKey(std::uint32_t vk) {
+    switch (vk) {
+    case VK_SHIFT:
+        return VK_LSHIFT;
+    case VK_CONTROL:
+        return VK_LCONTROL;
+    case VK_MENU:
+        return VK_LMENU;
+    default:
+        return vk;
+    }
+}
+
 }  // namespace
 
 std::wstring ToWide(const std::string& text) {
@@ -75,6 +111,14 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key) {
 
     if (key.device == InputDevice::Mouse) {
         return MouseButtonName(key.code);
+    }
+
+    if (key.code == kNumpadEnterKeyCode) {
+        return L"Num Enter";
+    }
+
+    if (const auto numpadName = NumpadKeyName(key.code); !numpadName.empty()) {
+        return numpadName;
     }
 
     if (key.code == VK_PAUSE) {
@@ -108,13 +152,41 @@ std::wstring KeyDescriptorToStorage(const KeyDescriptor& key) {
     return KeyDescriptorToStorage(std::optional<KeyDescriptor>(key));
 }
 
+KeyDescriptor NormalizeKeyDescriptor(const KeyDescriptor& key) {
+    if (key.device != InputDevice::Keyboard) {
+        return key;
+    }
+    return {InputDevice::Keyboard, NormalizeKeyboardVirtualKey(key.code)};
+}
+
+KeyDescriptor KeyboardHookKeyDescriptor(std::uint32_t vkCode, std::uint32_t scanCode, std::uint32_t flags) {
+    switch (vkCode) {
+    case VK_SHIFT: {
+        const auto mapped = MapVirtualKeyW(scanCode, MAPVK_VSC_TO_VK_EX);
+        if (mapped == VK_LSHIFT || mapped == VK_RSHIFT) {
+            return {InputDevice::Keyboard, mapped};
+        }
+        return {InputDevice::Keyboard, VK_LSHIFT};
+    }
+    case VK_CONTROL:
+        return {InputDevice::Keyboard, static_cast<std::uint32_t>((flags & LLKHF_EXTENDED) ? VK_RCONTROL : VK_LCONTROL)};
+    case VK_MENU:
+        return {InputDevice::Keyboard, static_cast<std::uint32_t>((flags & LLKHF_EXTENDED) ? VK_RMENU : VK_LMENU)};
+    case VK_RETURN:
+        return {InputDevice::Keyboard, (flags & LLKHF_EXTENDED) ? kNumpadEnterKeyCode : VK_RETURN};
+    default:
+        return NormalizeKeyDescriptor({InputDevice::Keyboard, vkCode});
+    }
+}
+
 std::wstring KeyDescriptorToStorage(const std::optional<KeyDescriptor>& key) {
     if (!key.has_value()) {
         return L"";
     }
 
+    const KeyDescriptor normalized = NormalizeKeyDescriptor(*key);
     std::wstringstream stream;
-    stream << (key->device == InputDevice::Keyboard ? L"K:" : L"M:") << key->code;
+    stream << (normalized.device == InputDevice::Keyboard ? L"K:" : L"M:") << normalized.code;
     return stream.str();
 }
 
@@ -132,6 +204,7 @@ std::optional<KeyDescriptor> StorageToKeyDescriptor(const std::wstring& text) {
         return std::nullopt;
     }
 
+    descriptor = NormalizeKeyDescriptor(descriptor);
     if (!descriptor.IsValid()) {
         return std::nullopt;
     }

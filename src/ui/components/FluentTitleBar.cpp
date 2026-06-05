@@ -2,6 +2,7 @@
 #include "../styles/DesignTokens.h"
 
 #include <QPainter>
+#include <QPainterPath>
 #include <QMouseEvent>
 #include <QApplication>
 #include <QStyle>
@@ -13,16 +14,24 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     setMouseTracking(true);
 
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(16, 0, 8, 0);
+    layout->setContentsMargins(14, 0, 8, 0);
     layout->setSpacing(0);
+
+    layout->addWidget(createTrafficLight(QColor(0xFF, 0x5F, 0x57)));
+    layout->addSpacing(8);
+    layout->addWidget(createTrafficLight(QColor(0xFF, 0xBD, 0x2E)));
+    layout->addSpacing(8);
+    layout->addWidget(createTrafficLight(QColor(0x28, 0xC8, 0x40)));
+
+    layout->addSpacing(16);
 
     // Icon
     iconLabel_ = new QLabel(this);
-    iconLabel_->setFixedSize(24, 24);
+    iconLabel_->setFixedSize(20, 20);
     iconLabel_->setScaledContents(true);
     layout->addWidget(iconLabel_);
 
-    layout->addSpacing(10);
+    layout->addSpacing(8);
 
     // Title
     titleLabel_ = new QLabel(this);
@@ -36,18 +45,31 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
 
     // Caption buttons
     minBtn_ = createCaptionButton(QStringLiteral("\u2500"), tr("Minimize"));
-    maxBtn_ = createCaptionButton(QStringLiteral("\u25A1"), tr("Maximize"));
     closeBtn_ = createCaptionButton(QStringLiteral("\u2715"), tr("Close"));
 
     layout->addWidget(minBtn_);
-    layout->addWidget(maxBtn_);
     layout->addWidget(closeBtn_);
 
     // Close button special hover
     closeBtn_->setProperty("captionClose", true);
+    closeBtn_->setStyleSheet(
+        "QPushButton {"
+        "  border: none;"
+        "  background: transparent;"
+        "  border-radius: 6px;"
+        "  color: #202020;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #E81123;"
+        "  color: white;"
+        "}"
+        "QPushButton:pressed {"
+        "  background: #C50F1F;"
+        "  color: white;"
+        "}"
+    );
 
     connect(minBtn_, &QPushButton::clicked, this, &FluentTitleBar::minimizeClicked);
-    connect(maxBtn_, &QPushButton::clicked, this, &FluentTitleBar::maximizeClicked);
     connect(closeBtn_, &QPushButton::clicked, this, &FluentTitleBar::closeClicked);
 }
 
@@ -61,16 +83,16 @@ void FluentTitleBar::setIcon(const QIcon& icon) {
 
 QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QString& tooltip) {
     auto* btn = new QPushButton(icon, this);
-    btn->setFixedSize(46, 32);
+    btn->setFixedSize(40, 28);
     btn->setToolTip(tooltip);
     btn->setFlat(true);
     btn->setCursor(Qt::ArrowCursor);
-    btn->setFont(QFont("Segoe UI", 10));
+    btn->setFont(QFont("Segoe UI", 9));
     btn->setStyleSheet(
         "QPushButton {"
         "  border: none;"
         "  background: transparent;"
-        "  border-radius: 0px;"
+        "  border-radius: 6px;"
         "  color: #202020;"
         "}"
         "QPushButton:hover {"
@@ -83,9 +105,29 @@ QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QStr
     return btn;
 }
 
+QWidget* FluentTitleBar::createTrafficLight(const QColor& color) {
+    auto* dot = new QWidget(this);
+    dot->setFixedSize(12, 12);
+    dot->setCursor(Qt::ArrowCursor);
+    dot->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    dot->setStyleSheet(QString(
+        "QWidget {"
+        "  background: %1;"
+        "  border: 1px solid rgba(0, 0, 0, 28);"
+        "  border-radius: 6px;"
+        "}"
+    ).arg(color.name()));
+    return dot;
+}
+
 void FluentTitleBar::paintEvent(QPaintEvent*) {
     QPainter p(this);
-    p.fillRect(rect(), Fluent::Colors::titleBarBg());
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    QPainterPath bg;
+    bg.addRoundedRect(QRectF(0, 0, width(), height() + 10), 10, 10);
+    p.fillPath(bg, Fluent::Colors::titleBarBg());
+
     // Bottom border line
     p.setPen(Qt::NoPen);
     p.setBrush(Fluent::Colors::divider());
@@ -93,9 +135,7 @@ void FluentTitleBar::paintEvent(QPaintEvent*) {
 }
 
 void FluentTitleBar::mouseDoubleClickEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
-        emit maximizeClicked();
-    }
+    event->ignore();
 }
 
 void FluentTitleBar::mousePressEvent(QMouseEvent* event) {

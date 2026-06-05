@@ -32,7 +32,7 @@ AppMessageDialog::AppMessageDialog(Kind kind, const QString& title, const QStrin
     icon->setFixedSize(36, 36);
     icon->setAlignment(Qt::AlignCenter);
     icon->setStyleSheet(QString("QLabel#messageIcon { background: %1; border-radius: 18px; color: white; font-size: 20px; font-weight: 600; }")
-        .arg(kind == Kind::Warning ? QStringLiteral("#D83B01") : FactionTheme::instance().primaryColor().name()));
+        .arg(kind == Kind::Warning ? QStringLiteral("#D83B01") : FactionTheme::instance().palette().accent.name()));
     content->addWidget(icon, 0, Qt::AlignTop);
 
     auto* textLayout = new QVBoxLayout();

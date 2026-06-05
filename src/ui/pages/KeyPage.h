@@ -59,6 +59,7 @@ private:
     void refreshTable();
     void updateStartBtnText();
     void refreshPauseKeyList();
+    void applyPageTheme();
 
     FluentTable* table_;
     FluentButton* addBtn_;

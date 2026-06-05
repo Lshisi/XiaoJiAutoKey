@@ -6,6 +6,7 @@
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
+#include "FactionTheme.h"
 
 #include <QAction>
 #include <QApplication>
@@ -20,7 +21,9 @@ void MainWindowView::setup(QMainWindow* window) {
     window->setMinimumSize(720, 560);
 
     auto* centralWidget = new QWidget(window);
-    centralWidget->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::pageBg().name()));
+    centralWidget->setObjectName("mainWindowRoot");
+    centralWidget->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; }")
+        .arg(FactionTheme::instance().palette().surfaceTint.name()));
     window->setCentralWidget(centralWidget);
 
     auto* rootLayout = new QVBoxLayout(centralWidget);
@@ -53,8 +56,10 @@ void MainWindowView::setup(QMainWindow* window) {
     rootLayout->addLayout(bodyLayout, 1);
 
     auto* statusBar = new QWidget(window);
+    statusBar->setObjectName("appStatusBar");
     statusBar->setFixedHeight(24);
-    statusBar->setStyleSheet("background: #F5F7FA; border-top: 1px solid rgba(0,0,0,0.08);");
+    statusBar->setStyleSheet(QString("QWidget#appStatusBar { background: %1; border-top: 1px solid rgba(0,0,0,0.08); }")
+        .arg(FactionTheme::instance().palette().surfaceTint.name()));
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
     auto* versionLabel = new QLabel(QString("v") + QString(APP_VERSION), statusBar);
@@ -117,12 +122,22 @@ bool MainWindowView::isRepeatPageActive() const {
 }
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
+    if (window->centralWidget()) {
+        window->centralWidget()->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; }")
+            .arg(FactionTheme::instance().palette().surfaceTint.name()));
+    }
+    if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
+        statusBar->setStyleSheet(QString("QWidget#appStatusBar { background: %1; border-top: 1px solid rgba(0,0,0,0.08); }")
+            .arg(FactionTheme::instance().palette().surfaceTint.name()));
+    }
     sidebar_->updateFactionIcon();
     sidebar_->update();
     for (auto* child : sidebar_->findChildren<QWidget*>()) child->update();
     keyPage_->updateThemeColors();
     keyPage_->update();
     macroPage_->updateThemeColors();
+    settingsPage_->setFaction(FactionTheme::instance().current().id);
+    aboutPage_->setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
     window->update();
 }
 

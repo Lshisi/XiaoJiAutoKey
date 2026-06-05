@@ -13,6 +13,17 @@ struct FactionInfo {
     QString patternPath;  // qrc path to decorative pattern (optional)
 };
 
+struct FactionPalette {
+    QColor accent;
+    QColor accentHover;
+    QColor accentPressed;
+    QColor accentSoft;
+    QColor accentSubtle;
+    QColor accentBorder;
+    QColor surfaceTint;
+    QColor textOnAccent;
+};
+
 class FactionTheme {
 public:
     static FactionTheme& instance();
@@ -26,6 +37,7 @@ public:
     // Convenience accessors for current theme
     QColor primaryColor() const;
     QColor secondaryColor() const;
+    FactionPalette palette() const;
     QString iconPath() const;
     QString patternPath() const;
 

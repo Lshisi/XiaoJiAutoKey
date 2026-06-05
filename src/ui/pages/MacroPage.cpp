@@ -15,7 +15,7 @@
 #include <QIntValidator>
 
 static QString checkBoxStyle() {
-    QString color = FactionTheme::instance().primaryColor().name();
+    QString color = FactionTheme::instance().palette().accent.name();
     return QString(
         "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
         "QCheckBox::indicator:checked {"
@@ -28,9 +28,9 @@ static QString checkBoxStyle() {
 }
 
 MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
-    setStyleSheet("MacroPage { background: #F5F7FA; }");
     setAttribute(Qt::WA_StyledBackground, true);
     setFocusPolicy(Qt::ClickFocus);
+    applyPageTheme();
 
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(16, 12, 16, 12);
@@ -98,19 +98,12 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(3, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     table_->verticalHeader()->setVisible(false);
-    table_->setStyleSheet(table_->styleSheet() +
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,0.2); }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
-    );
     tableCard->contentLayout()->addWidget(table_, 1);
     layout->addWidget(tableCard, 5);
 
     // ── Right panel ──
     auto* rightLayout = new QVBoxLayout();
-    rightLayout->setSpacing(16);
+    rightLayout->setSpacing(12);
 
     // -- Card 1: 快捷控制 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
@@ -123,6 +116,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     stopBtn_->setEnabled(false);
     controlCard->contentLayout()->addWidget(stopBtn_);
     rightLayout->addWidget(controlCard);
+    rightLayout->addStretch(1);
 
     // -- Card 2: 启动触发 --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
@@ -154,6 +148,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
+    rightLayout->addStretch(1);
 
     // -- Card 3: 模式设置 --
     auto* modeCard = new FluentCard(QString::fromWCharArray(L"\u6a21\u5f0f\u8bbe\u7f6e"), this);
@@ -178,8 +173,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     loopEdit_->setValidator(new QIntValidator(0, 99999, this));
     modeCard->contentLayout()->addWidget(loopEdit_);
     rightLayout->addWidget(modeCard);
-
-    rightLayout->addStretch();
     layout->addLayout(rightLayout, 3);
 
     // ── Connections ──
@@ -296,9 +289,18 @@ void MacroPage::setStatusOverlayEnabled(bool enabled) {
 }
 
 void MacroPage::updateThemeColors() {
+    applyPageTheme();
+    table_->refreshThemeStyle();
+    macroCombo_->refreshThemeStyle();
+    modeCombo_->refreshThemeStyle();
     beepCheck_->setStyleSheet(checkBoxStyle());
     if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     refreshTable();
+}
+
+void MacroPage::applyPageTheme() {
+    const auto palette = FactionTheme::instance().palette();
+    setStyleSheet(QString("MacroPage { background: %1; }").arg(palette.surfaceTint.name()));
 }
 
 void MacroPage::setMacroProfiles(const std::vector<std::pair<std::uint64_t, QString>>& macros, std::uint64_t activeId) {

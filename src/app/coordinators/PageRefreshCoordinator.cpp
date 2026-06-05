@@ -19,7 +19,7 @@ void PageRefreshCoordinator::refreshAll() {
     if (!context_.view || !context_.config || !context_.repeaterEngine) return;
 
     FactionTheme::instance().setCurrent(QString::fromStdString(context_.config->faction));
-    context_.view->sidebar()->updateFactionIcon();
+    if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
 
     auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
     if (!profile) return;

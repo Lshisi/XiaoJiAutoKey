@@ -78,23 +78,25 @@ void FluentButton::paintEvent(QPaintEvent*) {
 
     switch (style_) {
     case Primary: {
-        QColor base = FactionTheme::instance().primaryColor();
-        QColor hover = base.darker(115);
+        const auto palette = FactionTheme::instance().palette();
+        QColor base = palette.accent;
+        QColor hover = palette.accentHover;
         bgColor = QColor(
             base.red() + (hover.red() - base.red()) * hoverProgress_,
             base.green() + (hover.green() - base.green()) * hoverProgress_,
             base.blue() + (hover.blue() - base.blue()) * hoverProgress_
         );
-        textColor = Qt::white;
+        textColor = palette.textOnAccent;
         borderColor = Qt::transparent;
         break;
     }
     case Secondary: {
-        bgColor = isDown() ? QColor(0xEB, 0xEB, 0xEB)
+        const auto palette = FactionTheme::instance().palette();
+        bgColor = isDown() ? palette.accentSubtle
                            : QColor(255, 255, 255, 255 - (int)(hoverProgress_ * 12));
-        if (hoverProgress_ > 0) bgColor = QColor(0xF3, 0xF3, 0xF3);
+        if (hoverProgress_ > 0) bgColor = palette.accentSubtle;
         textColor = Fluent::Colors::textPrimary();
-        borderColor = Fluent::Colors::border();
+        borderColor = hoverProgress_ > 0 ? palette.accentBorder : Fluent::Colors::border();
         break;
     }
     case Danger: {
@@ -104,8 +106,9 @@ void FluentButton::paintEvent(QPaintEvent*) {
         break;
     }
     case Icon: {
-        bgColor = hoverProgress_ > 0 ? Fluent::Colors::hoverBg() : Qt::transparent;
-        textColor = Fluent::Colors::textSecondary();
+        const auto palette = FactionTheme::instance().palette();
+        bgColor = hoverProgress_ > 0 ? palette.accentSubtle : Qt::transparent;
+        textColor = hoverProgress_ > 0 ? palette.accent : Fluent::Colors::textSecondary();
         borderColor = Qt::transparent;
         break;
     }

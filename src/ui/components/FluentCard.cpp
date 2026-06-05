@@ -49,8 +49,11 @@ void FluentCard::paintEvent(QPaintEvent*) {
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::cardRadius, Fluent::Spacing::cardRadius);
 
-    // Clean card: white bg + subtle border, NO shadow (avoids text shadow artifacts)
     p.setBrush(Fluent::Colors::cardBg());
+    p.setPen(Qt::NoPen);
+    p.drawPath(path);
+
+    p.setBrush(Qt::NoBrush);
     p.setPen(QPen(Fluent::Colors::cardBorder(), 1));
     p.drawPath(path);
 }

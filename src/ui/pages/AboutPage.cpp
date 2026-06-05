@@ -2,6 +2,7 @@
 #include "../styles/DesignTokens.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentButton.h"
+#include "FactionTheme.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -10,7 +11,7 @@
 #include <QClipboard>
 
 AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
-    setStyleSheet("AboutPage { background: #F5F7FA; }");
+    setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
     setAttribute(Qt::WA_StyledBackground, true);
 
     auto* outerLayout = new QVBoxLayout(this);

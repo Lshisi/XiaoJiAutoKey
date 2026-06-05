@@ -42,6 +42,8 @@ protected:
 
 private:
     QVBoxLayout* navLayout_;
+    QWidget* factionHeader_ = nullptr;
     QLabel* factionIconLabel_ = nullptr;
+    QLabel* factionNameLabel_ = nullptr;
     QVector<QPair<FluentNavButton*, QString>> items_;
 };

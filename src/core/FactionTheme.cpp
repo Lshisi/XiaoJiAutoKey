@@ -1,5 +1,40 @@
 #include "FactionTheme.h"
 
+#include <algorithm>
+#include <cmath>
+
+namespace {
+
+QColor mixColor(const QColor& a, const QColor& b, double t, int alpha = -1) {
+    const double clamped = std::max(0.0, std::min(1.0, t));
+    QColor out(
+        static_cast<int>(a.red() + (b.red() - a.red()) * clamped),
+        static_cast<int>(a.green() + (b.green() - a.green()) * clamped),
+        static_cast<int>(a.blue() + (b.blue() - a.blue()) * clamped)
+    );
+    out.setAlpha(alpha >= 0 ? alpha : static_cast<int>(a.alpha() + (b.alpha() - a.alpha()) * clamped));
+    return out;
+}
+
+double relativeLuminance(const QColor& c) {
+    auto channel = [](int value) {
+        double v = value / 255.0;
+        return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(c.red()) + 0.7152 * channel(c.green()) + 0.0722 * channel(c.blue());
+}
+
+QColor usableAccent(const QColor& color) {
+    QColor accent = color;
+    accent.setAlpha(255);
+    if (relativeLuminance(accent) > 0.42) {
+        accent = mixColor(accent, QColor(0x18, 0x18, 0x18), 0.10);
+    }
+    return accent;
+}
+
+}
+
 FactionTheme::FactionTheme() {
     // Default (no faction) - uses standard blue
     factions_.push_back({"none", QString::fromWCharArray(L"\u65e0"),
@@ -32,7 +67,7 @@ FactionTheme::FactionTheme() {
 
     // Cangjian
     factions_.push_back({"cangjian", QString::fromWCharArray(L"\u85cf\u5251"),
-        QColor(0xB5, 0x8A, 0x00), QColor(0xB5, 0x8A, 0x00, 30),
+        QColor(0xFF, 0xD2, 0x4A), QColor(0xFF, 0xD2, 0x4A, 30),
         ":/assets/factions/cangjian.png", QString()});
 
     // Wudu
@@ -143,5 +178,20 @@ void FactionTheme::setCurrent(const QString& factionId) {
 
 QColor FactionTheme::primaryColor() const { return current().primaryColor; }
 QColor FactionTheme::secondaryColor() const { return current().secondaryColor; }
+FactionPalette FactionTheme::palette() const {
+    const QColor accent = usableAccent(current().primaryColor);
+    const QColor white(0xFF, 0xFF, 0xFF);
+    const QColor black(0x00, 0x00, 0x00);
+    FactionPalette p;
+    p.accent = accent;
+    p.accentHover = mixColor(accent, black, 0.10);
+    p.accentPressed = mixColor(accent, black, 0.18);
+    p.accentSoft = mixColor(white, accent, 0.12, 255);
+    p.accentSubtle = mixColor(white, accent, 0.06, 255);
+    p.accentBorder = mixColor(white, accent, 0.34, 255);
+    p.surfaceTint = mixColor(QColor(0xF7, 0xF8, 0xFA), accent, 0.025, 255);
+    p.textOnAccent = relativeLuminance(accent) > 0.48 ? QColor(0x16, 0x16, 0x16) : white;
+    return p;
+}
 QString FactionTheme::iconPath() const { return current().iconPath; }
 QString FactionTheme::patternPath() const { return current().patternPath; }

@@ -52,8 +52,9 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
     // Track
     QColor trackColor;
     if (position_ > 0.5) {
-        trackColor = FactionTheme::instance().primaryColor();
-        if (hovered_) trackColor = FactionTheme::instance().primaryColor().darker(115);
+        const auto palette = FactionTheme::instance().palette();
+        trackColor = palette.accent;
+        if (hovered_) trackColor = palette.accentHover;
     } else {
         trackColor = QColor(0, 0, 0, 40);
         if (hovered_) trackColor = QColor(0, 0, 0, 55);

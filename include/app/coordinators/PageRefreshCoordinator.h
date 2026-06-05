@@ -23,6 +23,7 @@ public:
         std::filesystem::path configPath;
         std::function<ProfileConfig*()> activeProfile;
         std::function<MacroConfig*()> activeMacro;
+        std::function<void()> refreshFactionVisuals;
     };
 
     explicit PageRefreshCoordinator(QObject* parent = nullptr);

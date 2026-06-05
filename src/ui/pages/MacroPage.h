@@ -60,6 +60,7 @@ protected:
 
 private:
     void refreshTable();
+    void applyPageTheme();
 
     DraggableTable* table_;
     FluentButton* addBtn_;

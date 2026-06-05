@@ -1,5 +1,6 @@
 #include "FluentTable.h"
 #include "../styles/DesignTokens.h"
+#include "FactionTheme.h"
 
 #include <QHeaderView>
 
@@ -24,7 +25,13 @@ void FluentTable::init() {
     horizontalHeader()->setStretchLastSection(false);
     horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
-    setStyleSheet(
+    refreshThemeStyle();
+}
+
+void FluentTable::refreshThemeStyle() {
+    const auto palette = FactionTheme::instance().palette();
+    const QString headerBg = palette.accentSubtle.name();
+    setStyleSheet(QString(
         "QTableWidget {"
         "  background: transparent;"
         "  border: none;"
@@ -39,16 +46,34 @@ void FluentTable::init() {
         "  background: rgba(0,0,0,0.025);"
         "}"
         "QTableWidget::item:selected {"
-        "  background: rgba(0,120,212,0.08);"
+        "  background: %1;"
         "  color: #1F1F1F;"
         "}"
         "QHeaderView::section {"
-        "  background: #FAFAFA;"
+        "  background: %2;"
         "  color: #606060;"
         "  border: none;"
         "  border-bottom: 1px solid rgba(0,0,0,0.06);"
         "  padding: 0 8px;"
         "  font-size: 11px;"
         "}"
-    );
+        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
+        "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 3px; min-height: 30px; }"
+        "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,0.2); }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+    ).arg(palette.accentSoft.name(), headerBg));
+
+    horizontalHeader()->setStyleSheet(QString(
+        "QHeaderView::section {"
+        "  background: %1;"
+        "  color: #606060;"
+        "  border: none;"
+        "  border-bottom: 1px solid rgba(0,0,0,0.06);"
+        "  padding: 0 8px;"
+        "  font-size: 11px;"
+        "}"
+    ).arg(headerBg));
+    horizontalHeader()->viewport()->update();
+    horizontalHeader()->update();
 }

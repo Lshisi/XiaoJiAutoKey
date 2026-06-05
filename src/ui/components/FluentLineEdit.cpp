@@ -64,7 +64,7 @@ void FluentLineEdit::paintEvent(QPaintEvent* event) {
     // Border
     QColor borderColor = Fluent::Colors::border();
     if (focusProgress_ > 0) {
-        QColor focusColor = FactionTheme::instance().primaryColor();
+        QColor focusColor = FactionTheme::instance().palette().accentBorder;
         borderColor = QColor(
             borderColor.red() + (focusColor.red() - borderColor.red()) * focusProgress_,
             borderColor.green() + (focusColor.green() - borderColor.green()) * focusProgress_,

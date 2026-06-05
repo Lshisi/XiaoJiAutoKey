@@ -18,7 +18,7 @@
 
 // Generate checkbox style using current faction color
 static QString checkBoxStyle() {
-    QString color = FactionTheme::instance().primaryColor().name();
+    QString color = FactionTheme::instance().palette().accent.name();
     return QString(
         "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; }"
         "QCheckBox::indicator:checked {"
@@ -31,8 +31,8 @@ static QString checkBoxStyle() {
 }
 
 KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
-    setStyleSheet("KeyPage { background: #F5F7FA; }");
     setAttribute(Qt::WA_StyledBackground, true);
+    applyPageTheme();
 
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(16, 12, 16, 12);
@@ -101,13 +101,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 42);
     table_->setColumnWidth(5, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    table_->setStyleSheet(table_->styleSheet() +
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,0.2); }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
-    );
     tableCard->contentLayout()->addWidget(table_, 1);
 
     // -- 暂停按键区域（表格下方） --
@@ -144,7 +137,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // Right panel
     auto* rightLayout = new QVBoxLayout();
-    rightLayout->setSpacing(16);
+    rightLayout->setSpacing(12);
 
     // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
@@ -164,6 +157,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     statusLabel_->setPalette(sPal);
     controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
+    rightLayout->addStretch(1);
 
     // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
@@ -195,6 +189,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
+    rightLayout->addStretch(1);
 
     // -- Card 3: 连发优先 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
@@ -211,8 +206,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
     rightLayout->addWidget(mixedCard);
-
-    rightLayout->addStretch();
     layout->addLayout(rightLayout, 3);
 
     // Connections
@@ -301,12 +294,20 @@ void KeyPage::setMixedMode(bool enabled) {
 }
 
 void KeyPage::updateThemeColors() {
+    applyPageTheme();
+    table_->refreshThemeStyle();
+    profileCombo_->refreshThemeStyle();
     QString style = checkBoxStyle();
     beepCheck_->setStyleSheet(style);
     if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(style);
     mixedModeCheck_->setStyleSheet(style);
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
+}
+
+void KeyPage::applyPageTheme() {
+    const auto palette = FactionTheme::instance().palette();
+    setStyleSheet(QString("KeyPage { background: %1; }").arg(palette.surfaceTint.name()));
 }
 
 void KeyPage::setPauseKeys(const std::vector<KeyDescriptor>& keys) {

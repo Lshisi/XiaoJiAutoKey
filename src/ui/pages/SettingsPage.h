@@ -6,6 +6,7 @@
 #include <QLabel>
 
 class QButtonGroup;
+class QRadioButton;
 class FluentComboBox;
 class FluentLineEdit;
 class QSlider;
@@ -34,9 +35,17 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void applyPageTheme();
+
     QLabel* configPathLabel_;
     QButtonGroup* closeActionGroup_ = nullptr;
     FluentComboBox* factionCombo_ = nullptr;
     QSlider* statusOverlayOpacitySlider_ = nullptr;
     QLabel* statusOverlayOpacityValue_ = nullptr;
+    QLabel* factionPreviewIcon_ = nullptr;
+    QLabel* factionPreviewName_ = nullptr;
+    QWidget* factionPreviewBar_ = nullptr;
+    QRadioButton* radioAsk_ = nullptr;
+    QRadioButton* radioMin_ = nullptr;
+    QRadioButton* radioExit_ = nullptr;
 };

@@ -35,7 +35,8 @@ void MainWindow::setupUi() {
         &macroEngine_,
         configCoordinator_.configPath(),
         [this]() { return profileController_.activeProfile(); },
-        [this]() { return macroController_.activeMacro(); }
+        [this]() { return macroController_.activeMacro(); },
+        [this]() { view_.updateFactionVisuals(this); }
     });
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);

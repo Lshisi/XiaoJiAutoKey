@@ -33,7 +33,7 @@ SoundSettingsDialog::SoundSettingsDialog(
     setFixedSize(430, 260);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    const QString accentColor = FactionTheme::instance().primaryColor().name();
+    const QString accentColor = FactionTheme::instance().palette().accent.name();
     setStyleSheet(QString(
         "QDialog { background: #FFFFFF; }"
         "QLabel { color: #202020; }"

@@ -1,5 +1,6 @@
 #include "FluentComboBox.h"
 #include "../styles/DesignTokens.h"
+#include "FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -8,8 +9,12 @@
 FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
     setFixedHeight(Fluent::Spacing::inputHeight);
     setFont(Fluent::Typography::body());
+    refreshThemeStyle();
+}
 
-    setStyleSheet(
+void FluentComboBox::refreshThemeStyle() {
+    const auto palette = FactionTheme::instance().palette();
+    setStyleSheet(QString(
         "QComboBox {"
         "  border: 1px solid rgba(0,0,0,0.08);"
         "  border-radius: 8px;"
@@ -21,7 +26,7 @@ FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
         "  border-color: rgba(0,0,0,0.12);"
         "}"
         "QComboBox:focus {"
-        "  border: 2px solid #0078D4;"
+        "  border: 2px solid %1;"
         "}"
         "QComboBox::drop-down {"
         "  border: none;"
@@ -38,7 +43,7 @@ FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
         "  border: 1px solid rgba(0,0,0,0.08);"
         "  border-radius: 8px;"
         "  background: #FFFFFF;"
-        "  selection-background-color: rgba(0,120,212,0.08);"
+        "  selection-background-color: %2;"
         "  selection-color: #1F1F1F;"
         "  padding: 4px;"
         "  outline: none;"
@@ -51,7 +56,7 @@ FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
         "QComboBox QAbstractItemView::item:hover {"
         "  background: rgba(0,0,0,0.04);"
         "}"
-    );
+    ).arg(palette.accentBorder.name(), palette.accentSoft.name()));
 }
 
 void FluentComboBox::paintEvent(QPaintEvent* event) {

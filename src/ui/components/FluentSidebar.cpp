@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QHBoxLayout>
 
 // ── FluentNavButton ─────────────────────────────
 // 横向按钮：左侧图标 + 右侧文字，类似 Windows 设置的导航列表
@@ -36,14 +37,14 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF r = rect().adjusted(6, 2, -6, -2);
+    const auto palette = FactionTheme::instance().palette();
+    QRectF r = rect().adjusted(8, 2, -8, -2);
 
     // Background
     if (active_) {
-        QColor activeBg = FactionTheme::instance().secondaryColor();
-        p.setBrush(activeBg);
+        p.setBrush(palette.accentSoft);
     } else if (hovered_) {
-        p.setBrush(Fluent::Colors::hoverBg());
+        p.setBrush(palette.accentSubtle);
     } else {
         p.setBrush(Qt::transparent);
     }
@@ -54,19 +55,19 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
 
     // Active indicator (left colored bar)
     if (active_) {
-        p.setBrush(FactionTheme::instance().primaryColor());
-        p.drawRoundedRect(QRectF(2, r.center().y() - 8, 3, 16), 1.5, 1.5);
+        p.setBrush(palette.accent);
+        p.drawRoundedRect(QRectF(4, r.center().y() - 8, 3, 16), 1.5, 1.5);
     }
 
     // Icon
     QFont iconFont("Segoe UI", 11);
     p.setFont(iconFont);
-    p.setPen(active_ ? FactionTheme::instance().primaryColor() : Fluent::Colors::textSecondary());
+    p.setPen(active_ ? palette.accent : Fluent::Colors::textSecondary());
     p.drawText(QRectF(r.left() + 10, r.top(), 20, r.height()), Qt::AlignCenter, icon_);
 
     // Label
     p.setFont(Fluent::Typography::body());
-    p.setPen(active_ ? FactionTheme::instance().primaryColor() : Fluent::Colors::textPrimary());
+    p.setPen(active_ ? Fluent::Colors::textPrimary() : Fluent::Colors::textPrimary());
     p.drawText(QRectF(r.left() + 34, r.top(), r.width() - 38, r.height()), Qt::AlignVCenter | Qt::AlignLeft, label_);
 }
 
@@ -76,20 +77,32 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
 FluentSidebar::FluentSidebar(QWidget* parent)
     : QWidget(parent)
 {
-    setFixedWidth(130);
+    setFixedWidth(156);
 
     navLayout_ = new QVBoxLayout(this);
     navLayout_->setContentsMargins(0, 12, 0, 12);
     navLayout_->setSpacing(2);
     navLayout_->setAlignment(Qt::AlignTop);
 
-    // Faction icon at top
-    factionIconLabel_ = new QLabel(this);
-    factionIconLabel_->setFixedSize(40, 40);
+    factionHeader_ = new QWidget(this);
+    factionHeader_->setObjectName("factionHeader");
+    factionHeader_->setFixedHeight(58);
+    auto* headerLayout = new QHBoxLayout(factionHeader_);
+    headerLayout->setContentsMargins(14, 8, 12, 8);
+    headerLayout->setSpacing(8);
+
+    factionIconLabel_ = new QLabel(factionHeader_);
+    factionIconLabel_->setFixedSize(34, 34);
     factionIconLabel_->setAlignment(Qt::AlignCenter);
-    factionIconLabel_->setStyleSheet("background: transparent;");
-    navLayout_->addWidget(factionIconLabel_, 0, Qt::AlignHCenter);
-    navLayout_->addSpacing(8);
+    headerLayout->addWidget(factionIconLabel_);
+
+    factionNameLabel_ = new QLabel(factionHeader_);
+    factionNameLabel_->setFont(Fluent::Typography::bodyStrong());
+    factionNameLabel_->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    headerLayout->addWidget(factionNameLabel_, 1);
+
+    navLayout_->addWidget(factionHeader_);
+    navLayout_->addSpacing(6);
     updateFactionIcon();
 }
 
@@ -112,17 +125,28 @@ void FluentSidebar::setCurrentPage(const QString& pageId) {
 
 void FluentSidebar::paintEvent(QPaintEvent*) {
     QPainter p(this);
-    p.fillRect(rect(), Fluent::Colors::sidebarBg());
+    const auto palette = FactionTheme::instance().palette();
+    p.fillRect(rect(), palette.surfaceTint);
     // Right border
     p.setPen(Qt::NoPen);
-    p.setBrush(Fluent::Colors::sidebarBorder());
+    p.setBrush(QColor(0, 0, 0, 28));
     p.drawRect(width() - 1, 0, 1, height());
 }
 
 void FluentSidebar::updateFactionIcon() {
+    const auto& faction = FactionTheme::instance().current();
+    const auto palette = FactionTheme::instance().palette();
+    factionNameLabel_->setText(faction.name);
+    factionNameLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
+    factionHeader_->setStyleSheet("QWidget#factionHeader { background: transparent; }");
+
     const QString iconPath = FactionTheme::instance().iconPath();
     if (iconPath.isEmpty()) {
-        factionIconLabel_->hide();
+        factionIconLabel_->setText(QString::fromWCharArray(L"\u5c0f"));
+        factionIconLabel_->setFont(Fluent::Typography::bodyStrong());
+        factionIconLabel_->setStyleSheet(QString("background: %1; color: %2; border-radius: 17px;")
+            .arg(palette.accent.name(), palette.textOnAccent.name()));
+        factionIconLabel_->show();
         return;
     }
 
@@ -131,6 +155,7 @@ void FluentSidebar::updateFactionIcon() {
         factionIconLabel_->hide();
         return;
     }
-    factionIconLabel_->setPixmap(pix.scaled(36, 36, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    factionIconLabel_->setStyleSheet("background: transparent;");
+    factionIconLabel_->setPixmap(pix.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     factionIconLabel_->show();
 }

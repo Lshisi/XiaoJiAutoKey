@@ -8,6 +8,7 @@ class FluentTable : public QTableWidget {
 public:
     explicit FluentTable(QWidget* parent = nullptr);
     FluentTable(int rows, int cols, QWidget* parent = nullptr);
+    void refreshThemeStyle();
 
 private:
     void init();

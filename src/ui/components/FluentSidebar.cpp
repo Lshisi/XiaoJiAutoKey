@@ -105,7 +105,7 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
 
     const auto palette = FactionTheme::instance().palette();
-    QRectF r = rect().adjusted(8, 2, -8, -2);
+    QRectF r = rect().adjusted(6, 2, -6, -2);
 
     // Background
     if (active_) {
@@ -127,22 +127,22 @@ void FluentNavButton::paintEvent(QPaintEvent*) {
     }
 
     // Icon
-    drawNavIcon(p, QRectF(r.left() + 10, r.top() + 6, 20, r.height() - 12),
+    drawNavIcon(p, QRectF(r.left() + 9, r.top() + 6, 20, r.height() - 12),
         icon_, active_ ? palette.accent : Fluent::Colors::textSecondary());
 
     // Label
     p.setFont(Fluent::Typography::body());
     p.setPen(active_ ? Fluent::Colors::textPrimary() : Fluent::Colors::textPrimary());
-    p.drawText(QRectF(r.left() + 34, r.top(), r.width() - 38, r.height()), Qt::AlignVCenter | Qt::AlignLeft, label_);
+    p.drawText(QRectF(r.left() + 33, r.top(), r.width() - 35, r.height()), Qt::AlignVCenter | Qt::AlignLeft, label_);
 }
 
 // ── FluentSidebar ───────────────────────────────
-// 宽度 160px，带文字的列表式导航
+// 带文字的列表式导航
 
 FluentSidebar::FluentSidebar(QWidget* parent)
     : QWidget(parent)
 {
-    setFixedWidth(156);
+    setFixedWidth(128);
 
     navLayout_ = new QVBoxLayout(this);
     navLayout_->setContentsMargins(0, 12, 0, 12);
@@ -153,8 +153,8 @@ FluentSidebar::FluentSidebar(QWidget* parent)
     factionHeader_->setObjectName("factionHeader");
     factionHeader_->setFixedHeight(58);
     auto* headerLayout = new QHBoxLayout(factionHeader_);
-    headerLayout->setContentsMargins(14, 8, 12, 8);
-    headerLayout->setSpacing(8);
+    headerLayout->setContentsMargins(12, 8, 10, 8);
+    headerLayout->setSpacing(7);
 
     factionIconLabel_ = new QLabel(factionHeader_);
     factionIconLabel_->setFixedSize(34, 34);

@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QEvent>
 #include <QScrollArea>
+#include <QSlider>
 
 SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     setStyleSheet("SettingsPage { background: #F5F7FA; }");
@@ -77,6 +78,35 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     outerCard->contentLayout()->addWidget(factionCard);
     outerCard->contentLayout()->addSpacing(12);
 
+    auto* overlayCard = new FluentCard(QString::fromWCharArray(L"\u72b6\u6001\u6d6e\u7a97"), this);
+    auto* opacityRow = new QHBoxLayout();
+    auto* opacityLabel = new QLabel(QString::fromWCharArray(L"\u80cc\u666f\u900f\u660e\u5ea6"), this);
+    opacityLabel->setFont(Fluent::Typography::body());
+    opacityRow->addWidget(opacityLabel);
+    opacityRow->addStretch();
+    statusOverlayOpacityValue_ = new QLabel(this);
+    statusOverlayOpacityValue_->setFont(Fluent::Typography::caption());
+    QPalette opacityValuePal = statusOverlayOpacityValue_->palette();
+    opacityValuePal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    statusOverlayOpacityValue_->setPalette(opacityValuePal);
+    opacityRow->addWidget(statusOverlayOpacityValue_);
+    overlayCard->contentLayout()->addLayout(opacityRow);
+
+    statusOverlayOpacitySlider_ = new QSlider(Qt::Horizontal, this);
+    statusOverlayOpacitySlider_->setRange(30, 100);
+    statusOverlayOpacitySlider_->setSingleStep(5);
+    statusOverlayOpacitySlider_->setPageStep(10);
+    overlayCard->contentLayout()->addWidget(statusOverlayOpacitySlider_);
+    auto* opacityDesc = new QLabel(QString::fromWCharArray(L"\u6570\u503c\u8d8a\u4f4e\u8d8a\u900f\u660e\uff0c\u9501\u5b9a\u6309\u94ae\u5728\u6d6e\u7a97\u53f3\u4e0a\u89d2"), this);
+    opacityDesc->setFont(Fluent::Typography::caption());
+    opacityDesc->setWordWrap(true);
+    QPalette odPal = opacityDesc->palette();
+    odPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    opacityDesc->setPalette(odPal);
+    overlayCard->contentLayout()->addWidget(opacityDesc);
+    outerCard->contentLayout()->addWidget(overlayCard);
+    outerCard->contentLayout()->addSpacing(12);
+
     // ── Inner card 3: 关闭窗口时 ──
     auto* closeCard = new FluentCard(QString::fromWCharArray(L"\u5173\u95ed\u7a97\u53e3\u65f6"), this);
     auto* radioAsk = new QRadioButton(QString::fromWCharArray(L"\u6bcf\u6b21\u8be2\u95ee"), this);
@@ -129,6 +159,10 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         emit closeActionChanged(action);
     });
     connect(openBtn, &QPushButton::clicked, this, &SettingsPage::openConfigFolder);
+    connect(statusOverlayOpacitySlider_, &QSlider::valueChanged, this, [this](int value) {
+        if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(value) + "%");
+        emit statusOverlayOpacityChanged(value);
+    });
     connect(factionCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         if (index < 0) return;
         QString factionId = factionCombo_->itemData(index).toString();
@@ -137,7 +171,13 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 
 }
 
-void SettingsPage::setConfig(const AppConfig&) {}
+void SettingsPage::setConfig(const AppConfig& config) {
+    if (!statusOverlayOpacitySlider_) return;
+    statusOverlayOpacitySlider_->blockSignals(true);
+    statusOverlayOpacitySlider_->setValue(config.statusOverlayOpacity);
+    statusOverlayOpacitySlider_->blockSignals(false);
+    if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(config.statusOverlayOpacity) + "%");
+}
 void SettingsPage::setHotkeyText(const QString&) {}
 void SettingsPage::setConfigPath(const QString& path) { configPathLabel_->setText(path); }
 

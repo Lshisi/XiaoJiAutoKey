@@ -33,6 +33,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
     context_.view->keyPage()->setHotkeyText(hotkeyText);
     context_.view->keyPage()->setBeepEnabled(context_.config->beepEnabled);
+    context_.view->keyPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowRepeat);
     context_.view->keyPage()->setMixedMode(profile->mixedMode);
     context_.view->keyPage()->setPauseKeys(profile->pauseKeys);
     context_.view->keyPage()->updateThemeColors();
@@ -41,6 +42,7 @@ void PageRefreshCoordinator::refreshAll() {
     refreshMacro();
 
     context_.view->macroPage()->setBeepEnabled(context_.config->macroBeepEnabled);
+    context_.view->macroPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowMacro);
     context_.view->macroPage()->updateThemeColors();
 
     context_.view->settingsPage()->setConfig(*context_.config);

@@ -38,6 +38,7 @@ struct KeyBinding {
     KeyDescriptor key;
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = 10;
+    bool suppressMixedMode = false;
 };
 
 enum class CloseAction {
@@ -78,6 +79,13 @@ struct ProfileConfig {
 
 struct AppConfig {
     bool beepEnabled = true;
+    bool statusOverlayShowRepeat = false;
+    bool statusOverlayShowMacro = false;
+    bool statusOverlayLocked = false;
+    bool statusOverlayPositionSaved = false;
+    int statusOverlayX = 6;
+    int statusOverlayY = 6;
+    int statusOverlayOpacity = 70;
     CloseAction closeAction = CloseAction::Ask;
     std::string faction = "none";
 

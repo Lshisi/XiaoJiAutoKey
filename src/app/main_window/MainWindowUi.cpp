@@ -51,8 +51,12 @@ void MainWindow::setupUi() {
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this]() { engineStateCoordinator_.applyBindings(); },
         [this]() { configCoordinator_.save(); },
-        [this]() { pageRefreshCoordinator_.refreshAll(); },
+        [this]() {
+            pageRefreshCoordinator_.refreshAll();
+            refreshStatusOverlay();
+        },
         [this](bool enabled) { config_.beepEnabled = enabled; },
+        [this](bool enabled) { config_.statusOverlayShowRepeat = enabled; },
         [this]() { return macroController_.activeMacro(); }
     });
 
@@ -69,8 +73,14 @@ void MainWindow::setupUi() {
         [this]() { engineStateCoordinator_.applyBindings(); },
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
-        [this]() { pageRefreshCoordinator_.refreshAll(); },
-        [this]() { pageRefreshCoordinator_.refreshProfiles(); }
+        [this]() {
+            pageRefreshCoordinator_.refreshAll();
+            refreshStatusOverlay();
+        },
+        [this]() {
+            pageRefreshCoordinator_.refreshProfiles();
+            refreshStatusOverlay();
+        }
     });
 
     connect(view_.macroPage(), &MacroPage::hotkeyEditClicked, this, [this]() {
@@ -85,13 +95,17 @@ void MainWindow::setupUi() {
         [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
-        [this]() { pageRefreshCoordinator_.refreshMacro(); },
+        [this]() {
+            pageRefreshCoordinator_.refreshMacro();
+            refreshStatusOverlay();
+        },
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this](bool running) { soundCoordinator_.playToggleSound(running, true); },
         [this](bool enabled) {
             config_.macroBeepEnabled = enabled;
             configCoordinator_.save();
         },
+        [this](bool enabled) { config_.statusOverlayShowMacro = enabled; },
         [this]() { return profileController_.activeProfile(); },
         [this]() {
             return ActiveConfigValidator::validateActiveHotkeys(
@@ -106,8 +120,23 @@ void MainWindow::setupUi() {
         configCoordinator_.configPath(),
         this,
         [this]() { configCoordinator_.save(); },
-        [this]() { view_.updateFactionVisuals(this); },
+        [this]() {
+            view_.updateFactionVisuals(this);
+            refreshStatusOverlay();
+        },
+        [this]() { refreshStatusOverlay(); },
         [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+    });
+    connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
+        config_.statusOverlayPositionSaved = true;
+        config_.statusOverlayX = position.x();
+        config_.statusOverlayY = position.y();
+        configCoordinator_.save();
+    });
+    connect(&statusOverlay_, &StatusOverlayWindow::lockChanged, this, [this](bool locked) {
+        config_.statusOverlayLocked = locked;
+        configCoordinator_.save();
+        refreshStatusOverlay();
     });
 
     captureCoordinator_.bind(CaptureCoordinator::Context{
@@ -120,8 +149,14 @@ void MainWindow::setupUi() {
         &inputHook_,
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
-        [this]() { pageRefreshCoordinator_.refreshAll(); },
-        [this]() { pageRefreshCoordinator_.refreshMacro(); },
+        [this]() {
+            pageRefreshCoordinator_.refreshAll();
+            refreshStatusOverlay();
+        },
+        [this]() {
+            pageRefreshCoordinator_.refreshMacro();
+            refreshStatusOverlay();
+        },
         [this]() { engineHookCoordinator_.refreshState(); },
         [this](const KeyDescriptor& key) {
             return ActiveConfigValidator::validateHotkeyCandidate(
@@ -154,6 +189,7 @@ void MainWindow::setupUi() {
     auto* macroStateTimer = new QTimer(this);
     connect(macroStateTimer, &QTimer::timeout, this, [this]() {
         macroCoordinator_.pollRunningState();
+        refreshStatusOverlay();
     });
     macroStateTimer->start(100);
 }

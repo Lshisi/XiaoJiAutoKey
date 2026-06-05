@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QComboBox>
 #include <QVBoxLayout>
 
 BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs, QWidget* parent)
@@ -17,7 +18,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(420, 300);
+    setFixedSize(420, 340);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     setStyleSheet("QDialog { background: #FFFFFF; border-radius: 16px; }");
 
@@ -65,6 +66,18 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     enableRow->addWidget(enabledSwitch_);
     layout->addLayout(enableRow);
 
+    mixedModeSuppressionRow_ = new QWidget(this);
+    auto* suppressionRow = new QHBoxLayout(mixedModeSuppressionRow_);
+    suppressionRow->setContentsMargins(0, 0, 0, 0);
+    auto* suppressionLabel = new QLabel(QString::fromWCharArray(L"\u53c2\u4e0e\u8fde\u53d1\u4f18\u5148"), mixedModeSuppressionRow_);
+    suppressionLabel->setFont(Fluent::Typography::body());
+    suppressionLabel->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u8be5\u6309\u538b\u952e\u65f6\u4f1a\u6309\u8fde\u53d1\u4f18\u5148\u6682\u505c\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\u3002"));
+    suppressionRow->addWidget(suppressionLabel);
+    suppressionRow->addStretch();
+    mixedModeSuppressionSwitch_ = new FluentSwitch(mixedModeSuppressionRow_);
+    suppressionRow->addWidget(mixedModeSuppressionSwitch_);
+    layout->addWidget(mixedModeSuppressionRow_);
+
     layout->addStretch();
 
     auto* btnRow = new QHBoxLayout();
@@ -83,13 +96,19 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
         modeCombo_->setCurrentIndex(existing->mode == RepeatMode::Hold ? 1 : 0);
         delayEdit_->setText(QString::number(existing->delayMs));
         enabledSwitch_->setChecked(existing->enabled);
+        mixedModeSuppressionSwitch_->setChecked(existing->mode != RepeatMode::Hold || !existing->suppressMixedMode);
     } else {
         modeCombo_->setCurrentIndex(0);
         delayEdit_->setText(QString::number(defaultDelayMs));
         enabledSwitch_->setChecked(true);
+        mixedModeSuppressionSwitch_->setChecked(true);
     }
+    updateMixedModeSuppressionVisible();
 
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        updateMixedModeSuppressionVisible();
+    });
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
             QMessageBox::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
@@ -113,5 +132,12 @@ BindingEditResult BindingEditDialog::editResult() const {
     value.mode = modeCombo_->currentIndex() == 1 ? RepeatMode::Hold : RepeatMode::Toggle;
     value.delayMs = delayEdit_->text().toInt();
     value.enabled = enabledSwitch_->isChecked();
+    value.suppressMixedMode = value.mode == RepeatMode::Hold && !mixedModeSuppressionSwitch_->isChecked();
     return value;
+}
+
+void BindingEditDialog::updateMixedModeSuppressionVisible() {
+    if (!mixedModeSuppressionRow_ || !mixedModeSuppressionSwitch_) return;
+    const bool isHoldMode = modeCombo_ && modeCombo_->currentIndex() == 1;
+    mixedModeSuppressionRow_->setVisible(isHoldMode);
 }

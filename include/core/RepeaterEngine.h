@@ -25,6 +25,7 @@ struct TaskConfig {
     RepeatMode mode = RepeatMode::Toggle;
     int intervalMs = 100;
     bool enabled = true;
+    bool suppressMixedMode = false;
 };
 
 struct TaskRuntime {

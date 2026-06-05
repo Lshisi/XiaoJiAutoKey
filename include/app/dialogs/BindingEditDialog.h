@@ -11,6 +11,7 @@ struct BindingEditResult {
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = 10;
     bool enabled = true;
+    bool suppressMixedMode = false;
 };
 
 class BindingEditDialog : public KeyCaptureDialogBase {
@@ -22,7 +23,11 @@ public:
     [[nodiscard]] BindingEditResult editResult() const;
 
 private:
+    void updateMixedModeSuppressionVisible();
+
     FluentComboBox* modeCombo_ = nullptr;
     FluentLineEdit* delayEdit_ = nullptr;
     FluentSwitch* enabledSwitch_ = nullptr;
+    QWidget* mixedModeSuppressionRow_ = nullptr;
+    FluentSwitch* mixedModeSuppressionSwitch_ = nullptr;
 };

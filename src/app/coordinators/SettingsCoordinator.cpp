@@ -22,6 +22,11 @@ void SettingsCoordinator::bind(Context context) {
         context_.config->closeAction = action;
         if (context_.saveConfig) context_.saveConfig();
     });
+    connect(context_.page, &SettingsPage::statusOverlayOpacityChanged, this, [this](int opacity) {
+        context_.config->statusOverlayOpacity = opacity;
+        if (context_.saveConfig) context_.saveConfig();
+        if (context_.refreshOverlay) context_.refreshOverlay();
+    });
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         context_.config->faction = factionId.toStdString();
         FactionTheme::instance().setCurrent(factionId);

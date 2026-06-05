@@ -20,6 +20,7 @@ public:
         QMainWindow* window = nullptr;
         std::function<void()> saveConfig;
         std::function<void()> refreshFactionVisuals;
+        std::function<void()> refreshOverlay;
         std::function<void()> editHotkey;
     };
 

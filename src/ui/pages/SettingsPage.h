@@ -8,6 +8,7 @@
 class QButtonGroup;
 class FluentComboBox;
 class FluentLineEdit;
+class QSlider;
 
 class SettingsPage : public QWidget {
     Q_OBJECT
@@ -24,6 +25,7 @@ public:
 signals:
     void hotkeyEditClicked();
     void beepToggled(bool enabled);
+    void statusOverlayOpacityChanged(int opacity);
     void closeActionChanged(CloseAction action);
     void openConfigFolder();
     void factionChanged(const QString& factionId);
@@ -35,4 +37,6 @@ private:
     QLabel* configPathLabel_;
     QButtonGroup* closeActionGroup_ = nullptr;
     FluentComboBox* factionCombo_ = nullptr;
+    QSlider* statusOverlayOpacitySlider_ = nullptr;
+    QLabel* statusOverlayOpacityValue_ = nullptr;
 };

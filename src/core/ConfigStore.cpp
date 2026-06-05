@@ -59,6 +59,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         binding.delayMs = *delay;
         const auto mode = GetStringField(*entry, "mode").value_or("toggle");
         binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
+        binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
         result.push_back(binding);
     }
     return result;
@@ -116,6 +117,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("key", ToUtf8(KeyDescriptorToStorage(b.key)));
         entry.emplace("mode", std::string(b.mode == RepeatMode::Hold ? "hold" : "toggle"));
         entry.emplace("delayMs", b.delayMs);
+        entry.emplace("suppressMixedMode", b.suppressMixedMode);
         arr.emplace_back(std::move(entry));
     }
     return arr;
@@ -185,6 +187,20 @@ AppConfig ConfigStore::Load() const {
     // Global settings
     if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
         config.beepEnabled = *beep;
+    if (const auto showRepeat = GetBoolField(*object, "statusOverlayShowRepeat"); showRepeat.has_value())
+        config.statusOverlayShowRepeat = *showRepeat;
+    if (const auto showMacro = GetBoolField(*object, "statusOverlayShowMacro"); showMacro.has_value())
+        config.statusOverlayShowMacro = *showMacro;
+    if (const auto locked = GetBoolField(*object, "statusOverlayLocked"); locked.has_value())
+        config.statusOverlayLocked = *locked;
+    if (const auto overlayPos = GetBoolField(*object, "statusOverlayPositionSaved"); overlayPos.has_value())
+        config.statusOverlayPositionSaved = *overlayPos;
+    if (const auto overlayX = GetIntField(*object, "statusOverlayX"); overlayX.has_value())
+        config.statusOverlayX = *overlayX;
+    if (const auto overlayY = GetIntField(*object, "statusOverlayY"); overlayY.has_value())
+        config.statusOverlayY = *overlayY;
+    if (const auto opacity = GetIntField(*object, "statusOverlayOpacity"); opacity.has_value())
+        config.statusOverlayOpacity = std::clamp(*opacity, 30, 100);
 
     if (const auto closeStr = GetStringField(*object, "closeAction"); closeStr.has_value()) {
         if (*closeStr == "minimize") config.closeAction = CloseAction::Minimize;
@@ -291,6 +307,13 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
 
     // Global settings
     root.emplace("beepEnabled", config.beepEnabled);
+    root.emplace("statusOverlayShowRepeat", config.statusOverlayShowRepeat);
+    root.emplace("statusOverlayShowMacro", config.statusOverlayShowMacro);
+    root.emplace("statusOverlayLocked", config.statusOverlayLocked);
+    root.emplace("statusOverlayPositionSaved", config.statusOverlayPositionSaved);
+    root.emplace("statusOverlayX", config.statusOverlayX);
+    root.emplace("statusOverlayY", config.statusOverlayY);
+    root.emplace("statusOverlayOpacity", std::clamp(config.statusOverlayOpacity, 30, 100));
 
     std::string closeActionStr = "ask";
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";

@@ -29,6 +29,7 @@ public:
         std::function<void()> saveConfig;
         std::function<void()> refreshAll;
         std::function<void(bool)> setBeepEnabled;
+        std::function<void(bool)> setStatusOverlayEnabled;
         std::function<MacroConfig*()> activeMacro;
     };
 
@@ -44,6 +45,7 @@ private:
     void onStartClicked();
     void onHotkeyEditClicked();
     void onBeepToggled(bool enabled);
+    void onStatusOverlayToggled(bool enabled);
     void onMixedModeToggled(bool enabled);
     void onPauseKeyAdd();
     void onPauseKeyDelete(int index);

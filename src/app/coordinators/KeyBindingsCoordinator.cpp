@@ -23,6 +23,7 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::startStopClicked, this, &KeyBindingsCoordinator::onStartClicked);
     connect(context_.page, &KeyPage::hotkeyEditClicked, this, &KeyBindingsCoordinator::onHotkeyEditClicked);
     connect(context_.page, &KeyPage::beepToggled, this, &KeyBindingsCoordinator::onBeepToggled);
+    connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
     connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
     connect(context_.page, &KeyPage::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
     connect(context_.page, &KeyPage::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
@@ -93,6 +94,14 @@ void KeyBindingsCoordinator::onBeepToggled(bool enabled) {
     if (context_.saveConfig) context_.saveConfig();
 }
 
+void KeyBindingsCoordinator::onStatusOverlayToggled(bool enabled) {
+    if (!context_.page) return;
+    if (context_.setStatusOverlayEnabled) context_.setStatusOverlayEnabled(enabled);
+    context_.page->setStatusOverlayEnabled(enabled);
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
+}
+
 void KeyBindingsCoordinator::onMixedModeToggled(bool enabled) {
     if (!context_.controller || !context_.engine) return;
     auto result = context_.controller->setMixedMode(enabled);
@@ -149,7 +158,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     if (bindingId.has_value()) {
         if (auto idx = findBindingIndex(*bindingId)) {
             const auto& binding = profile->bindings[*idx];
-            existing = BindingEditResult{binding.key, binding.mode, binding.delayMs, binding.enabled};
+            existing = BindingEditResult{binding.key, binding.mode, binding.delayMs, binding.enabled, binding.suppressMixedMode};
         }
     }
 
@@ -167,7 +176,13 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         return;
     }
 
-    auto result = context_.controller->upsertBinding(bindingId, editResult.key, editResult.mode, editResult.delayMs, editResult.enabled);
+    auto result = context_.controller->upsertBinding(
+        bindingId,
+        editResult.key,
+        editResult.mode,
+        editResult.delayMs,
+        editResult.enabled,
+        editResult.suppressMixedMode);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;

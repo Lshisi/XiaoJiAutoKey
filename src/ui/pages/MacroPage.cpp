@@ -149,6 +149,10 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
+    statusOverlayCheck_ = new QCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
+    statusOverlayCheck_->setFont(Fluent::Typography::body());
+    statusOverlayCheck_->setStyleSheet(checkBoxStyle());
+    triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 模式设置 --
@@ -183,6 +187,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(startBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &MacroPage::beepToggled);
+    connect(statusOverlayCheck_, &QCheckBox::toggled, this, &MacroPage::statusOverlayToggled);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &MacroPage::soundSettingsClicked);
     connect(hotkeyEdit_, &QLineEdit::cursorPositionChanged, this, [](){ /* dummy */ });
     hotkeyEdit_->installEventFilter(this);
@@ -263,6 +268,7 @@ void MacroPage::setRunning(bool running) {
     loopEdit_->setEnabled(!running);
     hotkeyEdit_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
+    if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
 }
 
@@ -282,8 +288,16 @@ void MacroPage::setBeepEnabled(bool enabled) {
     beepCheck_->blockSignals(false);
 }
 
+void MacroPage::setStatusOverlayEnabled(bool enabled) {
+    if (!statusOverlayCheck_) return;
+    statusOverlayCheck_->blockSignals(true);
+    statusOverlayCheck_->setChecked(enabled);
+    statusOverlayCheck_->blockSignals(false);
+}
+
 void MacroPage::updateThemeColors() {
     beepCheck_->setStyleSheet(checkBoxStyle());
+    if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(checkBoxStyle());
     refreshTable();
 }
 

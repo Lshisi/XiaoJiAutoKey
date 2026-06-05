@@ -31,6 +31,7 @@ public:
         std::function<void(bool)> setRepeatRunning;
         std::function<void(bool)> playToggleSound;
         std::function<void(bool)> setMacroBeepEnabled;
+        std::function<void(bool)> setStatusOverlayEnabled;
         std::function<ProfileConfig*()> activeProfile;
         std::function<ControllerResult()> validateActiveConfig;
     };
@@ -53,6 +54,7 @@ private:
     void onMacroModeChanged(int modeIndex);
     void onMacroLoopCountChanged(int count);
     void onMacroBeepToggled(bool enabled);
+    void onStatusOverlayToggled(bool enabled);
     void stopAllForConfigChange();
 
     Context context_;

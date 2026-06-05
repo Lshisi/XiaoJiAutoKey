@@ -21,6 +21,7 @@
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
 #include "services/AppPaths.h"
+#include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
 
@@ -40,6 +41,7 @@ protected:
 private:
     void setupUi();
     void setupHooks();
+    void refreshStatusOverlay();
 
     MainWindowView view_;
 
@@ -55,6 +57,7 @@ private:
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;
     SoundService soundService_;
+    StatusOverlayWindow statusOverlay_;
     SettingsCoordinator settingsCoordinator_;
     ProfileCoordinator profileCoordinator_;
     MacroCoordinator macroCoordinator_;

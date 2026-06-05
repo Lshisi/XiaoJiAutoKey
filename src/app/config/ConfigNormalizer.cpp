@@ -6,6 +6,7 @@ void ConfigNormalizer::normalize(AppConfig& config) {
     for (auto& profile : config.profiles) {
         for (auto& binding : profile.bindings) {
             if (binding.id == 0) binding.id = nextBindingId(profile);
+            if (binding.mode != RepeatMode::Hold) binding.suppressMixedMode = false;
         }
     }
 

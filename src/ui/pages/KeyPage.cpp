@@ -83,21 +83,23 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     headerRow->addWidget(addBtn_);
     tableCard->contentLayout()->addLayout(headerRow);
 
-    table_ = new FluentTable(0, 5, this);
+    table_ = new FluentTable(0, 6, this);
     table_->setHorizontalHeaderLabels({
         QString::fromWCharArray(L"\u72b6\u6001"),
         QString::fromWCharArray(L"\u6309\u952e"),
         QString::fromWCharArray(L"\u6a21\u5f0f"),
-        QString::fromWCharArray(L"\u5ef6\u8fdf (ms)"),
+        QString::fromWCharArray(L"\u4f18\u5148"),
+        QString::fromWCharArray(L"\u5ef6\u8fdf"),
         QString::fromWCharArray(L"\u64cd\u4f5c")
     });
     table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    table_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    table_->setColumnWidth(0, 50);
-    table_->setColumnWidth(4, 80);
+    table_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    table_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
+    table_->setColumnWidth(0, 42);
+    table_->setColumnWidth(5, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     table_->setStyleSheet(table_->styleSheet() +
         "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
@@ -188,6 +190,10 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
+    statusOverlayCheck_ = new QCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
+    statusOverlayCheck_->setFont(Fluent::Typography::body());
+    statusOverlayCheck_->setStyleSheet(checkBoxStyle());
+    triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 连发优先 --
@@ -214,6 +220,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(startBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(stopBtn_, &QPushButton::clicked, this, &KeyPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
+    connect(statusOverlayCheck_, &QCheckBox::toggled, this, &KeyPage::statusOverlayToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
@@ -263,6 +270,7 @@ void KeyPage::setRunning(bool running) {
     profileDeleteBtn_->setEnabled(!running && profileCombo_->count() > 1);
     table_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
+    if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
     mixedModeCheck_->setEnabled(!running);
 }
@@ -279,6 +287,13 @@ void KeyPage::setBeepEnabled(bool enabled) {
     beepCheck_->blockSignals(false);
 }
 
+void KeyPage::setStatusOverlayEnabled(bool enabled) {
+    if (!statusOverlayCheck_) return;
+    statusOverlayCheck_->blockSignals(true);
+    statusOverlayCheck_->setChecked(enabled);
+    statusOverlayCheck_->blockSignals(false);
+}
+
 void KeyPage::setMixedMode(bool enabled) {
     mixedModeCheck_->blockSignals(true);
     mixedModeCheck_->setChecked(enabled);
@@ -288,6 +303,7 @@ void KeyPage::setMixedMode(bool enabled) {
 void KeyPage::updateThemeColors() {
     QString style = checkBoxStyle();
     beepCheck_->setStyleSheet(style);
+    if (statusOverlayCheck_) statusOverlayCheck_->setStyleSheet(style);
     mixedModeCheck_->setStyleSheet(style);
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
@@ -379,9 +395,23 @@ void KeyPage::refreshTable() {
         auto* modeItem = new QTableWidgetItem(QString::fromStdWString(RepeatModeToText(b.mode)));
         modeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         table_->setItem(i, 2, modeItem);
+        QString mixedText = QString::fromWCharArray(L"-");
+        QString mixedTip = QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f\u4e0d\u53c2\u4e0e\u8fde\u53d1\u4f18\u5148");
+        if (b.mode == RepeatMode::Hold) {
+            mixedText = b.suppressMixedMode
+                ? QString::fromWCharArray(L"\u00d7")
+                : QString::fromWCharArray(L"\u2713");
+            mixedTip = b.suppressMixedMode
+                ? QString::fromWCharArray(L"\u4e0d\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4e0d\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1")
+                : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
+        }
+        auto* mixedItem = new QTableWidgetItem(mixedText);
+        mixedItem->setTextAlignment(Qt::AlignCenter);
+        mixedItem->setToolTip(mixedTip);
+        table_->setItem(i, 3, mixedItem);
         auto* delayItem = new QTableWidgetItem(QString::number(b.delayMs));
         delayItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        table_->setItem(i, 3, delayItem);
+        table_->setItem(i, 4, delayItem);
 
         // Action icons (Segoe MDL2 Assets)
         auto* actionWidget = new QWidget();
@@ -397,7 +427,7 @@ void KeyPage::refreshTable() {
         delBtn->setFont(QFont("Segoe MDL2 Assets", 10));
         actionLayout->addWidget(editBtn);
         actionLayout->addWidget(delBtn);
-        table_->setCellWidget(i, 4, actionWidget);
+        table_->setCellWidget(i, 5, actionWidget);
 
         std::uint64_t id = b.id;
         connect(checkBox, &QCheckBox::toggled, this, [this, id](bool checked) { emit enableToggled(id, checked); });

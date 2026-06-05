@@ -13,7 +13,8 @@ MainWindow::MainWindow(QWidget* parent)
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),
-      soundService_(appPaths_.exeDir()) {}
+      soundService_(appPaths_.exeDir()),
+      statusOverlay_(nullptr) {}
 
 MainWindow::~MainWindow() {
     engineStateCoordinator_.stopThreads();
@@ -42,6 +43,7 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
     pageRefreshCoordinator_.refreshAll();
+    refreshStatusOverlay();
     return true;
 }
 
@@ -50,5 +52,12 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
         captureCoordinator_.cancelCapture();
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::refreshStatusOverlay() {
+    auto* profile = profileController_.activeProfile();
+    auto* macro = macroController_.activeMacro();
+    const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
+    statusOverlay_.updateStatus(config_, profile, macro, engine_.IsToolRunning(), macroRunning);
 }
 

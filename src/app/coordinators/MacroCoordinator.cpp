@@ -31,6 +31,7 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPage::modeChanged, this, &MacroCoordinator::onMacroModeChanged);
     connect(context_.page, &MacroPage::loopCountChanged, this, &MacroCoordinator::onMacroLoopCountChanged);
     connect(context_.page, &MacroPage::beepToggled, this, &MacroCoordinator::onMacroBeepToggled);
+    connect(context_.page, &MacroPage::statusOverlayToggled, this, &MacroCoordinator::onStatusOverlayToggled);
 }
 
 void MacroCoordinator::pollRunningState() {
@@ -266,6 +267,14 @@ void MacroCoordinator::onMacroBeepToggled(bool enabled) {
     if (!context_.page) return;
     if (context_.setMacroBeepEnabled) context_.setMacroBeepEnabled(enabled);
     context_.page->setBeepEnabled(enabled);
+}
+
+void MacroCoordinator::onStatusOverlayToggled(bool enabled) {
+    if (!context_.page) return;
+    if (context_.setStatusOverlayEnabled) context_.setStatusOverlayEnabled(enabled);
+    context_.page->setStatusOverlayEnabled(enabled);
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
 void MacroCoordinator::stopAllForConfigChange() {

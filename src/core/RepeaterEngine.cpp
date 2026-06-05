@@ -158,7 +158,12 @@ bool RepeaterEngine::IsHoldBinding(const KeyDescriptor& key) const {
 }
 
 bool RepeaterEngine::IsHoldActive() const {
-    return !holdPhysicalDown_.empty();
+    return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+        return t.config.enabled
+            && t.config.mode == RepeatMode::Hold
+            && !t.config.suppressMixedMode
+            && holdPhysicalDown_.count(t.config.key) > 0;
+    });
 }
 
 void RepeaterEngine::ReleaseAll() {
@@ -193,7 +198,8 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
             b.key,
             b.mode,
             b.delayMs,
-            b.enabled
+            b.enabled,
+            b.suppressMixedMode
         };
 
         auto it = std::find_if(tasks_.begin(), tasks_.end(),

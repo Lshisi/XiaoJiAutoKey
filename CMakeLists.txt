@@ -87,6 +87,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
     include/app/controllers/MacroController.h
+    include/app/widgets/StatusOverlayWindow.h
     include/app/MainWindow.h
     include/app/view/MainWindowView.h
     include/app/controllers/ProfileController.h
@@ -115,6 +116,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/coordinators/ConfigCoordinator.cpp
     src/app/coordinators/EngineStateCoordinator.cpp
     src/app/controllers/MacroController.cpp
+    src/app/widgets/StatusOverlayWindow.cpp
     src/app/main.cpp
     src/app/main_window/MainWindow.cpp
     src/app/main_window/MainWindowHooks.cpp
@@ -151,6 +153,7 @@ target_include_directories(XiaoJiAutoKey PRIVATE
     src/app/view
     src/app/config
     src/app/coordinators
+    src/app/widgets
     src/core
     src/ui
     src/ui/styles

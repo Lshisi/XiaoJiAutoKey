@@ -24,6 +24,7 @@ public:
     void setRunning(bool running);
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
+    void setStatusOverlayEnabled(bool enabled);
     void setMode(MacroTriggerMode mode);
     void setLoopCount(int count);
     void updateThemeColors();
@@ -49,6 +50,7 @@ signals:
     void startStopClicked();
     void hotkeyEditClicked();
     void beepToggled(bool enabled);
+    void statusOverlayToggled(bool enabled);
     void soundSettingsClicked();
     void modeChanged(int modeIndex);
     void loopCountChanged(int count);
@@ -65,6 +67,7 @@ private:
     FluentButton* stopBtn_;
     FluentLineEdit* hotkeyEdit_;
     QCheckBox* beepCheck_;
+    QCheckBox* statusOverlayCheck_ = nullptr;
     FluentButton* soundSettingsBtn_ = nullptr;
     FluentComboBox* modeCombo_;
     FluentLineEdit* loopEdit_;

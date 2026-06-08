@@ -14,6 +14,7 @@ public:
 
     void setTitle(const QString& title);
     void setIcon(const QIcon& icon);
+    void refreshThemeStyle();
 
 signals:
     void minimizeClicked();
@@ -29,11 +30,13 @@ protected:
 private:
     QPushButton* createCaptionButton(const QString& icon, const QString& tooltip);
     QWidget* createTrafficLight(const QColor& color);
+    void applyTitlePalette();
 
     QLabel* iconLabel_;
     QLabel* titleLabel_;
     QPushButton* minBtn_;
     QPushButton* closeBtn_;
+    QIcon icon_;
 
     QPoint dragPos_;
     bool dragging_ = false;

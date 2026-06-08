@@ -1,6 +1,11 @@
 #include "view/MainWindowView.h"
 
+#include "ui/components/FluentButton.h"
+#include "ui/components/FluentCard.h"
+#include "ui/components/FluentComboBox.h"
+#include "ui/components/FluentLineEdit.h"
 #include "ui/components/FluentSidebar.h"
+#include "ui/components/FluentTable.h"
 #include "ui/components/FluentTitleBar.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/pages/KeyPage.h"
@@ -14,12 +19,20 @@
 #include <QCursor>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
+#include <QScrollArea>
 #include <QScreen>
 #include <QTimer>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <QWindow>
+#include <QLayout>
 
 namespace {
+constexpr int kBaseWindowWidth = 780;
+constexpr int kBaseWindowHeight = 560;
+constexpr int kBaseDpi = 96;
+
 QRect currentAvailableGeometry() {
     if (auto* screen = QApplication::screenAt(QCursor::pos())) {
         return screen->availableGeometry();
@@ -74,6 +87,90 @@ void applyScreenAwareWindowSize(QMainWindow* window, QScreen* screen, bool cente
     window->setGeometry(geometry);
 }
 
+int minimumLogicalSizeForDpi(QMainWindow* window, int value, int nativeDpi) {
+    Q_UNUSED(window)
+    Q_UNUSED(nativeDpi)
+    return value;
+}
+
+void keepWindowWithinAvailableGeometry(QMainWindow* window, QScreen* screen, int nativeDpi = 0, bool clampToDesignedSize = false) {
+    if (!window || window->isMinimized()) {
+        return;
+    }
+
+    window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
+    const QRect available = screen ? screen->availableGeometry() : currentAvailableGeometry();
+    QRect geometry = window->geometry();
+    if (geometry.isEmpty()) {
+        return;
+    }
+
+    const int minWidth = qMax(window->minimumWidth(), minimumLogicalSizeForDpi(window, kBaseWindowWidth, nativeDpi));
+    const int minHeight = qMax(window->minimumHeight(), minimumLogicalSizeForDpi(window, kBaseWindowHeight, nativeDpi));
+    const QSize designedSize = scaledInitialWindowSize(available);
+    const int maxWidth = clampToDesignedSize ? qMax(minWidth, designedSize.width()) : qMax(minWidth, available.width());
+    const int maxHeight = clampToDesignedSize ? qMax(minHeight, designedSize.height()) : qMax(minHeight, available.height());
+    const int width = qBound(minWidth, geometry.width(), maxWidth);
+    const int height = qBound(minHeight, geometry.height(), maxHeight);
+    geometry.setSize(QSize(width, height));
+
+    const int minX = available.left();
+    const int minY = available.top();
+    const int maxX = qMax(minX, available.right() - geometry.width() + 1);
+    const int maxY = qMax(minY, available.bottom() - geometry.height() + 1);
+    geometry.moveTopLeft(QPoint(
+        qBound(minX, geometry.left(), maxX),
+        qBound(minY, geometry.top(), maxY)
+    ));
+
+    if (geometry != window->geometry()) {
+        window->setGeometry(geometry);
+    }
+}
+
+void refreshLayoutTree(QWidget* widget, bool polishStyle) {
+    if (!widget) {
+        return;
+    }
+
+    if (polishStyle) {
+        widget->ensurePolished();
+        if (auto* style = widget->style()) {
+            style->unpolish(widget);
+            style->polish(widget);
+        }
+    } else {
+        widget->ensurePolished();
+    }
+    widget->updateGeometry();
+    if (auto* layout = widget->layout()) {
+        layout->invalidate();
+    }
+
+    const auto children = widget->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+    for (auto* child : children) {
+        refreshLayoutTree(child, polishStyle);
+    }
+
+    if (auto* layout = widget->layout()) {
+        layout->activate();
+    }
+    widget->update();
+}
+
+void runDeferredLayoutPass(QMainWindow* window, bool polishStyle) {
+    if (!window) {
+        return;
+    }
+
+    if (auto* central = window->centralWidget()) {
+        refreshLayoutTree(central, polishStyle);
+    }
+    window->ensurePolished();
+    window->updateGeometry();
+    window->update();
+}
+
 void bindScreenChangeResize(QMainWindow* window) {
     QTimer::singleShot(0, window, [window]() {
         auto* handle = window ? window->windowHandle() : nullptr;
@@ -81,10 +178,166 @@ void bindScreenChangeResize(QMainWindow* window) {
             return;
         }
 
+        auto refreshLayouts = [window]() {
+            runDeferredLayoutPass(window, false);
+        };
+
+        auto bindScreenSignals = [window, refreshLayouts](QScreen* screen) {
+            if (!screen) return;
+            QObject::connect(screen, &QScreen::logicalDotsPerInchChanged, window,
+                [window, refreshLayouts, screen](qreal dpi) {
+                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
+                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
+                    QTimer::singleShot(0, window, refreshLayouts);
+                    QTimer::singleShot(160, window, refreshLayouts);
+                });
+            QObject::connect(screen, &QScreen::physicalDotsPerInchChanged, window,
+                [window, refreshLayouts, screen](qreal dpi) {
+                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
+                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
+                    QTimer::singleShot(0, window, refreshLayouts);
+                    QTimer::singleShot(160, window, refreshLayouts);
+                });
+        };
+
+        bindScreenSignals(handle->screen());
         QObject::connect(handle, &QWindow::screenChanged, window, [window](QScreen* screen) {
             applyScreenAwareWindowSize(window, screen, false);
+            QTimer::singleShot(0, window, [window]() { runDeferredLayoutPass(window, false); });
+            QTimer::singleShot(160, window, [window]() { runDeferredLayoutPass(window, false); });
         });
     });
+}
+
+void refreshLabelPalette(QLabel* label) {
+    if (!label || label->text().isEmpty()) {
+        return;
+    }
+    if (!label->pixmap(Qt::ReturnByValue).isNull() || label->movie()) {
+        return;
+    }
+
+    QPalette palette = label->palette();
+    const QColor current = palette.color(QPalette::WindowText);
+    const auto isSameColor = [](const QColor& a, const QColor& b) {
+        return a.red() == b.red() && a.green() == b.green() && a.blue() == b.blue();
+    };
+    const bool wasTertiary =
+        isSameColor(current, QColor(0x90, 0x90, 0x90)) ||
+        isSameColor(current, QColor(0x9A, 0x9A, 0x9A));
+    const bool wasSecondary =
+        isSameColor(current, QColor(0x60, 0x60, 0x60)) ||
+        isSameColor(current, QColor(0xC8, 0xC8, 0xC8));
+
+    const QColor color = wasTertiary ? Fluent::Colors::textTertiary()
+        : wasSecondary ? Fluent::Colors::textSecondary()
+                       : Fluent::Colors::textPrimary();
+    for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+        palette.setColor(group, QPalette::WindowText, color);
+        palette.setColor(group, QPalette::Text, color);
+    }
+    label->setPalette(palette);
+    label->setAutoFillBackground(false);
+    label->updateGeometry();
+    label->update();
+}
+
+void refreshSeparatorWidget(QWidget* widget) {
+    if (!widget || widget->minimumHeight() != 1 || widget->maximumHeight() != 1) {
+        return;
+    }
+    if (!widget->styleSheet().contains(QStringLiteral("background"), Qt::CaseInsensitive)) {
+        return;
+    }
+    widget->setStyleSheet(QString("background: %1;")
+        .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+}
+
+void refreshScrollAreaStyle(QScrollArea* scrollArea) {
+    if (!scrollArea || scrollArea->styleSheet().isEmpty()) {
+        return;
+    }
+    scrollArea->setStyleSheet(
+        QString("QScrollArea { background: transparent; border: none; }"
+        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
+        "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
+        "QScrollBar::handle:vertical:hover { background: %2; }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
+            .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
+                Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
+    if (auto* content = scrollArea->widget()) {
+        content->updateGeometry();
+        if (auto* layout = content->layout()) {
+            layout->invalidate();
+        }
+        QTimer::singleShot(0, content, [content]() {
+            if (auto* layout = content->layout()) {
+                layout->activate();
+            }
+            content->updateGeometry();
+            content->update();
+        });
+    }
+    scrollArea->updateGeometry();
+    if (auto* viewport = scrollArea->viewport()) {
+        viewport->update();
+    }
+}
+
+void refreshKnownWidget(QWidget* widget) {
+    if (auto* card = qobject_cast<FluentCard*>(widget)) {
+        card->refreshThemeStyle();
+    }
+    if (auto* titleBar = qobject_cast<FluentTitleBar*>(widget)) {
+        titleBar->refreshThemeStyle();
+    }
+    if (auto* sidebar = qobject_cast<FluentSidebar*>(widget)) {
+        sidebar->updateFactionIcon();
+    }
+    if (auto* button = qobject_cast<FluentButton*>(widget)) {
+        button->refreshMetrics();
+    }
+    if (auto* combo = qobject_cast<FluentComboBox*>(widget)) {
+        combo->refreshThemeStyle();
+    }
+    if (auto* lineEdit = qobject_cast<FluentLineEdit*>(widget)) {
+        lineEdit->refreshThemeStyle();
+    }
+    if (auto* table = qobject_cast<FluentTable*>(widget)) {
+        table->refreshThemeStyle();
+    }
+    if (auto* scrollArea = qobject_cast<QScrollArea*>(widget)) {
+        refreshScrollAreaStyle(scrollArea);
+    }
+    if (auto* label = qobject_cast<QLabel*>(widget)) {
+        refreshLabelPalette(label);
+    }
+    refreshSeparatorWidget(widget);
+}
+
+void refreshWidgetTree(QWidget* widget) {
+    if (!widget) {
+        return;
+    }
+
+    refreshKnownWidget(widget);
+    widget->ensurePolished();
+    if (auto* style = widget->style()) {
+        style->unpolish(widget);
+        style->polish(widget);
+    }
+    widget->updateGeometry();
+    if (auto* layout = widget->layout()) {
+        layout->invalidate();
+        layout->activate();
+    }
+    widget->update();
+
+    const auto children = widget->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+    for (auto* child : children) {
+        refreshWidgetTree(child);
+    }
 }
 }
 
@@ -93,13 +346,22 @@ void MainWindowView::setup(QMainWindow* window) {
     window->setWindowIcon(QIcon(":/assets/icon.png"));
     window->setWindowFlags((window->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowMaximizeButtonHint);
     window->setAttribute(Qt::WA_TranslucentBackground, true);
+    window->setAutoFillBackground(false);
+    QPalette windowPalette = window->palette();
+    windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    window->setPalette(windowPalette);
 
     applyScreenAwareWindowSize(window, nullptr, true);
-    window->setMinimumSize(720, 560);
+    window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
     bindScreenChangeResize(window);
 
     auto* centralWidget = new QWidget(window);
     centralWidget->setObjectName("mainWindowRoot");
+    centralWidget->setAttribute(Qt::WA_StyledBackground, true);
+    centralWidget->setAutoFillBackground(false);
+    QPalette centralPalette = centralWidget->palette();
+    centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    centralWidget->setPalette(centralPalette);
     centralWidget->setStyleSheet(QString(
         "QWidget#mainWindowRoot {"
         "  background: %1;"
@@ -110,7 +372,7 @@ void MainWindowView::setup(QMainWindow* window) {
     window->setCentralWidget(centralWidget);
 
     auto* rootLayout = new QVBoxLayout(centralWidget);
-    rootLayout->setContentsMargins(1, 1, 1, 1);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
     auto* titleBar = new FluentTitleBar(window);
@@ -151,11 +413,12 @@ void MainWindowView::setup(QMainWindow* window) {
     statusBar->setStyleSheet(QString(
         "QWidget#appStatusBar {"
         "  background: %1;"
-        "  border-top: 1px solid rgba(0,0,0,0.08);"
+        "  border-top: 1px solid %2;"
         "  border-bottom-left-radius: 10px;"
         "  border-bottom-right-radius: 10px;"
         "}")
-        .arg(FactionTheme::instance().palette().surfaceTint.name()));
+        .arg(FactionTheme::instance().palette().surfaceTint.name(),
+            Fluent::Colors::divider().name(QColor::HexArgb)));
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
     auto* versionLabel = new QLabel(QString("v") + QString(APP_VERSION), statusBar);
@@ -218,7 +481,13 @@ bool MainWindowView::isRepeatPageActive() const {
 }
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
+    QPalette windowPalette = window->palette();
+    windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    window->setPalette(windowPalette);
     if (window->centralWidget()) {
+        QPalette centralPalette = window->centralWidget()->palette();
+        centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+        window->centralWidget()->setPalette(centralPalette);
         window->centralWidget()->setStyleSheet(QString(
             "QWidget#mainWindowRoot {"
             "  background: %1;"
@@ -231,11 +500,12 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
         statusBar->setStyleSheet(QString(
             "QWidget#appStatusBar {"
             "  background: %1;"
-            "  border-top: 1px solid rgba(0,0,0,0.08);"
+            "  border-top: 1px solid %2;"
             "  border-bottom-left-radius: 10px;"
             "  border-bottom-right-radius: 10px;"
             "}")
-            .arg(FactionTheme::instance().palette().surfaceTint.name()));
+            .arg(FactionTheme::instance().palette().surfaceTint.name(),
+                Fluent::Colors::divider().name(QColor::HexArgb)));
     }
     sidebar_->updateFactionIcon();
     sidebar_->update();
@@ -246,6 +516,57 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     settingsPage_->setFaction(FactionTheme::instance().current().id);
     aboutPage_->setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
     window->update();
+}
+
+void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged, bool refreshThemeColors, int nativeDpi) {
+    if (!window) {
+        return;
+    }
+
+    if (refreshThemeColors) {
+        updateFactionVisuals(window);
+    } else {
+        QPalette windowPalette = window->palette();
+        windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+        window->setPalette(windowPalette);
+        if (window->centralWidget()) {
+            QPalette centralPalette = window->centralWidget()->palette();
+            centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+            window->centralWidget()->setPalette(centralPalette);
+        }
+    }
+
+    if (dpiChanged) {
+        QScreen* screen = nullptr;
+        if (auto* handle = window->windowHandle()) {
+            screen = handle->screen();
+        }
+        window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
+        keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
+    }
+
+    if (auto* central = window->centralWidget()) {
+        refreshWidgetTree(central);
+    }
+
+    if (trayIcon_) {
+        trayIcon_->setIcon(QIcon(":/assets/icon.png"));
+    }
+
+    if (auto* handle = window->windowHandle()) {
+        handle->requestUpdate();
+    }
+    window->updateGeometry();
+    window->update();
+
+    if (dpiChanged) {
+        QTimer::singleShot(0, window, [window]() {
+            runDeferredLayoutPass(window, false);
+        });
+        QTimer::singleShot(180, window, [window]() {
+            runDeferredLayoutPass(window, false);
+        });
+    }
 }
 
 void MainWindowView::hideTrayIcon() {

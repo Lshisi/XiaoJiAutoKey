@@ -9,6 +9,7 @@
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
 #include <QPixmap>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -26,7 +27,7 @@ QLabel* makeSectionTitle(const QString& text, QWidget* parent) {
 QWidget* makeDivider(QWidget* parent) {
     auto* divider = new QWidget(parent);
     divider->setFixedHeight(1);
-    divider->setStyleSheet("background: rgba(0,0,0,0.06);");
+    divider->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     return divider;
 }
 
@@ -34,6 +35,39 @@ QPalette mutedPalette(QWidget* widget) {
     QPalette pal = widget->palette();
     pal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     return pal;
+}
+
+QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
+    if (source.isNull()) {
+        return source;
+    }
+
+    QPixmap tinted(source.size());
+    tinted.setDevicePixelRatio(source.devicePixelRatio());
+    tinted.fill(Qt::transparent);
+
+    QPainter painter(&tinted);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawPixmap(0, 0, source);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
+    return tinted;
+}
+
+void showFallbackFactionBadge(QLabel* label, const QString& name, const FactionPalette& palette) {
+    label->setPixmap(QPixmap());
+    label->setText(name.left(1));
+    label->setFont(Fluent::Typography::bodyStrong());
+    label->setStyleSheet(QString(
+        "background: %1;"
+        "border: 1px solid %2;"
+        "border-radius: 18px;"
+        "color: %3;")
+            .arg(palette.accentSubtle.name(QColor::HexArgb),
+                palette.accentBorder.name(QColor::HexArgb),
+                Fluent::Colors::textPrimary().name()));
+    label->show();
 }
 
 }
@@ -48,16 +82,19 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     auto* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setStyleSheet(
-        "QScrollArea { background: transparent; border: none; }"
+        QString("QScrollArea { background: transparent; border: none; }"
         "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,0.2); }"
+        "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
+        "QScrollBar::handle:vertical:hover { background: %2; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
-    );
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
+            .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
+                Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
 
     auto* scrollContent = new QWidget(scrollArea);
+    scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     scrollContent->setStyleSheet("background: transparent;");
     auto* outerLayout = new QVBoxLayout(scrollContent);
     outerLayout->setContentsMargins(16, 12, 16, 12);
@@ -161,10 +198,10 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     configBtnRow->addWidget(openBtn);
     configBtnRow->addStretch();
     panelLayout->addLayout(configBtnRow);
-    panelLayout->addStretch();
+    panelLayout->addSpacing(2);
 
     outerLayout->addWidget(panel);
-    outerLayout->addStretch();
+    outerLayout->addSpacing(0);
     scrollArea->setWidget(scrollContent);
     pageLayout->addWidget(scrollArea);
 
@@ -229,19 +266,22 @@ void SettingsPage::applyPageTheme() {
     const auto palette = FactionTheme::instance().palette();
     setStyleSheet(QString(
         "SettingsPage { background: %1; }"
-        "QWidget#factionPreview { background-color: #FFFFFF; border-radius: 8px; }"
-    ).arg(palette.surfaceTint.name()));
+        "QWidget#factionPreview { background-color: %2; border-radius: 8px; }"
+    ).arg(palette.surfaceTint.name(), Fluent::Colors::cardBg().name()));
 
     const QString radioStyle = QString(
-        "QRadioButton { background: transparent; color: #1F1F1F; spacing: 8px; }"
+        "QRadioButton { background: transparent; color: %2; spacing: 8px; }"
         "QRadioButton::indicator { width: 14px; height: 14px; border-radius: 7px; }"
-        "QRadioButton::indicator:unchecked { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.35); }"
+        "QRadioButton::indicator:unchecked { background: %3; border: 1px solid %4; }"
         "QRadioButton::indicator:checked {"
         "  border: 1px solid %1;"
         "  background: qradialgradient(cx:0.5, cy:0.5, radius:0.55, fx:0.5, fy:0.5,"
-        "    stop:0 %1, stop:0.42 %1, stop:0.46 #FFFFFF, stop:1 #FFFFFF);"
+        "    stop:0 %1, stop:0.42 %1, stop:0.46 %3, stop:1 %3);"
         "}"
-    ).arg(palette.accent.name());
+    ).arg(palette.accent.name(),
+        Fluent::Colors::textPrimary().name(),
+        Fluent::Colors::cardBg().name(),
+        Fluent::Colors::border().name(QColor::HexArgb));
     if (radioAsk_) radioAsk_->setStyleSheet(radioStyle);
     if (radioMin_) radioMin_->setStyleSheet(radioStyle);
     if (radioExit_) radioExit_->setStyleSheet(radioStyle);
@@ -252,27 +292,41 @@ void SettingsPage::applyPageTheme() {
         factionPreviewBar_->setStyleSheet(QString("background: %1; border-radius: 1px;").arg(palette.accent.name()));
     }
     if (factionPreviewIcon_) {
+        const auto& faction = FactionTheme::instance().current();
         const QString iconPath = FactionTheme::instance().iconPath();
         if (!iconPath.isEmpty()) {
             QPixmap pix(iconPath);
             if (!pix.isNull()) {
                 factionPreviewIcon_->setStyleSheet("background: transparent;");
-                factionPreviewIcon_->setPixmap(pix.scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                factionPreviewIcon_->setText(QString());
+                QPixmap scaled = pix.scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                if (Fluent::Theme::isDarkMode()) {
+                    scaled = tintPixmap(scaled, Fluent::Colors::textPrimary());
+                }
+                factionPreviewIcon_->setPixmap(scaled);
+                factionPreviewIcon_->show();
+            } else {
+                showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
             }
         } else {
-            factionPreviewIcon_->setPixmap(QPixmap());
-            factionPreviewIcon_->setText(QString::fromWCharArray(L"\u5c0f"));
-            factionPreviewIcon_->setFont(Fluent::Typography::bodyStrong());
-            factionPreviewIcon_->setStyleSheet(QString("background: %1; color: %2; border-radius: 18px;")
-                .arg(palette.accent.name(), palette.textOnAccent.name()));
+            if (faction.id == QStringLiteral("none")) {
+                factionPreviewIcon_->setPixmap(QPixmap());
+                factionPreviewIcon_->setText(QString());
+                factionPreviewIcon_->setStyleSheet("background: transparent;");
+                factionPreviewIcon_->hide();
+            } else {
+                showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
+            }
         }
     }
     if (statusOverlayOpacitySlider_) {
         statusOverlayOpacitySlider_->setStyleSheet(QString(
-            "QSlider::groove:horizontal { height: 4px; background: rgba(0,0,0,0.12); border-radius: 2px; }"
+            "QSlider::groove:horizontal { height: 4px; background: %2; border-radius: 2px; }"
             "QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
-            "QSlider::handle:horizontal { background: #202020; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
-        ).arg(palette.accent.name()));
+            "QSlider::handle:horizontal { background: %3; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
+        ).arg(palette.accent.name(),
+            Fluent::Colors::border().name(QColor::HexArgb),
+            Fluent::Colors::textPrimary().name()));
     }
 }
 

@@ -1,7 +1,9 @@
 #include "MainWindow.h"
+#include "ui/styles/DesignTokens.h"
 #include <QApplication>
-#include <QStyleFactory>
 #include <QFont>
+#include <QGuiApplication>
+#include <QStyleFactory>
 #include <QtPlugin>
 #include <Windows.h>
 #include <mmsystem.h>
@@ -26,9 +28,11 @@ int main(int argc, char *argv[]) {
 
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
     app.setStyle(QStyleFactory::create("Fusion"));
+    app.setPalette(Fluent::Theme::applicationPalette());
 
     // Set global font - compact UI with slight letter spacing
     QFont globalFont("Segoe UI", 9);

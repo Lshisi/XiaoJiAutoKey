@@ -56,8 +56,8 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
         trackColor = palette.accent;
         if (hovered_) trackColor = palette.accentHover;
     } else {
-        trackColor = QColor(0, 0, 0, 40);
-        if (hovered_) trackColor = QColor(0, 0, 0, 55);
+        trackColor = Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 42) : QColor(0, 0, 0, 40);
+        if (hovered_) trackColor = Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 58) : QColor(0, 0, 0, 55);
     }
 
     QPainterPath track;
@@ -73,6 +73,6 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
     qreal xEnd = r.right() - margin - thumbDiameter - 1;
     qreal x = xStart + (xEnd - xStart) * position_;
 
-    p.setBrush(Qt::white);
+    p.setBrush(Fluent::Theme::isDarkMode() && position_ <= 0.5 ? QColor(0xD8, 0xD8, 0xD8) : Qt::white);
     p.drawEllipse(QRectF(x, r.top() + margin, thumbDiameter, thumbDiameter));
 }

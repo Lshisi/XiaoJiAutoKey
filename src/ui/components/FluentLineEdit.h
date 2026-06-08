@@ -12,6 +12,7 @@ public:
 
     qreal focusProgress() const { return focusProgress_; }
     void setFocusProgress(qreal v);
+    void refreshThemeStyle();
 
 signals:
     void clicked();

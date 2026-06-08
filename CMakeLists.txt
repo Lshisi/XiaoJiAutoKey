@@ -186,8 +186,10 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
 if(MSVC)
     target_compile_options(XiaoJiAutoKey PRIVATE /W4 /permissive- /utf-8)
     set_property(TARGET XiaoJiAutoKey PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    # Require administrator privileges
-    target_link_options(XiaoJiAutoKey PRIVATE "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
+    target_link_options(XiaoJiAutoKey PRIVATE
+        "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'"
+        "/MANIFESTINPUT:${CMAKE_SOURCE_DIR}/assets/app.manifest"
+    )
 endif()
 
 set_target_properties(XiaoJiAutoKey PROPERTIES OUTPUT_NAME "XiaoJiAutoKey")

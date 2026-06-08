@@ -19,7 +19,27 @@ void FluentLineEdit::init() {
     focusAnim_->setDuration(Fluent::Animation::hoverDuration);
 
     // Transparent background so we paint our own
-    setStyleSheet("QLineEdit { background: transparent; border: none; }");
+    refreshThemeStyle();
+}
+
+void FluentLineEdit::refreshThemeStyle() {
+    const bool hasCustomFixedHeight =
+        minimumHeight() == maximumHeight() &&
+        minimumHeight() > 0 &&
+        minimumHeight() != Fluent::Spacing::inputHeight;
+    if (!hasCustomFixedHeight) {
+        setFixedHeight(Fluent::Spacing::inputHeight);
+    }
+    setFont(Fluent::Typography::body());
+    setTextMargins(12, 0, 12, 0);
+    setStyleSheet(QString(
+        "QLineEdit { background: transparent; border: none; color: %1; selection-background-color: %2; }"
+        "QLineEdit:disabled { color: %3; }")
+        .arg(Fluent::Colors::textPrimary().name(),
+            FactionTheme::instance().palette().accentSoft.name(),
+            Fluent::Colors::textTertiary().name()));
+    updateGeometry();
+    update();
 }
 
 void FluentLineEdit::setFocusProgress(qreal v) {

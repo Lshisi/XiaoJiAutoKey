@@ -7,23 +7,36 @@
 #include <QStyleOptionComboBox>
 
 FluentComboBox::FluentComboBox(QWidget* parent) : QComboBox(parent) {
-    setFixedHeight(Fluent::Spacing::inputHeight);
-    setFont(Fluent::Typography::body());
     refreshThemeStyle();
 }
 
 void FluentComboBox::refreshThemeStyle() {
+    const bool hasCustomFixedHeight =
+        minimumHeight() == maximumHeight() &&
+        minimumHeight() > 0 &&
+        minimumHeight() != Fluent::Spacing::inputHeight;
+    if (!hasCustomFixedHeight) {
+        setFixedHeight(Fluent::Spacing::inputHeight);
+    }
+    setFont(Fluent::Typography::body());
+
     const auto palette = FactionTheme::instance().palette();
+    const QString border = Fluent::Colors::border().name(QColor::HexArgb);
+    const QString hoverBorder = palette.accentBorder.name(QColor::HexArgb);
+    const QString bg = Fluent::Colors::cardBg().name();
+    const QString text = Fluent::Colors::textPrimary().name();
+    const QString muted = Fluent::Colors::textSecondary().name();
+    const QString itemHover = Fluent::Colors::hoverBg().name(QColor::HexArgb);
     setStyleSheet(QString(
         "QComboBox {"
-        "  border: 1px solid rgba(0,0,0,0.08);"
+        "  border: 1px solid %3;"
         "  border-radius: 8px;"
         "  padding: 0 12px;"
-        "  background: #FFFFFF;"
-        "  color: #1F1F1F;"
+        "  background: %4;"
+        "  color: %5;"
         "}"
         "QComboBox:hover {"
-        "  border-color: rgba(0,0,0,0.12);"
+        "  border-color: %6;"
         "}"
         "QComboBox:focus {"
         "  border: 2px solid %1;"
@@ -37,14 +50,15 @@ void FluentComboBox::refreshThemeStyle() {
         "  width: 0; height: 0;"
         "  border-left: 4px solid transparent;"
         "  border-right: 4px solid transparent;"
-        "  border-top: 5px solid #606060;"
+        "  border-top: 5px solid %7;"
         "}"
         "QComboBox QAbstractItemView {"
-        "  border: 1px solid rgba(0,0,0,0.08);"
+        "  border: 1px solid %3;"
         "  border-radius: 8px;"
-        "  background: #FFFFFF;"
+        "  background: %4;"
+        "  color: %5;"
         "  selection-background-color: %2;"
-        "  selection-color: #1F1F1F;"
+        "  selection-color: %5;"
         "  padding: 4px;"
         "  outline: none;"
         "}"
@@ -54,9 +68,18 @@ void FluentComboBox::refreshThemeStyle() {
         "  border-radius: 6px;"
         "}"
         "QComboBox QAbstractItemView::item:hover {"
-        "  background: rgba(0,0,0,0.04);"
+        "  background: %8;"
         "}"
-    ).arg(palette.accentBorder.name(), palette.accentSoft.name()));
+    ).arg(palette.accentBorder.name(),
+        palette.accentSoft.name(),
+        border,
+        bg,
+        text,
+        hoverBorder,
+        muted,
+        itemHover));
+    updateGeometry();
+    update();
 }
 
 void FluentComboBox::paintEvent(QPaintEvent* event) {

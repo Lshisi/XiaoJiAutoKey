@@ -24,6 +24,7 @@
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
+#include <QTimer>
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -36,12 +37,21 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
+    bool event(QEvent* event) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
 
 private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
+    void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
+    void applyRuntimeVisualRefresh();
+    void bindDpiRefreshSignals();
+    int currentScreenDpi() const;
+    void refreshIfScreenDpiChanged();
+    void enforceNativeWindowSizeForDpi(int dpi);
 
     MainWindowView view_;
 
@@ -68,5 +78,12 @@ private:
     PageRefreshCoordinator pageRefreshCoordinator_;
     CloseCoordinator closeCoordinator_;
     EngineStateCoordinator engineStateCoordinator_;
+    QTimer runtimeVisualRefreshTimer_;
+    bool runtimeDpiRefreshPending_ = false;
+    bool runtimeThemeRefreshPending_ = false;
+    int runtimeVisualRefreshPassesRemaining_ = 0;
+    bool applyingRuntimeVisualRefresh_ = false;
+    int observedScreenDpi_ = 0;
+    int runtimeDpiOverride_ = 0;
 
 };

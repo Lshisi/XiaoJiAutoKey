@@ -27,11 +27,13 @@ void FluentCheckBox::paintEvent(QPaintEvent*) {
     const auto palette = FactionTheme::instance().palette();
     const bool enabled = isEnabled();
 
-    QColor border = enabled ? QColor(0, 0, 0, 90) : QColor(0, 0, 0, 40);
-    QColor fill = QColor(0xFF, 0xFF, 0xFF);
+    QColor border = enabled
+        ? (Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 118) : QColor(0, 0, 0, 90))
+        : Fluent::Colors::border();
+    QColor fill = Fluent::Colors::cardBg();
 
     if (isChecked()) {
-        fill = enabled ? palette.accent : QColor(0xC8, 0xC8, 0xC8);
+        fill = enabled ? palette.accent : Fluent::Colors::textTertiary();
         border = fill;
     }
 

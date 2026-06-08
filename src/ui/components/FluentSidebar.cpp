@@ -9,6 +9,24 @@
 #include <QHBoxLayout>
 
 namespace {
+QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
+    if (source.isNull()) {
+        return source;
+    }
+
+    QPixmap tinted(source.size());
+    tinted.setDevicePixelRatio(source.devicePixelRatio());
+    tinted.fill(Qt::transparent);
+
+    QPainter painter(&tinted);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawPixmap(0, 0, source);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
+    return tinted;
+}
+
 void drawKeyboardIcon(QPainter& p, const QRectF& rect, const QColor& color) {
     QPen pen(color, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
@@ -71,6 +89,21 @@ void drawNavIcon(QPainter& p, const QRectF& rect, const QString& iconId, const Q
         p.setFont(QFont("Segoe UI Symbol", 11));
         p.drawText(rect, Qt::AlignCenter, iconId);
     }
+}
+
+void showFallbackFactionBadge(QLabel* label, const QString& name, const FactionPalette& palette) {
+    label->setPixmap(QPixmap());
+    label->setText(name.left(1));
+    label->setFont(Fluent::Typography::bodyStrong());
+    label->setStyleSheet(QString(
+        "background: %1;"
+        "border: 1px solid %2;"
+        "border-radius: 17px;"
+        "color: %3;")
+            .arg(palette.accentSubtle.name(QColor::HexArgb),
+                palette.accentBorder.name(QColor::HexArgb),
+                Fluent::Colors::textPrimary().name()));
+    label->show();
 }
 }
 
@@ -167,7 +200,9 @@ FluentSidebar::FluentSidebar(QWidget* parent)
     headerLayout->addWidget(factionNameLabel_, 1);
 
     navLayout_->addWidget(factionHeader_);
-    navLayout_->addSpacing(6);
+    factionHeaderSpacer_ = new QWidget(this);
+    factionHeaderSpacer_->setFixedHeight(6);
+    navLayout_->addWidget(factionHeaderSpacer_);
     updateFactionIcon();
 }
 
@@ -194,33 +229,46 @@ void FluentSidebar::paintEvent(QPaintEvent*) {
     p.fillRect(rect(), palette.surfaceTint);
     // Right border
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 28));
+    p.setBrush(Fluent::Colors::sidebarBorder());
     p.drawRect(width() - 1, 0, 1, height());
 }
 
 void FluentSidebar::updateFactionIcon() {
     const auto& faction = FactionTheme::instance().current();
     const auto palette = FactionTheme::instance().palette();
+    const bool noFactionSelected = faction.id == QStringLiteral("none");
+    factionHeader_->setVisible(!noFactionSelected);
+    if (factionHeaderSpacer_) {
+        factionHeaderSpacer_->setVisible(!noFactionSelected);
+    }
+    if (noFactionSelected) {
+        factionIconLabel_->setPixmap(QPixmap());
+        factionIconLabel_->setText(QString());
+        factionNameLabel_->setText(QString());
+        return;
+    }
+
     factionNameLabel_->setText(faction.name);
     factionNameLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
     factionHeader_->setStyleSheet("QWidget#factionHeader { background: transparent; }");
 
     const QString iconPath = FactionTheme::instance().iconPath();
     if (iconPath.isEmpty()) {
-        factionIconLabel_->setText(QString::fromWCharArray(L"\u5c0f"));
-        factionIconLabel_->setFont(Fluent::Typography::bodyStrong());
-        factionIconLabel_->setStyleSheet(QString("background: %1; color: %2; border-radius: 17px;")
-            .arg(palette.accent.name(), palette.textOnAccent.name()));
-        factionIconLabel_->show();
+        showFallbackFactionBadge(factionIconLabel_, faction.name, palette);
         return;
     }
 
     QPixmap pix(iconPath);
     if (pix.isNull()) {
-        factionIconLabel_->hide();
+        showFallbackFactionBadge(factionIconLabel_, faction.name, palette);
         return;
     }
     factionIconLabel_->setStyleSheet("background: transparent;");
-    factionIconLabel_->setPixmap(pix.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    factionIconLabel_->setText(QString());
+    QPixmap scaled = pix.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    if (Fluent::Theme::isDarkMode()) {
+        scaled = tintPixmap(scaled, Fluent::Colors::textPrimary());
+    }
+    factionIconLabel_->setPixmap(scaled);
     factionIconLabel_->show();
 }

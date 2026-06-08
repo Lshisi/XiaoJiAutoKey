@@ -1,51 +1,87 @@
 #pragma once
 
-#include <QString>
 #include <QColor>
 #include <QFont>
 #include <QMargins>
+#include <QPalette>
+#include <QSettings>
+#include <QString>
+#include <QtGlobal>
 
 namespace Fluent {
 
-// ── Colors ──────────────────────────────────────
+namespace Theme {
+    inline bool isDarkMode() {
+#ifdef Q_OS_WIN
+        QSettings settings(
+            QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+            QSettings::NativeFormat);
+        settings.sync();
+        return settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+#else
+        return false;
+#endif
+    }
+
+    inline QPalette applicationPalette() {
+        QPalette palette;
+        const QColor window = isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xFF, 0xFF, 0xFF);
+        const QColor base = isDarkMode() ? QColor(0x2B, 0x2B, 0x2B) : QColor(0xFF, 0xFF, 0xFF);
+        const QColor text = isDarkMode() ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F);
+        const QColor muted = isDarkMode() ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60);
+        const QColor disabled = isDarkMode() ? QColor(0x9A, 0x9A, 0x9A) : QColor(0x90, 0x90, 0x90);
+        const QColor accent(0x00, 0x78, 0xD4);
+
+        palette.setColor(QPalette::Window, window);
+        palette.setColor(QPalette::WindowText, text);
+        palette.setColor(QPalette::Base, base);
+        palette.setColor(QPalette::AlternateBase, window);
+        palette.setColor(QPalette::ToolTipBase, base);
+        palette.setColor(QPalette::ToolTipText, text);
+        palette.setColor(QPalette::Text, text);
+        palette.setColor(QPalette::Button, base);
+        palette.setColor(QPalette::ButtonText, text);
+        palette.setColor(QPalette::BrightText, Qt::white);
+        palette.setColor(QPalette::Highlight, accent);
+        palette.setColor(QPalette::HighlightedText, Qt::white);
+        palette.setColor(QPalette::PlaceholderText, muted);
+        palette.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
+        palette.setColor(QPalette::Disabled, QPalette::Text, disabled);
+        palette.setColor(QPalette::Disabled, QPalette::ButtonText, disabled);
+        return palette;
+    }
+}
+
 namespace Colors {
-    // Primary
     inline QColor primary()        { return QColor(0x00, 0x78, 0xD4); }
     inline QColor primaryHover()   { return QColor(0x10, 0x6E, 0xBE); }
     inline QColor primaryPressed() { return QColor(0x00, 0x5A, 0x9E); }
 
-    // Backgrounds - content area is WHITE, sidebar is light gray
-    inline QColor pageBg()         { return QColor(0xFF, 0xFF, 0xFF); }  // content = white
-    inline QColor cardBg()         { return QColor(0xFF, 0xFF, 0xFF); }
-    inline QColor sidebarBg()      { return QColor(0xF5, 0xF7, 0xFA); }  // sidebar = light gray
-    inline QColor titleBarBg()     { return QColor(0xFF, 0xFF, 0xFF); }
+    inline QColor pageBg()         { return Theme::isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xFF, 0xFF, 0xFF); }
+    inline QColor cardBg()         { return Theme::isDarkMode() ? QColor(0x2B, 0x2B, 0x2B) : QColor(0xFF, 0xFF, 0xFF); }
+    inline QColor sidebarBg()      { return Theme::isDarkMode() ? QColor(0x24, 0x24, 0x24) : QColor(0xF5, 0xF7, 0xFA); }
+    inline QColor titleBarBg()     { return Theme::isDarkMode() ? QColor(0x1F, 0x1F, 0x1F) : QColor(0xFF, 0xFF, 0xFF); }
 
-    // Text
-    inline QColor textPrimary()    { return QColor(0x1F, 0x1F, 0x1F); }
-    inline QColor textSecondary()  { return QColor(0x60, 0x60, 0x60); }
-    inline QColor textTertiary()   { return QColor(0x90, 0x90, 0x90); }
+    inline QColor textPrimary()    { return Theme::isDarkMode() ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F); }
+    inline QColor textSecondary()  { return Theme::isDarkMode() ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60); }
+    inline QColor textTertiary()   { return Theme::isDarkMode() ? QColor(0x9A, 0x9A, 0x9A) : QColor(0x90, 0x90, 0x90); }
 
-    // Semantic
-    inline QColor danger()         { return QColor(0xD1, 0x34, 0x38); }
-    inline QColor success()        { return QColor(0x10, 0x7C, 0x10); }
+    inline QColor danger()         { return Theme::isDarkMode() ? QColor(0xFF, 0x99, 0x9A) : QColor(0xD1, 0x34, 0x38); }
+    inline QColor success()        { return Theme::isDarkMode() ? QColor(0x6C, 0xD7, 0x6C) : QColor(0x10, 0x7C, 0x10); }
 
-    // Borders & Dividers
-    inline QColor border()         { return QColor(0, 0, 0, 20); }
-    inline QColor divider()        { return QColor(0, 0, 0, 15); }
-    inline QColor cardBorder()     { return QColor(0, 0, 0, 15); }       // slightly more visible
-    inline QColor sidebarBorder()  { return QColor(0, 0, 0, 13); }
+    inline QColor border()         { return Theme::isDarkMode() ? QColor(255, 255, 255, 30) : QColor(0, 0, 0, 20); }
+    inline QColor divider()        { return Theme::isDarkMode() ? QColor(255, 255, 255, 22) : QColor(0, 0, 0, 15); }
+    inline QColor cardBorder()     { return Theme::isDarkMode() ? QColor(255, 255, 255, 26) : QColor(0, 0, 0, 15); }
+    inline QColor sidebarBorder()  { return Theme::isDarkMode() ? QColor(255, 255, 255, 20) : QColor(0, 0, 0, 13); }
 
-    // Hover / Selection
-    inline QColor hoverBg()        { return QColor(0, 0, 0, 10); }
-    inline QColor selectedBg()     { return QColor(0, 120, 212, 20); }
-    inline QColor activeNavBg()    { return QColor(0, 120, 212, 26); }
-    inline QColor rowHover()       { return QColor(0, 0, 0, 6); }
+    inline QColor hoverBg()        { return Theme::isDarkMode() ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 10); }
+    inline QColor selectedBg()     { return Theme::isDarkMode() ? QColor(0, 120, 212, 46) : QColor(0, 120, 212, 20); }
+    inline QColor activeNavBg()    { return Theme::isDarkMode() ? QColor(0, 120, 212, 54) : QColor(0, 120, 212, 26); }
+    inline QColor rowHover()       { return Theme::isDarkMode() ? QColor(255, 255, 255, 12) : QColor(0, 0, 0, 6); }
 
-    // Close button
     inline QColor closeHover()     { return QColor(0xE8, 0x11, 0x23); }
 }
 
-// ── Typography (smaller sizes) ──────────────────
 namespace Typography {
     inline QString fontFamily() { return QStringLiteral("Segoe UI, Microsoft YaHei UI"); }
 
@@ -86,7 +122,6 @@ namespace Typography {
     }
 }
 
-// ── Spacing & Sizing ────────────────────────────
 namespace Spacing {
     constexpr int pageMargin    = 16;
     constexpr int cardGap       = 12;
@@ -106,7 +141,6 @@ namespace Spacing {
     constexpr int tableRowH     = 40;
 }
 
-// ── Animation ───────────────────────────────────
 namespace Animation {
     constexpr int hoverDuration = 120;
     constexpr int fadeDuration  = 160;

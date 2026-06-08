@@ -35,7 +35,7 @@ protected:
         p.setRenderHint(QPainter::Antialiasing, true);
         const QPointF c = rect().center();
         const QColor color = kind_ == Kind::Enabled
-            ? QColor(0x20, 0x20, 0x20)
+            ? Fluent::Colors::textPrimary()
             : Fluent::Colors::textSecondary();
         QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
         p.setPen(pen);
@@ -135,7 +135,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     // -- 暂停按键区域（表格下方） --
     auto* pauseSeparator = new QWidget(this);
     pauseSeparator->setFixedHeight(1);
-    pauseSeparator->setStyleSheet("background: rgba(0,0,0,0.06);");
+    pauseSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     tableCard->contentLayout()->addWidget(pauseSeparator);
     tableCard->contentLayout()->addSpacing(8);
 
@@ -354,7 +354,8 @@ void KeyPage::refreshPauseKeyList() {
     } else {
         for (int i = 0; i < static_cast<int>(pauseKeys_.size()); ++i) {
             auto* tag = new QWidget(pauseKeyListWidget_);
-            tag->setStyleSheet("background: rgba(0,0,0,0.05); border-radius: 4px;");
+            tag->setStyleSheet(QString("background: %1; border-radius: 4px;")
+                .arg(Fluent::Colors::hoverBg().name(QColor::HexArgb)));
             auto* tagLayout = new QHBoxLayout(tag);
             tagLayout->setContentsMargins(6, 2, 2, 2);
             tagLayout->setSpacing(2);

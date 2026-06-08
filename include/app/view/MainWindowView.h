@@ -19,6 +19,7 @@ public:
     void showRepeatPage();
     void showMacroPage();
     void updateFactionVisuals(QMainWindow* window);
+    void refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged, bool refreshThemeColors, int nativeDpi = 0);
     void hideTrayIcon();
 
     [[nodiscard]] bool isRepeatPageActive() const;

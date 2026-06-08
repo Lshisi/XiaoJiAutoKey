@@ -14,6 +14,7 @@ public:
 
     void setButtonStyle(Style style);
     Style buttonStyle() const { return style_; }
+    void refreshMetrics();
 
     qreal hoverProgress() const { return hoverProgress_; }
     void setHoverProgress(qreal v);

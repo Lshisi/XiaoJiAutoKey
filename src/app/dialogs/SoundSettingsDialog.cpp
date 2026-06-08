@@ -38,11 +38,13 @@ SoundSettingsDialog::SoundSettingsDialog(
 
     const QString accentColor = FactionTheme::instance().palette().accent.name();
     setStyleSheet(QString(
-        "QLabel { color: #202020; }"
-        "QSlider::groove:horizontal { height: 4px; background: rgba(0,0,0,0.10); border-radius: 2px; }"
+        "QLabel { color: %2; }"
+        "QSlider::groove:horizontal { height: 4px; background: %3; border-radius: 2px; }"
         "QSlider::handle:horizontal { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; background: %1; }"
         "QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
-    ).arg(accentColor));
+    ).arg(accentColor,
+        Fluent::Colors::textPrimary().name(),
+        Fluent::Colors::border().name(QColor::HexArgb)));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(22, 18, 22, 18);

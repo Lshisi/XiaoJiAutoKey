@@ -1,4 +1,5 @@
 #include "FactionTheme.h"
+#include "DesignTokens.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,10 +25,13 @@ double relativeLuminance(const QColor& c) {
     return 0.2126 * channel(c.red()) + 0.7152 * channel(c.green()) + 0.0722 * channel(c.blue());
 }
 
-QColor usableAccent(const QColor& color) {
+QColor usableAccent(const QColor& color, bool darkMode) {
     QColor accent = color;
     accent.setAlpha(255);
-    if (relativeLuminance(accent) > 0.42) {
+    const double luminance = relativeLuminance(accent);
+    if (darkMode && luminance < 0.34) {
+        accent = mixColor(accent, QColor(0xFF, 0xFF, 0xFF), 0.22);
+    } else if (!darkMode && luminance > 0.42) {
         accent = mixColor(accent, QColor(0x18, 0x18, 0x18), 0.10);
     }
     return accent;
@@ -179,17 +183,20 @@ void FactionTheme::setCurrent(const QString& factionId) {
 QColor FactionTheme::primaryColor() const { return current().primaryColor; }
 QColor FactionTheme::secondaryColor() const { return current().secondaryColor; }
 FactionPalette FactionTheme::palette() const {
-    const QColor accent = usableAccent(current().primaryColor);
+    const bool darkMode = Fluent::Theme::isDarkMode();
+    const QColor accent = usableAccent(current().primaryColor, darkMode);
     const QColor white(0xFF, 0xFF, 0xFF);
     const QColor black(0x00, 0x00, 0x00);
+    const QColor surfaceBase = darkMode ? QColor(0x20, 0x20, 0x20) : QColor(0xF7, 0xF8, 0xFA);
+    const QColor cardBase = darkMode ? QColor(0x2B, 0x2B, 0x2B) : white;
     FactionPalette p;
     p.accent = accent;
-    p.accentHover = mixColor(accent, black, 0.10);
-    p.accentPressed = mixColor(accent, black, 0.18);
-    p.accentSoft = mixColor(white, accent, 0.12, 255);
-    p.accentSubtle = mixColor(white, accent, 0.06, 255);
-    p.accentBorder = mixColor(white, accent, 0.34, 255);
-    p.surfaceTint = mixColor(QColor(0xF7, 0xF8, 0xFA), accent, 0.025, 255);
+    p.accentHover = darkMode ? mixColor(accent, white, 0.12) : mixColor(accent, black, 0.10);
+    p.accentPressed = darkMode ? mixColor(accent, black, 0.16) : mixColor(accent, black, 0.18);
+    p.accentSoft = mixColor(cardBase, accent, darkMode ? 0.30 : 0.12, 255);
+    p.accentSubtle = mixColor(cardBase, accent, darkMode ? 0.18 : 0.06, 255);
+    p.accentBorder = mixColor(cardBase, accent, darkMode ? 0.55 : 0.34, 255);
+    p.surfaceTint = mixColor(surfaceBase, accent, darkMode ? 0.045 : 0.025, 255);
     p.textOnAccent = relativeLuminance(accent) > 0.48 ? QColor(0x16, 0x16, 0x16) : white;
     return p;
 }

@@ -28,17 +28,14 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     // Icon
     iconLabel_ = new QLabel(this);
     iconLabel_->setFixedSize(20, 20);
-    iconLabel_->setScaledContents(true);
+    iconLabel_->setAlignment(Qt::AlignCenter);
     layout->addWidget(iconLabel_);
 
     layout->addSpacing(8);
 
     // Title
     titleLabel_ = new QLabel(this);
-    titleLabel_->setFont(Fluent::Typography::titleBarTitle());
-    QPalette pal = titleLabel_->palette();
-    pal.setColor(QPalette::WindowText, Fluent::Colors::textPrimary());
-    titleLabel_->setPalette(pal);
+    applyTitlePalette();
     layout->addWidget(titleLabel_);
 
     layout->addStretch();
@@ -53,11 +50,11 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     // Close button special hover
     closeBtn_->setProperty("captionClose", true);
     closeBtn_->setStyleSheet(
-        "QPushButton {"
+        QString("QPushButton {"
         "  border: none;"
         "  background: transparent;"
         "  border-radius: 6px;"
-        "  color: #202020;"
+        "  color: %1;"
         "}"
         "QPushButton:hover {"
         "  background: #E81123;"
@@ -66,8 +63,8 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
         "QPushButton:pressed {"
         "  background: #C50F1F;"
         "  color: white;"
-        "}"
-    );
+        "}")
+        .arg(Fluent::Colors::textPrimary().name()));
 
     connect(minBtn_, &QPushButton::clicked, this, &FluentTitleBar::minimizeClicked);
     connect(closeBtn_, &QPushButton::clicked, this, &FluentTitleBar::closeClicked);
@@ -78,7 +75,68 @@ void FluentTitleBar::setTitle(const QString& title) {
 }
 
 void FluentTitleBar::setIcon(const QIcon& icon) {
-    iconLabel_->setPixmap(icon.pixmap(24, 24));
+    icon_ = icon;
+    iconLabel_->setPixmap(icon_.pixmap(QSize(20, 20)));
+}
+
+void FluentTitleBar::refreshThemeStyle() {
+    setFixedHeight(Fluent::Spacing::titleBarHeight);
+    applyTitlePalette();
+
+    if (!icon_.isNull()) {
+        iconLabel_->setPixmap(icon_.pixmap(QSize(20, 20)));
+    }
+
+    const auto captionStyle = QString(
+        "QPushButton {"
+        "  border: none;"
+        "  background: transparent;"
+        "  border-radius: 6px;"
+        "  color: %1;"
+        "}"
+        "QPushButton:hover {"
+        "  background: %2;"
+        "}"
+        "QPushButton:pressed {"
+        "  background: %3;"
+        "}")
+        .arg(Fluent::Colors::textPrimary().name(),
+            Fluent::Colors::hoverBg().name(QColor::HexArgb),
+            Fluent::Colors::selectedBg().name(QColor::HexArgb));
+    minBtn_->setStyleSheet(captionStyle);
+    closeBtn_->setStyleSheet(
+        QString("QPushButton {"
+        "  border: none;"
+        "  background: transparent;"
+        "  border-radius: 6px;"
+        "  color: %1;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #E81123;"
+        "  color: white;"
+        "}"
+        "QPushButton:pressed {"
+        "  background: #C50F1F;"
+        "  color: white;"
+        "}")
+        .arg(Fluent::Colors::textPrimary().name()));
+    updateGeometry();
+    update();
+}
+
+void FluentTitleBar::applyTitlePalette() {
+    titleLabel_->setFont(Fluent::Typography::titleBarTitle());
+    titleLabel_->setAutoFillBackground(false);
+    titleLabel_->setStyleSheet(QString("QLabel { color: %1; background: transparent; }")
+        .arg(Fluent::Colors::textPrimary().name()));
+
+    QPalette pal = titleLabel_->palette();
+    const QColor text = Fluent::Colors::textPrimary();
+    for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+        pal.setColor(group, QPalette::WindowText, text);
+        pal.setColor(group, QPalette::Text, text);
+    }
+    titleLabel_->setPalette(pal);
 }
 
 QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QString& tooltip) {
@@ -89,19 +147,21 @@ QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QStr
     btn->setCursor(Qt::ArrowCursor);
     btn->setFont(QFont("Segoe UI", 9));
     btn->setStyleSheet(
-        "QPushButton {"
+        QString("QPushButton {"
         "  border: none;"
         "  background: transparent;"
         "  border-radius: 6px;"
-        "  color: #202020;"
+        "  color: %1;"
         "}"
         "QPushButton:hover {"
-        "  background: rgba(0,0,0,0.06);"
+        "  background: %2;"
         "}"
         "QPushButton:pressed {"
-        "  background: rgba(0,0,0,0.09);"
-        "}"
-    );
+        "  background: %3;"
+        "}")
+        .arg(Fluent::Colors::textPrimary().name(),
+            Fluent::Colors::hoverBg().name(QColor::HexArgb),
+            Fluent::Colors::selectedBg().name(QColor::HexArgb)));
     return btn;
 }
 

@@ -11,6 +11,7 @@ public:
     FluentCard(const QString& title, QWidget* parent = nullptr);
 
     void setTitle(const QString& title);
+    void refreshThemeStyle();
     QVBoxLayout* contentLayout() { return contentLayout_; }
 
 protected:

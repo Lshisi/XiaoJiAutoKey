@@ -18,8 +18,8 @@ void drawRoundedDialog(QPainter& painter, const QRect& rect) {
     painter.setRenderHint(QPainter::Antialiasing, true);
     QPainterPath path;
     path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), kDialogRadius, kDialogRadius);
-    painter.fillPath(path, QColor(0xFF, 0xFF, 0xFF));
-    painter.setPen(QPen(QColor(0, 0, 0, 24), 1));
+    painter.fillPath(path, Fluent::Colors::cardBg());
+    painter.setPen(QPen(Fluent::Colors::cardBorder(), 1));
     painter.drawPath(path);
 }
 }

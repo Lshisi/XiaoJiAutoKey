@@ -23,6 +23,7 @@ public:
         std::function<ProfileConfig*()> activeProfile;
         std::function<MacroConfig*()> activeMacro;
         std::function<void()> refreshHookState;
+        std::function<void()> refreshStatusIndicators;
         std::function<void(bool, bool)> playToggleSound;
     };
 

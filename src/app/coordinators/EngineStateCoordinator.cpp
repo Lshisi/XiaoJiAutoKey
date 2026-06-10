@@ -73,5 +73,6 @@ void EngineStateCoordinator::updateRepeatStatus() {
 
 void EngineStateCoordinator::handleRepeatStateChanged(bool running) {
     if (context_.view) context_.view->keyPage()->setRunning(running);
+    if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
     if (context_.playToggleSound) context_.playToggleSound(running, false);
 }

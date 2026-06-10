@@ -42,6 +42,7 @@ void MacroCoordinator::pollRunningState() {
     context_.page->setRunning(running);
     if (running != lastMacroRunning_) {
         lastMacroRunning_ = running;
+        if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
         if (context_.playToggleSound) context_.playToggleSound(running);
     }
 }
@@ -250,6 +251,7 @@ void MacroCoordinator::onMacroStartStopClicked() {
         if (context_.playToggleSound) context_.playToggleSound(true);
     }
     context_.page->setRunning(!running);
+    if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
 }
 
 void MacroCoordinator::onMacroModeChanged(int modeIndex) {
@@ -287,4 +289,5 @@ void MacroCoordinator::stopAllForConfigChange() {
     if (context_.engine) context_.engine->StopAll();
     if (context_.page) context_.page->setRunning(false);
     lastMacroRunning_ = false;
+    if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
 }

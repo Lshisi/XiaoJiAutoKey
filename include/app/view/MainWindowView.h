@@ -1,18 +1,25 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QIcon>
 #include <QMenu>
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
 
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#endif
+
 class AboutPage;
 class FluentSidebar;
+class FluentTitleBar;
 class KeyPage;
 class MacroPage;
 class SettingsPage;
 
 class MainWindowView {
 public:
+    ~MainWindowView();
     void setup(QMainWindow* window);
     void initializeTray(QMainWindow* window);
 
@@ -20,6 +27,7 @@ public:
     void showRepeatPage();
     void showMacroPage();
     void updateFactionVisuals(QMainWindow* window);
+    void updateActivityIcons(QMainWindow* window, bool repeatRunning, bool macroRunning);
     void refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged, bool refreshThemeColors, int nativeDpi = 0);
     void hideTrayIcon();
 
@@ -39,6 +47,14 @@ private:
     MacroPage* macroPage_ = nullptr;
     SettingsPage* settingsPage_ = nullptr;
     AboutPage* aboutPage_ = nullptr;
+    FluentTitleBar* titleBar_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
+    QIcon idleIcon_;
+    QIcon activeIcon_;
+    bool activityIconActive_ = false;
+#ifdef Q_OS_WIN
+    HICON idleNativeIcon_ = nullptr;
+    HICON activeNativeIcon_ = nullptr;
+#endif
 };

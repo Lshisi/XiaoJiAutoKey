@@ -19,6 +19,7 @@ void MainWindow::setupUi() {
         [this]() { return profileController_.activeProfile(); },
         [this]() { return macroController_.activeMacro(); },
         [this]() { engineHookCoordinator_.refreshState(); },
+        [this]() { refreshStatusOverlay(); },
         [this](bool running, bool macroMode) { soundCoordinator_.playToggleSound(running, macroMode); }
     });
 
@@ -103,6 +104,7 @@ void MainWindow::setupUi() {
             pageRefreshCoordinator_.refreshMacro();
             refreshStatusOverlay();
         },
+        [this]() { refreshStatusOverlay(); },
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this](bool running) { soundCoordinator_.playToggleSound(running, true); },
         [this](bool enabled) {

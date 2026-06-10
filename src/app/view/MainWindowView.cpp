@@ -18,15 +18,21 @@
 #include <QApplication>
 #include <QCursor>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QLabel>
+#include <QLayout>
 #include <QPushButton>
+#include <QPixmap>
 #include <QScrollArea>
 #include <QScreen>
-#include <QTimer>
 #include <QStyle>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWindow>
-#include <QLayout>
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#endif
 
 namespace {
 constexpr int kBaseWindowWidth = 780;
@@ -320,11 +326,101 @@ void refreshWidgetTree(QWidget* widget) {
         refreshWidgetTree(child);
     }
 }
+
+#ifdef Q_OS_WIN
+HICON createNativeIcon(const QIcon& icon, int size) {
+    if (icon.isNull() || size <= 0) {
+        return nullptr;
+    }
+
+    const QPixmap pixmap = icon.pixmap(size, size);
+    if (pixmap.isNull()) {
+        return nullptr;
+    }
+
+    const QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull()) {
+        return nullptr;
+    }
+
+    BITMAPV5HEADER header{};
+    header.bV5Size = sizeof(BITMAPV5HEADER);
+    header.bV5Width = image.width();
+    header.bV5Height = -image.height();
+    header.bV5Planes = 1;
+    header.bV5BitCount = 32;
+    header.bV5Compression = BI_BITFIELDS;
+    header.bV5RedMask = 0x00FF0000;
+    header.bV5GreenMask = 0x0000FF00;
+    header.bV5BlueMask = 0x000000FF;
+    header.bV5AlphaMask = 0xFF000000;
+
+    void* bits = nullptr;
+    HDC screenDc = GetDC(nullptr);
+    HBITMAP colorBitmap = CreateDIBSection(screenDc, reinterpret_cast<BITMAPINFO*>(&header),
+        DIB_RGB_COLORS, &bits, nullptr, 0);
+    ReleaseDC(nullptr, screenDc);
+    if (!colorBitmap || !bits) {
+        if (colorBitmap) {
+            DeleteObject(colorBitmap);
+        }
+        return nullptr;
+    }
+
+    memcpy(bits, image.constBits(), static_cast<size_t>(image.sizeInBytes()));
+    HBITMAP maskBitmap = CreateBitmap(image.width(), image.height(), 1, 1, nullptr);
+    if (!maskBitmap) {
+        DeleteObject(colorBitmap);
+        return nullptr;
+    }
+
+    ICONINFO iconInfo{};
+    iconInfo.fIcon = TRUE;
+    iconInfo.hbmMask = maskBitmap;
+    iconInfo.hbmColor = colorBitmap;
+    const HICON nativeIcon = CreateIconIndirect(&iconInfo);
+
+    DeleteObject(maskBitmap);
+    DeleteObject(colorBitmap);
+    return nativeIcon;
+}
+
+void applyNativeWindowIcon(QMainWindow* window, HICON icon) {
+    if (!window || !icon) {
+        return;
+    }
+
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    if (!hwnd) {
+        return;
+    }
+
+    SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+    SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+    RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+}
+#endif
+}
+
+MainWindowView::~MainWindowView() {
+#ifdef Q_OS_WIN
+    if (idleNativeIcon_) {
+        DestroyIcon(idleNativeIcon_);
+        idleNativeIcon_ = nullptr;
+    }
+    if (activeNativeIcon_) {
+        DestroyIcon(activeNativeIcon_);
+        activeNativeIcon_ = nullptr;
+    }
+#endif
 }
 
 void MainWindowView::setup(QMainWindow* window) {
     window->setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
-    window->setWindowIcon(QIcon(":/assets/icon.png"));
+    idleIcon_ = QIcon(":/assets/icon.png");
+    activeIcon_ = QIcon(":/assets/icon-active.png");
+    activityIconActive_ = false;
+    window->setWindowIcon(idleIcon_);
     window->setWindowFlags((window->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowMaximizeButtonHint);
     window->setAttribute(Qt::WA_TranslucentBackground, true);
     window->setAutoFillBackground(false);
@@ -356,12 +452,12 @@ void MainWindowView::setup(QMainWindow* window) {
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
-    auto* titleBar = new FluentTitleBar(window);
-    titleBar->setTitle(window->windowTitle());
-    titleBar->setIcon(window->windowIcon());
-    rootLayout->addWidget(titleBar);
-    QObject::connect(titleBar, &FluentTitleBar::minimizeClicked, window, &QMainWindow::showMinimized);
-    QObject::connect(titleBar, &FluentTitleBar::closeClicked, window, &QMainWindow::close);
+    titleBar_ = new FluentTitleBar(window);
+    titleBar_->setTitle(window->windowTitle());
+    titleBar_->setIcon(window->windowIcon());
+    rootLayout->addWidget(titleBar_);
+    QObject::connect(titleBar_, &FluentTitleBar::minimizeClicked, window, &QMainWindow::showMinimized);
+    QObject::connect(titleBar_, &FluentTitleBar::closeClicked, window, &QMainWindow::close);
 
     auto* bodyLayout = new QHBoxLayout();
     bodyLayout->setContentsMargins(0, 0, 0, 0);
@@ -422,7 +518,7 @@ void MainWindowView::initializeTray(QMainWindow* window) {
         return;
     }
 
-    trayIcon_ = new QSystemTrayIcon(QIcon(":/assets/icon.png"), window);
+    trayIcon_ = new QSystemTrayIcon(activityIconActive_ ? activeIcon_ : idleIcon_, window);
     trayMenu_ = new QMenu(window);
     auto* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
     auto* quitAction = trayMenu_->addAction(QString::fromWCharArray(L"\u9000\u51fa"));
@@ -465,6 +561,40 @@ void MainWindowView::showMacroPage() {
 
 bool MainWindowView::isRepeatPageActive() const {
     return pageStack_->currentWidget() == keyPage_;
+}
+
+void MainWindowView::updateActivityIcons(QMainWindow* window, bool repeatRunning, bool macroRunning) {
+    if (!window) {
+        return;
+    }
+
+    const bool active = repeatRunning || macroRunning;
+    if (idleIcon_.isNull()) {
+        idleIcon_ = QIcon(":/assets/icon.png");
+    }
+    if (activeIcon_.isNull()) {
+        activeIcon_ = QIcon(":/assets/icon-active.png");
+    }
+
+    activityIconActive_ = active;
+    const QIcon icon = active ? activeIcon_ : idleIcon_;
+    qApp->setWindowIcon(icon);
+    window->setWindowIcon(icon);
+#ifdef Q_OS_WIN
+    if (!idleNativeIcon_) {
+        idleNativeIcon_ = createNativeIcon(idleIcon_, 256);
+    }
+    if (!activeNativeIcon_) {
+        activeNativeIcon_ = createNativeIcon(activeIcon_, 256);
+    }
+    applyNativeWindowIcon(window, active ? activeNativeIcon_ : idleNativeIcon_);
+#endif
+    if (titleBar_) {
+        titleBar_->setIcon(icon);
+    }
+    if (trayIcon_) {
+        trayIcon_->setIcon(icon);
+    }
 }
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
@@ -536,9 +666,7 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
         refreshWidgetTree(central);
     }
 
-    if (trayIcon_) {
-        trayIcon_->setIcon(QIcon(":/assets/icon.png"));
-    }
+    updateActivityIcons(window, activityIconActive_, false);
 
     if (auto* handle = window->windowHandle()) {
         handle->requestUpdate();

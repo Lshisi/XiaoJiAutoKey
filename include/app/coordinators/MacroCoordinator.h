@@ -28,6 +28,7 @@ public:
         std::function<void()> applyMacros;
         std::function<void()> saveConfig;
         std::function<void()> refreshMacroPage;
+        std::function<void()> refreshStatusIndicators;
         std::function<void(bool)> setRepeatRunning;
         std::function<void(bool)> playToggleSound;
         std::function<void(bool)> setMacroBeepEnabled;

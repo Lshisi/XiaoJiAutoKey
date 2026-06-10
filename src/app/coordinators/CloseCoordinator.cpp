@@ -6,6 +6,7 @@
 
 #include <QCloseEvent>
 #include <QDialog>
+#include <QMainWindow>
 
 CloseCoordinator::CloseCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -21,6 +22,9 @@ void CloseCoordinator::handleClose(QCloseEvent* event) {
 
     if (context_.saveConfig) context_.saveConfig();
     if (context_.config->closeAction == CloseAction::Minimize) {
+        if (auto* window = qobject_cast<QMainWindow*>(context_.parent)) {
+            context_.view->initializeTray(window);
+        }
         if (context_.hideWindow) context_.hideWindow();
         event->ignore();
         return;
@@ -50,6 +54,9 @@ void CloseCoordinator::handleClose(QCloseEvent* event) {
         context_.view->hideTrayIcon();
         event->accept();
     } else {
+        if (auto* window = qobject_cast<QMainWindow*>(context_.parent)) {
+            context_.view->initializeTray(window);
+        }
         if (context_.hideWindow) context_.hideWindow();
         event->ignore();
     }

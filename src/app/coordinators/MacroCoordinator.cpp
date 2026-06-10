@@ -229,6 +229,8 @@ void MacroCoordinator::onMacroStartStopClicked() {
     const bool running = context_.engine->IsRunning(macro->id);
     if (running) {
         context_.engine->StopAll();
+        lastMacroRunning_ = false;
+        if (context_.playToggleSound) context_.playToggleSound(false);
     } else {
         if (!macro->triggerKey.has_value()) {
             AppMessageDialog::warning(context_.parent,
@@ -244,6 +246,8 @@ void MacroCoordinator::onMacroStartStopClicked() {
             }
         }
         context_.engine->OnTriggerDown(*macro->triggerKey);
+        lastMacroRunning_ = true;
+        if (context_.playToggleSound) context_.playToggleSound(true);
     }
     context_.page->setRunning(!running);
 }

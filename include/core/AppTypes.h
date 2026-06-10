@@ -87,7 +87,7 @@ struct AppConfig {
     int statusOverlayY = 6;
     int statusOverlayOpacity = 70;
     CloseAction closeAction = CloseAction::Ask;
-    std::string faction = "none";
+    std::string faction = "cangjian";
 
     std::wstring customSoundOn;
     std::wstring customSoundOff;

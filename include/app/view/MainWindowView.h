@@ -14,6 +14,7 @@ class SettingsPage;
 class MainWindowView {
 public:
     void setup(QMainWindow* window);
+    void initializeTray(QMainWindow* window);
 
     void navigateTo(const QString& pageId);
     void showRepeatPage();

@@ -46,6 +46,7 @@ void expandSuggestedRectForDpi(RECT* rect, int dpi) {
         rect->bottom = rect->top + minHeight;
     }
 }
+
 }
 
 MainWindow::MainWindow(QWidget* parent)
@@ -72,6 +73,11 @@ MainWindow::~MainWindow() {
 bool MainWindow::Initialize() {
     setupUi();
     configCoordinator_.load();
+    soundService_.warmUpToggleSounds(
+        config_.customSoundOn,
+        config_.customSoundOff,
+        config_.macroSoundOn,
+        config_.macroSoundOff);
 
     if (!driver_.LoadFromDirectory(appPaths_.exeDir())) {
         std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " + driver_.GetLastError() +
@@ -95,6 +101,9 @@ bool MainWindow::Initialize() {
     refreshStatusOverlay();
     bindDpiRefreshSignals();
     observedScreenDpi_ = currentScreenDpi();
+    QTimer::singleShot(250, this, [this]() {
+        view_.initializeTray(this);
+    });
     return true;
 }
 

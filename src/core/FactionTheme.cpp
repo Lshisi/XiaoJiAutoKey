@@ -40,10 +40,6 @@ QColor usableAccent(const QColor& color, bool darkMode) {
 }
 
 FactionTheme::FactionTheme() {
-    // Default (no faction) - uses standard blue
-    factions_.push_back({"none", QString::fromWCharArray(L"\u65e0"),
-        QColor(0x00, 0x78, 0xD4), QColor(0x00, 0x78, 0xD4, 40), QString(), QString()});
-
     // Shaolin
     factions_.push_back({"shaolin", QString::fromWCharArray(L"\u5c11\u6797"),
         QColor(0xD1, 0x83, 0x36), QColor(0xD1, 0x83, 0x36, 30),
@@ -148,6 +144,8 @@ FactionTheme::FactionTheme() {
     factions_.push_back({"wuxiang", QString::fromWCharArray(L"\u65e0\u76f8"),
         QColor(0xA6, 0x5E, 0xFD), QColor(0xA6, 0x5E, 0xFD, 30),
         QString(), QString()});
+
+    setCurrent(QStringLiteral("cangjian"));
 }
 
 FactionTheme& FactionTheme::instance() {
@@ -173,6 +171,12 @@ const FactionInfo* FactionTheme::find(const QString& id) const {
 void FactionTheme::setCurrent(const QString& factionId) {
     for (int i = 0; i < static_cast<int>(factions_.size()); ++i) {
         if (factions_[i].id == factionId) {
+            currentIndex_ = i;
+            return;
+        }
+    }
+    for (int i = 0; i < static_cast<int>(factions_.size()); ++i) {
+        if (factions_[i].id == QStringLiteral("cangjian")) {
             currentIndex_ = i;
             return;
         }

@@ -11,25 +11,41 @@
 namespace Fluent {
 
 namespace Theme {
-    inline bool isDarkMode() {
+    inline bool readSystemDarkMode() {
 #ifdef Q_OS_WIN
         QSettings settings(
             QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
             QSettings::NativeFormat);
-        settings.sync();
         return settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
 #else
         return false;
 #endif
     }
 
+    inline bool& darkModeCache() {
+        static bool value = readSystemDarkMode();
+        return value;
+    }
+
+    inline bool refreshDarkModeCache() {
+        bool& value = darkModeCache();
+        const bool previous = value;
+        value = readSystemDarkMode();
+        return value != previous;
+    }
+
+    inline bool isDarkMode() {
+        return darkModeCache();
+    }
+
     inline QPalette applicationPalette() {
         QPalette palette;
-        const QColor window = isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xFF, 0xFF, 0xFF);
-        const QColor base = isDarkMode() ? QColor(0x2B, 0x2B, 0x2B) : QColor(0xFF, 0xFF, 0xFF);
-        const QColor text = isDarkMode() ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F);
-        const QColor muted = isDarkMode() ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60);
-        const QColor disabled = isDarkMode() ? QColor(0x9A, 0x9A, 0x9A) : QColor(0x90, 0x90, 0x90);
+        const bool dark = isDarkMode();
+        const QColor window = dark ? QColor(0x20, 0x20, 0x20) : QColor(0xFF, 0xFF, 0xFF);
+        const QColor base = dark ? QColor(0x2B, 0x2B, 0x2B) : QColor(0xFF, 0xFF, 0xFF);
+        const QColor text = dark ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F);
+        const QColor muted = dark ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60);
+        const QColor disabled = dark ? QColor(0x9A, 0x9A, 0x9A) : QColor(0x90, 0x90, 0x90);
         const QColor accent(0x00, 0x78, 0xD4);
 
         palette.setColor(QPalette::Window, window);

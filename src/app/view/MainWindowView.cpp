@@ -342,7 +342,7 @@ void refreshWidgetTree(QWidget* widget) {
 }
 
 void MainWindowView::setup(QMainWindow* window) {
-    window->setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e~"));
+    window->setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
     window->setWindowIcon(QIcon(":/assets/icon.png"));
     window->setWindowFlags((window->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowMaximizeButtonHint);
     window->setAttribute(Qt::WA_TranslucentBackground, true);
@@ -434,6 +434,13 @@ void MainWindowView::setup(QMainWindow* window) {
     statusLayout->addWidget(authorLabel);
     rootLayout->addWidget(statusBar);
 
+}
+
+void MainWindowView::initializeTray(QMainWindow* window) {
+    if (trayIcon_ || !window) {
+        return;
+    }
+
     trayIcon_ = new QSystemTrayIcon(QIcon(":/assets/icon.png"), window);
     trayMenu_ = new QMenu(window);
     auto* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
@@ -441,7 +448,6 @@ void MainWindowView::setup(QMainWindow* window) {
     trayIcon_->setContextMenu(trayMenu_);
     trayIcon_->setToolTip(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
     trayIcon_->show();
-
     QObject::connect(showAction, &QAction::triggered, window, [window]() {
         window->showNormal();
         window->activateWindow();

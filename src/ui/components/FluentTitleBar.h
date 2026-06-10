@@ -29,7 +29,6 @@ protected:
 
 private:
     QPushButton* createCaptionButton(const QString& icon, const QString& tooltip);
-    QWidget* createTrafficLight(const QColor& color);
     void applyTitlePalette();
 
     QLabel* iconLabel_;

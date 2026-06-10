@@ -40,9 +40,12 @@ void SoundCoordinator::playToggleSound(bool running, bool macroMode) const {
     const auto soundPath = context_.service->resolveToggleSoundPath(running, macroMode, customOn, customOff);
     if (soundPath.empty()) return;
 
+    const wchar_t* alias = macroMode
+        ? (running ? L"autokey_macro_on_sound" : L"autokey_macro_off_sound")
+        : (running ? L"autokey_repeat_on_sound" : L"autokey_repeat_off_sound");
     context_.service->playFile(soundPath,
         macroMode ? context_.config->macroSoundVolume : context_.config->soundVolume,
-        macroMode ? L"autokey_macro_toggle_sound" : L"autokey_toggle_sound");
+        alias);
     lastToggleSoundTick_ = now;
 }
 
@@ -79,5 +82,10 @@ void SoundCoordinator::openSettings() {
         context_.config->customSoundOff = settings.soundOff;
         context_.config->soundVolume = settings.volume;
     }
+    context_.service->warmUpToggleSounds(
+        context_.config->customSoundOn,
+        context_.config->customSoundOff,
+        context_.config->macroSoundOn,
+        context_.config->macroSoundOff);
     if (context_.saveConfig) context_.saveConfig();
 }

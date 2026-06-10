@@ -309,14 +309,7 @@ void SettingsPage::applyPageTheme() {
                 showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
             }
         } else {
-            if (faction.id == QStringLiteral("none")) {
-                factionPreviewIcon_->setPixmap(QPixmap());
-                factionPreviewIcon_->setText(QString());
-                factionPreviewIcon_->setStyleSheet("background: transparent;");
-                factionPreviewIcon_->hide();
-            } else {
-                showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
-            }
+            showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
         }
     }
     if (statusOverlayOpacitySlider_) {

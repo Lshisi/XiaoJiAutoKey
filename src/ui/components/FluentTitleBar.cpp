@@ -14,16 +14,8 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     setMouseTracking(true);
 
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(14, 0, 8, 0);
+    layout->setContentsMargins(12, 0, 8, 0);
     layout->setSpacing(0);
-
-    layout->addWidget(createTrafficLight(QColor(0xFF, 0x5F, 0x57)));
-    layout->addSpacing(8);
-    layout->addWidget(createTrafficLight(QColor(0xFF, 0xBD, 0x2E)));
-    layout->addSpacing(8);
-    layout->addWidget(createTrafficLight(QColor(0x28, 0xC8, 0x40)));
-
-    layout->addSpacing(16);
 
     // Icon
     iconLabel_ = new QLabel(this);
@@ -163,21 +155,6 @@ QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QStr
             Fluent::Colors::hoverBg().name(QColor::HexArgb),
             Fluent::Colors::selectedBg().name(QColor::HexArgb)));
     return btn;
-}
-
-QWidget* FluentTitleBar::createTrafficLight(const QColor& color) {
-    auto* dot = new QWidget(this);
-    dot->setFixedSize(12, 12);
-    dot->setCursor(Qt::ArrowCursor);
-    dot->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    dot->setStyleSheet(QString(
-        "QWidget {"
-        "  background: %1;"
-        "  border: 1px solid rgba(0, 0, 0, 28);"
-        "  border-radius: 6px;"
-        "}"
-    ).arg(color.name()));
-    return dot;
 }
 
 void FluentTitleBar::paintEvent(QPaintEvent*) {

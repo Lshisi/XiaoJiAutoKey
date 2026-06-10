@@ -61,7 +61,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     infoRow->addSpacing(12);
     auto* infoText = new QVBoxLayout();
     infoText->setSpacing(2);
-    auto* appName = new QLabel(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e~"), infoCard);
+    auto* appName = new QLabel(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"), infoCard);
     appName->setFont(Fluent::Typography::cardTitle());
     appName->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     infoText->addWidget(appName);
@@ -71,10 +71,10 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     infoText->addWidget(version);
     auto* desc = new QLabel(QString::fromWCharArray(L"\u4e00\u4e2a\u8f7b\u91cf\u3001\u9ad8\u6548\u7684\u6309\u952e\u81ea\u52a8\u5316\u5de5\u5177"), infoCard);
     desc->setFont(Fluent::Typography::body());
-    desc->setWordWrap(true);
+    desc->setWordWrap(false);
+    desc->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     infoText->addWidget(desc);
-    infoRow->addLayout(infoText);
-    infoRow->addStretch();
+    infoRow->addLayout(infoText, 1);
     infoCard->contentLayout()->addLayout(infoRow);
     outerCard->contentLayout()->addWidget(infoCard);
     outerCard->contentLayout()->addSpacing(12);

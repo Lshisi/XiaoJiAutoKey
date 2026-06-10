@@ -236,16 +236,9 @@ void FluentSidebar::paintEvent(QPaintEvent*) {
 void FluentSidebar::updateFactionIcon() {
     const auto& faction = FactionTheme::instance().current();
     const auto palette = FactionTheme::instance().palette();
-    const bool noFactionSelected = faction.id == QStringLiteral("none");
-    factionHeader_->setVisible(!noFactionSelected);
+    factionHeader_->setVisible(true);
     if (factionHeaderSpacer_) {
-        factionHeaderSpacer_->setVisible(!noFactionSelected);
-    }
-    if (noFactionSelected) {
-        factionIconLabel_->setPixmap(QPixmap());
-        factionIconLabel_->setText(QString());
-        factionNameLabel_->setText(QString());
-        return;
+        factionHeaderSpacer_->setVisible(true);
     }
 
     factionNameLabel_->setText(faction.name);

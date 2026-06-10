@@ -210,6 +210,8 @@ AppConfig ConfigStore::Load() const {
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
+    if (config.faction.empty() || config.faction == "none")
+        config.faction = "cangjian";
 
     if (const auto soundOn = GetStringField(*object, "customSoundOn"); soundOn.has_value() && !soundOn->empty())
         config.customSoundOn = ToWide(*soundOn);
@@ -320,7 +322,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
     root.emplace("closeAction", closeActionStr);
 
-    if (!config.faction.empty() && config.faction != "none")
+    if (!config.faction.empty())
         root.emplace("faction", config.faction);
 
     if (!config.customSoundOn.empty())

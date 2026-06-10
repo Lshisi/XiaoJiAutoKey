@@ -36,11 +36,15 @@ public:
 
 signals:
     void pageSelected(const QString& pageId);
+    void factionSelected(const QString& factionId);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void showFactionMenu();
+
     QVBoxLayout* navLayout_;
     QWidget* factionHeader_ = nullptr;
     QWidget* factionHeaderSpacer_ = nullptr;

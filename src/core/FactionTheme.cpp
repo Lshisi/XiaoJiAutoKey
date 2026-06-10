@@ -31,119 +31,45 @@ QColor usableAccent(const QColor& color, bool darkMode) {
     const double luminance = relativeLuminance(accent);
     if (darkMode && luminance < 0.34) {
         accent = mixColor(accent, QColor(0xFF, 0xFF, 0xFF), 0.22);
+    } else if (!darkMode && luminance < 0.24) {
+        const double lift = std::max(0.14, std::min(0.28, 0.12 + (0.24 - luminance) * 0.55));
+        accent = mixColor(accent, QColor(0xFF, 0xFF, 0xFF), lift);
     } else if (!darkMode && luminance > 0.42) {
         accent = mixColor(accent, QColor(0x18, 0x18, 0x18), 0.10);
     }
     return accent;
 }
 
+FactionInfo makeFaction(const char* id, const wchar_t* name, const QColor& color, const QString& iconPath = QString()) {
+    QColor secondary = color;
+    secondary.setAlpha(30);
+    return {QString::fromLatin1(id), QString::fromWCharArray(name), color, secondary, iconPath, QString()};
+}
+
 }
 
 FactionTheme::FactionTheme() {
-    // Shaolin
-    factions_.push_back({"shaolin", QString::fromWCharArray(L"\u5c11\u6797"),
-        QColor(0xD1, 0x83, 0x36), QColor(0xD1, 0x83, 0x36, 30),
-        ":/assets/factions/shaolin.png", QString()});
-
-    // Wanhua
-    factions_.push_back({"wanhua", QString::fromWCharArray(L"\u4e07\u82b1"),
-        QColor(0xC2, 0x97, 0xFD), QColor(0xC2, 0x97, 0xFD, 30),
-        ":/assets/factions/wanhua.png", QString()});
-
-    // Qixiu
-    factions_.push_back({"qixiu", QString::fromWCharArray(L"\u4e03\u79c0"),
-        QColor(0xFD, 0x80, 0xAF), QColor(0xFD, 0x80, 0xAF, 30),
-        ":/assets/factions/qixiu.png", QString()});
-
-    // Chunyang
-    factions_.push_back({"chunyang", QString::fromWCharArray(L"\u7eaf\u9633"),
-        QColor(0x0A, 0x9A, 0xA0), QColor(0x0A, 0x9A, 0xA0, 30),
-        ":/assets/factions/chunyang.png", QString()});
-
-    // Tiance
-    factions_.push_back({"tiance", QString::fromWCharArray(L"\u5929\u7b56"),
-        QColor(0xFD, 0x6E, 0x52), QColor(0xFD, 0x6E, 0x52, 30),
-        ":/assets/factions/tiance.png", QString()});
-
-    // Cangjian
-    factions_.push_back({"cangjian", QString::fromWCharArray(L"\u85cf\u5251"),
-        QColor(0xFF, 0xD2, 0x4A), QColor(0xFF, 0xD2, 0x4A, 30),
-        ":/assets/factions/cangjian.png", QString()});
-
-    // Wudu
-    factions_.push_back({"wudu", QString::fromWCharArray(L"\u4e94\u6bd2"),
-        QColor(0x37, 0x92, 0xFD), QColor(0x37, 0x92, 0xFD, 30),
-        ":/assets/factions/wudu.png", QString()});
-
-    // Tangmen
-    factions_.push_back({"tangmen", QString::fromWCharArray(L"\u5510\u95e8"),
-        QColor(0x78, 0xB6, 0x36), QColor(0x78, 0xB6, 0x36, 30),
-        ":/assets/factions/tangmen.png", QString()});
-
-    // Mingjiao
-    factions_.push_back({"mingjiao", QString::fromWCharArray(L"\u660e\u6559"),
-        QColor(0xEE, 0x45, 0x5F), QColor(0xEE, 0x45, 0x5F, 30),
-        ":/assets/factions/mingjiao.png", QString()});
-
-    // Gaibang
-    factions_.push_back({"gaibang", QString::fromWCharArray(L"\u4e10\u5e2e"),
-        QColor(0xCB, 0x84, 0x3F), QColor(0xCB, 0x84, 0x3F, 30),
-        ":/assets/factions/gaibang.png", QString()});
-
-    // Cangyun
-    factions_.push_back({"cangyun", QString::fromWCharArray(L"\u82cd\u4e91"),
-        QColor(0xB3, 0x3C, 0x00), QColor(0xB3, 0x3C, 0x00, 30),
-        ":/assets/factions/cangyun.png", QString()});
-
-    // Changge
-    factions_.push_back({"changge", QString::fromWCharArray(L"\u957f\u6b4c"),
-        QColor(0x20, 0xA8, 0x72), QColor(0x20, 0xA8, 0x72, 30),
-        ":/assets/factions/changge.png", QString()});
-
-    // 闇稿垁
-    factions_.push_back({"badao", QString::fromWCharArray(L"\u9738\u5200"),
-        QColor(0x69, 0x6B, 0xBC), QColor(0x69, 0x6B, 0xBC, 30),
-        ":/assets/factions/badao.png", QString()});
-
-    // Penglai
-    factions_.push_back({"penglai", QString::fromWCharArray(L"\u84ec\u83b1"),
-        QColor(0x3B, 0x9F, 0xC7), QColor(0x3B, 0x9F, 0xC7, 30),
-        ":/assets/factions/penglai.png", QString()});
-
-    // Lingxuege
-    factions_.push_back({"lingxuege", QString::fromWCharArray(L"\u51cc\u96ea\u9601"),
-        QColor(0xA0, 0x09, 0x22), QColor(0xA0, 0x09, 0x22, 30),
-        ":/assets/factions/lingxuege.png", QString()});
-
-    // Yantianzong
-    factions_.push_back({"yantianzong", QString::fromWCharArray(L"\u884d\u5929\u5b97"),
-        QColor(0x8B, 0x5C, 0xF6), QColor(0x8B, 0x5C, 0xF6, 30),
-        ":/assets/factions/yantianzong.png", QString()});
-
-    // Yaozong
-    factions_.push_back({"yaozong", QString::fromWCharArray(L"\u836f\u5b97"),
-        QColor(0x00, 0xAB, 0x98), QColor(0x00, 0xAB, 0x98, 30),
-        ":/assets/factions/yaozong.png", QString()});
-
-    // Daozong
-    factions_.push_back({"daozong", QString::fromWCharArray(L"\u5200\u5b97"),
-        QColor(0x70, 0x93, 0xB2), QColor(0x70, 0x93, 0xB2, 30),
-        ":/assets/factions/daozong.png", QString()});
-
-    // Wanling
-    factions_.push_back({"wanling", QString::fromWCharArray(L"\u4e07\u7075"),
-        QColor(0xB8, 0x7C, 0x00), QColor(0xB8, 0x7C, 0x00, 30),
-        ":/assets/factions/wanling.png", QString()});
-
-    // Duanshi
-    factions_.push_back({"duanshi", QString::fromWCharArray(L"\u6bb5\u6c0f"),
-        QColor(0x35, 0x9C, 0xC6), QColor(0x35, 0x9C, 0xC6, 30),
-        QString(), QString()});
-
-    // Wuxiang
-    factions_.push_back({"wuxiang", QString::fromWCharArray(L"\u65e0\u76f8"),
-        QColor(0xA6, 0x5E, 0xFD), QColor(0xA6, 0x5E, 0xFD, 30),
-        QString(), QString()});
+    factions_.push_back(makeFaction("shaolin", L"\u5c11\u6797", QColor(0x79, 0x6D, 0x0B), ":/assets/factions/shaolin.png"));
+    factions_.push_back(makeFaction("wanhua", L"\u4e07\u82b1", QColor(0x30, 0x10, 0x45), ":/assets/factions/wanhua.png"));
+    factions_.push_back(makeFaction("qixiu", L"\u4e03\u79c0", QColor(0x9F, 0x4B, 0x7F), ":/assets/factions/qixiu.png"));
+    factions_.push_back(makeFaction("chunyang", L"\u7eaf\u9633", QColor(0x09, 0x59, 0x6F), ":/assets/factions/chunyang.png"));
+    factions_.push_back(makeFaction("tiance", L"\u5929\u7b56", QColor(0x69, 0x11, 0x10), ":/assets/factions/tiance.png"));
+    factions_.push_back(makeFaction("cangjian", L"\u85cf\u5251", QColor(0x92, 0x95, 0x1C), ":/assets/factions/cangjian.png"));
+    factions_.push_back(makeFaction("wudu", L"\u6bd2\u7ecf", QColor(0x08, 0x51, 0x96), ":/assets/factions/wudu.png"));
+    factions_.push_back(makeFaction("tangmen", L"\u5510\u95e8", QColor(0x4B, 0x6F, 0x29), ":/assets/factions/tangmen.png"));
+    factions_.push_back(makeFaction("mingjiao", L"\u660e\u6559", QColor(0x8F, 0x50, 0x13), ":/assets/factions/mingjiao.png"));
+    factions_.push_back(makeFaction("gaibang", L"\u4e10\u5e2e", QColor(0x9A, 0x64, 0x26), ":/assets/factions/gaibang.png"));
+    factions_.push_back(makeFaction("cangyun", L"\u82cd\u4e91", QColor(0x99, 0x2F, 0x03), ":/assets/factions/cangyun.png"));
+    factions_.push_back(makeFaction("changge", L"\u957f\u6b4c", QColor(0x1F, 0x75, 0x64), ":/assets/factions/changge.png"));
+    factions_.push_back(makeFaction("badao", L"\u9738\u5200", QColor(0x30, 0x27, 0x6B), ":/assets/factions/badao.png"));
+    factions_.push_back(makeFaction("penglai", L"\u84ec\u83b1", QColor(0x5D, 0x61, 0x7E), ":/assets/factions/penglai.png"));
+    factions_.push_back(makeFaction("lingxuege", L"\u51cc\u96ea\u9601", QColor(0xA1, 0x09, 0x22), ":/assets/factions/lingxuege.png"));
+    factions_.push_back(makeFaction("yantianzong", L"\u884d\u5929\u5b97", QColor(0x5D, 0x2D, 0x90), ":/assets/factions/yantianzong.png"));
+    factions_.push_back(makeFaction("yaozong", L"\u836f\u5b97", QColor(0x0A, 0x51, 0x57), ":/assets/factions/yaozong.png"));
+    factions_.push_back(makeFaction("daozong", L"\u5200\u5b97", QColor(0x3B, 0x5E, 0x9F), ":/assets/factions/daozong.png"));
+    factions_.push_back(makeFaction("wanling", L"\u4e07\u7075", QColor(0xA0, 0x87, 0x4B), ":/assets/factions/wanling.png"));
+    factions_.push_back(makeFaction("duanshi", L"\u6bb5\u6c0f", QColor(0x5F, 0x9B, 0xB4)));
+    factions_.push_back(makeFaction("wuxiang", L"\u65e0\u76f8\u697c", QColor(0x69, 0x5F, 0xB9)));
 
     setCurrent(QStringLiteral("cangjian"));
 }

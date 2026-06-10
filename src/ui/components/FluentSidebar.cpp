@@ -7,6 +7,12 @@
 #include <QPen>
 #include <QPixmap>
 #include <QHBoxLayout>
+#include <QAction>
+#include <QActionGroup>
+#include <QCursor>
+#include <QEvent>
+#include <QMenu>
+#include <QMouseEvent>
 
 namespace {
 QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
@@ -185,6 +191,8 @@ FluentSidebar::FluentSidebar(QWidget* parent)
     factionHeader_ = new QWidget(this);
     factionHeader_->setObjectName("factionHeader");
     factionHeader_->setFixedHeight(58);
+    factionHeader_->setCursor(Qt::PointingHandCursor);
+    factionHeader_->installEventFilter(this);
     auto* headerLayout = new QHBoxLayout(factionHeader_);
     headerLayout->setContentsMargins(12, 8, 10, 8);
     headerLayout->setSpacing(7);
@@ -192,11 +200,13 @@ FluentSidebar::FluentSidebar(QWidget* parent)
     factionIconLabel_ = new QLabel(factionHeader_);
     factionIconLabel_->setFixedSize(34, 34);
     factionIconLabel_->setAlignment(Qt::AlignCenter);
+    factionIconLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     headerLayout->addWidget(factionIconLabel_);
 
     factionNameLabel_ = new QLabel(factionHeader_);
     factionNameLabel_->setFont(Fluent::Typography::bodyStrong());
     factionNameLabel_->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    factionNameLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     headerLayout->addWidget(factionNameLabel_, 1);
 
     navLayout_->addWidget(factionHeader_);
@@ -231,6 +241,64 @@ void FluentSidebar::paintEvent(QPaintEvent*) {
     p.setPen(Qt::NoPen);
     p.setBrush(Fluent::Colors::sidebarBorder());
     p.drawRect(width() - 1, 0, 1, height());
+}
+
+bool FluentSidebar::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == factionHeader_) {
+        if (event->type() == QEvent::MouseButtonRelease) {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton && factionHeader_->rect().contains(mouseEvent->pos())) {
+                showFactionMenu();
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void FluentSidebar::showFactionMenu() {
+    QMenu menu(this);
+    menu.setFont(Fluent::Typography::body());
+    const auto palette = FactionTheme::instance().palette();
+    menu.setStyleSheet(QString(
+        "QMenu {"
+        "  background: %1;"
+        "  border: 1px solid %2;"
+        "  border-radius: 8px;"
+        "  padding: 4px;"
+        "  color: %3;"
+        "}"
+        "QMenu::item {"
+        "  height: 28px;"
+        "  padding: 0 22px 0 12px;"
+        "  border-radius: 5px;"
+        "}"
+        "QMenu::item:selected { background: %4; }"
+        "QMenu::item:checked { color: %5; }")
+        .arg(Fluent::Colors::cardBg().name(),
+            Fluent::Colors::border().name(QColor::HexArgb),
+            Fluent::Colors::textPrimary().name(),
+            palette.accentSoft.name(QColor::HexArgb),
+            palette.accent.name()));
+
+    QActionGroup actionGroup(&menu);
+    actionGroup.setExclusive(true);
+    const QString currentId = FactionTheme::instance().current().id;
+    for (const auto& faction : FactionTheme::instance().factions()) {
+        auto* action = menu.addAction(faction.name);
+        action->setCheckable(true);
+        action->setChecked(faction.id == currentId);
+        action->setData(faction.id);
+        actionGroup.addAction(action);
+    }
+
+    const QPoint popupPos = factionHeader_->mapToGlobal(QPoint(factionHeader_->width() - 4, factionHeader_->height() - 2));
+    if (auto* selected = menu.exec(popupPos)) {
+        const QString factionId = selected->data().toString();
+        if (!factionId.isEmpty() && factionId != currentId) {
+            emit factionSelected(factionId);
+        }
+    }
 }
 
 void FluentSidebar::updateFactionIcon() {

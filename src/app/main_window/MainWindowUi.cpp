@@ -41,6 +41,9 @@ void MainWindow::setupUi() {
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
     });
+    connect(view_.sidebar(), &FluentSidebar::factionSelected, this, [this](const QString& factionId) {
+        settingsCoordinator_.setFaction(factionId);
+    });
 
     keyBindingsCoordinator_.bind(KeyBindingsCoordinator::Context{
         this,

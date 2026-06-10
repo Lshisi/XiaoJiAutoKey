@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <QString>
 #include <filesystem>
 #include <functional>
 
@@ -27,6 +28,7 @@ public:
     explicit SettingsCoordinator(QObject* parent = nullptr);
 
     void bind(Context context);
+    void setFaction(const QString& factionId);
 
 private:
     Context context_;

@@ -28,9 +28,17 @@ void SettingsCoordinator::bind(Context context) {
         if (context_.refreshOverlay) context_.refreshOverlay();
     });
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
-        context_.config->faction = factionId.toStdString();
-        FactionTheme::instance().setCurrent(factionId);
-        if (context_.saveConfig) context_.saveConfig();
-        if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
+        setFaction(factionId);
     });
+}
+
+void SettingsCoordinator::setFaction(const QString& factionId) {
+    if (!context_.config || factionId.isEmpty()) {
+        return;
+    }
+
+    context_.config->faction = factionId.toStdString();
+    FactionTheme::instance().setCurrent(factionId);
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
 }

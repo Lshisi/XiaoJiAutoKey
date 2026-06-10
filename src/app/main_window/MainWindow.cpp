@@ -136,22 +136,26 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     if (msg) {
         switch (msg->message) {
         case WM_THEMECHANGED:
+            Fluent::Theme::refreshDarkModeCache();
             scheduleRuntimeVisualRefresh(false, true);
             break;
         case WM_SETTINGCHANGE: {
             const auto* area = reinterpret_cast<const wchar_t*>(msg->lParam);
             const QString setting = area ? QString::fromWCharArray(area) : QString();
             const bool themeSetting =
-                setting.isEmpty() ||
                 setting.compare(QStringLiteral("ImmersiveColorSet"), Qt::CaseInsensitive) == 0 ||
                 setting.compare(QStringLiteral("WindowsThemeElement"), Qt::CaseInsensitive) == 0;
             const bool dpiSetting =
+                setting.isEmpty() ||
+                setting.compare(QStringLiteral("Display"), Qt::CaseInsensitive) == 0 ||
+                setting.compare(QStringLiteral("UserPreferences"), Qt::CaseInsensitive) == 0 ||
                 setting.compare(QStringLiteral("WindowMetrics"), Qt::CaseInsensitive) == 0 ||
                 setting.compare(QStringLiteral("ConvertibleSlateMode"), Qt::CaseInsensitive) == 0;
             if (dpiSetting) {
                 scheduleRuntimeVisualRefresh(true, false);
             }
             if (themeSetting) {
+                Fluent::Theme::refreshDarkModeCache();
                 scheduleRuntimeVisualRefresh(false, true);
             }
             break;
@@ -159,11 +163,11 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         case WM_DPICHANGED:
             runtimeDpiOverride_ = dpiFromWParam(msg->wParam);
             expandSuggestedRectForDpi(reinterpret_cast<RECT*>(msg->lParam), runtimeDpiOverride_);
-            enforceNativeWindowSizeForDpi(runtimeDpiOverride_);
+            runtimeDpiSyncWaitsRemaining_ = 10;
             scheduleRuntimeVisualRefresh(true, false);
             break;
         case WM_DISPLAYCHANGE:
-            refreshIfScreenDpiChanged();
+            scheduleRuntimeVisualRefresh(true, false);
             break;
         default:
             break;
@@ -182,7 +186,7 @@ void MainWindow::scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged
     if (applyingRuntimeVisualRefresh_) {
         return;
     }
-    runtimeVisualRefreshTimer_.start(dpiChanged ? 0 : 80);
+    runtimeVisualRefreshTimer_.start(dpiChanged ? 80 : 80);
 }
 
 void MainWindow::applyRuntimeVisualRefresh() {
@@ -191,10 +195,24 @@ void MainWindow::applyRuntimeVisualRefresh() {
     }
 
     applyingRuntimeVisualRefresh_ = true;
-    const bool dpiChanged = runtimeDpiRefreshPending_;
+    if (runtimeDpiRefreshPending_) {
+        runtimeDpiRefreshActive_ = true;
+    }
+    const bool dpiChanged = runtimeDpiRefreshActive_;
     const bool themeChanged = runtimeThemeRefreshPending_;
     runtimeDpiRefreshPending_ = false;
     runtimeThemeRefreshPending_ = false;
+
+    if (dpiChanged && runtimeDpiOverride_ > 0 && runtimeDpiSyncWaitsRemaining_ > 0) {
+        const int qtDpi = qRound(devicePixelRatioF() * kBaseDpi);
+        if (qAbs(qtDpi - runtimeDpiOverride_) > 2) {
+            --runtimeDpiSyncWaitsRemaining_;
+            applyingRuntimeVisualRefresh_ = false;
+            runtimeVisualRefreshTimer_.start(60);
+            return;
+        }
+    }
+
     if (runtimeVisualRefreshPassesRemaining_ > 0) {
         --runtimeVisualRefreshPassesRemaining_;
     }
@@ -210,6 +228,7 @@ void MainWindow::applyRuntimeVisualRefresh() {
     const int dpi = qMax(screenDpi, runtimeDpiOverride_);
     if (dpiChanged) {
         observedScreenDpi_ = dpi;
+        syncQtGeometryWithNativeWindow();
         enforceNativeWindowSizeForDpi(dpi);
     }
     view_.refreshRuntimeVisuals(this, dpiChanged, themeChanged, dpiChanged ? dpi : 0);
@@ -222,7 +241,9 @@ void MainWindow::applyRuntimeVisualRefresh() {
     applyingRuntimeVisualRefresh_ = false;
     if (runtimeVisualRefreshPassesRemaining_ > 0) {
         runtimeVisualRefreshTimer_.start(dpiChanged ? 160 : 220);
-    } else if (dpiChanged) {
+    } else if (runtimeDpiRefreshActive_) {
+        runtimeDpiRefreshActive_ = false;
+        runtimeDpiSyncWaitsRemaining_ = 0;
         runtimeDpiOverride_ = 0;
         QTimer::singleShot(0, this, [this]() {
             view_.refreshRuntimeVisuals(this, false, false);
@@ -258,6 +279,16 @@ void MainWindow::bindDpiRefreshSignals() {
 }
 
 int MainWindow::currentScreenDpi() const {
+#ifdef Q_OS_WIN
+    const HWND hwnd = reinterpret_cast<HWND>(winId());
+    if (hwnd) {
+        const UINT dpi = GetDpiForWindow(hwnd);
+        if (dpi > 0) {
+            return qMax(kBaseDpi, static_cast<int>(dpi));
+        }
+    }
+#endif
+
     QScreen* screen = nullptr;
     if (auto* handle = windowHandle()) {
         screen = handle->screen();
@@ -310,6 +341,32 @@ void MainWindow::enforceNativeWindowSizeForDpi(int dpi) {
         qMax(width, minWidth),
         qMax(height, minHeight),
         SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void MainWindow::syncQtGeometryWithNativeWindow() {
+    if (isMinimized()) {
+        return;
+    }
+
+    const HWND hwnd = reinterpret_cast<HWND>(winId());
+    RECT rect{};
+    if (!hwnd || !GetWindowRect(hwnd, &rect)) {
+        return;
+    }
+
+    const qreal scale = devicePixelRatioF();
+    if (scale <= 0.0 || qFuzzyCompare(scale, 1.0)) {
+        return;
+    }
+
+    const QRect logicalGeometry(
+        qRound(rect.left / scale),
+        qRound(rect.top / scale),
+        qRound((rect.right - rect.left) / scale),
+        qRound((rect.bottom - rect.top) / scale));
+    if (!logicalGeometry.isEmpty() && geometry() != logicalGeometry) {
+        setGeometry(logicalGeometry);
+    }
 }
 
 void MainWindow::refreshStatusOverlay() {

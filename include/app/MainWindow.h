@@ -52,6 +52,7 @@ private:
     int currentScreenDpi() const;
     void refreshIfScreenDpiChanged();
     void enforceNativeWindowSizeForDpi(int dpi);
+    void syncQtGeometryWithNativeWindow();
 
     MainWindowView view_;
 
@@ -81,7 +82,9 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     bool runtimeDpiRefreshPending_ = false;
     bool runtimeThemeRefreshPending_ = false;
+    bool runtimeDpiRefreshActive_ = false;
     int runtimeVisualRefreshPassesRemaining_ = 0;
+    int runtimeDpiSyncWaitsRemaining_ = 0;
     bool applyingRuntimeVisualRefresh_ = false;
     int observedScreenDpi_ = 0;
     int runtimeDpiOverride_ = 0;

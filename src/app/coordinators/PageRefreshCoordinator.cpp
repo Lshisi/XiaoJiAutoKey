@@ -18,10 +18,8 @@ void PageRefreshCoordinator::bind(Context context) {
 void PageRefreshCoordinator::refreshAll() {
     if (!context_.view || !context_.config || !context_.repeaterEngine) return;
 
-    const QString previousFaction = FactionTheme::instance().current().id;
     FactionTheme::instance().setCurrent(QString::fromStdString(context_.config->faction));
-    const bool factionChanged = previousFaction != FactionTheme::instance().current().id;
-    if (factionChanged && context_.refreshFactionVisuals) context_.refreshFactionVisuals();
+    if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
 
     auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
     if (!profile) return;
@@ -38,18 +36,14 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowRepeat);
     context_.view->keyPage()->setMixedMode(profile->mixedMode);
     context_.view->keyPage()->setPauseKeys(profile->pauseKeys);
-    if (!factionChanged) {
-        context_.view->keyPage()->update();
-    }
+    context_.view->keyPage()->updateThemeColors();
 
     refreshProfiles();
     refreshMacro();
 
     context_.view->macroPage()->setBeepEnabled(context_.config->macroBeepEnabled);
     context_.view->macroPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowMacro);
-    if (!factionChanged) {
-        context_.view->macroPage()->update();
-    }
+    context_.view->macroPage()->updateThemeColors();
 
     context_.view->settingsPage()->setConfig(*context_.config);
     context_.view->settingsPage()->setHotkeyText(hotkeyText);

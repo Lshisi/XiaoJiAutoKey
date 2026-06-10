@@ -178,29 +178,6 @@ void bindScreenChangeResize(QMainWindow* window) {
             return;
         }
 
-        auto refreshLayouts = [window]() {
-            runDeferredLayoutPass(window, false);
-        };
-
-        auto bindScreenSignals = [window, refreshLayouts](QScreen* screen) {
-            if (!screen) return;
-            QObject::connect(screen, &QScreen::logicalDotsPerInchChanged, window,
-                [window, refreshLayouts, screen](qreal dpi) {
-                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
-                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
-                    QTimer::singleShot(0, window, refreshLayouts);
-                    QTimer::singleShot(160, window, refreshLayouts);
-                });
-            QObject::connect(screen, &QScreen::physicalDotsPerInchChanged, window,
-                [window, refreshLayouts, screen](qreal dpi) {
-                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
-                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
-                    QTimer::singleShot(0, window, refreshLayouts);
-                    QTimer::singleShot(160, window, refreshLayouts);
-                });
-        };
-
-        bindScreenSignals(handle->screen());
         QObject::connect(handle, &QWindow::screenChanged, window, [window](QScreen* screen) {
             applyScreenAwareWindowSize(window, screen, false);
             QTimer::singleShot(0, window, [window]() { runDeferredLayoutPass(window, false); });

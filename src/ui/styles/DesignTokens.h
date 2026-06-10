@@ -16,6 +16,7 @@ namespace Theme {
         QSettings settings(
             QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
             QSettings::NativeFormat);
+        settings.sync();
         return settings.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
 #else
         return false;

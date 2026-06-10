@@ -224,8 +224,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
-    rightLayout->addWidget(mixedCard);
-    rightLayout->addStretch(1);
+    mixedCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    rightLayout->addWidget(mixedCard, 1);
     layout->addLayout(rightLayout, 3);
 
     // Connections
@@ -280,7 +280,7 @@ void KeyPage::setRunning(bool running) {
     profileCombo_->setEnabled(!running);
     profileAddBtn_->setEnabled(!running);
     profileRenameBtn_->setEnabled(!running);
-    profileDeleteBtn_->setEnabled(!running && profileCombo_->count() > 1);
+    profileDeleteBtn_->setEnabled(!running);
     table_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
     if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
@@ -477,6 +477,5 @@ void KeyPage::setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& 
     profileCombo_->setCurrentIndex(activeIndex);
     profileCombo_->blockSignals(false);
 
-    // Disable delete if only one profile
-    profileDeleteBtn_->setEnabled(profiles.size() > 1);
+    profileDeleteBtn_->setEnabled(!running_);
 }

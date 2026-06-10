@@ -77,7 +77,7 @@ namespace Colors {
     inline QColor pageBg()         { return Theme::isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xFF, 0xFF, 0xFF); }
     inline QColor cardBg()         { return Theme::isDarkMode() ? QColor(0x2B, 0x2B, 0x2B) : QColor(0xFF, 0xFF, 0xFF); }
     inline QColor sidebarBg()      { return Theme::isDarkMode() ? QColor(0x24, 0x24, 0x24) : QColor(0xF5, 0xF7, 0xFA); }
-    inline QColor titleBarBg()     { return Theme::isDarkMode() ? QColor(0x1F, 0x1F, 0x1F) : QColor(0xFF, 0xFF, 0xFF); }
+    inline QColor titleBarBg()     { return Theme::isDarkMode() ? QColor(0x1F, 0x1F, 0x1F) : QColor(0xF3, 0xF5, 0xF8); }
 
     inline QColor textPrimary()    { return Theme::isDarkMode() ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F); }
     inline QColor textSecondary()  { return Theme::isDarkMode() ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60); }
@@ -148,7 +148,7 @@ namespace Spacing {
     constexpr int inputRadius   = 6;
     constexpr int dialogRadius  = 12;
     constexpr int sidebarWidth  = 130;
-    constexpr int titleBarHeight = 40;
+    constexpr int titleBarHeight = 34;
     constexpr int buttonHeight  = 32;
     constexpr int inputHeight   = 32;
     constexpr int navItemSize   = 56;

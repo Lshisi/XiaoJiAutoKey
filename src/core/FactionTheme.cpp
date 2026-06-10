@@ -68,8 +68,8 @@ FactionTheme::FactionTheme() {
     factions_.push_back(makeFaction("yaozong", L"\u836f\u5b97", QColor(0x0A, 0x51, 0x57), ":/assets/factions/yaozong.png"));
     factions_.push_back(makeFaction("daozong", L"\u5200\u5b97", QColor(0x3B, 0x5E, 0x9F), ":/assets/factions/daozong.png"));
     factions_.push_back(makeFaction("wanling", L"\u4e07\u7075", QColor(0xA0, 0x87, 0x4B), ":/assets/factions/wanling.png"));
-    factions_.push_back(makeFaction("duanshi", L"\u6bb5\u6c0f", QColor(0x5F, 0x9B, 0xB4)));
-    factions_.push_back(makeFaction("wuxiang", L"\u65e0\u76f8\u697c", QColor(0x69, 0x5F, 0xB9)));
+    factions_.push_back(makeFaction("duanshi", L"\u6bb5\u6c0f", QColor(0x5F, 0x9B, 0xB4), ":/assets/factions/duanshi.png"));
+    factions_.push_back(makeFaction("wuxiang", L"\u65e0\u76f8\u697c", QColor(0x69, 0x5F, 0xB9), ":/assets/factions/wuxiang.png"));
 
     setCurrent(QStringLiteral("cangjian"));
 }

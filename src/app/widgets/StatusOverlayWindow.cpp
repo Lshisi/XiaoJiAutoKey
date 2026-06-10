@@ -1,5 +1,6 @@
 #include "widgets/StatusOverlayWindow.h"
 
+#include "FactionTheme.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <algorithm>
@@ -21,6 +22,22 @@
 #include <QVBoxLayout>
 
 namespace {
+
+QColor mixColor(const QColor& a, const QColor& b, double t) {
+    const double clamped = std::clamp(t, 0.0, 1.0);
+    QColor out(
+        static_cast<int>(a.red() + (b.red() - a.red()) * clamped),
+        static_cast<int>(a.green() + (b.green() - a.green()) * clamped),
+        static_cast<int>(a.blue() + (b.blue() - a.blue()) * clamped)
+    );
+    out.setAlpha(static_cast<int>(a.alpha() + (b.alpha() - a.alpha()) * clamped));
+    return out;
+}
+
+QColor withAlpha(QColor color, int alpha) {
+    color.setAlpha(std::clamp(alpha, 0, 255));
+    return color;
+}
 
 QString TextOrDash(const std::optional<KeyDescriptor>& key) {
     if (!key.has_value()) return QString::fromWCharArray(L"[-]");
@@ -142,6 +159,7 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     });
 
     setStyleSheet("StatusOverlayWindow { background: transparent; }");
+    refreshThemeStyle(false, false);
 }
 
 void StatusOverlayWindow::setOverlayEnabled(bool enabled) {
@@ -164,12 +182,10 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     setOverlayOpacity(config.statusOverlayOpacity);
     moveToConfiguredPosition(config);
 
+    refreshThemeStyle(repeatRunning, macroRunning);
+
     repeatIndicator_->setVisible(showRepeat);
-    repeatIndicator_->setStyleSheet(QString("border-radius: 7px; background: %1;")
-        .arg(repeatRunning ? "#24C26A" : "#FF9F1A"));
     macroIndicator_->setVisible(showMacro);
-    macroIndicator_->setStyleSheet(QString("border-radius: 7px; background: %1;")
-        .arg(macroRunning ? "#24C26A" : "#FF9F1A"));
 
     repeatBlock_->setVisible(showRepeat);
     macroBlock_->setVisible(showMacro);
@@ -186,6 +202,57 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     adjustSize();
     move(boundedPosition(pos()));
     syncLockButton();
+}
+
+void StatusOverlayWindow::refreshThemeStyle(bool repeatRunning, bool macroRunning) {
+    const auto palette = FactionTheme::instance().palette();
+    const QColor titleColor = Fluent::Theme::isDarkMode()
+        ? QColor(255, 255, 255, 242)
+        : QColor(38, 38, 38, 235);
+    const QColor bodyColor = Fluent::Theme::isDarkMode()
+        ? QColor(255, 255, 255, 220)
+        : QColor(60, 60, 60, 220);
+
+    repeatTitleLabel_->setStyleSheet(QString("color: %1;").arg(titleColor.name(QColor::HexArgb)));
+    macroTitleLabel_->setStyleSheet(QString("color: %1;").arg(titleColor.name(QColor::HexArgb)));
+    repeatHotkeyLabel_->setStyleSheet(QString("color: %1;").arg(bodyColor.name(QColor::HexArgb)));
+    macroHotkeyLabel_->setStyleSheet(QString("color: %1;").arg(bodyColor.name(QColor::HexArgb)));
+
+    const QColor idleDot = Fluent::Theme::isDarkMode()
+        ? withAlpha(palette.accentBorder, 210)
+        : withAlpha(palette.accentBorder, 255);
+    const QColor activeDot = Fluent::Theme::isDarkMode()
+        ? mixColor(palette.accent, QColor(0xFF, 0xFF, 0xFF), 0.10)
+        : palette.accent;
+
+    repeatIndicator_->setStyleSheet(QString("border-radius: 7px; background: %1;")
+        .arg((repeatRunning ? activeDot : idleDot).name(QColor::HexArgb)));
+    macroIndicator_->setStyleSheet(QString("border-radius: 7px; background: %1;")
+        .arg((macroRunning ? activeDot : idleDot).name(QColor::HexArgb)));
+
+    const QColor buttonBg = Fluent::Theme::isDarkMode()
+        ? withAlpha(palette.accentSubtle, 120)
+        : withAlpha(palette.accentSubtle, 210);
+    const QColor buttonHover = Fluent::Theme::isDarkMode()
+        ? withAlpha(palette.accentSoft, 148)
+        : withAlpha(palette.accentSoft, 235);
+    const QColor buttonBorder = Fluent::Theme::isDarkMode()
+        ? withAlpha(palette.accentBorder, 185)
+        : withAlpha(palette.accentBorder, 215);
+    const QColor buttonText = Fluent::Theme::isDarkMode()
+        ? QColor(255, 255, 255, 230)
+        : QColor(42, 42, 42, 230);
+    lockButton_->setStyleSheet(QString(
+        "QPushButton { background: %1; color: %2;"
+        " border: 1px solid %3; border-radius: 4px; padding: 0; }"
+        "QPushButton:hover { background: %4; }")
+        .arg(buttonBg.name(QColor::HexArgb),
+            buttonText.name(QColor::HexArgb),
+            buttonBorder.name(QColor::HexArgb),
+            buttonHover.name(QColor::HexArgb)));
+
+    lockButtonWindow_->update();
+    update();
 }
 
 void StatusOverlayWindow::mousePressEvent(QMouseEvent* event) {
@@ -244,8 +311,15 @@ void StatusOverlayWindow::paintEvent(QPaintEvent*) {
     QPainterPath path;
     path.addRoundedRect(rect, 6, 6);
     const int alpha = std::clamp(opacity_, 30, 100) * 255 / 100;
-    painter.fillPath(path, QColor(0x34, 0x34, 0x34, alpha));
-    painter.setPen(QColor(0x70, 0x70, 0x70, std::min(220, alpha + 35)));
+    const auto palette = FactionTheme::instance().palette();
+    const QColor fillBase = Fluent::Theme::isDarkMode()
+        ? mixColor(QColor(0x2B, 0x2B, 0x2B, 255), palette.accent, 0.18)
+        : mixColor(QColor(0xFF, 0xFF, 0xFF, 255), palette.accentSubtle, 0.78);
+    const QColor borderBase = Fluent::Theme::isDarkMode()
+        ? mixColor(palette.accentBorder, QColor(0xFF, 0xFF, 0xFF, 255), 0.08)
+        : mixColor(palette.accentBorder, palette.accent, 0.24);
+    painter.fillPath(path, withAlpha(fillBase, alpha));
+    painter.setPen(withAlpha(borderBase, std::min(220, alpha + 28)));
     painter.drawPath(path);
 }
 

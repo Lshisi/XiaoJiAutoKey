@@ -1,11 +1,50 @@
 #include "FluentTitleBar.h"
 #include "../styles/DesignTokens.h"
+#include "FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QApplication>
 #include <QStyle>
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#endif
+
+namespace {
+
+QColor mixColor(const QColor& a, const QColor& b, double t) {
+    const double clamped = qBound(0.0, t, 1.0);
+    return QColor(
+        static_cast<int>(a.red() + (b.red() - a.red()) * clamped),
+        static_cast<int>(a.green() + (b.green() - a.green()) * clamped),
+        static_cast<int>(a.blue() + (b.blue() - a.blue()) * clamped)
+    );
+}
+
+QColor titleBarFillColor() {
+    if (Fluent::Theme::isDarkMode()) {
+        return Fluent::Colors::titleBarBg();
+    }
+
+    const QColor base = Fluent::Colors::titleBarBg();
+    const QColor accent = FactionTheme::instance().palette().accent;
+    return mixColor(base, accent, 0.12);
+}
+
+QColor titleBarDividerColor() {
+    if (Fluent::Theme::isDarkMode()) {
+        return Fluent::Colors::divider();
+    }
+
+    const QColor base = mixColor(Fluent::Colors::titleBarBg(), FactionTheme::instance().palette().accentBorder, 0.12);
+    QColor divider = base;
+    divider.setAlpha(26);
+    return divider;
+}
+
+}  // namespace
 
 FluentTitleBar::FluentTitleBar(QWidget* parent)
     : QWidget(parent)
@@ -163,12 +202,12 @@ void FluentTitleBar::paintEvent(QPaintEvent*) {
 
     QPainterPath bg;
     bg.addRoundedRect(QRectF(0, 0, width(), height() + 10), 10, 10);
-    p.fillPath(bg, Fluent::Colors::titleBarBg());
+    p.fillPath(bg, titleBarFillColor());
 
-    // Bottom border line
-    p.setPen(Qt::NoPen);
-    p.setBrush(Fluent::Colors::divider());
-    p.drawRect(0, height() - 1, width(), 1);
+    // Bottom divider kept inset and light to avoid a heavy seam.
+    p.setRenderHint(QPainter::Antialiasing, false);
+    p.setPen(QPen(titleBarDividerColor(), 1));
+    p.drawLine(10, height() - 1, width() - 10, height() - 1);
 }
 
 void FluentTitleBar::mouseDoubleClickEvent(QMouseEvent* event) {
@@ -177,8 +216,14 @@ void FluentTitleBar::mouseDoubleClickEvent(QMouseEvent* event) {
 
 void FluentTitleBar::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+#ifdef Q_OS_WIN
+        ReleaseCapture();
+        SendMessageW(reinterpret_cast<HWND>(window()->winId()), WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        event->accept();
+#else
         dragging_ = true;
         dragPos_ = event->globalPos();
+#endif
     }
 }
 

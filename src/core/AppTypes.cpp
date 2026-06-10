@@ -32,17 +32,17 @@ bool IsExtendedKey(std::uint32_t vk) {
 std::wstring MouseButtonName(std::uint32_t vk) {
     switch (vk) {
     case VK_LBUTTON:
-        return L"鼠标左键";
+        return L"\u5de6\u952e";
     case VK_RBUTTON:
-        return L"鼠标右键";
+        return L"\u53f3\u952e";
     case VK_MBUTTON:
-        return L"鼠标中键";
+        return L"\u4e2d\u952e";
     case VK_XBUTTON1:
-        return L"鼠标侧键1";
+        return L"\u4fa7\u952e1";
     case VK_XBUTTON2:
-        return L"鼠标侧键2";
+        return L"\u4fa7\u952e2";
     default:
-        return L"未知鼠标键";
+        return L"\u672a\u77e5\u9f20\u6807\u952e";
     }
 }
 
@@ -141,11 +141,11 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key) {
 }
 
 std::wstring RepeatModeToText(RepeatMode mode) {
-    return mode == RepeatMode::Toggle ? L"开关" : L"按压";
+    return mode == RepeatMode::Toggle ? L"\u5f00\u5173" : L"\u6309\u538b";
 }
 
 std::wstring DeviceToText(InputDevice device) {
-    return device == InputDevice::Keyboard ? L"键盘" : L"鼠标";
+    return device == InputDevice::Keyboard ? L"\u952e\u76d8" : L"\u9f20\u6807";
 }
 
 std::wstring KeyDescriptorToStorage(const KeyDescriptor& key) {

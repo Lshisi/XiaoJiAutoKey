@@ -98,6 +98,13 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
+    controlCard->contentLayout()->addSpacing(4);
+    statusLabel_ = new QLabel(QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"), this);
+    statusLabel_->setFont(Fluent::Typography::caption());
+    QPalette sPal = statusLabel_->palette();
+    sPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    statusLabel_->setPalette(sPal);
+    controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
 
     // -- Card 2: 启动触发 --
@@ -151,8 +158,8 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     loopEdit_->setPlaceholderText("0");
     loopEdit_->setValidator(new QIntValidator(0, 99999, this));
     modeCard->contentLayout()->addWidget(loopEdit_);
-    rightLayout->addWidget(modeCard);
-    rightLayout->addStretch(1);
+    modeCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    rightLayout->addWidget(modeCard, 1);
     layout->addLayout(rightLayout, 3);
 
     // ── Connections ──
@@ -231,6 +238,11 @@ void MacroPage::setRunning(bool running) {
     startBtn_->setEnabled(true);
     startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
     updateStartBtnText();
+    if (statusLabel_) {
+        statusLabel_->setText(running
+            ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
+            : QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"));
+    }
     addBtn_->setEnabled(!running);
     table_->setEnabled(!running);
     macroCombo_->setEnabled(!running);
@@ -297,7 +309,7 @@ void MacroPage::setMacroProfiles(const std::vector<std::pair<std::uint64_t, QStr
     }
     macroCombo_->setCurrentIndex(activeIndex);
     macroCombo_->blockSignals(false);
-    macroDeleteBtn_->setEnabled(macros.size() > 1);
+    macroDeleteBtn_->setEnabled(!running_);
 }
 
 void MacroPage::refreshTable() {

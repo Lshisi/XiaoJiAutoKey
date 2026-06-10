@@ -33,6 +33,10 @@ constexpr int kBaseWindowWidth = 780;
 constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
 
+QColor appShellColor() {
+    return Fluent::Theme::isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF5, 0xF8);
+}
+
 QRect currentAvailableGeometry() {
     if (auto* screen = QApplication::screenAt(QCursor::pos())) {
         return screen->availableGeometry();
@@ -325,7 +329,7 @@ void MainWindowView::setup(QMainWindow* window) {
     window->setAttribute(Qt::WA_TranslucentBackground, true);
     window->setAutoFillBackground(false);
     QPalette windowPalette = window->palette();
-    windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    windowPalette.setColor(QPalette::Window, appShellColor());
     window->setPalette(windowPalette);
 
     applyScreenAwareWindowSize(window, nullptr, true);
@@ -337,7 +341,7 @@ void MainWindowView::setup(QMainWindow* window) {
     centralWidget->setAttribute(Qt::WA_StyledBackground, true);
     centralWidget->setAutoFillBackground(false);
     QPalette centralPalette = centralWidget->palette();
-    centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    centralPalette.setColor(QPalette::Window, appShellColor());
     centralWidget->setPalette(centralPalette);
     centralWidget->setStyleSheet(QString(
         "QWidget#mainWindowRoot {"
@@ -345,7 +349,7 @@ void MainWindowView::setup(QMainWindow* window) {
         "  border: none;"
         "  border-radius: 10px;"
         "}")
-        .arg(FactionTheme::instance().palette().surfaceTint.name()));
+        .arg(appShellColor().name()));
     window->setCentralWidget(centralWidget);
 
     auto* rootLayout = new QVBoxLayout(centralWidget);
@@ -394,7 +398,7 @@ void MainWindowView::setup(QMainWindow* window) {
         "  border-bottom-left-radius: 10px;"
         "  border-bottom-right-radius: 10px;"
         "}")
-        .arg(FactionTheme::instance().palette().surfaceTint.name(),
+        .arg(appShellColor().name(),
             Fluent::Colors::divider().name(QColor::HexArgb)));
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
@@ -465,11 +469,11 @@ bool MainWindowView::isRepeatPageActive() const {
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     QPalette windowPalette = window->palette();
-    windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+    windowPalette.setColor(QPalette::Window, appShellColor());
     window->setPalette(windowPalette);
     if (window->centralWidget()) {
         QPalette centralPalette = window->centralWidget()->palette();
-        centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+        centralPalette.setColor(QPalette::Window, appShellColor());
         window->centralWidget()->setPalette(centralPalette);
         window->centralWidget()->setStyleSheet(QString(
             "QWidget#mainWindowRoot {"
@@ -477,7 +481,7 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
             "  border: none;"
             "  border-radius: 10px;"
             "}")
-            .arg(FactionTheme::instance().palette().surfaceTint.name()));
+            .arg(appShellColor().name()));
     }
     if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
         statusBar->setStyleSheet(QString(
@@ -487,7 +491,7 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
             "  border-bottom-left-radius: 10px;"
             "  border-bottom-right-radius: 10px;"
             "}")
-            .arg(FactionTheme::instance().palette().surfaceTint.name(),
+            .arg(appShellColor().name(),
                 Fluent::Colors::divider().name(QColor::HexArgb)));
     }
     sidebar_->updateFactionIcon();
@@ -510,11 +514,11 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
         updateFactionVisuals(window);
     } else {
         QPalette windowPalette = window->palette();
-        windowPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+        windowPalette.setColor(QPalette::Window, appShellColor());
         window->setPalette(windowPalette);
         if (window->centralWidget()) {
             QPalette centralPalette = window->centralWidget()->palette();
-            centralPalette.setColor(QPalette::Window, FactionTheme::instance().palette().surfaceTint);
+            centralPalette.setColor(QPalette::Window, appShellColor());
             window->centralWidget()->setPalette(centralPalette);
         }
     }

@@ -33,6 +33,7 @@ protected:
     void showEvent(QShowEvent* event) override;
 
 private:
+    void refreshThemeStyle(bool repeatRunning, bool macroRunning);
     void setLocked(bool locked);
     void setOverlayOpacity(int opacity);
     void syncLockButton();

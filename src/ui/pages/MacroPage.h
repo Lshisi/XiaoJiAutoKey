@@ -37,7 +37,6 @@ signals:
     void addStepRequested();
     void editStepRequested(int stepIndex);
     void deleteStepRequested(int stepIndex);
-    void stepEnableToggled(int stepIndex, bool enabled);
     void stepMoveRequested(int fromIndex, int toIndex);
 
     // Macro profile management
@@ -73,6 +72,7 @@ private:
     FluentComboBox* modeCombo_;
     FluentLineEdit* loopEdit_;
     QLabel* loopLabel_;
+    QLabel* statusLabel_ = nullptr;
 
     // Macro profile UI
     FluentComboBox* macroCombo_;

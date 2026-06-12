@@ -8,8 +8,7 @@
 
 DashboardPage::DashboardPage(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::pageMargin,
-                               Fluent::Spacing::pageMargin, Fluent::Spacing::pageMargin);
+    layout->setContentsMargins(16, 12, 16, 12);
     layout->setSpacing(Fluent::Spacing::cardGap);
 
     // Page header

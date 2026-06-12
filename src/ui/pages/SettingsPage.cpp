@@ -1,8 +1,8 @@
 #include "SettingsPage.h"
 #include "../styles/DesignTokens.h"
+#include "../components/FactionMenu.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
-#include "../components/FluentComboBox.h"
 #include "FactionTheme.h"
 
 #include <QButtonGroup>
@@ -10,7 +10,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
+#include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
 #include <QSlider>
@@ -30,6 +32,64 @@ QWidget* makeDivider(QWidget* parent) {
     divider->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     return divider;
 }
+
+class FactionSelectButton : public QPushButton {
+public:
+    explicit FactionSelectButton(QWidget* parent = nullptr)
+        : QPushButton(parent) {
+        setCursor(Qt::PointingHandCursor);
+        setFixedSize(120, 28);
+        setFont(Fluent::Typography::body());
+        setFocusPolicy(Qt::StrongFocus);
+    }
+
+protected:
+    void enterEvent(QEvent* event) override {
+        hovered_ = true;
+        QPushButton::enterEvent(event);
+        update();
+    }
+
+    void leaveEvent(QEvent* event) override {
+        hovered_ = false;
+        QPushButton::leaveEvent(event);
+        update();
+    }
+
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setRenderHint(QPainter::TextAntialiasing, true);
+
+        const auto palette = FactionTheme::instance().palette();
+        const QColor bg = hovered_ ? palette.accentSubtle : Fluent::Colors::cardBg();
+        const QColor border = hasFocus() ? palette.accentBorder
+            : (hovered_ ? palette.accentBorder : Fluent::Colors::border());
+        QRectF r = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+        QPainterPath path;
+        path.addRoundedRect(r, 8, 8);
+        p.fillPath(path, bg);
+        p.setPen(QPen(border, hasFocus() ? 1.6 : 1.0));
+        p.drawPath(path);
+
+        p.setFont(font());
+        p.setPen(Fluent::Colors::textPrimary());
+        p.drawText(rect().adjusted(12, 0, -34, 0), Qt::AlignVCenter | Qt::AlignLeft, text());
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(Fluent::Colors::textSecondary());
+        const QPointF c(width() - 17.0, height() / 2.0 + 1.0);
+        QPainterPath arrow;
+        arrow.moveTo(c.x() - 4.0, c.y() - 2.5);
+        arrow.lineTo(c.x() + 4.0, c.y() - 2.5);
+        arrow.lineTo(c.x(), c.y() + 2.5);
+        arrow.closeSubpath();
+        p.drawPath(arrow);
+    }
+
+private:
+    bool hovered_ = false;
+};
 
 QPalette mutedPalette(QWidget* widget) {
     QPalette pal = widget->palette();
@@ -102,7 +162,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 
     auto* panel = new FluentCard(scrollContent);
     auto* panelLayout = panel->contentLayout();
-    panelLayout->setSpacing(14);
+    panelLayout->setSpacing(10);
 
     auto* pageTitle = new QLabel(QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), panel);
     pageTitle->setFont(Fluent::Typography::pageTitle());
@@ -112,7 +172,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     factionPreview->setObjectName("factionPreview");
     factionPreview->setAttribute(Qt::WA_StyledBackground, true);
     auto* factionLayout = new QHBoxLayout(factionPreview);
-    factionLayout->setContentsMargins(12, 10, 12, 10);
+    factionLayout->setContentsMargins(12, 6, 12, 6);
     factionLayout->setSpacing(10);
 
     factionPreviewIcon_ = new QLabel(factionPreview);
@@ -135,12 +195,8 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     factionTextLayout->addWidget(factionPreviewBar_);
     factionLayout->addLayout(factionTextLayout, 1);
 
-    factionCombo_ = new FluentComboBox(factionPreview);
-    factionCombo_->setMinimumWidth(120);
-    factionCombo_->setFixedHeight(28);
-    const auto& factions = FactionTheme::instance().factions();
-    for (const auto& f : factions) factionCombo_->addItem(f.name, f.id);
-    factionLayout->addWidget(factionCombo_);
+    factionButton_ = new FactionSelectButton(factionPreview);
+    factionLayout->addWidget(factionButton_);
     panelLayout->addWidget(factionPreview);
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u72b6\u6001\u6d6e\u7a97"), panel));
@@ -175,6 +231,9 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     radioAsk_->setFont(Fluent::Typography::body());
     radioMin_->setFont(Fluent::Typography::body());
     radioExit_->setFont(Fluent::Typography::body());
+    radioAsk_->setFixedHeight(22);
+    radioMin_->setFixedHeight(22);
+    radioExit_->setFixedHeight(22);
     radioAsk_->setChecked(true);
     auto* btnGroup = new QButtonGroup(this);
     btnGroup->addButton(radioAsk_, 0);
@@ -187,18 +246,18 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addWidget(makeDivider(panel));
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u914d\u7f6e\u6587\u4ef6"), panel));
+    auto* configPathRow = new QHBoxLayout();
+    configPathRow->setSpacing(10);
     configPathLabel_ = new QLabel(panel);
     configPathLabel_->setFont(Fluent::Typography::caption());
-    configPathLabel_->setWordWrap(true);
     configPathLabel_->setPalette(mutedPalette(configPathLabel_));
-    panelLayout->addWidget(configPathLabel_);
-    auto* configBtnRow = new QHBoxLayout();
+    configPathLabel_->setWordWrap(false);
+    configPathLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    configPathRow->addWidget(configPathLabel_, 1);
     auto* openBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00\u6587\u4ef6\u5939"), panel);
-    openBtn->setFixedHeight(28);
-    configBtnRow->addWidget(openBtn);
-    configBtnRow->addStretch();
-    panelLayout->addLayout(configBtnRow);
-    panelLayout->addSpacing(2);
+    openBtn->setFixedSize(120, 28);
+    configPathRow->addWidget(openBtn);
+    panelLayout->addLayout(configPathRow);
 
     outerLayout->addWidget(panel);
     outerLayout->addSpacing(0);
@@ -216,10 +275,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(value) + "%");
         emit statusOverlayOpacityChanged(value);
     });
-    connect(factionCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (index < 0) return;
-        emit factionChanged(factionCombo_->itemData(index).toString());
-    });
+    connect(factionButton_, &QPushButton::clicked, this, &SettingsPage::showFactionMenu);
 
     applyPageTheme();
 }
@@ -235,6 +291,7 @@ void SettingsPage::setConfig(const AppConfig& config) {
 void SettingsPage::setHotkeyText(const QString&) {}
 
 void SettingsPage::setConfigPath(const QString& path) {
+    configPathLabel_->setToolTip(path);
     configPathLabel_->setText(path);
 }
 
@@ -251,14 +308,7 @@ void SettingsPage::setCloseAction(CloseAction action) {
 void SettingsPage::setCustomSoundPaths(const QString&, const QString&) {}
 
 void SettingsPage::setFaction(const QString& factionId) {
-    factionCombo_->blockSignals(true);
-    for (int i = 0; i < factionCombo_->count(); ++i) {
-        if (factionCombo_->itemData(i).toString() == factionId) {
-            factionCombo_->setCurrentIndex(i);
-            break;
-        }
-    }
-    factionCombo_->blockSignals(false);
+    Q_UNUSED(factionId);
     applyPageTheme();
 }
 
@@ -286,7 +336,7 @@ void SettingsPage::applyPageTheme() {
     if (radioMin_) radioMin_->setStyleSheet(radioStyle);
     if (radioExit_) radioExit_->setStyleSheet(radioStyle);
 
-    if (factionCombo_) factionCombo_->refreshThemeStyle();
+    updateFactionButtonText();
     if (factionPreviewName_) factionPreviewName_->setText(FactionTheme::instance().current().name);
     if (factionPreviewBar_) {
         factionPreviewBar_->setStyleSheet(QString("background: %1; border-radius: 1px;").arg(palette.accent.name()));
@@ -325,4 +375,20 @@ void SettingsPage::applyPageTheme() {
 
 bool SettingsPage::eventFilter(QObject* watched, QEvent* event) {
     return QWidget::eventFilter(watched, event);
+}
+
+void SettingsPage::showFactionMenu() {
+    if (!factionButton_) return;
+    const QPoint popupPos = factionButton_->mapToGlobal(QPoint(factionButton_->width() - 4, factionButton_->height() - 2));
+    const QString factionId = FactionMenu::exec(this, popupPos);
+    if (!factionId.isEmpty() && factionId != FactionTheme::instance().current().id) {
+        emit factionChanged(factionId);
+    }
+}
+
+void SettingsPage::updateFactionButtonText() {
+    if (!factionButton_) return;
+
+    factionButton_->setText(FactionTheme::instance().current().name);
+    factionButton_->update();
 }

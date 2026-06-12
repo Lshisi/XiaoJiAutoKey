@@ -1,0 +1,176 @@
+#include "FactionMenu.h"
+
+#include "../styles/DesignTokens.h"
+#include "FactionTheme.h"
+
+#include <QEventLoop>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
+#include <QVector>
+#include <QWidget>
+
+namespace {
+
+constexpr int kMenuPadding = 4;
+constexpr int kItemHeight = 24;
+constexpr int kMenuRadius = 8;
+constexpr int kItemRadius = 5;
+constexpr int kIconSize = 16;
+constexpr int kMinMenuWidth = 112;
+
+QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
+    if (source.isNull()) {
+        return source;
+    }
+
+    QPixmap tinted(source.size());
+    tinted.setDevicePixelRatio(source.devicePixelRatio());
+    tinted.fill(Qt::transparent);
+
+    QPainter painter(&tinted);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.drawPixmap(0, 0, source);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
+    return tinted;
+}
+
+class FactionPopup final : public QWidget {
+public:
+    explicit FactionPopup(QWidget* parent = nullptr)
+        : QWidget(parent, Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) {
+        setAttribute(Qt::WA_TranslucentBackground, true);
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setMouseTracking(true);
+        setFont(Fluent::Typography::body());
+
+        const QFontMetrics metrics(font());
+        int width = kMinMenuWidth;
+        for (const auto& faction : FactionTheme::instance().factions()) {
+            width = qMax(width, metrics.horizontalAdvance(faction.name) + 62);
+        }
+        setFixedSize(width, kMenuPadding * 2 + static_cast<int>(FactionTheme::instance().factions().size()) * kItemHeight);
+    }
+
+    QString selectedId() const { return selectedId_; }
+    void setLoop(QEventLoop* loop) { loop_ = loop; }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setRenderHint(QPainter::TextAntialiasing, true);
+
+        const auto palette = FactionTheme::instance().palette();
+        const QRectF panelRect = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+        QPainterPath panelPath;
+        panelPath.addRoundedRect(panelRect, kMenuRadius, kMenuRadius);
+        p.fillPath(panelPath, Fluent::Colors::cardBg());
+        p.setPen(QPen(Fluent::Colors::border(), 1));
+        p.drawPath(panelPath);
+
+        p.setClipPath(panelPath);
+        const auto& factions = FactionTheme::instance().factions();
+        const QString currentId = FactionTheme::instance().current().id;
+        for (int i = 0; i < static_cast<int>(factions.size()); ++i) {
+            const QRectF itemRect(kMenuPadding, kMenuPadding + i * kItemHeight, width() - kMenuPadding * 2, kItemHeight);
+            if (i == hoveredIndex_) {
+                QPainterPath hoverPath;
+                hoverPath.addRoundedRect(itemRect.adjusted(1, 1, -1, -1), kItemRadius, kItemRadius);
+                p.fillPath(hoverPath, palette.accentSoft);
+            }
+
+            const bool checked = factions[i].id == currentId;
+            const QColor textColor = checked ? palette.accent : Fluent::Colors::textPrimary();
+            const qreal iconTop = itemRect.center().y() - kIconSize / 2.0;
+            const QRectF iconRect(itemRect.left() + 24.0, iconTop, kIconSize, kIconSize);
+            if (checked) {
+                QPen checkPen(palette.accent, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+                p.setPen(checkPen);
+                QPainterPath check;
+                const qreal cy = itemRect.center().y();
+                check.moveTo(itemRect.left() + 9.0, cy + 0.5);
+                check.lineTo(itemRect.left() + 11.5, cy + 3.0);
+                check.lineTo(itemRect.left() + 16.5, cy - 3.0);
+                p.drawPath(check);
+            }
+
+            if (!factions[i].iconPath.isEmpty()) {
+                QPixmap icon(factions[i].iconPath);
+                if (!icon.isNull()) {
+                    if (Fluent::Theme::isDarkMode()) {
+                        icon = tintPixmap(icon, checked ? palette.accent : Fluent::Colors::textPrimary());
+                    }
+                    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+                    p.drawPixmap(iconRect.toRect(), icon);
+                }
+            }
+
+            p.setFont(font());
+            p.setPen(textColor);
+            p.drawText(itemRect.adjusted(46, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, factions[i].name);
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        const int index = itemIndexAt(event->pos());
+        if (hoveredIndex_ == index) return;
+        hoveredIndex_ = index;
+        update();
+    }
+
+    void leaveEvent(QEvent*) override {
+        if (hoveredIndex_ < 0) return;
+        hoveredIndex_ = -1;
+        update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (event->button() != Qt::LeftButton) return;
+        const int index = itemIndexAt(event->pos());
+        const auto& factions = FactionTheme::instance().factions();
+        if (index >= 0 && index < static_cast<int>(factions.size())) {
+            selectedId_ = factions[index].id;
+        }
+        close();
+    }
+
+    void closeEvent(QCloseEvent* event) override {
+        if (loop_) loop_->quit();
+        QWidget::closeEvent(event);
+    }
+
+private:
+    int itemIndexAt(const QPoint& pos) const {
+        if (pos.x() < kMenuPadding || pos.x() >= width() - kMenuPadding) return -1;
+        const int y = pos.y() - kMenuPadding;
+        if (y < 0) return -1;
+        const int index = y / kItemHeight;
+        return index < static_cast<int>(FactionTheme::instance().factions().size()) ? index : -1;
+    }
+
+    int hoveredIndex_ = -1;
+    QString selectedId_;
+    QEventLoop* loop_ = nullptr;
+};
+
+}
+
+namespace FactionMenu {
+
+QString exec(QWidget* parent, const QPoint& globalPos) {
+    FactionPopup popup(parent);
+    QEventLoop loop;
+    popup.setLoop(&loop);
+    popup.move(globalPos);
+    popup.show();
+    popup.raise();
+    popup.activateWindow();
+    loop.exec();
+    return popup.selectedId();
+}
+
+}

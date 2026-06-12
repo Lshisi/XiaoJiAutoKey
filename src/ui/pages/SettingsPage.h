@@ -6,8 +6,8 @@
 #include <QLabel>
 
 class QButtonGroup;
+class QPushButton;
 class QRadioButton;
-class FluentComboBox;
 class FluentLineEdit;
 class QSlider;
 
@@ -36,10 +36,12 @@ protected:
 
 private:
     void applyPageTheme();
+    void showFactionMenu();
+    void updateFactionButtonText();
 
     QLabel* configPathLabel_;
     QButtonGroup* closeActionGroup_ = nullptr;
-    FluentComboBox* factionCombo_ = nullptr;
+    QPushButton* factionButton_ = nullptr;
     QSlider* statusOverlayOpacitySlider_ = nullptr;
     QLabel* statusOverlayOpacityValue_ = nullptr;
     QLabel* factionPreviewIcon_ = nullptr;

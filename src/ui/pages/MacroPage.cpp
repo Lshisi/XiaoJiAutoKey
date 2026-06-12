@@ -162,7 +162,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     hotkeyRow->setSpacing(6);
     hotkeyRow->addWidget(hotkeyEdit_, 1);
     hotkeyClearBtn_ = new FluentButton(FluentButton::Secondary, QString(QChar(0xE74D)), this);
-    hotkeyClearBtn_->setFixedSize(28, 28);
+    hotkeyClearBtn_->setFixedSize(32, 32);
     hotkeyClearBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
     hotkeyClearBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u542f\u505c\u5feb\u6377\u952e"));
     hotkeyRow->addWidget(hotkeyClearBtn_);

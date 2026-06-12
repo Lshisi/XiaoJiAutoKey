@@ -1,5 +1,6 @@
 #include "FluentSidebar.h"
 #include "../styles/DesignTokens.h"
+#include "FactionMenu.h"
 #include "FactionTheme.h"
 
 #include <QPainter>
@@ -7,11 +8,8 @@
 #include <QPen>
 #include <QPixmap>
 #include <QHBoxLayout>
-#include <QAction>
-#include <QActionGroup>
 #include <QCursor>
 #include <QEvent>
-#include <QMenu>
 #include <QMouseEvent>
 
 namespace {
@@ -263,47 +261,10 @@ bool FluentSidebar::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void FluentSidebar::showFactionMenu() {
-    QMenu menu(this);
-    menu.setFont(Fluent::Typography::body());
-    const auto palette = FactionTheme::instance().palette();
-    menu.setStyleSheet(QString(
-        "QMenu {"
-        "  background: %1;"
-        "  border: 1px solid %2;"
-        "  border-radius: 8px;"
-        "  padding: 4px;"
-        "  color: %3;"
-        "}"
-        "QMenu::item {"
-        "  height: 28px;"
-        "  padding: 0 22px 0 12px;"
-        "  border-radius: 5px;"
-        "}"
-        "QMenu::item:selected { background: %4; }"
-        "QMenu::item:checked { color: %5; }")
-        .arg(Fluent::Colors::cardBg().name(),
-            Fluent::Colors::border().name(QColor::HexArgb),
-            Fluent::Colors::textPrimary().name(),
-            palette.accentSoft.name(QColor::HexArgb),
-            palette.accent.name()));
-
-    QActionGroup actionGroup(&menu);
-    actionGroup.setExclusive(true);
-    const QString currentId = FactionTheme::instance().current().id;
-    for (const auto& faction : FactionTheme::instance().factions()) {
-        auto* action = menu.addAction(faction.name);
-        action->setCheckable(true);
-        action->setChecked(faction.id == currentId);
-        action->setData(faction.id);
-        actionGroup.addAction(action);
-    }
-
-    const QPoint popupPos = factionHeader_->mapToGlobal(QPoint(factionHeader_->width() - 4, factionHeader_->height() - 2));
-    if (auto* selected = menu.exec(popupPos)) {
-        const QString factionId = selected->data().toString();
-        if (!factionId.isEmpty() && factionId != currentId) {
-            emit factionSelected(factionId);
-        }
+    const QPoint popupPos = factionHeader_->mapToGlobal(QPoint(factionHeader_->width() - 4, 10));
+    const QString factionId = FactionMenu::exec(this, popupPos);
+    if (!factionId.isEmpty() && factionId != FactionTheme::instance().current().id) {
+        emit factionSelected(factionId);
     }
 }
 

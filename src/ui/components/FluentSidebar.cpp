@@ -261,8 +261,12 @@ bool FluentSidebar::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void FluentSidebar::showFactionMenu() {
-    const QPoint popupPos = factionHeader_->mapToGlobal(QPoint(factionHeader_->width() - 4, 10));
-    const QString factionId = FactionMenu::exec(this, popupPos);
+    const QPoint popupPos = factionHeader_->mapToGlobal(QPoint(factionHeader_->width() - 28, 10));
+    FactionMenu::Options options;
+    options.itemHeight = 24;
+    options.drawScrollBar = false;
+    options.bottomMargin = 8;
+    const QString factionId = FactionMenu::exec(this, popupPos, options);
     if (!factionId.isEmpty() && factionId != FactionTheme::instance().current().id) {
         emit factionSelected(factionId);
     }

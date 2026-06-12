@@ -379,8 +379,13 @@ bool SettingsPage::eventFilter(QObject* watched, QEvent* event) {
 
 void SettingsPage::showFactionMenu() {
     if (!factionButton_) return;
-    const QPoint popupPos = factionButton_->mapToGlobal(QPoint(factionButton_->width() - 4, factionButton_->height() - 2));
-    const QString factionId = FactionMenu::exec(this, popupPos);
+    const QPoint popupPos = factionButton_->mapToGlobal(QPoint(0, factionButton_->height() - 2));
+    FactionMenu::Options options;
+    options.minWidth = factionButton_->width();
+    options.itemHeight = 24;
+    options.drawScrollBar = true;
+    options.bottomMargin = 16;
+    const QString factionId = FactionMenu::exec(this, popupPos, options);
     if (!factionId.isEmpty() && factionId != FactionTheme::instance().current().id) {
         emit factionChanged(factionId);
     }

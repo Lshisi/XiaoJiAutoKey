@@ -7,6 +7,14 @@ class QWidget;
 
 namespace FactionMenu {
 
-QString exec(QWidget* parent, const QPoint& globalPos);
+struct Options {
+    int minWidth = 112;
+    int itemHeight = 24;
+    bool drawScrollBar = true;
+    int bottomMargin = 8;
+    int bottomLimitGlobalY = 0;
+};
+
+QString exec(QWidget* parent, const QPoint& globalPos, const Options& options = Options());
 
 }

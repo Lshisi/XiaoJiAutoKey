@@ -19,6 +19,8 @@
 #include <QPainterPath>
 
 namespace {
+constexpr int kTriggerCardHeight = 162;
+
 class PriorityIconWidget : public QWidget {
 public:
     enum class Kind { None, Disabled, Enabled };
@@ -69,6 +71,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // Left: table card
     auto* tableCard = new FluentCard(this);
+    tableCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     // -- Profile selector row --
     auto* profileRow = new QHBoxLayout();
@@ -130,6 +133,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 42);
     table_->setColumnWidth(5, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     tableCard->contentLayout()->addWidget(table_, 1);
 
     // -- 暂停按键区域（表格下方） --
@@ -170,6 +174,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
+    controlCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
@@ -184,6 +189,10 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
+    triggerCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    triggerCard->setFixedHeight(kTriggerCardHeight);
+    triggerCard->layout()->setContentsMargins(12, 6, 12, 6);
+    triggerCard->contentLayout()->setSpacing(4);
     auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
     hotkeyLabel->setFont(Fluent::Typography::caption());
     QPalette hPal = hotkeyLabel->palette();
@@ -194,7 +203,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     hotkeyEdit_->setReadOnly(true);
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
     triggerCard->contentLayout()->addWidget(hotkeyEdit_);
-    triggerCard->contentLayout()->addSpacing(8);
+    triggerCard->contentLayout()->addSpacing(4);
     auto* beepRow = new QHBoxLayout();
     beepCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
@@ -224,8 +233,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
+    mixedCard->contentLayout()->addStretch();
     mixedCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     rightLayout->addWidget(mixedCard, 1);
+    rightLayout->setStretch(0, 0);
+    rightLayout->setStretch(1, 0);
+    rightLayout->setStretch(2, 1);
     layout->addLayout(rightLayout, 3);
 
     // Connections

@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 struct MacroRuntime {
@@ -44,6 +45,7 @@ private:
     void WorkerLoop();
     void ExecuteStep(MacroRuntime& rt);
     static ULONGLONG NowMs();
+    bool IsPauseActive() const;
 
     DdDriver& driver_;
 
@@ -53,4 +55,5 @@ private:
     mutable std::mutex mutex_;
     std::vector<MacroRuntime> macros_;
     std::unordered_map<std::uint64_t, bool> triggerHeld_;
+    std::unordered_set<std::uint64_t> pauseKeysDown_;
 };

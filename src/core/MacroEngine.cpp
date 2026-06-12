@@ -53,6 +53,7 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
     }
 
     macros_ = std::move(updated);
+    pauseKeysDown_.clear();
 }
 
 void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
@@ -60,6 +61,9 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
     const auto encoded = EncodeKey(key);
 
     for (auto& rt : macros_) {
+        if (std::find(rt.config.pauseKeys.begin(), rt.config.pauseKeys.end(), key) != rt.config.pauseKeys.end()) {
+            pauseKeysDown_.insert(encoded);
+        }
         if (!rt.config.enabled) continue;
         if (!rt.config.triggerKey.has_value()) continue;
         if (*rt.config.triggerKey != key) continue;
@@ -96,6 +100,7 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     triggerHeld_[encoded] = false;
+    pauseKeysDown_.erase(encoded);
 
     for (auto& rt : macros_) {
         if (!rt.config.enabled) continue;
@@ -121,6 +126,7 @@ void MacroEngine::StopAll() {
         rt.keyDownTime = 0;
     }
     triggerHeld_.clear();
+    pauseKeysDown_.clear();
 }
 
 bool MacroEngine::HasActiveMacro() const {
@@ -136,17 +142,33 @@ bool MacroEngine::IsRunning(std::uint64_t macroId) const {
     return it != macros_.end() && it->active;
 }
 
+bool MacroEngine::IsPauseActive() const {
+    return !pauseKeysDown_.empty();
+}
+
 void MacroEngine::WorkerLoop() {
     while (!exit_.load()) {
         std::vector<std::pair<KeyDescriptor, bool>> toSend;  // key, isDown
 
         {
             std::lock_guard lock(mutex_);
+            const bool pauseActive = IsPauseActive();
 
             for (auto& rt : macros_) {
                 if (!rt.active || !rt.config.enabled) continue;
                 if (rt.config.steps.empty()) {
                     rt.active = false;
+                    continue;
+                }
+
+                if (pauseActive) {
+                    if (rt.keyDown && rt.currentStep >= 0 && rt.currentStep < static_cast<int>(rt.config.steps.size())) {
+                        const auto& step = rt.config.steps[rt.currentStep];
+                        if (step.key.IsValid()) {
+                            toSend.push_back({step.key, false});
+                        }
+                        rt.keyDown = false;
+                    }
                     continue;
                 }
 

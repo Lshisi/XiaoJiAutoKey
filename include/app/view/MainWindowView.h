@@ -6,10 +6,6 @@
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
 
-#ifdef Q_OS_WIN
-#include <Windows.h>
-#endif
-
 class AboutPage;
 class FluentSidebar;
 class FluentTitleBar;
@@ -53,8 +49,4 @@ private:
     QIcon idleIcon_;
     QIcon activeIcon_;
     bool activityIconActive_ = false;
-#ifdef Q_OS_WIN
-    HICON idleNativeIcon_ = nullptr;
-    HICON activeNativeIcon_ = nullptr;
-#endif
 };

@@ -61,6 +61,7 @@ struct MacroConfig {
     std::uint64_t id = 0;
     std::wstring name;
     std::vector<MacroStep> steps;
+    std::vector<KeyDescriptor> pauseKeys;
     MacroTriggerMode triggerMode = MacroTriggerMode::Toggle;
     std::optional<KeyDescriptor> triggerKey;
     int loopCount = 0;

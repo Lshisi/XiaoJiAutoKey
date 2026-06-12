@@ -39,6 +39,10 @@ void MainWindow::setupHooks() {
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },
+        [this]() {
+            macroCoordinator_.pollRunningState();
+            refreshStatusOverlay();
+        },
         this
     });
 

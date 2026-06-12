@@ -75,6 +75,7 @@ void PageRefreshCoordinator::refreshMacro() {
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
     if (macro) {
         context_.view->macroPage()->setSteps(macro->steps);
+        context_.view->macroPage()->setPauseKeys(macro->pauseKeys);
         context_.view->macroPage()->setMode(macro->triggerMode);
         context_.view->macroPage()->setLoopCount(macro->loopCount);
         const QString hotkeyText = macro->triggerKey.has_value()
@@ -83,6 +84,7 @@ void PageRefreshCoordinator::refreshMacro() {
         context_.view->macroPage()->setHotkeyText(hotkeyText);
     } else {
         context_.view->macroPage()->setSteps({});
+        context_.view->macroPage()->setPauseKeys({});
         context_.view->macroPage()->setMode(MacroTriggerMode::Toggle);
         context_.view->macroPage()->setLoopCount(0);
         context_.view->macroPage()->setHotkeyText(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));

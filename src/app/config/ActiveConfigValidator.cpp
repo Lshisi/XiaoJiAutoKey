@@ -65,6 +65,11 @@ ControllerResult validateHotkeyCandidate(
     }
 
     if (macro) {
+        for (const auto& pauseKey : macro->pauseKeys) {
+            if (pauseKey == key) {
+                return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u5b8f\u7684\u6682\u505c\u952e");
+            }
+        }
         for (const auto& step : macro->steps) {
             if (step.key == key) {
                 return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u5b8f\u7684\u6b65\u9aa4\u6309\u952e");

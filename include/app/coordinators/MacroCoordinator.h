@@ -56,6 +56,8 @@ private:
     void onMacroLoopCountChanged(int count);
     void onMacroBeepToggled(bool enabled);
     void onStatusOverlayToggled(bool enabled);
+    void onPauseKeyAdd();
+    void onPauseKeyDelete(int index);
     void stopAllForConfigChange();
 
     Context context_;

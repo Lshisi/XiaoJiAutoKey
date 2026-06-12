@@ -85,6 +85,17 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
         if (auto triggerText = GetStringField(*entry, "triggerKey"))
             macro.triggerKey = StorageToKeyDescriptor(ToWide(*triggerText));
         macro.loopCount = GetIntField(*entry, "loopCount").value_or(0);
+        const auto pauseKeysIt = entry->find("pauseKeys");
+        if (pauseKeysIt != entry->end()) {
+            if (const auto* pauseArr = pauseKeysIt->second.AsArray()) {
+                for (const auto& pkItem : *pauseArr) {
+                    if (const auto* pkStr = pkItem.AsString()) {
+                        auto pk = StorageToKeyDescriptor(ToWide(*pkStr));
+                        if (pk.has_value()) macro.pauseKeys.push_back(*pk);
+                    }
+                }
+            }
+        }
 
         auto stepsIt = entry->find("steps");
         if (stepsIt != entry->end()) {
@@ -134,6 +145,14 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
         entry.emplace("triggerMode", std::string(macro.triggerMode == MacroTriggerMode::Hold ? "hold" : "toggle"));
         entry.emplace("triggerKey", ToUtf8(KeyDescriptorToStorage(macro.triggerKey)));
         entry.emplace("loopCount", macro.loopCount);
+        if (!macro.pauseKeys.empty()) {
+            jsonlite::Array pauseKeys;
+            pauseKeys.reserve(macro.pauseKeys.size());
+            for (const auto& key : macro.pauseKeys) {
+                pauseKeys.emplace_back(ToUtf8(KeyDescriptorToStorage(key)));
+            }
+            entry.emplace("pauseKeys", std::move(pauseKeys));
+        }
 
         jsonlite::Array steps;
         for (const auto& step : macro.steps) {

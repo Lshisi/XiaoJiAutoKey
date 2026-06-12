@@ -51,8 +51,12 @@ void EngineHookCoordinator::bind(Context context) {
                 }
             }
             context_.macroEngine->OnTriggerDown(key);
+            if (context_.macroStateChanged) context_.macroStateChanged();
         }
-        else context_.macroEngine->OnTriggerUp(key);
+        else {
+            context_.macroEngine->OnTriggerUp(key);
+            if (context_.macroStateChanged) context_.macroStateChanged();
+        }
     });
 }
 

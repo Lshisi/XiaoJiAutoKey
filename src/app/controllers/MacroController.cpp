@@ -27,6 +27,7 @@ MacroConfig* MacroController::macroById(std::uint64_t macroId) {
 }
 
 const MacroConfig* MacroController::macroById(std::uint64_t macroId) const {
+
     for (const auto& macro : config_.macros) {
         if (macro.id == macroId) return &macro;
     }
@@ -47,7 +48,7 @@ void MacroController::resetActiveMacro() {
     if (config_.macros.empty()) {
         MacroConfig macro;
         macro.id = 1;
-        macro.name = L"\u9ed8\u8ba4\u5b8f";
+        macro.name = L"\u9ed8\u8ba4\u914d\u7f6e";
         macro.enabled = true;
         config_.macros.push_back(macro);
     }
@@ -118,6 +119,11 @@ ControllerResult MacroController::validateStepKey(const MacroConfig& macro, cons
     if (macro.triggerKey.has_value() && *macro.triggerKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }
+    for (const auto& pauseKey : macro.pauseKeys) {
+        if (pauseKey == key) {
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u6682\u505c\u952e\u3002"));
+        }
+    }
     return ControllerResult::success();
 }
 
@@ -130,6 +136,11 @@ ControllerResult MacroController::validateTriggerKey(const MacroConfig& macro, c
         [&](const MacroStep& step) { return step.key == key; });
     if (stepConflict) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u7684\u6b65\u9aa4\u4e2d\u4f7f\u7528\u3002"));
+    }
+    const bool pauseConflict = std::any_of(macro.pauseKeys.begin(), macro.pauseKeys.end(),
+        [&](const KeyDescriptor& pauseKey) { return pauseKey == key; });
+    if (pauseConflict) {
+        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u7684\u6682\u505c\u952e\u4f7f\u7528\u3002"));
     }
     return ControllerResult::success();
 }
@@ -189,6 +200,39 @@ ControllerResult MacroController::moveStep(int fromIndex, int toIndex) {
     return ControllerResult::success();
 }
 
+ControllerResult MacroController::addPauseKey(const KeyDescriptor& key) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    if (macro->triggerKey.has_value() && *macro->triggerKey == key) {
+        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
+    }
+    for (const auto& pauseKey : macro->pauseKeys) {
+        if (pauseKey == key) {
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u5728\u6682\u505c\u952e\u5217\u8868\u4e2d\u3002"));
+        }
+    }
+    for (const auto& step : macro->steps) {
+        if (step.key == key) {
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u5f53\u524d\u5b8f\u7684\u6b65\u9aa4\u4e2d\u4f7f\u7528\u3002"));
+        }
+    }
+
+    macro->pauseKeys.push_back(key);
+    return ControllerResult::success();
+}
+
+ControllerResult MacroController::deletePauseKey(int index) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+    if (index < 0 || index >= static_cast<int>(macro->pauseKeys.size())) {
+        return ControllerResult::failure(QString::fromWCharArray(L"\u6682\u505c\u952e\u4e0d\u5b58\u5728\u3002"));
+    }
+
+    macro->pauseKeys.erase(macro->pauseKeys.begin() + index);
+    return ControllerResult::success();
+}
+
 ControllerResult MacroController::setTriggerKey(const KeyDescriptor& key) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
@@ -197,6 +241,14 @@ ControllerResult MacroController::setTriggerKey(const KeyDescriptor& key) {
     if (!validation.ok) return validation;
 
     macro->triggerKey = key;
+    return ControllerResult::success();
+}
+
+ControllerResult MacroController::clearTriggerKey() {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    macro->triggerKey.reset();
     return ControllerResult::success();
 }
 

@@ -27,6 +27,7 @@ public:
         std::function<bool()> repeatRunning;
         std::function<void(quint64)> capturedKey;
         std::function<ControllerResult()> validateActiveConfig;
+        std::function<void()> macroStateChanged;
         QWidget* parent = nullptr;
     };
 

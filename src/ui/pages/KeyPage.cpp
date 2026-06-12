@@ -19,6 +19,8 @@
 #include <QPainterPath>
 
 namespace {
+constexpr int kTriggerCardHeight = 162;
+
 class PriorityIconWidget : public QWidget {
 public:
     enum class Kind { None, Disabled, Enabled };
@@ -69,11 +71,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // Left: table card
     auto* tableCard = new FluentCard(this);
+    tableCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     // -- Profile selector row --
     auto* profileRow = new QHBoxLayout();
     profileRow->setSpacing(6);
-    auto* profileLabel = new QLabel(QString::fromWCharArray(L"\u914d\u7f6e\u65b9\u6848:"), this);
+    auto* profileLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e\u914d\u7f6e:"), this);
     profileLabel->setFont(Fluent::Typography::caption());
     QPalette pLabelPal = profileLabel->palette();
     pLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
@@ -102,7 +105,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     tableCard->contentLayout()->addSpacing(8);
 
     auto* headerRow = new QHBoxLayout();
-    auto* title = new QLabel(QString::fromWCharArray(L"\u70ed\u952e\u5217\u8868"), this);
+    auto* title = new QLabel(QString::fromWCharArray(L"\u6309\u952e\u5217\u8868"), this);
     title->setFont(Fluent::Typography::pageTitle());
     headerRow->addWidget(title);
     headerRow->addStretch();
@@ -130,6 +133,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 42);
     table_->setColumnWidth(5, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     tableCard->contentLayout()->addWidget(table_, 1);
 
     // -- 暂停按键区域（表格下方） --
@@ -170,6 +174,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
+    controlCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
@@ -184,6 +189,10 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
+    triggerCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    triggerCard->setFixedHeight(kTriggerCardHeight);
+    triggerCard->layout()->setContentsMargins(12, 6, 12, 6);
+    triggerCard->contentLayout()->setSpacing(4);
     auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
     hotkeyLabel->setFont(Fluent::Typography::caption());
     QPalette hPal = hotkeyLabel->palette();
@@ -193,8 +202,16 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
-    triggerCard->contentLayout()->addWidget(hotkeyEdit_);
-    triggerCard->contentLayout()->addSpacing(8);
+    auto* hotkeyRow = new QHBoxLayout();
+    hotkeyRow->setSpacing(6);
+    hotkeyRow->addWidget(hotkeyEdit_, 1);
+    hotkeyClearBtn_ = new FluentButton(FluentButton::Secondary, QString(QChar(0xE74D)), this);
+    hotkeyClearBtn_->setFixedSize(28, 28);
+    hotkeyClearBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    hotkeyClearBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u542f\u505c\u5feb\u6377\u952e"));
+    hotkeyRow->addWidget(hotkeyClearBtn_);
+    triggerCard->contentLayout()->addLayout(hotkeyRow);
+    triggerCard->contentLayout()->addSpacing(4);
     auto* beepRow = new QHBoxLayout();
     beepCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
@@ -224,8 +241,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
+    mixedCard->contentLayout()->addStretch();
     mixedCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     rightLayout->addWidget(mixedCard, 1);
+    rightLayout->setStretch(0, 0);
+    rightLayout->setStretch(1, 0);
+    rightLayout->setStretch(2, 1);
     layout->addLayout(rightLayout, 3);
 
     // Connections
@@ -236,6 +257,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
+    connect(hotkeyClearBtn_, &QPushButton::clicked, this, &KeyPage::hotkeyClearClicked);
     hotkeyEdit_->installEventFilter(this);
 
     // Profile connections
@@ -285,12 +307,22 @@ void KeyPage::setRunning(bool running) {
     beepCheck_->setEnabled(!running);
     if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
+    if (hotkeyClearBtn_) {
+        hotkeyClearBtn_->setEnabled(!running && !hotkeyName_.isEmpty()
+            && hotkeyName_ != QString::fromWCharArray(L"\u672a\u8bbe\u7f6e")
+            && hotkeyName_ != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+    }
     mixedModeCheck_->setEnabled(!running);
 }
 
 void KeyPage::setHotkeyText(const QString& text) {
     hotkeyEdit_->setText(text);
     hotkeyName_ = text;
+    if (hotkeyClearBtn_) {
+        hotkeyClearBtn_->setEnabled(!running_ && !text.isEmpty()
+            && text != QString::fromWCharArray(L"\u672a\u8bbe\u7f6e")
+            && text != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+    }
     updateStartBtnText();
 }
 

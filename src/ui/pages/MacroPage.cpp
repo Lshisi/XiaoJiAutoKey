@@ -15,6 +15,10 @@
 #include <QEvent>
 #include <QIntValidator>
 
+namespace {
+constexpr int kTriggerCardHeight = 162;
+}
+
 MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
     setFocusPolicy(Qt::ClickFocus);
@@ -26,11 +30,12 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
 
     // ── Left: Table Card ──
     auto* tableCard = new FluentCard(this);
+    tableCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     // -- Macro profile selector row --
     auto* profileRow = new QHBoxLayout();
     profileRow->setSpacing(6);
-    auto* profileLabel = new QLabel(QString::fromWCharArray(L"\u5b8f\u914d\u7f6e:"), this);
+    auto* profileLabel = new QLabel(QString::fromWCharArray(L"\u5faa\u73af\u914d\u7f6e:"), this);
     profileLabel->setFont(Fluent::Typography::caption());
     QPalette pLabelPal = profileLabel->palette();
     pLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
@@ -43,28 +48,28 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     macroAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     macroAddBtn_->setFixedSize(28, 28);
     macroAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroAddBtn_->setToolTip(QString::fromWCharArray(L"\u65b0\u5efa\u5b8f"));
+    macroAddBtn_->setToolTip(QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af"));
     profileRow->addWidget(macroAddBtn_);
     macroRenameBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE8AC)), this);
     macroRenameBtn_->setFixedSize(28, 28);
     macroRenameBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroRenameBtn_->setToolTip(QString::fromWCharArray(L"\u91cd\u547d\u540d"));
+    macroRenameBtn_->setToolTip(QString::fromWCharArray(L"\u91cd\u547d\u540d\u5faa\u73af"));
     profileRow->addWidget(macroRenameBtn_);
     macroDeleteBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), this);
     macroDeleteBtn_->setFixedSize(28, 28);
     macroDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroDeleteBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u5b8f"));
+    macroDeleteBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u5faa\u73af"));
     profileRow->addWidget(macroDeleteBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);
 
     // Header row
     auto* headerRow = new QHBoxLayout();
-    auto* title = new QLabel(QString::fromWCharArray(L"\u6309\u952e\u5e8f\u5217"), this);
+    auto* title = new QLabel(QString::fromWCharArray(L"\u5faa\u73af\u5217\u8868"), this);
     title->setFont(Fluent::Typography::pageTitle());
     headerRow->addWidget(title);
     headerRow->addStretch();
-    addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6b65\u9aa4"), this);
+    addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6309\u952e"), this);
     addBtn_->setFixedHeight(28);
     addBtn_->setMinimumWidth(92);
     headerRow->addWidget(addBtn_);
@@ -86,7 +91,37 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(3, 80);
     table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     table_->verticalHeader()->setVisible(false);
+    table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     tableCard->contentLayout()->addWidget(table_, 1);
+
+    auto* pauseSeparator = new QWidget(this);
+    pauseSeparator->setFixedHeight(1);
+    pauseSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+    tableCard->contentLayout()->addWidget(pauseSeparator);
+    tableCard->contentLayout()->addSpacing(8);
+
+    auto* pauseRow = new QHBoxLayout();
+    pauseRow->setSpacing(6);
+    auto* pauseLabel = new QLabel(QString::fromWCharArray(L"\u6682\u505c\u952e:"), this);
+    pauseLabel->setFont(Fluent::Typography::caption());
+    QPalette pauseLabelPal = pauseLabel->palette();
+    pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    pauseLabel->setPalette(pauseLabelPal);
+    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u5f53\u524d\u8fd0\u884c\u7684\u5b8f\u4f1a\u4e34\u65f6\u6682\u505c\uff0c\u677e\u5f00\u540e\u7ee7\u7eed"));
+    pauseRow->addWidget(pauseLabel);
+
+    pauseKeyListWidget_ = new QWidget(this);
+    pauseKeyListLayout_ = new QHBoxLayout(pauseKeyListWidget_);
+    pauseKeyListLayout_->setContentsMargins(0, 0, 0, 0);
+    pauseKeyListLayout_->setSpacing(4);
+    pauseRow->addWidget(pauseKeyListWidget_, 1);
+
+    auto* pauseAddBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
+    pauseAddBtn->setFixedSize(24, 24);
+    pauseAddBtn->setFont(QFont("Segoe MDL2 Assets", 9));
+    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u952e"));
+    pauseRow->addWidget(pauseAddBtn);
+    tableCard->contentLayout()->addLayout(pauseRow);
     layout->addWidget(tableCard, 5);
 
     // ── Right panel ──
@@ -95,6 +130,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 1: 快捷控制 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);
+    controlCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
@@ -109,6 +145,10 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 2: 启动触发 --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
+    triggerCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    triggerCard->setFixedHeight(kTriggerCardHeight);
+    triggerCard->layout()->setContentsMargins(12, 6, 12, 6);
+    triggerCard->contentLayout()->setSpacing(4);
     auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
     hotkeyLabel->setFont(Fluent::Typography::caption());
     QPalette hPal = hotkeyLabel->palette();
@@ -118,8 +158,16 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
-    triggerCard->contentLayout()->addWidget(hotkeyEdit_);
-    triggerCard->contentLayout()->addSpacing(8);
+    auto* hotkeyRow = new QHBoxLayout();
+    hotkeyRow->setSpacing(6);
+    hotkeyRow->addWidget(hotkeyEdit_, 1);
+    hotkeyClearBtn_ = new FluentButton(FluentButton::Secondary, QString(QChar(0xE74D)), this);
+    hotkeyClearBtn_->setFixedSize(28, 28);
+    hotkeyClearBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    hotkeyClearBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u542f\u505c\u5feb\u6377\u952e"));
+    hotkeyRow->addWidget(hotkeyClearBtn_);
+    triggerCard->contentLayout()->addLayout(hotkeyRow);
+    triggerCard->contentLayout()->addSpacing(4);
     auto* beepRow = new QHBoxLayout();
     beepCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u5f00\u542f\u63d0\u793a\u97f3"), this);
     beepCheck_->setFont(Fluent::Typography::body());
@@ -158,8 +206,12 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     loopEdit_->setPlaceholderText("0");
     loopEdit_->setValidator(new QIntValidator(0, 99999, this));
     modeCard->contentLayout()->addWidget(loopEdit_);
+    modeCard->contentLayout()->addStretch();
     modeCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     rightLayout->addWidget(modeCard, 1);
+    rightLayout->setStretch(0, 0);
+    rightLayout->setStretch(1, 0);
+    rightLayout->setStretch(2, 1);
     layout->addLayout(rightLayout, 3);
 
     // ── Connections ──
@@ -167,7 +219,9 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(startBtn_, &QPushButton::clicked, this, &MacroPage::startStopClicked);
     connect(beepCheck_, &QCheckBox::toggled, this, &MacroPage::beepToggled);
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &MacroPage::statusOverlayToggled);
+    connect(pauseAddBtn, &QPushButton::clicked, this, &MacroPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &MacroPage::soundSettingsClicked);
+    connect(hotkeyClearBtn_, &QPushButton::clicked, this, &MacroPage::hotkeyClearClicked);
     connect(hotkeyEdit_, &QLineEdit::cursorPositionChanged, this, [](){ /* dummy */ });
     hotkeyEdit_->installEventFilter(this);
 
@@ -255,11 +309,21 @@ void MacroPage::setRunning(bool running) {
     beepCheck_->setEnabled(!running);
     if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
+    if (hotkeyClearBtn_) {
+        hotkeyClearBtn_->setEnabled(!running && !hotkeyName_.isEmpty()
+            && hotkeyName_ != QString::fromWCharArray(L"\u672a\u8bbe\u7f6e")
+            && hotkeyName_ != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+    }
 }
 
 void MacroPage::setHotkeyText(const QString& text) {
     hotkeyEdit_->setText(text);
     hotkeyName_ = text;
+    if (hotkeyClearBtn_) {
+        hotkeyClearBtn_->setEnabled(!running_ && !text.isEmpty()
+            && text != QString::fromWCharArray(L"\u672a\u8bbe\u7f6e")
+            && text != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+    }
     updateStartBtnText();
 }
 
@@ -291,6 +355,7 @@ void MacroPage::updateThemeColors() {
     modeCombo_->refreshThemeStyle();
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();
+    refreshPauseKeyList();
     refreshTable();
 }
 
@@ -310,6 +375,58 @@ void MacroPage::setMacroProfiles(const std::vector<std::pair<std::uint64_t, QStr
     macroCombo_->setCurrentIndex(activeIndex);
     macroCombo_->blockSignals(false);
     macroDeleteBtn_->setEnabled(!running_);
+}
+
+void MacroPage::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
+    pauseKeys_ = keys;
+    refreshPauseKeyList();
+}
+
+void MacroPage::refreshPauseKeyList() {
+    if (!pauseKeyListLayout_ || !pauseKeyListWidget_) return;
+
+    QLayoutItem* item = nullptr;
+    while ((item = pauseKeyListLayout_->takeAt(0)) != nullptr) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+
+    if (pauseKeys_.empty()) {
+        auto* emptyLabel = new QLabel(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"), pauseKeyListWidget_);
+        emptyLabel->setFont(Fluent::Typography::caption());
+        QPalette ePal = emptyLabel->palette();
+        ePal.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());
+        emptyLabel->setPalette(ePal);
+        pauseKeyListLayout_->addWidget(emptyLabel);
+    } else {
+        for (int i = 0; i < static_cast<int>(pauseKeys_.size()); ++i) {
+            auto* tag = new QWidget(pauseKeyListWidget_);
+            tag->setStyleSheet(QString("background: %1; border-radius: 4px;")
+                .arg(Fluent::Colors::hoverBg().name(QColor::HexArgb)));
+            auto* tagLayout = new QHBoxLayout(tag);
+            tagLayout->setContentsMargins(6, 2, 2, 2);
+            tagLayout->setSpacing(2);
+
+            auto* keyLabel = new QLabel(QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i])), tag);
+            keyLabel->setFont(Fluent::Typography::caption());
+            tagLayout->addWidget(keyLabel);
+
+            auto* delBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);
+            delBtn->setFixedSize(18, 18);
+            delBtn->setFont(QFont("Segoe MDL2 Assets", 7));
+            tagLayout->addWidget(delBtn);
+
+            pauseKeyListLayout_->addWidget(tag);
+
+            connect(delBtn, &QPushButton::clicked, this, [this, i]() {
+                emit pauseKeyDeleteClicked(i);
+            });
+        }
+    }
+
+    pauseKeyListLayout_->addStretch();
 }
 
 void MacroPage::refreshTable() {

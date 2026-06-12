@@ -39,6 +39,7 @@ signals:
     void enableToggled(std::uint64_t id, bool enabled);
     void startStopClicked();
     void hotkeyEditClicked();
+    void hotkeyClearClicked();
     void beepToggled(bool enabled);
     void statusOverlayToggled(bool enabled);
     void mixedModeToggled(bool enabled);
@@ -65,6 +66,7 @@ private:
     FluentButton* addBtn_;
     FluentButton* startBtn_;
     FluentLineEdit* hotkeyEdit_;
+    FluentButton* hotkeyClearBtn_ = nullptr;
     QCheckBox* beepCheck_;
     QCheckBox* statusOverlayCheck_ = nullptr;
     FluentButton* soundSettingsBtn_ = nullptr;

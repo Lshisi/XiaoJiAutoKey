@@ -24,21 +24,24 @@ QColor mixColor(const QColor& a, const QColor& b, double t) {
 }
 
 QColor titleBarFillColor() {
+    const auto palette = FactionTheme::instance().palette();
+    const QColor base = Fluent::Colors::titleBarBg();
     if (Fluent::Theme::isDarkMode()) {
-        return Fluent::Colors::titleBarBg();
+        return mixColor(base, palette.accent, 0.09);
     }
 
-    const QColor base = Fluent::Colors::titleBarBg();
-    const QColor accent = FactionTheme::instance().palette().accent;
-    return mixColor(base, accent, 0.12);
+    return mixColor(base, palette.accent, 0.12);
 }
 
 QColor titleBarDividerColor() {
+    const auto palette = FactionTheme::instance().palette();
     if (Fluent::Theme::isDarkMode()) {
-        return Fluent::Colors::divider();
+        QColor divider = mixColor(Fluent::Colors::divider(), palette.accentBorder, 0.36);
+        divider.setAlpha(76);
+        return divider;
     }
 
-    const QColor base = mixColor(Fluent::Colors::titleBarBg(), FactionTheme::instance().palette().accentBorder, 0.12);
+    const QColor base = mixColor(Fluent::Colors::titleBarBg(), palette.accentBorder, 0.12);
     QColor divider = base;
     divider.setAlpha(26);
     return divider;

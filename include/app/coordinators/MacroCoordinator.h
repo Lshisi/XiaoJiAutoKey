@@ -52,10 +52,13 @@ private:
     void onMacroDeleteStep(int stepIndex);
     void onMacroMoveStep(int fromIndex, int toIndex);
     void onMacroStartStopClicked();
+    void onMacroHotkeyClearClicked();
     void onMacroModeChanged(int modeIndex);
     void onMacroLoopCountChanged(int count);
     void onMacroBeepToggled(bool enabled);
     void onStatusOverlayToggled(bool enabled);
+    void onPauseKeyAdd();
+    void onPauseKeyDelete(int index);
     void stopAllForConfigChange();
 
     Context context_;

@@ -25,6 +25,7 @@ public:
     ControllerResult deleteActiveProfile(std::uint64_t& newActiveProfileId);
 
     ControllerResult setControlHotkey(const KeyDescriptor& key);
+    ControllerResult clearControlHotkey();
     ControllerResult setMixedMode(bool enabled);
 
     ControllerResult deleteBinding(std::uint64_t id);

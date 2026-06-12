@@ -6,6 +6,7 @@
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/ConfigNameDialog.h"
 #include "dialogs/MacroStepDialog.h"
+#include "dialogs/PauseKeyDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "ui/pages/MacroPage.h"
@@ -27,10 +28,13 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPage::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
     connect(context_.page, &MacroPage::stepMoveRequested, this, &MacroCoordinator::onMacroMoveStep);
     connect(context_.page, &MacroPage::startStopClicked, this, &MacroCoordinator::onMacroStartStopClicked);
+    connect(context_.page, &MacroPage::hotkeyClearClicked, this, &MacroCoordinator::onMacroHotkeyClearClicked);
     connect(context_.page, &MacroPage::modeChanged, this, &MacroCoordinator::onMacroModeChanged);
     connect(context_.page, &MacroPage::loopCountChanged, this, &MacroCoordinator::onMacroLoopCountChanged);
     connect(context_.page, &MacroPage::beepToggled, this, &MacroCoordinator::onMacroBeepToggled);
     connect(context_.page, &MacroPage::statusOverlayToggled, this, &MacroCoordinator::onStatusOverlayToggled);
+    connect(context_.page, &MacroPage::pauseKeyAddClicked, this, &MacroCoordinator::onPauseKeyAdd);
+    connect(context_.page, &MacroPage::pauseKeyDeleteClicked, this, &MacroCoordinator::onPauseKeyDelete);
 }
 
 void MacroCoordinator::pollRunningState() {
@@ -66,7 +70,7 @@ void MacroCoordinator::onMacroSwitched(std::uint64_t macroId) {
 
     auto result = context_.controller->switchMacro(macroId);
     if (!result.ok) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5207\u6362\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5207\u6362\u5faa\u73af\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -79,8 +83,8 @@ void MacroCoordinator::onMacroAdd() {
     context_.inputHook->setDialogOpen(true);
     QString name;
     const bool ok = ConfigNameDialog::getName(context_.parent,
-        QString::fromWCharArray(L"\u65b0\u5efa\u5b8f"),
-        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5b8f\u540d\u79f0:"),
+        QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af"),
+        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5faa\u73af\u540d\u79f0:"),
         QString(),
         name);
     context_.inputHook->setDialogOpen(false);
@@ -89,7 +93,7 @@ void MacroCoordinator::onMacroAdd() {
     std::uint64_t createdMacroId = 0;
     auto result = context_.controller->addMacro(name, createdMacroId);
     if (!result.ok) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -105,7 +109,7 @@ void MacroCoordinator::onMacroRename() {
     context_.inputHook->setDialogOpen(true);
     QString name;
     const bool ok = ConfigNameDialog::getName(context_.parent,
-        QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f"),
+        QString::fromWCharArray(L"\u91cd\u547d\u540d\u5faa\u73af"),
         QString::fromWCharArray(L"\u65b0\u540d\u79f0:"),
         QString::fromStdWString(macro->name),
         name);
@@ -114,7 +118,7 @@ void MacroCoordinator::onMacroRename() {
 
     auto result = context_.controller->renameActiveMacro(name);
     if (!result.ok) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u91cd\u547d\u540d\u5faa\u73af\u5931\u8d25"), result.message);
         return;
     }
     if (context_.saveConfig) context_.saveConfig();
@@ -128,8 +132,8 @@ void MacroCoordinator::onMacroDelete() {
 
     context_.inputHook->setDialogOpen(true);
     const bool confirmed = ConfigConfirmDialog::confirm(context_.parent,
-        QString::fromWCharArray(L"\u5220\u9664\u5b8f"),
-        QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u5b8f\u201c") +
+        QString::fromWCharArray(L"\u5220\u9664\u5faa\u73af"),
+        QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u5faa\u73af\u201c") +
             QString::fromStdWString(macro->name) +
             QString::fromWCharArray(L"\u201d\u5417\uff1f"),
         QString::fromWCharArray(L"\u5220\u9664"));
@@ -139,7 +143,7 @@ void MacroCoordinator::onMacroDelete() {
     std::uint64_t newActiveMacroId = 0;
     auto result = context_.controller->deleteActiveMacro(newActiveMacroId);
     if (!result.ok) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u5b8f\u5931\u8d25"), result.message);
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u5220\u9664\u5faa\u73af\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();
@@ -236,7 +240,7 @@ void MacroCoordinator::onMacroStartStopClicked() {
         if (!macro->triggerKey.has_value()) {
             AppMessageDialog::warning(context_.parent,
                 QString::fromWCharArray(L"\u65e0\u6cd5\u542f\u52a8"),
-                QString::fromWCharArray(L"\u8bf7\u5148\u8bbe\u7f6e\u5b8f\u5faa\u73af\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
+                QString::fromWCharArray(L"\u8bf7\u5148\u8bbe\u7f6e\u5faa\u73af\u8fde\u53d1\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
             return;
         }
         if (context_.validateActiveConfig) {
@@ -252,6 +256,15 @@ void MacroCoordinator::onMacroStartStopClicked() {
     }
     context_.page->setRunning(!running);
     if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
+}
+
+void MacroCoordinator::onMacroHotkeyClearClicked() {
+    if (!context_.controller) return;
+    auto result = context_.controller->clearTriggerKey();
+    if (!result.ok) return;
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
 void MacroCoordinator::onMacroModeChanged(int modeIndex) {
@@ -282,6 +295,45 @@ void MacroCoordinator::onStatusOverlayToggled(bool enabled) {
     context_.page->setStatusOverlayEnabled(enabled);
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
+void MacroCoordinator::onPauseKeyAdd() {
+    if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+
+    PauseKeyDialog dialog(context_.parent);
+    context_.runKeyCaptureDialog(dialog);
+    if (dialog.result() == QDialog::Rejected) return;
+
+    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+        dialog.editResult().key,
+        context_.activeProfile ? context_.activeProfile() : nullptr,
+        macro);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
+    auto result = context_.controller->addPauseKey(dialog.editResult().key);
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        return;
+    }
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setPauseKeys(macro->pauseKeys);
+}
+
+void MacroCoordinator::onPauseKeyDelete(int index) {
+    if (!context_.controller) return;
+    auto result = context_.controller->deletePauseKey(index);
+    if (!result.ok) return;
+    auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setPauseKeys(macro->pauseKeys);
 }
 
 void MacroCoordinator::stopAllForConfigChange() {

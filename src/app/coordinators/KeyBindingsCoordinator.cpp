@@ -22,6 +22,7 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::enableToggled, this, &KeyBindingsCoordinator::onEnableToggled);
     connect(context_.page, &KeyPage::startStopClicked, this, &KeyBindingsCoordinator::onStartClicked);
     connect(context_.page, &KeyPage::hotkeyEditClicked, this, &KeyBindingsCoordinator::onHotkeyEditClicked);
+    connect(context_.page, &KeyPage::hotkeyClearClicked, this, &KeyBindingsCoordinator::onHotkeyClearClicked);
     connect(context_.page, &KeyPage::beepToggled, this, &KeyBindingsCoordinator::onBeepToggled);
     connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
     connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
@@ -85,6 +86,15 @@ void KeyBindingsCoordinator::onStartClicked() {
 
 void KeyBindingsCoordinator::onHotkeyEditClicked() {
     if (context_.startHotkeyCapture) context_.startHotkeyCapture();
+}
+
+void KeyBindingsCoordinator::onHotkeyClearClicked() {
+    if (!context_.controller) return;
+    auto result = context_.controller->clearControlHotkey();
+    if (!result.ok) return;
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.refreshAll) context_.refreshAll();
 }
 
 void KeyBindingsCoordinator::onBeepToggled(bool enabled) {

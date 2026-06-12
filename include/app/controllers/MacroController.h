@@ -27,8 +27,11 @@ public:
     ControllerResult updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs);
     ControllerResult deleteStep(int stepIndex);
     ControllerResult moveStep(int fromIndex, int toIndex);
+    ControllerResult addPauseKey(const KeyDescriptor& key);
+    ControllerResult deletePauseKey(int index);
 
     ControllerResult setTriggerKey(const KeyDescriptor& key);
+    ControllerResult clearTriggerKey();
     ControllerResult setTriggerMode(MacroTriggerMode mode);
     ControllerResult setLoopCount(int count);
 

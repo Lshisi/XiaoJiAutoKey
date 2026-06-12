@@ -34,26 +34,30 @@ QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
 }
 
 void drawKeyboardIcon(QPainter& p, const QRectF& rect, const QColor& color) {
-    QPen pen(color, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(rect.adjusted(1.5, 4.5, -1.5, -4.5), 2.5, 2.5);
-    p.setBrush(color);
-    const qreal y = rect.center().y() + 1;
-    for (int row = 0; row < 2; ++row) {
-        for (int col = 0; col < 4; ++col) {
-            p.drawRoundedRect(QRectF(rect.left() + 5 + col * 3.3, y - 3 + row * 4, 1.6, 1.6), 0.6, 0.6);
-        }
-    }
+
+    const qreal x = rect.left();
+    const qreal y = rect.top();
+    p.drawLine(QPointF(x + 4.5, y + 4.5), QPointF(x + 11.5, y + 4.5));
+    p.drawLine(QPointF(x + 7.0, y + 15.5), QPointF(x + 15.5, y + 15.5));
+    p.drawRoundedRect(QRectF(x + 3.0, y + 7.0, 6.0, 6.0), 1.5, 1.5);
+    p.drawRoundedRect(QRectF(x + 10.5, y + 7.0, 6.0, 6.0), 1.5, 1.5);
 }
 
 void drawListIcon(QPainter& p, const QRectF& rect, const QColor& color) {
-    QPen pen(color, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
-    for (int i = 0; i < 3; ++i) {
-        const qreal y = rect.top() + 5.5 + i * 5.0;
-        p.drawLine(QPointF(rect.left() + 5, y), QPointF(rect.right() - 4, y));
-    }
+    p.setBrush(Qt::NoBrush);
+
+    const qreal x = rect.left();
+    const qreal y = rect.top();
+    p.drawLine(QPointF(x + 5.0, y + 5.5), QPointF(x + 13.5, y + 5.5));
+    p.drawLine(QPointF(x + 5.0, y + 10.0), QPointF(x + 16.0, y + 10.0));
+    p.drawLine(QPointF(x + 5.0, y + 14.5), QPointF(x + 12.0, y + 14.5));
+    p.drawLine(QPointF(x + 15.0, y + 5.5), QPointF(x + 17.0, y + 7.5));
+    p.drawLine(QPointF(x + 17.0, y + 7.5), QPointF(x + 15.0, y + 9.5));
 }
 
 void drawGearIcon(QPainter& p, const QRectF& rect, const QColor& color) {
@@ -65,20 +69,22 @@ void drawGearIcon(QPainter& p, const QRectF& rect, const QColor& color) {
         p.save();
         p.translate(c);
         p.rotate(i * 45);
-        p.drawLine(QPointF(0, -8.0), QPointF(0, -6.0));
+        p.drawLine(QPointF(0, -7.5), QPointF(0, -5.7));
         p.restore();
     }
-    p.drawEllipse(c, 5.7, 5.7);
-    p.drawEllipse(c, 2.0, 2.0);
+    p.drawEllipse(c, 5.4, 5.4);
+    p.drawEllipse(c, 1.8, 1.8);
 }
 
 void drawInfoIcon(QPainter& p, const QRectF& rect, const QColor& color) {
-    QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
     p.drawEllipse(rect.adjusted(3.0, 3.0, -3.0, -3.0));
-    p.drawPoint(QPointF(rect.center().x(), rect.top() + 6.4));
-    p.drawLine(QPointF(rect.center().x(), rect.top() + 9.5), QPointF(rect.center().x(), rect.bottom() - 5.0));
+    p.drawLine(QPointF(rect.center().x(), rect.top() + 9.4), QPointF(rect.center().x(), rect.bottom() - 5.5));
+    p.setPen(Qt::NoPen);
+    p.setBrush(color);
+    p.drawEllipse(QPointF(rect.center().x(), rect.top() + 6.2), 1.05, 1.05);
 }
 
 void drawNavIcon(QPainter& p, const QRectF& rect, const QString& iconId, const QColor& color) {

@@ -44,6 +44,7 @@ private:
     void onEnableToggled(std::uint64_t id, bool enabled);
     void onStartClicked();
     void onHotkeyEditClicked();
+    void onHotkeyClearClicked();
     void onBeepToggled(bool enabled);
     void onStatusOverlayToggled(bool enabled);
     void onMixedModeToggled(bool enabled);

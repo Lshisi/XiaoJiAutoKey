@@ -17,7 +17,7 @@ void ConfigNormalizer::normalize(AppConfig& config) {
     if (config.macros.empty()) {
         MacroConfig defaultMacro;
         defaultMacro.id = 1;
-        defaultMacro.name = L"\u9ed8\u8ba4\u5b8f";
+        defaultMacro.name = L"\u9ed8\u8ba4\u914d\u7f6e";
         defaultMacro.enabled = true;
         config.macros.push_back(defaultMacro);
     }

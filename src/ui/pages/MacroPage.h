@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QCheckBox>
+#include <QHBoxLayout>
 #include <vector>
 
 class DraggableTable;
@@ -25,6 +26,7 @@ public:
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
     void setStatusOverlayEnabled(bool enabled);
+    void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void setMode(MacroTriggerMode mode);
     void setLoopCount(int count);
     void updateThemeColors();
@@ -48,8 +50,11 @@ signals:
     // Control
     void startStopClicked();
     void hotkeyEditClicked();
+    void hotkeyClearClicked();
     void beepToggled(bool enabled);
     void statusOverlayToggled(bool enabled);
+    void pauseKeyAddClicked();
+    void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
     void modeChanged(int modeIndex);
     void loopCountChanged(int count);
@@ -60,12 +65,14 @@ protected:
 private:
     void refreshTable();
     void updateStartBtnText();
+    void refreshPauseKeyList();
     void applyPageTheme();
 
     DraggableTable* table_;
     FluentButton* addBtn_;
     FluentButton* startBtn_;
     FluentLineEdit* hotkeyEdit_;
+    FluentButton* hotkeyClearBtn_ = nullptr;
     QCheckBox* beepCheck_;
     QCheckBox* statusOverlayCheck_ = nullptr;
     FluentButton* soundSettingsBtn_ = nullptr;
@@ -73,6 +80,9 @@ private:
     FluentLineEdit* loopEdit_;
     QLabel* loopLabel_;
     QLabel* statusLabel_ = nullptr;
+    std::vector<KeyDescriptor> pauseKeys_;
+    QWidget* pauseKeyListWidget_ = nullptr;
+    QHBoxLayout* pauseKeyListLayout_ = nullptr;
 
     // Macro profile UI
     FluentComboBox* macroCombo_;

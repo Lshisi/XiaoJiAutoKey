@@ -15,7 +15,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     : KeyCaptureDialogBase(parent) {
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4")
-        : QString::fromWCharArray(L"\u6dfb\u52a0\u6b65\u9aa4"));
+        : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
     setFixedSize(360, 218);
 
     auto* layout = new QVBoxLayout(this);

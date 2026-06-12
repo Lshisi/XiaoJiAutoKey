@@ -194,7 +194,7 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
         repeatHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") + TextOrDash(profile ? profile->controlHotkey : std::nullopt));
     }
     if (showMacro) {
-        macroTitleLabel_->setText(QString::fromWCharArray(macroRunning ? L"\u5b8f\uff1a\u5df2\u5f00\u542f" : L"\u5b8f\uff1a\u5df2\u5173\u95ed"));
+        macroTitleLabel_->setText(QString::fromWCharArray(macroRunning ? L"\u5faa\u73af\uff1a\u5df2\u5f00\u542f" : L"\u5faa\u73af\uff1a\u5df2\u5173\u95ed"));
         macroHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") + TextOrDash(macro ? macro->triggerKey : std::nullopt) +
             QString::fromWCharArray(L"  ") + LoopText(macro));
     }

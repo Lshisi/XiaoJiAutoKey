@@ -23,8 +23,6 @@ $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
 $usageShortcutName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).url"
 $usageShortcutSrc = Join-Path $repoRoot (Join-Path "assets" $usageShortcutName)
-
-
 # Auto update version
 $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # Auto update version (disabled - manual version control)

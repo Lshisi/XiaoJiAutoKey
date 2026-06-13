@@ -15,7 +15,7 @@ set(CMAKE_PREFIX_PATH "C:/Qt/5.15.2-static" ${CMAKE_PREFIX_PATH})
 # Dynamic Qt path (Anaconda) - uncomment if you need dynamic build:
 # set(CMAKE_PREFIX_PATH "D:/software/anaconda/Library" ${CMAKE_PREFIX_PATH})
 
-find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 
 set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
 set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
@@ -33,6 +33,7 @@ set(CORE_SOURCES
 
 set(UI_COMPONENT_SOURCES
     src/ui/components/FactionMenu.cpp
+    src/ui/components/FactionIcon.cpp
     src/ui/components/FluentTitleBar.cpp
     src/ui/components/FluentSidebar.cpp
     src/ui/components/FluentButton.cpp
@@ -54,6 +55,7 @@ set(UI_PAGE_SOURCES
 
 set(UI_COMPONENT_HEADERS
     src/ui/components/FactionMenu.h
+    src/ui/components/FactionIcon.h
     src/ui/components/FluentTitleBar.h
     src/ui/components/FluentSidebar.h
     src/ui/components/FluentButton.h
@@ -180,6 +182,7 @@ target_compile_definitions(XiaoJiAutoKey PRIVATE
 
 target_link_libraries(XiaoJiAutoKey PRIVATE
     Qt5::Widgets
+    Qt5::Svg
     shlwapi
     winmm
     dwmapi

@@ -1,36 +1,18 @@
 #include "FluentSidebar.h"
 #include "../styles/DesignTokens.h"
+#include "FactionIcon.h"
 #include "FactionMenu.h"
 #include "FactionTheme.h"
 
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
-#include <QPixmap>
 #include <QHBoxLayout>
 #include <QCursor>
 #include <QEvent>
 #include <QMouseEvent>
 
 namespace {
-QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
-    if (source.isNull()) {
-        return source;
-    }
-
-    QPixmap tinted(source.size());
-    tinted.setDevicePixelRatio(source.devicePixelRatio());
-    tinted.fill(Qt::transparent);
-
-    QPainter painter(&tinted);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.drawPixmap(0, 0, source);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
-    return tinted;
-}
-
 void drawKeyboardIcon(QPainter& p, const QRectF& rect, const QColor& color) {
     QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
@@ -290,17 +272,14 @@ void FluentSidebar::updateFactionIcon() {
         return;
     }
 
-    QPixmap pix(iconPath);
+    QPixmap pix = FactionIcon::render(iconPath, QSize(32, 32), factionIconLabel_,
+        Fluent::Theme::isDarkMode() ? Fluent::Colors::textPrimary() : QColor());
     if (pix.isNull()) {
         showFallbackFactionBadge(factionIconLabel_, faction.name, palette);
         return;
     }
     factionIconLabel_->setStyleSheet("background: transparent;");
     factionIconLabel_->setText(QString());
-    QPixmap scaled = pix.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    if (Fluent::Theme::isDarkMode()) {
-        scaled = tintPixmap(scaled, Fluent::Colors::textPrimary());
-    }
-    factionIconLabel_->setPixmap(scaled);
+    factionIconLabel_->setPixmap(pix);
     factionIconLabel_->show();
 }

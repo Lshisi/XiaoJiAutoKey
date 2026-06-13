@@ -1,6 +1,7 @@
 #include "FactionMenu.h"
 
 #include "../styles/DesignTokens.h"
+#include "FactionIcon.h"
 #include "FactionTheme.h"
 
 #include <QEventLoop>
@@ -8,7 +9,6 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPixmap>
 #include <QWheelEvent>
 #include <QVector>
 #include <QWidget>
@@ -21,24 +21,6 @@ constexpr int kItemRadius = 5;
 constexpr int kIconSize = 16;
 constexpr int kMinMenuWidth = 112;
 constexpr int kScrollBarWidth = 4;
-
-QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
-    if (source.isNull()) {
-        return source;
-    }
-
-    QPixmap tinted(source.size());
-    tinted.setDevicePixelRatio(source.devicePixelRatio());
-    tinted.fill(Qt::transparent);
-
-    QPainter painter(&tinted);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.drawPixmap(0, 0, source);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
-    return tinted;
-}
 
 class FactionPopup final : public QWidget {
 public:
@@ -120,11 +102,9 @@ protected:
             }
 
             if (!factions[i].iconPath.isEmpty()) {
-                QPixmap icon(factions[i].iconPath);
+                QPixmap icon = FactionIcon::render(factions[i].iconPath, QSize(kIconSize, kIconSize), this,
+                    Fluent::Theme::isDarkMode() ? (checked ? palette.accent : Fluent::Colors::textPrimary()) : QColor());
                 if (!icon.isNull()) {
-                    if (Fluent::Theme::isDarkMode()) {
-                        icon = tintPixmap(icon, checked ? palette.accent : Fluent::Colors::textPrimary());
-                    }
                     p.setRenderHint(QPainter::SmoothPixmapTransform, true);
                     p.drawPixmap(iconRect.toRect(), icon);
                 }

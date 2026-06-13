@@ -34,10 +34,8 @@ int main(int argc, char *argv[]) {
     app.setStyle(QStyleFactory::create("Fusion"));
     app.setPalette(Fluent::Theme::applicationPalette());
 
-    // Set global font - compact UI with slight letter spacing
-    QFont globalFont("Segoe UI", 9);
-    globalFont.setStyleStrategy(QFont::PreferAntialias);
-    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0);
+    // Set global font - compact UI with crisp CJK rendering.
+    QFont globalFont = Fluent::Typography::body();
     app.setFont(globalFont);
 
     MainWindow window;

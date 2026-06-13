@@ -66,8 +66,9 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     applyPageTheme();
 
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(16, 12, 16, 12);
-    layout->setSpacing(12);
+    layout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
+        Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap);
+    layout->setSpacing(Fluent::Spacing::cardGap);
 
     // Left: table card
     auto* tableCard = new FluentCard(this);
@@ -170,7 +171,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // Right panel
     auto* rightLayout = new QVBoxLayout();
-    rightLayout->setSpacing(12);
+    rightLayout->setSpacing(Fluent::Spacing::cardGap);
 
     // -- Card 1: 蹇嵎鎺у埗 --
     auto* controlCard = new FluentCard(QString::fromWCharArray(L"\u5feb\u6377\u63a7\u5236"), this);

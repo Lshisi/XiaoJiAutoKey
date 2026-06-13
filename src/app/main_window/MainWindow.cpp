@@ -277,9 +277,7 @@ void MainWindow::applyRuntimeVisualRefresh() {
         --runtimeVisualRefreshPassesRemaining_;
     }
 
-    QFont globalFont(QStringLiteral("Segoe UI"), 9);
-    globalFont.setStyleStrategy(QFont::PreferAntialias);
-    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0);
+    QFont globalFont = Fluent::Typography::body();
     qApp->setFont(globalFont);
 
     qApp->setPalette(Fluent::Theme::applicationPalette());

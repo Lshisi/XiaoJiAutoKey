@@ -3,26 +3,26 @@
 <qresource>
     <file>assets/icon.png</file>
     <file>assets/icon-active.png</file>
-    <file>assets/factions/shaolin.png</file>
-    <file>assets/factions/wanhua.png</file>
-    <file>assets/factions/qixiu.png</file>
-    <file>assets/factions/chunyang.png</file>
-    <file>assets/factions/tiance.png</file>
-    <file>assets/factions/cangjian.png</file>
-    <file>assets/factions/wudu.png</file>
-    <file>assets/factions/tangmen.png</file>
-    <file>assets/factions/mingjiao.png</file>
-    <file>assets/factions/gaibang.png</file>
-    <file>assets/factions/cangyun.png</file>
-    <file>assets/factions/changge.png</file>
-    <file>assets/factions/badao.png</file>
-    <file>assets/factions/penglai.png</file>
-    <file>assets/factions/lingxuege.png</file>
-    <file>assets/factions/yantianzong.png</file>
-    <file>assets/factions/yaozong.png</file>
-    <file>assets/factions/daozong.png</file>
-    <file>assets/factions/wanling.png</file>
-    <file>assets/factions/duanshi.png</file>
-    <file>assets/factions/wuxiang.png</file>
+    <file>assets/factions/shaolin.svg</file>
+    <file>assets/factions/wanhua.svg</file>
+    <file>assets/factions/qixiu.svg</file>
+    <file>assets/factions/chunyang.svg</file>
+    <file>assets/factions/tiance.svg</file>
+    <file>assets/factions/cangjian.svg</file>
+    <file>assets/factions/wudu.svg</file>
+    <file>assets/factions/tangmen.svg</file>
+    <file>assets/factions/mingjiao.svg</file>
+    <file>assets/factions/gaibang.svg</file>
+    <file>assets/factions/cangyun.svg</file>
+    <file>assets/factions/changge.svg</file>
+    <file>assets/factions/badao.svg</file>
+    <file>assets/factions/penglai.svg</file>
+    <file>assets/factions/lingxuege.svg</file>
+    <file>assets/factions/yantianzong.svg</file>
+    <file>assets/factions/yaozong.svg</file>
+    <file>assets/factions/daozong.svg</file>
+    <file>assets/factions/wanling.svg</file>
+    <file>assets/factions/duanshi.svg</file>
+    <file>assets/factions/wuxiang.svg</file>
 </qresource>
 </RCC>

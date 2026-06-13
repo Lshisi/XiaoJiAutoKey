@@ -100,42 +100,37 @@ namespace Colors {
 }
 
 namespace Typography {
-    inline QString fontFamily() { return QStringLiteral("Segoe UI, Microsoft YaHei UI"); }
+    inline QString fontFamily() { return QStringLiteral("Microsoft YaHei UI"); }
+
+    inline QFont makeFont(int pointSize, QFont::Weight weight = QFont::Normal) {
+        QFont f(fontFamily(), pointSize);
+        f.setWeight(weight);
+        f.setStyleStrategy(QFont::PreferAntialias);
+        f.setHintingPreference(QFont::PreferFullHinting);
+        f.setLetterSpacing(QFont::AbsoluteSpacing, 0);
+        return f;
+    }
 
     inline QFont pageTitle() {
-        QFont f(fontFamily(), 14);
-        f.setWeight(QFont::DemiBold);
-        return f;
+        return makeFont(14, QFont::Bold);
     }
     inline QFont cardTitle() {
-        QFont f(fontFamily(), 11);
-        f.setWeight(QFont::DemiBold);
-        return f;
+        return makeFont(11, QFont::Bold);
     }
     inline QFont body() {
-        QFont f(fontFamily(), 9);
-        f.setWeight(QFont::Normal);
-        return f;
+        return makeFont(9);
     }
     inline QFont bodyStrong() {
-        QFont f(fontFamily(), 9);
-        f.setWeight(QFont::DemiBold);
-        return f;
+        return makeFont(9, QFont::Bold);
     }
     inline QFont caption() {
-        QFont f(fontFamily(), 8);
-        f.setWeight(QFont::Normal);
-        return f;
+        return makeFont(9);
     }
     inline QFont smallText() {
-        QFont f(fontFamily(), 8);
-        f.setWeight(QFont::Normal);
-        return f;
+        return makeFont(8);
     }
     inline QFont titleBarTitle() {
-        QFont f(fontFamily(), 10);
-        f.setWeight(QFont::DemiBold);
-        return f;
+        return makeFont(10, QFont::Bold);
     }
 }
 

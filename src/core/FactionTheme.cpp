@@ -49,27 +49,27 @@ FactionInfo makeFaction(const char* id, const wchar_t* name, const QColor& color
 }
 
 FactionTheme::FactionTheme() {
-    factions_.push_back(makeFaction("shaolin", L"\u5c11\u6797", QColor(0x79, 0x6D, 0x0B), ":/assets/factions/shaolin.png"));
-    factions_.push_back(makeFaction("wanhua", L"\u4e07\u82b1", QColor(0x30, 0x10, 0x45), ":/assets/factions/wanhua.png"));
-    factions_.push_back(makeFaction("qixiu", L"\u4e03\u79c0", QColor(0x9F, 0x4B, 0x7F), ":/assets/factions/qixiu.png"));
-    factions_.push_back(makeFaction("chunyang", L"\u7eaf\u9633", QColor(0x09, 0x59, 0x6F), ":/assets/factions/chunyang.png"));
-    factions_.push_back(makeFaction("tiance", L"\u5929\u7b56", QColor(0x69, 0x11, 0x10), ":/assets/factions/tiance.png"));
-    factions_.push_back(makeFaction("cangjian", L"\u85cf\u5251", QColor(0x92, 0x95, 0x1C), ":/assets/factions/cangjian.png"));
-    factions_.push_back(makeFaction("wudu", L"\u6bd2\u7ecf", QColor(0x08, 0x51, 0x96), ":/assets/factions/wudu.png"));
-    factions_.push_back(makeFaction("tangmen", L"\u5510\u95e8", QColor(0x4B, 0x6F, 0x29), ":/assets/factions/tangmen.png"));
-    factions_.push_back(makeFaction("mingjiao", L"\u660e\u6559", QColor(0x8F, 0x50, 0x13), ":/assets/factions/mingjiao.png"));
-    factions_.push_back(makeFaction("gaibang", L"\u4e10\u5e2e", QColor(0x9A, 0x64, 0x26), ":/assets/factions/gaibang.png"));
-    factions_.push_back(makeFaction("cangyun", L"\u82cd\u4e91", QColor(0x99, 0x2F, 0x03), ":/assets/factions/cangyun.png"));
-    factions_.push_back(makeFaction("changge", L"\u957f\u6b4c", QColor(0x1F, 0x75, 0x64), ":/assets/factions/changge.png"));
-    factions_.push_back(makeFaction("badao", L"\u9738\u5200", QColor(0x30, 0x27, 0x6B), ":/assets/factions/badao.png"));
-    factions_.push_back(makeFaction("penglai", L"\u84ec\u83b1", QColor(0x5D, 0x61, 0x7E), ":/assets/factions/penglai.png"));
-    factions_.push_back(makeFaction("lingxuege", L"\u51cc\u96ea\u9601", QColor(0xA1, 0x09, 0x22), ":/assets/factions/lingxuege.png"));
-    factions_.push_back(makeFaction("yantianzong", L"\u884d\u5929\u5b97", QColor(0x5D, 0x2D, 0x90), ":/assets/factions/yantianzong.png"));
-    factions_.push_back(makeFaction("yaozong", L"\u836f\u5b97", QColor(0x0A, 0x51, 0x57), ":/assets/factions/yaozong.png"));
-    factions_.push_back(makeFaction("daozong", L"\u5200\u5b97", QColor(0x3B, 0x5E, 0x9F), ":/assets/factions/daozong.png"));
-    factions_.push_back(makeFaction("wanling", L"\u4e07\u7075", QColor(0xA0, 0x87, 0x4B), ":/assets/factions/wanling.png"));
-    factions_.push_back(makeFaction("duanshi", L"\u6bb5\u6c0f", QColor(0x5F, 0x9B, 0xB4), ":/assets/factions/duanshi.png"));
-    factions_.push_back(makeFaction("wuxiang", L"\u65e0\u76f8\u697c", QColor(0x69, 0x5F, 0xB9), ":/assets/factions/wuxiang.png"));
+    factions_.push_back(makeFaction("shaolin", L"\u5c11\u6797", QColor(0x79, 0x6D, 0x0B), ":/assets/factions/shaolin.svg"));
+    factions_.push_back(makeFaction("wanhua", L"\u4e07\u82b1", QColor(0x30, 0x10, 0x45), ":/assets/factions/wanhua.svg"));
+    factions_.push_back(makeFaction("qixiu", L"\u4e03\u79c0", QColor(0x9F, 0x4B, 0x7F), ":/assets/factions/qixiu.svg"));
+    factions_.push_back(makeFaction("chunyang", L"\u7eaf\u9633", QColor(0x09, 0x59, 0x6F), ":/assets/factions/chunyang.svg"));
+    factions_.push_back(makeFaction("tiance", L"\u5929\u7b56", QColor(0x69, 0x11, 0x10), ":/assets/factions/tiance.svg"));
+    factions_.push_back(makeFaction("cangjian", L"\u85cf\u5251", QColor(0x92, 0x95, 0x1C), ":/assets/factions/cangjian.svg"));
+    factions_.push_back(makeFaction("wudu", L"\u6bd2\u7ecf", QColor(0x08, 0x51, 0x96), ":/assets/factions/wudu.svg"));
+    factions_.push_back(makeFaction("tangmen", L"\u5510\u95e8", QColor(0x4B, 0x6F, 0x29), ":/assets/factions/tangmen.svg"));
+    factions_.push_back(makeFaction("mingjiao", L"\u660e\u6559", QColor(0x8F, 0x50, 0x13), ":/assets/factions/mingjiao.svg"));
+    factions_.push_back(makeFaction("gaibang", L"\u4e10\u5e2e", QColor(0x9A, 0x64, 0x26), ":/assets/factions/gaibang.svg"));
+    factions_.push_back(makeFaction("cangyun", L"\u82cd\u4e91", QColor(0x99, 0x2F, 0x03), ":/assets/factions/cangyun.svg"));
+    factions_.push_back(makeFaction("changge", L"\u957f\u6b4c", QColor(0x1F, 0x75, 0x64), ":/assets/factions/changge.svg"));
+    factions_.push_back(makeFaction("badao", L"\u9738\u5200", QColor(0x30, 0x27, 0x6B), ":/assets/factions/badao.svg"));
+    factions_.push_back(makeFaction("penglai", L"\u84ec\u83b1", QColor(0x5D, 0x61, 0x7E), ":/assets/factions/penglai.svg"));
+    factions_.push_back(makeFaction("lingxuege", L"\u51cc\u96ea\u9601", QColor(0xA1, 0x09, 0x22), ":/assets/factions/lingxuege.svg"));
+    factions_.push_back(makeFaction("yantianzong", L"\u884d\u5929\u5b97", QColor(0x5D, 0x2D, 0x90), ":/assets/factions/yantianzong.svg"));
+    factions_.push_back(makeFaction("yaozong", L"\u836f\u5b97", QColor(0x0A, 0x51, 0x57), ":/assets/factions/yaozong.svg"));
+    factions_.push_back(makeFaction("daozong", L"\u5200\u5b97", QColor(0x3B, 0x5E, 0x9F), ":/assets/factions/daozong.svg"));
+    factions_.push_back(makeFaction("wanling", L"\u4e07\u7075", QColor(0xA0, 0x87, 0x4B), ":/assets/factions/wanling.svg"));
+    factions_.push_back(makeFaction("duanshi", L"\u6bb5\u6c0f", QColor(0x5F, 0x9B, 0xB4), ":/assets/factions/duanshi.svg"));
+    factions_.push_back(makeFaction("wuxiang", L"\u65e0\u76f8\u697c", QColor(0x69, 0x5F, 0xB9), ":/assets/factions/wuxiang.svg"));
 
     setCurrent(QStringLiteral("cangjian"));
 }

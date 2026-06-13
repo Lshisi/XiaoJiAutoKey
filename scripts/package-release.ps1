@@ -21,6 +21,8 @@ $driverSrcDir = Join-Path $repoRoot "third_party\dd"
 $driverDstDir = Join-Path $packageDir "driver"
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
+$usageShortcutName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).url"
+$usageShortcutSrc = Join-Path $repoRoot (Join-Path "assets" $usageShortcutName)
 
 
 # Auto update version
@@ -58,6 +60,11 @@ if (Test-Path $packageDir) {
 }
 New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
 Copy-Item $exePath (Join-Path $packageDir "XiaoJiAutoKey.exe") -Force
+if (Test-Path $usageShortcutSrc) {
+    Copy-Item $usageShortcutSrc (Join-Path $packageDir $usageShortcutName) -Force
+} else {
+    Write-Warning "usage shortcut not found: $usageShortcutSrc"
+}
 
 # Check if this is a static Qt build by looking for Qt DLL dependencies
 $exeFile = Join-Path $packageDir "XiaoJiAutoKey.exe"

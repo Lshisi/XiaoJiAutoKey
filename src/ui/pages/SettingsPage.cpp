@@ -1,5 +1,6 @@
 #include "SettingsPage.h"
 #include "../styles/DesignTokens.h"
+#include "../components/FactionIcon.h"
 #include "../components/FactionMenu.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
@@ -11,7 +12,6 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPixmap>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -19,6 +19,10 @@
 #include <QVBoxLayout>
 
 namespace {
+
+constexpr int kSettingsActionButtonWidth = 120;
+constexpr int kSettingsActionButtonHeight = 28;
+constexpr int kSettingsActionRightInset = 12;
 
 QLabel* makeSectionTitle(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text, parent);
@@ -38,7 +42,7 @@ public:
     explicit FactionSelectButton(QWidget* parent = nullptr)
         : QPushButton(parent) {
         setCursor(Qt::PointingHandCursor);
-        setFixedSize(120, 28);
+        setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);
         setFont(Fluent::Typography::body());
         setFocusPolicy(Qt::StrongFocus);
     }
@@ -97,24 +101,6 @@ QPalette mutedPalette(QWidget* widget) {
     return pal;
 }
 
-QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
-    if (source.isNull()) {
-        return source;
-    }
-
-    QPixmap tinted(source.size());
-    tinted.setDevicePixelRatio(source.devicePixelRatio());
-    tinted.fill(Qt::transparent);
-
-    QPainter painter(&tinted);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.drawPixmap(0, 0, source);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(QRect(QPoint(0, 0), source.size()), color);
-    return tinted;
-}
-
 void showFallbackFactionBadge(QLabel* label, const QString& name, const FactionPalette& palette) {
     label->setPixmap(QPixmap());
     label->setText(name.left(1));
@@ -157,7 +143,8 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     scrollContent->setStyleSheet("background: transparent;");
     auto* outerLayout = new QVBoxLayout(scrollContent);
-    outerLayout->setContentsMargins(16, 12, 16, 12);
+    outerLayout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
+        Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap);
     outerLayout->setSpacing(0);
 
     auto* panel = new FluentCard(scrollContent);
@@ -247,6 +234,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u914d\u7f6e\u6587\u4ef6"), panel));
     auto* configPathRow = new QHBoxLayout();
+    configPathRow->setContentsMargins(0, 0, kSettingsActionRightInset, 0);
     configPathRow->setSpacing(10);
     configPathLabel_ = new QLabel(panel);
     configPathLabel_->setFont(Fluent::Typography::caption());
@@ -255,7 +243,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     configPathLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     configPathRow->addWidget(configPathLabel_, 1);
     auto* openBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00\u6587\u4ef6\u5939"), panel);
-    openBtn->setFixedSize(120, 28);
+    openBtn->setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);
     configPathRow->addWidget(openBtn);
     panelLayout->addLayout(configPathRow);
 
@@ -345,15 +333,12 @@ void SettingsPage::applyPageTheme() {
         const auto& faction = FactionTheme::instance().current();
         const QString iconPath = FactionTheme::instance().iconPath();
         if (!iconPath.isEmpty()) {
-            QPixmap pix(iconPath);
+            QPixmap pix = FactionIcon::render(iconPath, QSize(34, 34), factionPreviewIcon_,
+                Fluent::Theme::isDarkMode() ? Fluent::Colors::textPrimary() : QColor());
             if (!pix.isNull()) {
                 factionPreviewIcon_->setStyleSheet("background: transparent;");
                 factionPreviewIcon_->setText(QString());
-                QPixmap scaled = pix.scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                if (Fluent::Theme::isDarkMode()) {
-                    scaled = tintPixmap(scaled, Fluent::Colors::textPrimary());
-                }
-                factionPreviewIcon_->setPixmap(scaled);
+                factionPreviewIcon_->setPixmap(pix);
                 factionPreviewIcon_->show();
             } else {
                 showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);

@@ -9,47 +9,41 @@
 #include <QLabel>
 #include <QApplication>
 #include <QClipboard>
-#include <QFontMetrics>
-#include <QScrollArea>
 #include <QSizePolicy>
+#include <QTimer>
+
+namespace {
+
+void copyWithFeedback(FluentButton* button, const QString& text) {
+    QApplication::clipboard()->setText(text);
+    button->setText(QString::fromWCharArray(L"\u5df2\u590d\u5236"));
+    button->setEnabled(false);
+    QTimer::singleShot(1200, button, [button]() {
+        button->setText(QString::fromWCharArray(L"\u590d\u5236"));
+        button->setEnabled(true);
+    });
+}
+
+}
 
 AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
     setAttribute(Qt::WA_StyledBackground, true);
 
     auto* pageLayout = new QVBoxLayout(this);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
+        Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap);
     pageLayout->setSpacing(0);
 
-    auto* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setStyleSheet(
-        QString("QScrollArea { background: transparent; border: none; }"
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: %2; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
-            .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
-                Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
-
-    auto* scrollContent = new QWidget(scrollArea);
-    scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-    scrollContent->setStyleSheet("background: transparent;");
-    auto* outerLayout = new QVBoxLayout(scrollContent);
-    outerLayout->setContentsMargins(16, 12, 16, 12);
-    outerLayout->setSpacing(0);
-
     // Outer big card
-    auto* outerCard = new FluentCard(scrollContent);
+    auto* outerCard = new FluentCard(this);
+    outerCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    outerCard->contentLayout()->setSpacing(10);
 
     // Page title
     auto* pageTitle = new QLabel(QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), outerCard);
     pageTitle->setFont(Fluent::Typography::pageTitle());
     outerCard->contentLayout()->addWidget(pageTitle);
-    outerCard->contentLayout()->addSpacing(12);
 
     // ── Inner card 1: App info ──
     auto* infoCard = new FluentCard(outerCard);
@@ -77,7 +71,6 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     infoRow->addLayout(infoText, 1);
     infoCard->contentLayout()->addLayout(infoRow);
     outerCard->contentLayout()->addWidget(infoCard);
-    outerCard->contentLayout()->addSpacing(12);
 
     // ── Inner card 2: Contact ──
     auto* contactCard = new FluentCard(QString::fromWCharArray(L"\u8054\u7cfb\u4f5c\u8005"), outerCard);
@@ -89,7 +82,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     qqLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     qqRow->addWidget(qqLabel, 1);
     auto* copyQqBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyQqBtn->setFixedSize(50, 24);
+    copyQqBtn->setFixedSize(64, 24);
     qqRow->addWidget(copyQqBtn);
     contactCard->contentLayout()->addLayout(qqRow);
     auto* emailRow = new QHBoxLayout();
@@ -100,7 +93,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     emailLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     emailRow->addWidget(emailLabel, 1);
     auto* copyEmailBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyEmailBtn->setFixedSize(50, 24);
+    copyEmailBtn->setFixedSize(64, 24);
     emailRow->addWidget(copyEmailBtn);
     contactCard->contentLayout()->addLayout(emailRow);
     auto* groupRow = new QHBoxLayout();
@@ -111,11 +104,10 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     groupLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     groupRow->addWidget(groupLabel, 1);
     auto* copyGroupBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyGroupBtn->setFixedSize(50, 24);
+    copyGroupBtn->setFixedSize(64, 24);
     groupRow->addWidget(copyGroupBtn);
     contactCard->contentLayout()->addLayout(groupRow);
     outerCard->contentLayout()->addWidget(contactCard);
-    outerCard->contentLayout()->addSpacing(12);
 
     // ── Inner card 3: Disclaimer ──
     auto* disclaimerCard = new FluentCard(QString::fromWCharArray(L"\u514d\u8d23\u58f0\u660e"), outerCard);
@@ -128,19 +120,14 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
         disclaimerCard);
     disclaimerLabel->setFont(Fluent::Typography::body());
     disclaimerLabel->setWordWrap(true);
-    const QFontMetrics disclaimerMetrics(disclaimerLabel->font());
-    disclaimerLabel->setMinimumHeight(disclaimerMetrics.lineSpacing() * 4 + disclaimerMetrics.leading() * 3 + 14);
-    disclaimerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    disclaimerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     disclaimerCard->contentLayout()->addWidget(disclaimerLabel);
-    disclaimerCard->setMinimumHeight(disclaimerLabel->minimumHeight() + 72);
     outerCard->contentLayout()->addWidget(disclaimerCard);
+    outerCard->contentLayout()->addStretch(1);
 
-    outerLayout->addWidget(outerCard);
-    outerLayout->addStretch(1);
-    scrollArea->setWidget(scrollContent);
-    pageLayout->addWidget(scrollArea);
+    pageLayout->addWidget(outerCard);
 
-    connect(copyQqBtn, &QPushButton::clicked, [qqLabel]() { QApplication::clipboard()->setText(qqLabel->text()); });
-    connect(copyEmailBtn, &QPushButton::clicked, [emailLabel]() { QApplication::clipboard()->setText(emailLabel->text()); });
-    connect(copyGroupBtn, &QPushButton::clicked, [groupLabel]() { QApplication::clipboard()->setText(groupLabel->text()); });
+    connect(copyQqBtn, &QPushButton::clicked, [copyQqBtn, qqLabel]() { copyWithFeedback(copyQqBtn, qqLabel->text()); });
+    connect(copyEmailBtn, &QPushButton::clicked, [copyEmailBtn, emailLabel]() { copyWithFeedback(copyEmailBtn, emailLabel->text()); });
+    connect(copyGroupBtn, &QPushButton::clicked, [copyGroupBtn, groupLabel]() { copyWithFeedback(copyGroupBtn, groupLabel->text()); });
 }

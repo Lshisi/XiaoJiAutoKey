@@ -30,6 +30,40 @@ int dpiFromWParam(WPARAM value) {
     return qMax(kBaseDpi, dpiX > 0 ? dpiX : dpiY);
 }
 
+#ifdef Q_OS_WIN
+int effectiveMonitorDpi(HWND hwnd) {
+    if (!hwnd) {
+        return 0;
+    }
+
+    using GetDpiForMonitorFn = HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*);
+    static const auto getDpiForMonitor = []() -> GetDpiForMonitorFn {
+        const HMODULE module = LoadLibraryW(L"Shcore.dll");
+        if (!module) {
+            return nullptr;
+        }
+        return reinterpret_cast<GetDpiForMonitorFn>(GetProcAddress(module, "GetDpiForMonitor"));
+    }();
+
+    if (!getDpiForMonitor) {
+        return 0;
+    }
+
+    const HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) {
+        return 0;
+    }
+
+    UINT dpiX = 0;
+    UINT dpiY = 0;
+    constexpr int kEffectiveDpi = 0;
+    if (FAILED(getDpiForMonitor(monitor, kEffectiveDpi, &dpiX, &dpiY))) {
+        return 0;
+    }
+    return qMax(kBaseDpi, static_cast<int>(dpiX > 0 ? dpiX : dpiY));
+}
+#endif
+
 void expandSuggestedRectForDpi(RECT* rect, int dpi) {
     if (!rect) {
         return;
@@ -45,6 +79,25 @@ void expandSuggestedRectForDpi(RECT* rect, int dpi) {
     if (height < minHeight) {
         rect->bottom = rect->top + minHeight;
     }
+}
+
+void applySuggestedDpiRect(HWND hwnd, const RECT* rect) {
+    if (!hwnd || !rect) {
+        return;
+    }
+
+    const int width = rect->right - rect->left;
+    const int height = rect->bottom - rect->top;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    SetWindowPos(hwnd, nullptr,
+        rect->left,
+        rect->top,
+        width,
+        height,
+        SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 }
@@ -152,6 +205,11 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
                 setting.compare(QStringLiteral("WindowMetrics"), Qt::CaseInsensitive) == 0 ||
                 setting.compare(QStringLiteral("ConvertibleSlateMode"), Qt::CaseInsensitive) == 0;
             if (dpiSetting) {
+                const int dpi = currentScreenDpi();
+                if (observedScreenDpi_ == 0 || qAbs(dpi - observedScreenDpi_) > 2) {
+                    runtimeDpiOverride_ = dpi;
+                }
+                runtimeDpiSyncWaitsRemaining_ = 0;
                 scheduleRuntimeVisualRefresh(true, false);
             }
             if (themeSetting) {
@@ -162,12 +220,24 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         }
         case WM_DPICHANGED:
             runtimeDpiOverride_ = dpiFromWParam(msg->wParam);
-            expandSuggestedRectForDpi(reinterpret_cast<RECT*>(msg->lParam), runtimeDpiOverride_);
-            runtimeDpiSyncWaitsRemaining_ = 10;
+            if (auto* suggestedRect = reinterpret_cast<RECT*>(msg->lParam)) {
+                expandSuggestedRectForDpi(suggestedRect, runtimeDpiOverride_);
+                applySuggestedDpiRect(reinterpret_cast<HWND>(winId()), suggestedRect);
+            }
+            runtimeDpiSyncWaitsRemaining_ = 0;
+            enforceNativeWindowSizeForDpi(runtimeDpiOverride_);
             scheduleRuntimeVisualRefresh(true, false);
+            for (const int delayMs : {0, 120, 320}) {
+                const int dpi = runtimeDpiOverride_;
+                QTimer::singleShot(delayMs, this, [this, dpi]() {
+                    runtimeDpiOverride_ = dpi;
+                    runtimeDpiSyncWaitsRemaining_ = 0;
+                    scheduleRuntimeVisualRefresh(true, false);
+                });
+            }
             break;
         case WM_DISPLAYCHANGE:
-            scheduleRuntimeVisualRefresh(true, false);
+            refreshIfScreenDpiChanged();
             break;
         default:
             break;
@@ -186,7 +256,7 @@ void MainWindow::scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged
     if (applyingRuntimeVisualRefresh_) {
         return;
     }
-    runtimeVisualRefreshTimer_.start(dpiChanged ? 80 : 80);
+    runtimeVisualRefreshTimer_.start(dpiChanged ? 0 : 80);
 }
 
 void MainWindow::applyRuntimeVisualRefresh() {
@@ -203,32 +273,22 @@ void MainWindow::applyRuntimeVisualRefresh() {
     runtimeDpiRefreshPending_ = false;
     runtimeThemeRefreshPending_ = false;
 
-    if (dpiChanged && runtimeDpiOverride_ > 0 && runtimeDpiSyncWaitsRemaining_ > 0) {
-        const int qtDpi = qRound(devicePixelRatioF() * kBaseDpi);
-        if (qAbs(qtDpi - runtimeDpiOverride_) > 2) {
-            --runtimeDpiSyncWaitsRemaining_;
-            applyingRuntimeVisualRefresh_ = false;
-            runtimeVisualRefreshTimer_.start(60);
-            return;
-        }
-    }
-
     if (runtimeVisualRefreshPassesRemaining_ > 0) {
         --runtimeVisualRefreshPassesRemaining_;
     }
 
     QFont globalFont(QStringLiteral("Segoe UI"), 9);
     globalFont.setStyleStrategy(QFont::PreferAntialias);
-    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0.3);
+    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0);
     qApp->setFont(globalFont);
 
     qApp->setPalette(Fluent::Theme::applicationPalette());
 
     const int screenDpi = currentScreenDpi();
-    const int dpi = qMax(screenDpi, runtimeDpiOverride_);
+    const int dpi = runtimeDpiOverride_ > 0 ? runtimeDpiOverride_ : screenDpi;
     if (dpiChanged) {
+        recreateWindowSurfaceAfterDpiChange(dpi);
         observedScreenDpi_ = dpi;
-        syncQtGeometryWithNativeWindow();
         enforceNativeWindowSizeForDpi(dpi);
     }
     view_.refreshRuntimeVisuals(this, dpiChanged, themeChanged, dpiChanged ? dpi : 0);
@@ -262,10 +322,15 @@ void MainWindow::bindDpiRefreshSignals() {
             if (!screen) {
                 return;
             }
-            connect(screen, &QScreen::logicalDotsPerInchChanged, this, [this](qreal) {
+            connect(screen, &QScreen::logicalDotsPerInchChanged, this, [this](qreal dpi) {
+                runtimeDpiOverride_ = qMax(qMax(kBaseDpi, qRound(dpi)), currentScreenDpi());
+                runtimeDpiSyncWaitsRemaining_ = 0;
                 scheduleRuntimeVisualRefresh(true, false);
             }, Qt::UniqueConnection);
-            connect(screen, &QScreen::physicalDotsPerInchChanged, this, [this](qreal) {
+            connect(screen, &QScreen::physicalDotsPerInchChanged, this, [this](qreal dpi) {
+                Q_UNUSED(dpi)
+                runtimeDpiOverride_ = currentScreenDpi();
+                runtimeDpiSyncWaitsRemaining_ = 0;
                 scheduleRuntimeVisualRefresh(true, false);
             }, Qt::UniqueConnection);
         };
@@ -279,16 +344,6 @@ void MainWindow::bindDpiRefreshSignals() {
 }
 
 int MainWindow::currentScreenDpi() const {
-#ifdef Q_OS_WIN
-    const HWND hwnd = reinterpret_cast<HWND>(winId());
-    if (hwnd) {
-        const UINT dpi = GetDpiForWindow(hwnd);
-        if (dpi > 0) {
-            return qMax(kBaseDpi, static_cast<int>(dpi));
-        }
-    }
-#endif
-
     QScreen* screen = nullptr;
     if (auto* handle = windowHandle()) {
         screen = handle->screen();
@@ -296,11 +351,35 @@ int MainWindow::currentScreenDpi() const {
     if (!screen) {
         screen = QApplication::primaryScreen();
     }
-    if (!screen) {
-        return kBaseDpi;
+    int qtDpi = screen ? qMax(kBaseDpi, qRound(screen->logicalDotsPerInch())) : kBaseDpi;
+    if (screen) {
+        qtDpi = qMax(qtDpi, qRound(screen->devicePixelRatio() * kBaseDpi));
     }
-    const int logicalDpi = qRound(screen->logicalDotsPerInch());
-    return qMax(kBaseDpi, logicalDpi);
+    if (auto* handle = windowHandle()) {
+        qtDpi = qMax(qtDpi, qRound(handle->devicePixelRatio() * kBaseDpi));
+    }
+    qtDpi = qMax(qtDpi, qRound(devicePixelRatioF() * kBaseDpi));
+
+#ifdef Q_OS_WIN
+    const HWND hwnd = reinterpret_cast<HWND>(winId());
+    if (hwnd) {
+        const int monitorDpi = effectiveMonitorDpi(hwnd);
+        if (monitorDpi > 0 && observedScreenDpi_ > 0 && qAbs(monitorDpi - observedScreenDpi_) > 2) {
+            return monitorDpi;
+        }
+
+        const UINT dpi = GetDpiForWindow(hwnd);
+        if (dpi > 0) {
+            const int nativeDpi = qMax(kBaseDpi, static_cast<int>(dpi));
+            if (observedScreenDpi_ > 0 && qAbs(qtDpi - observedScreenDpi_) > 2) {
+                return qtDpi;
+            }
+            return nativeDpi;
+        }
+    }
+#endif
+
+    return qtDpi;
 }
 
 void MainWindow::refreshIfScreenDpiChanged() {
@@ -341,6 +420,55 @@ void MainWindow::enforceNativeWindowSizeForDpi(int dpi) {
         qMax(width, minWidth),
         qMax(height, minHeight),
         SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void MainWindow::recreateWindowSurfaceAfterDpiChange(int dpi) {
+    if (dpi <= kBaseDpi || dpi % kBaseDpi == 0 || isMinimized()) {
+        return;
+    }
+
+    if (recreatedFractionalDpiSurface_) {
+        return;
+    }
+    recreatedFractionalDpiSurface_ = true;
+
+    const QRect originalGeometry = geometry();
+    if (originalGeometry.isEmpty()) {
+        return;
+    }
+
+    QTimer::singleShot(0, this, [this, originalGeometry, dpi]() {
+        if (isMinimized()) {
+            return;
+        }
+
+        const bool wasVisible = isVisible();
+        if (wasVisible) {
+            hide();
+        }
+
+        destroy(true, true);
+        setGeometry(originalGeometry);
+        createWinId();
+
+        if (wasVisible) {
+            show();
+        }
+
+        enforceNativeWindowSizeForDpi(dpi);
+        view_.refreshRuntimeVisuals(this, true, false, dpi);
+        if (const HWND hwnd = reinterpret_cast<HWND>(winId())) {
+            RedrawWindow(hwnd, nullptr, nullptr,
+                RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
+        QTimer::singleShot(120, this, [this, dpi]() {
+            view_.refreshRuntimeVisuals(this, true, false, dpi);
+            if (const HWND hwnd = reinterpret_cast<HWND>(winId())) {
+                RedrawWindow(hwnd, nullptr, nullptr,
+                    RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
+            }
+        });
+    });
 }
 
 void MainWindow::syncQtGeometryWithNativeWindow() {

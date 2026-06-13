@@ -38,6 +38,41 @@ QColor appShellColor() {
     return Fluent::Theme::isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF5, 0xF8);
 }
 
+QColor mixColor(const QColor& a, const QColor& b, double t, int alpha = -1) {
+    const double clamped = qBound(0.0, t, 1.0);
+    QColor out(
+        static_cast<int>(a.red() + (b.red() - a.red()) * clamped),
+        static_cast<int>(a.green() + (b.green() - a.green()) * clamped),
+        static_cast<int>(a.blue() + (b.blue() - a.blue()) * clamped)
+    );
+    out.setAlpha(alpha >= 0 ? alpha : static_cast<int>(a.alpha() + (b.alpha() - a.alpha()) * clamped));
+    return out;
+}
+
+QString statusBarStyleSheet() {
+    const auto palette = FactionTheme::instance().palette();
+    const QColor base = appShellColor();
+    const QColor fill = mixColor(base, palette.accent, Fluent::Theme::isDarkMode() ? 0.035 : 0.025);
+    QColor divider = mixColor(Fluent::Colors::divider(), palette.accentBorder, Fluent::Theme::isDarkMode() ? 0.12 : 0.14);
+    divider.setAlpha(Fluent::Theme::isDarkMode() ? 42 : 24);
+
+    return QString(
+        "QWidget#appStatusBar {"
+        "  background: %1;"
+        "  border-top: 1px solid %2;"
+        "  border-bottom-left-radius: 10px;"
+        "  border-bottom-right-radius: 10px;"
+        "}")
+        .arg(fill.name(QColor::HexArgb),
+            divider.name(QColor::HexArgb));
+}
+
+void applyStatusBarTheme(QWidget* statusBar) {
+    if (statusBar) {
+        statusBar->setStyleSheet(statusBarStyleSheet());
+    }
+}
+
 QRect currentAvailableGeometry() {
     if (auto* screen = QApplication::screenAt(QCursor::pos())) {
         return screen->availableGeometry();
@@ -183,7 +218,31 @@ void bindScreenChangeResize(QMainWindow* window) {
             return;
         }
 
-        QObject::connect(handle, &QWindow::screenChanged, window, [window](QScreen* screen) {
+        auto refreshLayouts = [window]() {
+            runDeferredLayoutPass(window, false);
+        };
+
+        auto bindScreenSignals = [window, refreshLayouts](QScreen* screen) {
+            if (!screen) return;
+            QObject::connect(screen, &QScreen::logicalDotsPerInchChanged, window,
+                [window, refreshLayouts, screen](qreal dpi) {
+                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
+                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, false);
+                    QTimer::singleShot(0, window, refreshLayouts);
+                    QTimer::singleShot(160, window, refreshLayouts);
+                });
+            QObject::connect(screen, &QScreen::physicalDotsPerInchChanged, window,
+                [window, refreshLayouts, screen](qreal dpi) {
+                    const int nativeDpi = qMax(kBaseDpi, qRound(dpi));
+                    keepWindowWithinAvailableGeometry(window, screen, nativeDpi, false);
+                    QTimer::singleShot(0, window, refreshLayouts);
+                    QTimer::singleShot(160, window, refreshLayouts);
+                });
+        };
+
+        bindScreenSignals(handle->screen());
+        QObject::connect(handle, &QWindow::screenChanged, window, [window, bindScreenSignals](QScreen* screen) {
+            bindScreenSignals(screen);
             applyScreenAwareWindowSize(window, screen, false);
             QTimer::singleShot(0, window, [window]() { runDeferredLayoutPass(window, false); });
             QTimer::singleShot(160, window, [window]() { runDeferredLayoutPass(window, false); });
@@ -399,15 +458,7 @@ void MainWindowView::setup(QMainWindow* window) {
     auto* statusBar = new QWidget(window);
     statusBar->setObjectName("appStatusBar");
     statusBar->setFixedHeight(24);
-    statusBar->setStyleSheet(QString(
-        "QWidget#appStatusBar {"
-        "  background: %1;"
-        "  border-top: 1px solid %2;"
-        "  border-bottom-left-radius: 10px;"
-        "  border-bottom-right-radius: 10px;"
-        "}")
-        .arg(appShellColor().name(),
-            Fluent::Colors::divider().name(QColor::HexArgb)));
+    applyStatusBarTheme(statusBar);
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
     auto* versionLabel = new QLabel(QString("v") + QString(APP_VERSION), statusBar);
@@ -518,15 +569,7 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
             .arg(appShellColor().name()));
     }
     if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
-        statusBar->setStyleSheet(QString(
-            "QWidget#appStatusBar {"
-            "  background: %1;"
-            "  border-top: 1px solid %2;"
-            "  border-bottom-left-radius: 10px;"
-            "  border-bottom-right-radius: 10px;"
-            "}")
-            .arg(appShellColor().name(),
-                Fluent::Colors::divider().name(QColor::HexArgb)));
+        applyStatusBarTheme(statusBar);
     }
     sidebar_->updateFactionIcon();
     sidebar_->update();
@@ -563,11 +606,14 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
             screen = handle->screen();
         }
         window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
-        keepWindowWithinAvailableGeometry(window, screen, nativeDpi, true);
+        keepWindowWithinAvailableGeometry(window, screen, nativeDpi, false);
     }
 
     if (auto* central = window->centralWidget()) {
         refreshWidgetTree(central);
+        if (dpiChanged) {
+            refreshLayoutTree(central, true);
+        }
     }
 
     updateActivityIcons(window, activityIconActive_, false);
@@ -580,10 +626,13 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
 
     if (dpiChanged) {
         QTimer::singleShot(0, window, [window]() {
-            runDeferredLayoutPass(window, false);
+            runDeferredLayoutPass(window, true);
         });
         QTimer::singleShot(180, window, [window]() {
-            runDeferredLayoutPass(window, false);
+            runDeferredLayoutPass(window, true);
+        });
+        QTimer::singleShot(360, window, [window]() {
+            runDeferredLayoutPass(window, true);
         });
     }
 }

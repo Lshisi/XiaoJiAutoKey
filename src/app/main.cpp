@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     // Set global font - compact UI with slight letter spacing
     QFont globalFont("Segoe UI", 9);
     globalFont.setStyleStrategy(QFont::PreferAntialias);
-    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0.3);
+    globalFont.setLetterSpacing(QFont::AbsoluteSpacing, 0);
     app.setFont(globalFont);
 
     MainWindow window;

@@ -53,6 +53,7 @@ private:
     void refreshIfScreenDpiChanged();
     void enforceNativeWindowSizeForDpi(int dpi);
     void syncQtGeometryWithNativeWindow();
+    void recreateWindowSurfaceAfterDpiChange(int dpi);
 
     MainWindowView view_;
 
@@ -88,5 +89,6 @@ private:
     bool applyingRuntimeVisualRefresh_ = false;
     int observedScreenDpi_ = 0;
     int runtimeDpiOverride_ = 0;
+    bool recreatedFractionalDpiSurface_ = false;
 
 };

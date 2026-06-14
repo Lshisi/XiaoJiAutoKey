@@ -290,6 +290,9 @@ void MainWindow::applyRuntimeVisualRefresh() {
         enforceNativeWindowSizeForDpi(dpi);
     }
     view_.refreshRuntimeVisuals(this, dpiChanged, themeChanged, dpiChanged ? dpi : 0);
+    if (dpiChanged) {
+        statusOverlay_.refreshForDpiChange(dpi);
+    }
     if (themeChanged) {
         pageRefreshCoordinator_.refreshAll();
         view_.refreshRuntimeVisuals(this, false, false);

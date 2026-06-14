@@ -53,11 +53,12 @@ QPixmap tintPixmap(const QPixmap& source, const QColor& color) {
 
     const qreal ratio = qMax<qreal>(1.0, source.devicePixelRatio());
     const QRectF logicalRect(0, 0, source.width() / ratio, source.height() / ratio);
+    const QRectF sourceRect(0, 0, source.width(), source.height());
 
     QPainter painter(&tinted);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.drawPixmap(logicalRect, source, logicalRect);
+    painter.drawPixmap(logicalRect, source, sourceRect);
     painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
     painter.fillRect(logicalRect, color);
     return tinted;

@@ -19,9 +19,13 @@
 #include <QScreen>
 #include <QShowEvent>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
+#include <QWindow>
 
 namespace {
+
+constexpr int kBaseDpi = 96;
 
 QColor mixColor(const QColor& a, const QColor& b, double t) {
     const double clamped = std::clamp(t, 0.0, 1.0);
@@ -83,6 +87,12 @@ const QScreen* defaultOverlayScreen() {
     return QGuiApplication::primaryScreen();
 }
 
+int dpiFromWParam(WPARAM value) {
+    const int dpiX = LOWORD(value);
+    const int dpiY = HIWORD(value);
+    return std::max(kBaseDpi, dpiX > 0 ? dpiX : dpiY);
+}
+
 }  // namespace
 
 StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
@@ -134,7 +144,7 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     root->addWidget(repeatBlock_);
     root->addWidget(macroBlock_);
 
-    lockButtonWindow_ = new QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    lockButtonWindow_ = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     lockButtonWindow_->setAttribute(Qt::WA_TranslucentBackground, true);
     lockButtonWindow_->setAttribute(Qt::WA_ShowWithoutActivating, true);
     lockButtonWindow_->setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
@@ -166,6 +176,29 @@ void StatusOverlayWindow::setOverlayEnabled(bool enabled) {
     if (overlayEnabled_ == enabled) return;
     overlayEnabled_ = enabled;
     applyVisibleState();
+}
+
+void StatusOverlayWindow::refreshForDpiChange(int nativeDpi) {
+    const int dpi = nativeDpi > 0 ? nativeDpi : currentScreenDpi();
+    if (dpi > 0) {
+        observedDpi_ = dpi;
+    }
+
+    setFont(Fluent::Typography::caption());
+    if (repeatTitleLabel_) repeatTitleLabel_->setFont(Fluent::Typography::caption());
+    if (repeatHotkeyLabel_) repeatHotkeyLabel_->setFont(Fluent::Typography::caption());
+    if (macroTitleLabel_) macroTitleLabel_->setFont(Fluent::Typography::caption());
+    if (macroHotkeyLabel_) macroHotkeyLabel_->setFont(Fluent::Typography::caption());
+    if (lockButton_) lockButton_->setFont(QFont("Segoe MDL2 Assets", 10));
+
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
+    adjustSize();
+    move(boundedPosition(pos()));
+    syncLockButton();
+    update();
 }
 
 void StatusOverlayWindow::updateStatus(const AppConfig& config,
@@ -253,6 +286,21 @@ void StatusOverlayWindow::refreshThemeStyle(bool repeatRunning, bool macroRunnin
 
     lockButtonWindow_->update();
     update();
+}
+
+void StatusOverlayWindow::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (locked_) {
+        QWidget::mouseDoubleClickEvent(event);
+        return;
+    }
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mouseDoubleClickEvent(event);
+        return;
+    }
+
+    dragging_ = false;
+    emit keyConfigRequested();
+    event->accept();
 }
 
 void StatusOverlayWindow::mousePressEvent(QMouseEvent* event) {
@@ -366,14 +414,52 @@ void StatusOverlayWindow::syncLockButton() {
     }
     lockButtonWindow_->move(frameGeometry().topRight() - QPoint(lockButtonWindow_->width() + 4, -4));
     lockButtonWindow_->show();
-    lockButtonWindow_->raise();
+    syncTopMostOrder();
+}
+
+void StatusOverlayWindow::syncTopMostOrder() {
+    const HWND overlayHwnd = reinterpret_cast<HWND>(winId());
+    const HWND lockHwnd = lockButtonWindow_ ? reinterpret_cast<HWND>(lockButtonWindow_->winId()) : nullptr;
+    constexpr UINT flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
+
+    if (overlayHwnd) {
+        SetWindowPos(overlayHwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+    }
+    if (lockHwnd) {
+        SetWindowPos(lockHwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+    }
 }
 
 void StatusOverlayWindow::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
+    bindDpiRefreshSignals();
+    observedDpi_ = currentScreenDpi();
     applyClickThrough();
+    refreshForDpiChange(observedDpi_);
     move(boundedPosition(pos()));
     syncLockButton();
+}
+
+bool StatusOverlayWindow::event(QEvent* event) {
+    if (event->type() == QEvent::ScreenChangeInternal) {
+        refreshForDpiChange();
+    }
+    return QWidget::event(event);
+}
+
+bool StatusOverlayWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
+    Q_UNUSED(eventType)
+    const auto* msg = static_cast<MSG*>(message);
+    if (msg && msg->message == WM_DPICHANGED) {
+        const int dpi = dpiFromWParam(msg->wParam);
+        refreshForDpiChange(dpi);
+        for (const int delayMs : {0, 120, 320}) {
+            QTimer::singleShot(delayMs, this, [this, dpi]() {
+                refreshForDpiChange(dpi);
+            });
+        }
+    }
+    return QWidget::nativeEvent(eventType, message, result);
 }
 
 QPoint StatusOverlayWindow::defaultPosition() const {
@@ -411,11 +497,64 @@ void StatusOverlayWindow::applyVisibleState() {
     if (overlayEnabled_) {
         if (!positionInitialized_) move(defaultPosition());
         show();
-        raise();
+        bindDpiRefreshSignals();
+        refreshForDpiChange();
         syncLockButton();
     } else {
         hide();
         if (lockButtonWindow_) lockButtonWindow_->hide();
         positionInitialized_ = false;
     }
+}
+
+void StatusOverlayWindow::bindDpiRefreshSignals() {
+    auto* handle = windowHandle();
+    if (!handle) {
+        return;
+    }
+
+    if (boundWindowHandle_ != handle) {
+        boundWindowHandle_ = handle;
+        connect(handle, &QWindow::screenChanged, this, [this](QScreen*) {
+            boundScreen_ = nullptr;
+            bindDpiRefreshSignals();
+            refreshForDpiChange();
+        }, Qt::UniqueConnection);
+    }
+
+    auto* screen = handle->screen();
+    if (!screen || boundScreen_ == screen) {
+        return;
+    }
+
+    boundScreen_ = screen;
+    connect(screen, &QScreen::logicalDotsPerInchChanged, this, [this](qreal dpi) {
+        refreshForDpiChange(std::max(kBaseDpi, qRound(dpi)));
+    }, Qt::UniqueConnection);
+    connect(screen, &QScreen::physicalDotsPerInchChanged, this, [this](qreal) {
+        refreshForDpiChange();
+    }, Qt::UniqueConnection);
+}
+
+int StatusOverlayWindow::currentScreenDpi() const {
+    QScreen* screen = nullptr;
+    if (auto* handle = windowHandle()) {
+        screen = handle->screen();
+    }
+    if (!screen) {
+        screen = QGuiApplication::screenAt(pos() + QPoint(width() / 2, height() / 2));
+    }
+    if (!screen) {
+        screen = QGuiApplication::primaryScreen();
+    }
+
+    int dpi = screen ? std::max(kBaseDpi, qRound(screen->logicalDotsPerInch())) : kBaseDpi;
+    if (screen) {
+        dpi = std::max(dpi, qRound(screen->devicePixelRatio() * kBaseDpi));
+    }
+    if (auto* handle = windowHandle()) {
+        dpi = std::max(dpi, qRound(handle->devicePixelRatio() * kBaseDpi));
+    }
+    dpi = std::max(dpi, qRound(devicePixelRatioF() * kBaseDpi));
+    return dpi;
 }

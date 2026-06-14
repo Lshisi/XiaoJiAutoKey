@@ -144,6 +144,12 @@ void MainWindow::setupUi() {
         configCoordinator_.save();
         refreshStatusOverlay();
     });
+    connect(&statusOverlay_, &StatusOverlayWindow::keyConfigRequested, this, [this]() {
+        view_.showRepeatPage();
+        showNormal();
+        raise();
+        activateWindow();
+    });
 
     captureCoordinator_.bind(CaptureCoordinator::Context{
         this,

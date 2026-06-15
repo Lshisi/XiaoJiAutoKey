@@ -25,8 +25,6 @@ constexpr const wchar_t* kInfMouseServiceName = L"dd.mou.96688";
 constexpr const wchar_t* kInfKeyboardSysName = L"dd.key.96688.sys";
 constexpr const wchar_t* kInfMouseSysName = L"dd.mou.96688.sys";
 constexpr const wchar_t* kInfInstallLogName = L"dd-inf-install.log";
-constexpr const wchar_t* kInfKeyboardInstanceId = L"ROOT\\KEYBOARD\\0000";
-constexpr const wchar_t* kInfMouseInstanceId = L"ROOT\\MOUSE\\0000";
 
 bool CopyResourceFile(const QString& resourcePath, const QString& outputPath, QString* errorMessage) {
     QFile source(resourcePath);
@@ -166,54 +164,60 @@ struct InfDeviceState {
     bool boundToService = false;
 };
 
-bool DeviceBoundToService(const wchar_t* instanceId, const wchar_t* serviceName) {
-    HDEVINFO deviceInfo = SetupDiCreateDeviceInfoList(nullptr, nullptr);
-    if (deviceInfo == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    SP_DEVINFO_DATA deviceData{};
-    deviceData.cbSize = sizeof(deviceData);
-    if (!SetupDiOpenDeviceInfoW(deviceInfo, instanceId, nullptr, 0, &deviceData)) {
-        SetupDiDestroyDeviceInfoList(deviceInfo);
-        return false;
-    }
-
+bool DeviceBoundToService(HDEVINFO deviceInfo, SP_DEVINFO_DATA* deviceData, const wchar_t* serviceName) {
     wchar_t serviceBuffer[256] = {};
     DWORD propertyType = 0;
     DWORD requiredSize = 0;
     const BOOL propertyOk = SetupDiGetDeviceRegistryPropertyW(
         deviceInfo,
-        &deviceData,
+        deviceData,
         SPDRP_SERVICE,
         &propertyType,
         reinterpret_cast<PBYTE>(serviceBuffer),
         sizeof(serviceBuffer),
         &requiredSize);
-    SetupDiDestroyDeviceInfoList(deviceInfo);
 
     return propertyOk &&
            propertyType == REG_SZ &&
            _wcsicmp(serviceBuffer, serviceName) == 0;
 }
 
-InfDeviceState QueryInfDeviceState(const wchar_t* instanceId, const wchar_t* serviceName) {
-    InfDeviceState state;
-    DEVINST devInst = 0;
-    const CONFIGRET locateResult = CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(instanceId), CM_LOCATE_DEVNODE_NORMAL);
-    if (locateResult != CR_SUCCESS) {
-        return state;
-    }
-
-    state.present = true;
-
+bool DeviceStarted(DEVINST devInst) {
     ULONG status = 0;
     ULONG problem = 0;
     const CONFIGRET statusResult = CM_Get_DevNode_Status(&status, &problem, devInst, 0);
-    state.started = statusResult == CR_SUCCESS &&
-                    (status & DN_STARTED) != 0 &&
-                    (status & DN_HAS_PROBLEM) == 0;
-    state.boundToService = DeviceBoundToService(instanceId, serviceName);
+    return statusResult == CR_SUCCESS &&
+           (status & DN_STARTED) != 0 &&
+           (status & DN_HAS_PROBLEM) == 0;
+}
+
+InfDeviceState QueryInfDeviceStateByService(const wchar_t* serviceName) {
+    InfDeviceState state;
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return state;
+    }
+
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (!SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
+            break;
+        }
+
+        if (!DeviceBoundToService(deviceInfo, &deviceData, serviceName)) {
+            continue;
+        }
+
+        state.present = true;
+        state.boundToService = true;
+        if (DeviceStarted(deviceData.DevInst)) {
+            state.started = true;
+            break;
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfo);
     return state;
 }
 
@@ -435,32 +439,42 @@ bool InstallInfVariant(int variant,
                  << FormatStepResult(updateMouOk, updateMouProcessOk, exitCode, stepOutput, stepError) << L"\n";
     }
 
-    stepOutput.clear();
-    stepError.clear();
-    exitCode = 1;
-    const bool installKeyOk = RunProcess(paths.dcPath.toStdWString(),
-        {L"install", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
-        &exitCode,
-        &stepOutput,
-        &stepError);
-    const bool installKeyAccepted = DevconDeviceCommandSucceeded(installKeyOk, exitCode);
-    if (message) {
-        *message << L"variant " << variant << L": create key device -> "
-                 << FormatStepResult(installKeyAccepted, installKeyOk, exitCode, stepOutput, stepError) << L"\n";
+    bool installKeyAccepted = false;
+    if (!updateKeyOk) {
+        stepOutput.clear();
+        stepError.clear();
+        exitCode = 1;
+        const bool installKeyOk = RunProcess(paths.dcPath.toStdWString(),
+            {L"install", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
+            &exitCode,
+            &stepOutput,
+            &stepError);
+        installKeyAccepted = DevconDeviceCommandSucceeded(installKeyOk, exitCode);
+        if (message) {
+            *message << L"variant " << variant << L": create key device -> "
+                     << FormatStepResult(installKeyAccepted, installKeyOk, exitCode, stepOutput, stepError) << L"\n";
+        }
+    } else if (message) {
+        *message << L"variant " << variant << L": create key device -> skipped (update succeeded)\n";
     }
 
-    stepOutput.clear();
-    stepError.clear();
-    exitCode = 1;
-    const bool installMouOk = RunProcess(paths.dcPath.toStdWString(),
-        {L"install", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
-        &exitCode,
-        &stepOutput,
-        &stepError);
-    const bool installMouAccepted = DevconDeviceCommandSucceeded(installMouOk, exitCode);
-    if (message) {
-        *message << L"variant " << variant << L": create mouse device -> "
-                 << FormatStepResult(installMouAccepted, installMouOk, exitCode, stepOutput, stepError) << L"\n";
+    bool installMouAccepted = false;
+    if (!updateMouOk) {
+        stepOutput.clear();
+        stepError.clear();
+        exitCode = 1;
+        const bool installMouOk = RunProcess(paths.dcPath.toStdWString(),
+            {L"install", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
+            &exitCode,
+            &stepOutput,
+            &stepError);
+        installMouAccepted = DevconDeviceCommandSucceeded(installMouOk, exitCode);
+        if (message) {
+            *message << L"variant " << variant << L": create mouse device -> "
+                     << FormatStepResult(installMouAccepted, installMouOk, exitCode, stepOutput, stepError) << L"\n";
+        }
+    } else if (message) {
+        *message << L"variant " << variant << L": create mouse device -> skipped (update succeeded)\n";
     }
 
     stepOutput.clear();
@@ -513,8 +527,8 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
     status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
     status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
-    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
-    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
     status.infKeyboardDeviceStarted = keyDevice.started;
     status.infMouseDeviceStarted = mouseDevice.started;
     status.infKeyboardDeviceBound = keyDevice.boundToService;
@@ -686,8 +700,8 @@ void DdRuntimeService::LogRuntimeReady(const std::wstring& source) const {
     status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
     status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
     status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
-    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
-    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
     status.infKeyboardDeviceStarted = keyDevice.started;
     status.infMouseDeviceStarted = mouseDevice.started;
     status.infKeyboardDeviceBound = keyDevice.boundToService;
@@ -711,8 +725,8 @@ void DdRuntimeService::LogRuntimeReady(const std::wstring& source) const {
 }
 
 bool DdRuntimeService::InfDevicesReady() const {
-    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
-    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
     return keyDevice.started && keyDevice.boundToService &&
            mouseDevice.started && mouseDevice.boundToService;
 }

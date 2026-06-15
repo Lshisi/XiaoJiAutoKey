@@ -40,6 +40,9 @@ private:
 
     bool SendKeyboardTap(std::uint32_t vk);
     bool SendMouseTap(std::uint32_t vk);
+    bool TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage);
+    bool WriteModuleHandleSlot(std::uintptr_t rva, HANDLE value);
+    void CloseInjectedInfHandles();
     void RegisterPress(const KeyDescriptor& key);
     void RegisterRelease(const KeyDescriptor& key);
     void MarkInjected(const KeyDescriptor& key);
@@ -48,6 +51,9 @@ private:
     DD_btn_t ddBtn_ = nullptr;
     DD_key_t ddKey_ = nullptr;
     DD_todc_t ddToDc_ = nullptr;
+    HANDLE infKeyboardHandle_ = INVALID_HANDLE_VALUE;
+    HANDLE infMouseHandle_ = INVALID_HANDLE_VALUE;
+    bool infHandlesInjected_ = false;
     std::wstring lastError_;
     std::atomic<int> simulateDepth_{0};
 

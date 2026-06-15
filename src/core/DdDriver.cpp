@@ -1,6 +1,9 @@
 #include "DdDriver.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <vector>
 
@@ -29,6 +32,11 @@ std::optional<std::pair<int, int>> ToMouseCodes(std::uint32_t vk) {
 
 using DDToDcFn = int(__stdcall*)(int);
 
+constexpr const wchar_t* kInfKeyboardDevicePath = L"\\\\.\\dd.key.96688";
+constexpr const wchar_t* kInfMouseDevicePath = L"\\\\.\\dd.mou.96688";
+constexpr std::uintptr_t kDd2018KeyboardHandleSlotRva = 0x2120c8;
+constexpr std::uintptr_t kDd2018MouseHandleSlotRva = 0x2129d0;
+
 std::wstring FormatWin32Error(DWORD errorCode) {
     if (errorCode == ERROR_SUCCESS) {
         return L"0";
@@ -53,6 +61,26 @@ std::wstring FormatWin32Error(DWORD errorCode) {
         ::LocalFree(buffer);
     }
     return text.str();
+}
+
+bool BinaryFileContainsWideText(const std::wstring& filePath, const wchar_t* text) {
+    std::ifstream file(std::filesystem::path(filePath), std::ios::binary);
+    if (!file) {
+        return false;
+    }
+
+    const std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    const auto* textBytes = reinterpret_cast<const char*>(text);
+    const std::size_t textByteCount = std::wcslen(text) * sizeof(wchar_t);
+    if (textByteCount == 0 || bytes.size() < textByteCount) {
+        return false;
+    }
+    return std::search(bytes.begin(), bytes.end(), textBytes, textBytes + textByteCount) != bytes.end();
+}
+
+bool IsInfBackedDdDll(const std::wstring& dllPath) {
+    return BinaryFileContainsWideText(dllPath, kInfKeyboardDevicePath) &&
+           BinaryFileContainsWideText(dllPath, kInfMouseDevicePath);
 }
 
 std::optional<int> ModifierDdCode(std::uint32_t vk) {
@@ -143,9 +171,25 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
         return false;
     }
 
-    const int initResult = ddBtn_(0);
+    int initResult = ddBtn_(0);
     if (initResult != 1) {
-        lastError_ = L"Please install the DD INF driver package first; DD_btn(0)=" + std::to_wstring(initResult);
+        std::wstring bindError;
+        if (TryBindInfDeviceHandles(dllPath, &bindError)) {
+            initResult = ddBtn_(0);
+        }
+        if (initResult != 1) {
+            lastError_ = L"Please install the DD INF driver package first; DD_btn(0)=" + std::to_wstring(initResult);
+            if (!bindError.empty()) {
+                lastError_ += L"; INF bind=" + bindError;
+            }
+            Unload();
+            return false;
+        }
+    }
+
+    const int keyProbeCode = ResolveKeyboardDdCode(ddToDc_, 'A');
+    if (keyProbeCode <= 0) {
+        lastError_ = L"DD runtime loaded, but DD_todc probe failed.";
         Unload();
         return false;
     }
@@ -195,6 +239,7 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
 }
 
 void DdDriver::Unload() {
+    CloseInjectedInfHandles();
     if (module_ != nullptr) {
         ::FreeLibrary(module_);
         module_ = nullptr;
@@ -202,6 +247,112 @@ void DdDriver::Unload() {
     ddBtn_ = nullptr;
     ddKey_ = nullptr;
     ddToDc_ = nullptr;
+}
+
+bool DdDriver::TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage) {
+    if (module_ == nullptr) {
+        if (errorMessage) {
+            *errorMessage = L"module is not loaded";
+        }
+        return false;
+    }
+    if (!IsInfBackedDdDll(dllPath)) {
+        if (errorMessage) {
+            *errorMessage = L"runtime DLL is not an INF-backed DD build";
+        }
+        return false;
+    }
+
+    HANDLE keyboardHandle = CreateFileW(
+        kInfKeyboardDevicePath,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (keyboardHandle == INVALID_HANDLE_VALUE) {
+        if (errorMessage) {
+            *errorMessage = L"open " + std::wstring(kInfKeyboardDevicePath) + L" failed: " + FormatWin32Error(::GetLastError());
+        }
+        return false;
+    }
+
+    HANDLE mouseHandle = CreateFileW(
+        kInfMouseDevicePath,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (mouseHandle == INVALID_HANDLE_VALUE) {
+        const DWORD errorCode = ::GetLastError();
+        CloseHandle(keyboardHandle);
+        if (errorMessage) {
+            *errorMessage = L"open " + std::wstring(kInfMouseDevicePath) + L" failed: " + FormatWin32Error(errorCode);
+        }
+        return false;
+    }
+
+    if (!WriteModuleHandleSlot(kDd2018KeyboardHandleSlotRva, keyboardHandle)) {
+        const DWORD errorCode = ::GetLastError();
+        CloseHandle(mouseHandle);
+        CloseHandle(keyboardHandle);
+        if (errorMessage) {
+            *errorMessage = L"write keyboard handle slot failed: " + FormatWin32Error(errorCode);
+        }
+        return false;
+    }
+
+    if (!WriteModuleHandleSlot(kDd2018MouseHandleSlotRva, mouseHandle)) {
+        const DWORD errorCode = ::GetLastError();
+        WriteModuleHandleSlot(kDd2018KeyboardHandleSlotRva, INVALID_HANDLE_VALUE);
+        CloseHandle(mouseHandle);
+        CloseHandle(keyboardHandle);
+        if (errorMessage) {
+            *errorMessage = L"write mouse handle slot failed: " + FormatWin32Error(errorCode);
+        }
+        return false;
+    }
+
+    CloseInjectedInfHandles();
+    infKeyboardHandle_ = keyboardHandle;
+    infMouseHandle_ = mouseHandle;
+    infHandlesInjected_ = true;
+    if (errorMessage) {
+        *errorMessage = L"bound " + dllPath + L" to INF devices";
+    }
+    return true;
+}
+
+bool DdDriver::WriteModuleHandleSlot(std::uintptr_t rva, HANDLE value) {
+    auto* slot = reinterpret_cast<HANDLE*>(reinterpret_cast<std::uintptr_t>(module_) + rva);
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(slot, sizeof(HANDLE), PAGE_READWRITE, &oldProtect)) {
+        return false;
+    }
+    *slot = value;
+    DWORD ignored = 0;
+    const BOOL restored = VirtualProtect(slot, sizeof(HANDLE), oldProtect, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), slot, sizeof(HANDLE));
+    return restored != FALSE;
+}
+
+void DdDriver::CloseInjectedInfHandles() {
+    if (infHandlesInjected_ && module_ != nullptr) {
+        WriteModuleHandleSlot(kDd2018KeyboardHandleSlotRva, INVALID_HANDLE_VALUE);
+        WriteModuleHandleSlot(kDd2018MouseHandleSlotRva, INVALID_HANDLE_VALUE);
+    }
+    if (infKeyboardHandle_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(infKeyboardHandle_);
+        infKeyboardHandle_ = INVALID_HANDLE_VALUE;
+    }
+    if (infMouseHandle_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(infMouseHandle_);
+        infMouseHandle_ = INVALID_HANDLE_VALUE;
+    }
+    infHandlesInjected_ = false;
 }
 
 bool DdDriver::IsReady() const noexcept {

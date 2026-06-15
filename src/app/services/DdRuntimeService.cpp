@@ -8,6 +8,9 @@
 #include <QStandardPaths>
 #include <QString>
 
+#include <chrono>
+#include <fstream>
+#include <iomanip>
 #include <sstream>
 
 namespace {
@@ -77,7 +80,6 @@ bool RunProcess(const std::wstring& program,
     QProcess process;
     process.setProgram(QString::fromStdWString(program));
     QStringList qtArgs;
-    qtArgs.reserve(static_cast<qsizetype>(args.size()));
     for (const auto& arg : args) {
         qtArgs.push_back(QString::fromStdWString(arg));
     }
@@ -116,6 +118,30 @@ bool RunProcess(const std::wstring& program,
         return false;
     }
     return true;
+}
+
+void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, const std::wstring& message) {
+    if (logsDir.empty()) {
+        return;
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(logsDir, error);
+    if (error) {
+        return;
+    }
+
+    std::wofstream logFile(logsDir / fileName, std::ios::app);
+    if (!logFile) {
+        return;
+    }
+
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+    std::tm localTime{};
+    localtime_s(&localTime, &nowTime);
+    logFile << L"[" << std::put_time(&localTime, L"%Y-%m-%d %H:%M:%S") << L"]\n"
+            << message << L"\n";
 }
 
 }  // namespace
@@ -277,6 +303,14 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
         summary << message.str();
         *resultMessage = summary.str();
     }
+    std::wstringstream logMessage;
+    if (overallInstalled) {
+        logMessage << L"INF install succeeded. active_variant=" << installedVariant << L"\n";
+    } else {
+        logMessage << L"INF install did not complete successfully.\n";
+    }
+    logMessage << message.str();
+    AppendLog(logsDir_, L"dd-inf-install.log", logMessage.str());
     return overallInstalled;
 }
 

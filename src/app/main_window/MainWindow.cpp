@@ -8,7 +8,6 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFont>
-#include <QMessageBox>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QString>
@@ -173,34 +172,12 @@ bool MainWindow::ensureDdInfInstalled() {
         return true;
     }
 
-    QMessageBox prompt(this);
-    prompt.setIcon(QMessageBox::Warning);
-    prompt.setWindowTitle(QString::fromWCharArray(L"必须先安装 DD INF 驱动"));
-    prompt.setText(QString::fromWCharArray(L"检测到 DD 虚拟键盘/鼠标驱动未安装。"));
-    prompt.setInformativeText(QString::fromWCharArray(
-        L"小叽必须先安装 DD 的 INF 驱动后才能继续启动。\n\n"
-        L"点击“安装”后会在当前进程中完成安装，安装成功后将直接继续启动。"));
-    prompt.addButton(QString::fromWCharArray(L"安装"), QMessageBox::AcceptRole);
-    prompt.addButton(QString::fromWCharArray(L"退出"), QMessageBox::RejectRole);
-    prompt.exec();
-    auto* clicked = prompt.clickedButton();
-    if (clicked == nullptr || clicked->text() != QString::fromWCharArray(L"安装")) {
-        return false;
-    }
-
     std::wstring installMessage;
     const bool installed = ddRuntimeService_.InstallEmbeddedInfDriver(&installMessage);
     if (!installed) {
-        AppMessageDialog::warning(this,
-            QString::fromWCharArray(L"DD INF 驱动安装失败"),
-            QString::fromStdWString(installMessage));
         return false;
     }
 
-    AppMessageDialog::information(this,
-        QString::fromWCharArray(L"DD INF 驱动已安装"),
-        QString::fromStdWString(
-            L"驱动安装完成，程序将直接继续初始化。\n\n" + installMessage));
     const auto postInstallStatus = ddRuntimeService_.Inspect(driver_);
     return postInstallStatus.infKeyboardServiceInstalled &&
         postInstallStatus.infMouseServiceInstalled &&

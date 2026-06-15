@@ -1,6 +1,8 @@
 #include "services/DdRuntimeService.h"
 
 #include <Windows.h>
+#include <cfgmgr32.h>
+#include <SetupAPI.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -9,6 +11,9 @@
 #include <QString>
 
 #include <chrono>
+#include <algorithm>
+#include <cwctype>
+#include <functional>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -19,6 +24,9 @@ constexpr const wchar_t* kInfKeyboardServiceName = L"dd.key.96688";
 constexpr const wchar_t* kInfMouseServiceName = L"dd.mou.96688";
 constexpr const wchar_t* kInfKeyboardSysName = L"dd.key.96688.sys";
 constexpr const wchar_t* kInfMouseSysName = L"dd.mou.96688.sys";
+constexpr const wchar_t* kInfInstallLogName = L"dd-inf-install.log";
+constexpr const wchar_t* kInfKeyboardInstanceId = L"ROOT\\KEYBOARD\\0000";
+constexpr const wchar_t* kInfMouseInstanceId = L"ROOT\\MOUSE\\0000";
 
 bool CopyResourceFile(const QString& resourcePath, const QString& outputPath, QString* errorMessage) {
     QFile source(resourcePath);
@@ -120,6 +128,121 @@ bool RunProcess(const std::wstring& program,
     return true;
 }
 
+std::wstring ToLower(std::wstring value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch) {
+        return static_cast<wchar_t>(std::towlower(ch));
+    });
+    return value;
+}
+
+bool ContainsText(const std::wstring& text, const std::wstring& needle) {
+    return text.find(needle) != std::wstring::npos;
+}
+
+bool PnputilAddDriverSucceeded(bool processOk, DWORD exitCode, const std::wstring& output) {
+    if (processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
+        return true;
+    }
+
+    const std::wstring lowerOutput = ToLower(output);
+    if (ContainsText(lowerOutput, L"failed") ||
+        ContainsText(lowerOutput, L"失败") ||
+        ContainsText(lowerOutput, L"未能")) {
+        return false;
+    }
+
+    return ContainsText(lowerOutput, L"driver package added successfully") ||
+           ContainsText(lowerOutput, L"驱动程序包已成功添加") ||
+           ContainsText(lowerOutput, L"已成功添加驱动程序包");
+}
+
+bool DevconDeviceCommandSucceeded(bool processOk, DWORD exitCode) {
+    return processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED;
+}
+
+struct InfDeviceState {
+    bool present = false;
+    bool started = false;
+    bool boundToService = false;
+};
+
+bool DeviceBoundToService(const wchar_t* instanceId, const wchar_t* serviceName) {
+    HDEVINFO deviceInfo = SetupDiCreateDeviceInfoList(nullptr, nullptr);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    SP_DEVINFO_DATA deviceData{};
+    deviceData.cbSize = sizeof(deviceData);
+    if (!SetupDiOpenDeviceInfoW(deviceInfo, instanceId, nullptr, 0, &deviceData)) {
+        SetupDiDestroyDeviceInfoList(deviceInfo);
+        return false;
+    }
+
+    wchar_t serviceBuffer[256] = {};
+    DWORD propertyType = 0;
+    DWORD requiredSize = 0;
+    const BOOL propertyOk = SetupDiGetDeviceRegistryPropertyW(
+        deviceInfo,
+        &deviceData,
+        SPDRP_SERVICE,
+        &propertyType,
+        reinterpret_cast<PBYTE>(serviceBuffer),
+        sizeof(serviceBuffer),
+        &requiredSize);
+    SetupDiDestroyDeviceInfoList(deviceInfo);
+
+    return propertyOk &&
+           propertyType == REG_SZ &&
+           _wcsicmp(serviceBuffer, serviceName) == 0;
+}
+
+InfDeviceState QueryInfDeviceState(const wchar_t* instanceId, const wchar_t* serviceName) {
+    InfDeviceState state;
+    DEVINST devInst = 0;
+    const CONFIGRET locateResult = CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(instanceId), CM_LOCATE_DEVNODE_NORMAL);
+    if (locateResult != CR_SUCCESS) {
+        return state;
+    }
+
+    state.present = true;
+
+    ULONG status = 0;
+    ULONG problem = 0;
+    const CONFIGRET statusResult = CM_Get_DevNode_Status(&status, &problem, devInst, 0);
+    state.started = statusResult == CR_SUCCESS &&
+                    (status & DN_STARTED) != 0 &&
+                    (status & DN_HAS_PROBLEM) == 0;
+    state.boundToService = DeviceBoundToService(instanceId, serviceName);
+    return state;
+}
+
+std::wstring FormatStepResult(bool accepted,
+                              bool processOk,
+                              DWORD exitCode,
+                              const std::wstring& output,
+                              const std::wstring& error) {
+    std::wstringstream text;
+    if (accepted) {
+        text << L"ok";
+        if (!processOk) {
+            text << L" (exit=" << exitCode << L")";
+        }
+    } else {
+        text << L"failed";
+        if (exitCode != 0) {
+            text << L" (exit=" << exitCode << L")";
+        }
+        if (!error.empty()) {
+            text << L" (" << error << L")";
+        }
+    }
+    if (!output.empty()) {
+        text << L"\n" << output;
+    }
+    return text.str();
+}
+
 void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, const std::wstring& message) {
     if (logsDir.empty()) {
         return;
@@ -144,6 +267,234 @@ void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, co
             << message << L"\n";
 }
 
+struct InfVariantPaths {
+    QString outputDir;
+    QString dcPath;
+    QString keyInfPath;
+    QString keyCatPath;
+    QString keySysPath;
+    QString mouInfPath;
+    QString mouCatPath;
+    QString mouSysPath;
+};
+
+bool ExtractInfVariant(int variant, const QString& uniqueToken, InfVariantPaths* paths, std::wstring* message) {
+    if (!paths) {
+        return false;
+    }
+
+    const QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (tempRoot.isEmpty()) {
+        if (message) {
+            *message += L"Unable to resolve the temp directory.\n";
+        }
+        return false;
+    }
+
+    const QString installRoot = QDir(tempRoot).filePath(QStringLiteral("xiaoji-dd-inf"));
+    const QString variantName = QString::number(variant);
+    paths->outputDir = QDir(installRoot).filePath(QStringLiteral("%1-%2").arg(variantName, uniqueToken));
+    QDir().mkpath(paths->outputDir);
+
+    paths->dcPath = QDir(paths->outputDir).filePath(QStringLiteral("dc64.exe"));
+    paths->keyInfPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.key.96688.inf"));
+    paths->keyCatPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.key.96688.cat"));
+    paths->keySysPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.key.96688.sys"));
+    paths->mouInfPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.mou.96688.inf"));
+    paths->mouCatPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.mou.96688.cat"));
+    paths->mouSysPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.mou.96688.sys"));
+
+    QString extractError;
+    const QString prefix = QStringLiteral(":/dd/inf/%1/").arg(variantName);
+    if (!CopyResourceFile(prefix + QStringLiteral("dc64.exe"), paths->dcPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.inf"), paths->keyInfPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.cat"), paths->keyCatPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.sys"), paths->keySysPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.inf"), paths->mouInfPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.cat"), paths->mouCatPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.sys"), paths->mouSysPath, &extractError)) {
+        if (message) {
+            *message += L"extract failed: " + extractError.toStdWString() + L"\n";
+        }
+        return false;
+    }
+
+    return true;
+}
+
+std::wstring ResolvePnputilPath() {
+    wchar_t systemDir[MAX_PATH] = {};
+    const UINT systemDirLen = GetSystemDirectoryW(systemDir, MAX_PATH);
+    if (systemDirLen == 0 || systemDirLen >= MAX_PATH) {
+        return {};
+    }
+    return (std::filesystem::path(systemDir) / L"pnputil.exe").wstring();
+}
+
+bool InstallInfVariant(int variant,
+                       const std::wstring& pnputilPath,
+                       const QString& uniqueToken,
+                       bool removeExistingDevices,
+                       std::wstringstream* message) {
+    InfVariantPaths paths;
+    std::wstring extractMessage;
+    if (!ExtractInfVariant(variant, uniqueToken, &paths, &extractMessage)) {
+        if (message) {
+            *message << L"variant " << variant << L": " << extractMessage;
+        }
+        return false;
+    }
+
+    DWORD exitCode = 1;
+    std::wstring stepOutput;
+    std::wstring stepError;
+
+    if (removeExistingDevices) {
+        stepOutput.clear();
+        stepError.clear();
+        exitCode = 1;
+        const bool removeKeyOk = RunProcess(paths.dcPath.toStdWString(),
+            {L"remove", L"dd.key.96688"},
+            &exitCode,
+            &stepOutput,
+            &stepError);
+        const bool removeKeyAccepted = DevconDeviceCommandSucceeded(removeKeyOk, exitCode);
+        if (message) {
+            *message << L"variant " << variant << L": remove key device -> "
+                     << FormatStepResult(removeKeyAccepted, removeKeyOk, exitCode, stepOutput, stepError) << L"\n";
+        }
+
+        stepOutput.clear();
+        stepError.clear();
+        exitCode = 1;
+        const bool removeMouOk = RunProcess(paths.dcPath.toStdWString(),
+            {L"remove", L"dd.mou.96688"},
+            &exitCode,
+            &stepOutput,
+            &stepError);
+        const bool removeMouAccepted = DevconDeviceCommandSucceeded(removeMouOk, exitCode);
+        if (message) {
+            *message << L"variant " << variant << L": remove mouse device -> "
+                     << FormatStepResult(removeMouAccepted, removeMouOk, exitCode, stepOutput, stepError) << L"\n";
+        }
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool addKeyProcessOk = RunProcess(pnputilPath,
+        {L"/add-driver", paths.keyInfPath.toStdWString(), L"/install"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool addKeyOk = PnputilAddDriverSucceeded(addKeyProcessOk, exitCode, stepOutput);
+    if (message) {
+        *message << L"variant " << variant << L": add key inf -> "
+                 << FormatStepResult(addKeyOk, addKeyProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool addMouProcessOk = RunProcess(pnputilPath,
+        {L"/add-driver", paths.mouInfPath.toStdWString(), L"/install"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool addMouOk = PnputilAddDriverSucceeded(addMouProcessOk, exitCode, stepOutput);
+    if (message) {
+        *message << L"variant " << variant << L": add mouse inf -> "
+                 << FormatStepResult(addMouOk, addMouProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool updateKeyProcessOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"update", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool updateKeyOk = DevconDeviceCommandSucceeded(updateKeyProcessOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": update key device -> "
+                 << FormatStepResult(updateKeyOk, updateKeyProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool updateMouProcessOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"update", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool updateMouOk = DevconDeviceCommandSucceeded(updateMouProcessOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": update mouse device -> "
+                 << FormatStepResult(updateMouOk, updateMouProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool installKeyOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"install", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool installKeyAccepted = DevconDeviceCommandSucceeded(installKeyOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": create key device -> "
+                 << FormatStepResult(installKeyAccepted, installKeyOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool installMouOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"install", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool installMouAccepted = DevconDeviceCommandSucceeded(installMouOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": create mouse device -> "
+                 << FormatStepResult(installMouAccepted, installMouOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool enableKeyProcessOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"enable", L"dd.key.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool enableKeyOk = DevconDeviceCommandSucceeded(enableKeyProcessOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": enable key device -> "
+                 << FormatStepResult(enableKeyOk, enableKeyProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool enableMouProcessOk = RunProcess(paths.dcPath.toStdWString(),
+        {L"enable", L"dd.mou.96688"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool enableMouOk = DevconDeviceCommandSucceeded(enableMouProcessOk, exitCode);
+    if (message) {
+        *message << L"variant " << variant << L": enable mouse device -> "
+                 << FormatStepResult(enableMouOk, enableMouProcessOk, exitCode, stepOutput, stepError) << L"\n";
+    }
+
+    return addKeyOk && addMouOk &&
+           ((updateKeyOk && updateMouOk) || (installKeyAccepted && installMouAccepted) || (enableKeyOk && enableMouOk));
+}
+
 }  // namespace
 
 DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir)
@@ -162,6 +513,12 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
     status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
     status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
+    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    status.infKeyboardDeviceStarted = keyDevice.started;
+    status.infMouseDeviceStarted = mouseDevice.started;
+    status.infKeyboardDeviceBound = keyDevice.boundToService;
+    status.infMouseDeviceBound = mouseDevice.boundToService;
     status.candidateDlls = {
         Legacy64Path().wstring(),
         Legacy32Path().wstring(),
@@ -176,28 +533,22 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     if (!status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
         status.notes.push_back(L"No embedded INF driver package was found.");
     }
+    if (!status.infKeyboardDeviceStarted || !status.infMouseDeviceStarted ||
+        !status.infKeyboardDeviceBound || !status.infMouseDeviceBound) {
+        status.notes.push_back(L"DD INF device instances are not fully started and bound to their services.");
+    }
 
     return status;
 }
 
 bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) const {
-    const QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    if (tempRoot.isEmpty()) {
-        if (resultMessage) {
-            *resultMessage = L"Unable to resolve the temp directory.";
-        }
-        return false;
-    }
-
-    wchar_t systemDir[MAX_PATH] = {};
-    const UINT systemDirLen = GetSystemDirectoryW(systemDir, MAX_PATH);
-    if (systemDirLen == 0 || systemDirLen >= MAX_PATH) {
+    const std::wstring pnputilPath = ResolvePnputilPath();
+    if (pnputilPath.empty()) {
         if (resultMessage) {
             *resultMessage = L"Unable to resolve the Windows system directory.";
         }
         return false;
     }
-    const std::wstring pnputilPath = (std::filesystem::path(systemDir) / L"pnputil.exe").wstring();
 
     std::vector<int> variants;
     if (EmbeddedInfVariantExists(1)) variants.push_back(1);
@@ -212,71 +563,11 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
     std::wstringstream message;
     bool overallInstalled = false;
     int installedVariant = -1;
-    const auto uniqueToken = std::to_wstring(GetCurrentProcessId()) + L"-" +
-        std::to_wstring(static_cast<unsigned long long>(GetTickCount64()));
+    const QString uniqueToken = QString::fromStdWString(std::to_wstring(GetCurrentProcessId()) + L"-" +
+        std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
 
     for (const int variant : variants) {
-        const QString installRoot = QDir(tempRoot).filePath(QStringLiteral("xiaoji-dd-inf"));
-        const QString variantName = QString::number(variant);
-        const QString outputDir = QDir(installRoot).filePath(
-            QStringLiteral("%1-%2").arg(variantName, QString::fromStdWString(uniqueToken)));
-        QDir().mkpath(outputDir);
-
-        const QString dcPath = QDir(outputDir).filePath(QStringLiteral("dc64.exe"));
-        const QString keyInfPath = QDir(outputDir).filePath(QStringLiteral("dd.key.96688.inf"));
-        const QString keyCatPath = QDir(outputDir).filePath(QStringLiteral("dd.key.96688.cat"));
-        const QString keySysPath = QDir(outputDir).filePath(QStringLiteral("dd.key.96688.sys"));
-        const QString mouInfPath = QDir(outputDir).filePath(QStringLiteral("dd.mou.96688.inf"));
-        const QString mouCatPath = QDir(outputDir).filePath(QStringLiteral("dd.mou.96688.cat"));
-        const QString mouSysPath = QDir(outputDir).filePath(QStringLiteral("dd.mou.96688.sys"));
-
-        QString extractError;
-        const QString prefix = QStringLiteral(":/dd/inf/%1/").arg(variantName);
-        if (!CopyResourceFile(prefix + QStringLiteral("dc64.exe"), dcPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.inf"), keyInfPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.cat"), keyCatPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.sys"), keySysPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.inf"), mouInfPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.cat"), mouCatPath, &extractError) ||
-            !CopyResourceFile(prefix + QStringLiteral("dd.mou.96688.sys"), mouSysPath, &extractError)) {
-            message << L"variant " << variant << L": extract failed: " << extractError.toStdWString() << L"\n";
-            continue;
-        }
-
-        DWORD exitCode = 1;
-        std::wstring stepOutput;
-        std::wstring stepError;
-        const bool addKeyOk = RunProcess(pnputilPath,
-            {L"/add-driver", keyInfPath.toStdWString(), L"/install"},
-            &exitCode,
-            &stepOutput,
-            &stepError);
-        message << L"variant " << variant << L": add key inf -> "
-                << (addKeyOk ? L"ok" : (L"failed (" + stepError + L")")) << L"\n";
-
-        const bool addMouOk = RunProcess(pnputilPath,
-            {L"/add-driver", mouInfPath.toStdWString(), L"/install"},
-            &exitCode,
-            &stepOutput,
-            &stepError);
-        message << L"variant " << variant << L": add mouse inf -> "
-                << (addMouOk ? L"ok" : (L"failed (" + stepError + L")")) << L"\n";
-
-        const bool installKeyOk = RunProcess(dcPath.toStdWString(),
-            {L"install", keyInfPath.toStdWString(), L"dd.key.96688"},
-            &exitCode,
-            &stepOutput,
-            &stepError);
-        message << L"variant " << variant << L": create key device -> "
-                << (installKeyOk ? L"ok" : (L"failed (" + stepError + L")")) << L"\n";
-
-        const bool installMouOk = RunProcess(dcPath.toStdWString(),
-            {L"install", mouInfPath.toStdWString(), L"dd.mou.96688"},
-            &exitCode,
-            &stepOutput,
-            &stepError);
-        message << L"variant " << variant << L": create mouse device -> "
-                << (installMouOk ? L"ok" : (L"failed (" + stepError + L")")) << L"\n";
+        InstallInfVariant(variant, pnputilPath, uniqueToken, false, &message);
 
         const bool servicesReady = ServiceExists(kInfKeyboardServiceName) && ServiceExists(kInfMouseServiceName);
         const bool sysReady = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName) &&
@@ -310,8 +601,120 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
         logMessage << L"INF install did not complete successfully.\n";
     }
     logMessage << message.str();
-    AppendLog(logsDir_, L"dd-inf-install.log", logMessage.str());
+    AppendLog(logsDir_, kInfInstallLogName, logMessage.str());
     return overallInstalled;
+}
+
+bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
+                                               std::wstring* resultMessage) const {
+    const std::wstring pnputilPath = ResolvePnputilPath();
+    if (pnputilPath.empty()) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the Windows system directory.";
+        }
+        return false;
+    }
+
+    std::vector<int> variants;
+    if (EmbeddedInfVariantExists(1)) variants.push_back(1);
+    if (EmbeddedInfVariantExists(0)) variants.push_back(0);
+    if (variants.empty()) {
+        if (resultMessage) {
+            *resultMessage = L"No embedded INF driver package is available.";
+        }
+        return false;
+    }
+
+    if (readinessProbe && readinessProbe()) {
+        if (resultMessage) {
+            *resultMessage = L"DD runtime is already ready; repair skipped.";
+        }
+        return true;
+    }
+
+    std::wstringstream message;
+    bool repaired = false;
+    int repairedVariant = -1;
+    const QString uniqueToken = QString::fromStdWString(std::to_wstring(GetCurrentProcessId()) + L"-repair-" +
+        std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
+
+    for (const int variant : variants) {
+        message << L"variant " << variant << L": repair begin (refresh existing devices)\n";
+        InstallInfVariant(variant, pnputilPath, uniqueToken, false, &message);
+        if (readinessProbe && readinessProbe()) {
+            repaired = true;
+            repairedVariant = variant;
+            message << L"variant " << variant << L": readiness probe -> ok\n";
+            break;
+        }
+        message << L"variant " << variant << L": readiness probe after refresh -> failed\n";
+
+        message << L"variant " << variant << L": repair retry (remove stale devices)\n";
+        InstallInfVariant(variant, pnputilPath, uniqueToken, true, &message);
+        if (readinessProbe && readinessProbe()) {
+            repaired = true;
+            repairedVariant = variant;
+            message << L"variant " << variant << L": readiness probe -> ok\n";
+            break;
+        }
+        message << L"variant " << variant << L": readiness probe after rebuild -> failed\n";
+    }
+
+    std::wstringstream summary;
+    if (repaired) {
+        summary << L"INF repair succeeded. active_variant=" << repairedVariant << L"\n";
+    } else {
+        summary << L"INF repair did not restore DD runtime readiness.\n";
+    }
+    summary << message.str();
+
+    if (resultMessage) {
+        *resultMessage = summary.str();
+    }
+    AppendLog(logsDir_, kInfInstallLogName, summary.str());
+    return repaired;
+}
+
+void DdRuntimeService::LogRuntimeReady(const std::wstring& source) const {
+    RuntimeStatus status;
+    status.driverReady = true;
+    status.legacy32Exists = std::filesystem::exists(Legacy32Path());
+    status.legacy64Exists = std::filesystem::exists(Legacy64Path());
+    status.embeddedInfVariant0Exists = EmbeddedInfVariantExists(0);
+    status.embeddedInfVariant1Exists = EmbeddedInfVariantExists(1);
+    status.infKeyboardServiceInstalled = ServiceExists(kInfKeyboardServiceName);
+    status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
+    status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
+    status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
+    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    status.infKeyboardDeviceStarted = keyDevice.started;
+    status.infMouseDeviceStarted = mouseDevice.started;
+    status.infKeyboardDeviceBound = keyDevice.boundToService;
+    status.infMouseDeviceBound = mouseDevice.boundToService;
+
+    std::wstringstream message;
+    message << L"DD runtime ready. source=" << source << L"\n"
+            << L"DD64.dll=" << (status.legacy64Exists ? L"present" : L"missing") << L"\n"
+            << L"DD32.dll=" << (status.legacy32Exists ? L"present" : L"missing") << L"\n"
+            << L"embedded_inf_variant_1=" << (status.embeddedInfVariant1Exists ? L"present" : L"missing") << L"\n"
+            << L"embedded_inf_variant_0=" << (status.embeddedInfVariant0Exists ? L"present" : L"missing") << L"\n"
+            << L"service_key=" << (status.infKeyboardServiceInstalled ? L"present" : L"missing") << L"\n"
+            << L"service_mouse=" << (status.infMouseServiceInstalled ? L"present" : L"missing") << L"\n"
+            << L"sys_key=" << (status.infKeyboardSysInstalled ? L"present" : L"missing") << L"\n"
+            << L"sys_mouse=" << (status.infMouseSysInstalled ? L"present" : L"missing") << L"\n"
+            << L"device_key_started=" << (status.infKeyboardDeviceStarted ? L"yes" : L"no") << L"\n"
+            << L"device_mouse_started=" << (status.infMouseDeviceStarted ? L"yes" : L"no") << L"\n"
+            << L"device_key_bound=" << (status.infKeyboardDeviceBound ? L"yes" : L"no") << L"\n"
+            << L"device_mouse_bound=" << (status.infMouseDeviceBound ? L"yes" : L"no") << L"\n";
+    AppendLog(logsDir_, kInfInstallLogName, message.str());
+}
+
+bool DdRuntimeService::InfDevicesReady() const {
+    const InfDeviceState keyDevice = QueryInfDeviceState(kInfKeyboardInstanceId, kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceState(kInfMouseInstanceId, kInfMouseServiceName);
+    return keyDevice.started && keyDevice.boundToService &&
+           mouseDevice.started && mouseDevice.boundToService;
 }
 
 std::filesystem::path DdRuntimeService::ExeDir() const noexcept {

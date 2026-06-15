@@ -134,14 +134,7 @@ bool MainWindow::Initialize() {
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-    if (!ensureDdInfInstalled()) {
-        return false;
-    }
-    if (!driver_.LoadFromDirectory(appPaths_.exeDir())) {
-        std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " + driver_.GetLastError() +
-            L"\n\n\u8bf7\u786e\u8ba4\uff1a\n1. \u662f\u5426\u5df2\u5b89\u88c5 DD INF \u9a71\u52a8\n2. DD64.dll / DD32.dll \u662f\u5426\u5728 driver \u76ee\u5f55\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002";
-        AppMessageDialog::warning(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
-            QString::fromStdWString(errorMsg));
+    if (!ensureDdRuntimeReady()) {
         return false;
     }
 
@@ -165,24 +158,43 @@ bool MainWindow::Initialize() {
     return true;
 }
 
-bool MainWindow::ensureDdInfInstalled() {
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    if (status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
-        status.infKeyboardSysInstalled && status.infMouseSysInstalled) {
+bool MainWindow::ensureDdRuntimeReady() {
+    const bool initialRuntimeReady = driver_.LoadFromDirectory(appPaths_.exeDir());
+    if (initialRuntimeReady && ddRuntimeService_.InfDevicesReady()) {
+        ddRuntimeService_.LogRuntimeReady(L"initial_probe");
         return true;
     }
 
-    std::wstring installMessage;
-    const bool installed = ddRuntimeService_.InstallEmbeddedInfDriver(&installMessage);
-    if (!installed) {
-        return false;
+    const std::wstring initialError = initialRuntimeReady
+        ? L"DD runtime loaded, but DD INF device instances are not started and bound"
+        : driver_.GetLastError();
+    std::wstring repairMessage;
+    const auto probe = [this]() {
+        return driver_.LoadFromDirectory(appPaths_.exeDir()) && ddRuntimeService_.InfDevicesReady();
+    };
+    const bool repaired = ddRuntimeService_.RepairEmbeddedInfDriver(probe, &repairMessage);
+    if (repaired && driver_.IsReady() && ddRuntimeService_.InfDevicesReady()) {
+        ddRuntimeService_.LogRuntimeReady(L"repair_probe");
+        return true;
+    }
+    if (driver_.LoadFromDirectory(appPaths_.exeDir()) && ddRuntimeService_.InfDevicesReady()) {
+        ddRuntimeService_.LogRuntimeReady(L"final_probe");
+        return true;
     }
 
-    const auto postInstallStatus = ddRuntimeService_.Inspect(driver_);
-    return postInstallStatus.infKeyboardServiceInstalled &&
-        postInstallStatus.infMouseServiceInstalled &&
-        postInstallStatus.infKeyboardSysInstalled &&
-        postInstallStatus.infMouseSysInstalled;
+    const std::filesystem::path logPath = appPaths_.logsDir() / L"dd-inf-install.log";
+    std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " +
+        (driver_.GetLastError().empty() ? initialError : driver_.GetLastError()) +
+        L"\n\n\u5df2\u5c1d\u8bd5\u91cd\u5efa DD \u865a\u62df\u952e\u76d8/\u9f20\u6807\u8bbe\u5907\uff0c\u4f46\u8fd0\u884c\u65f6\u4ecd\u4e0d\u53ef\u7528\u3002"
+        L"\n\n\u4fee\u590d\u7ed3\u679c:\n" + repairMessage +
+        L"\n\n\u65e5\u5fd7: " + logPath.wstring() +
+        L"\n\n\u8bf7\u786e\u8ba4:\n1. \u7a0b\u5e8f\u662f\u5426\u4ee5\u7ba1\u7406\u5458\u6743\u9650\u8fd0\u884c"
+        L"\n2. Windows \u5185\u6838\u9694\u79bb/\u5b89\u5168\u542f\u52a8/\u6740\u8f6f\u662f\u5426\u963b\u6b62\u865a\u62df\u9a71\u52a8"
+        L"\n3. driver \u76ee\u5f55\u4e0b\u7684 DD64.dll \u662f\u5426\u5b58\u5728";
+
+    AppMessageDialog::warning(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u4fee\u590d\u5931\u8d25"),
+        QString::fromStdWString(errorMsg));
+    return false;
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {

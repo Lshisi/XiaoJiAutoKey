@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <sstream>
+#include <vector>
 
 namespace {
 
@@ -27,6 +28,32 @@ std::optional<std::pair<int, int>> ToMouseCodes(std::uint32_t vk) {
 }
 
 using DDToDcFn = int(__stdcall*)(int);
+
+std::wstring FormatWin32Error(DWORD errorCode) {
+    if (errorCode == ERROR_SUCCESS) {
+        return L"0";
+    }
+
+    wchar_t* buffer = nullptr;
+    const DWORD length = ::FormatMessageW(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        errorCode,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<LPWSTR>(&buffer),
+        0,
+        nullptr);
+
+    std::wstringstream text;
+    text << errorCode;
+    if (length > 0 && buffer != nullptr) {
+        text << L" (" << buffer << L")";
+    }
+    if (buffer != nullptr) {
+        ::LocalFree(buffer);
+    }
+    return text.str();
+}
 
 std::optional<int> ModifierDdCode(std::uint32_t vk) {
     switch (vk) {
@@ -102,7 +129,8 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
 
     module_ = ::LoadLibraryW(dllPath.c_str());
     if (module_ == nullptr) {
-        lastError_ = L"Unable to load DD DLL: " + dllPath;
+        const DWORD errorCode = ::GetLastError();
+        lastError_ = L"Unable to load DD DLL: " + dllPath + L"; win32=" + FormatWin32Error(errorCode);
         return false;
     }
 
@@ -117,7 +145,7 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
 
     const int initResult = ddBtn_(0);
     if (initResult != 1) {
-        lastError_ = L"Please install the DD INF driver package first";
+        lastError_ = L"Please install the DD INF driver package first; DD_btn(0)=" + std::to_wstring(initResult);
         Unload();
         return false;
     }
@@ -131,29 +159,37 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
     const std::filesystem::path driverDir = directory / L"driver";
 
 #if defined(_WIN64)
-    constexpr std::wstring_view primaryDllName = L"DD64.dll";
-    constexpr std::wstring_view secondaryDllName = L"DD32.dll";
+    const std::vector<std::filesystem::path> candidates = {
+        driverDir / L"DD64.dll",
+        directory / L"DD64.dll",
+    };
 #else
-    constexpr std::wstring_view primaryDllName = L"DD32.dll";
-    constexpr std::wstring_view secondaryDllName = L"DD64.dll";
+    const std::vector<std::filesystem::path> candidates = {
+        driverDir / L"DD32.dll",
+        directory / L"DD32.dll",
+    };
 #endif
 
-    if (LoadFrom((driverDir / primaryDllName).wstring())) {
-        return true;
-    }
-    if (LoadFrom((driverDir / secondaryDllName).wstring())) {
-        return true;
-    }
-
-    if (LoadFrom((directory / primaryDllName).wstring())) {
-        return true;
-    }
-    if (LoadFrom((directory / secondaryDllName).wstring())) {
-        return true;
+    std::wstring firstMeaningfulError;
+    for (const auto& candidate : candidates) {
+        if (LoadFrom(candidate.wstring())) {
+            return true;
+        }
+        if (firstMeaningfulError.empty() ||
+            (firstMeaningfulError.rfind(L"Unable to load DD DLL:", 0) == 0 &&
+             lastError_.rfind(L"Unable to load DD DLL:", 0) != 0)) {
+            firstMeaningfulError = lastError_;
+        }
     }
 
-    if (lastError_ != L"Please install the DD INF driver package first") {
-        lastError_ = L"Unable to load DD32.dll or DD64.dll";
+    if (!firstMeaningfulError.empty()) {
+        lastError_ = firstMeaningfulError;
+    } else {
+#if defined(_WIN64)
+        lastError_ = L"Unable to load DD64.dll";
+#else
+        lastError_ = L"Unable to load DD32.dll";
+#endif
     }
     return false;
 }

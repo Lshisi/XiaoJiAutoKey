@@ -188,6 +188,8 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     shlwapi
     winmm
     dwmapi
+    setupapi
+    cfgmgr32
 )
 
 if(MSVC)

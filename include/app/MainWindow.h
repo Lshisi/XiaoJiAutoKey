@@ -47,7 +47,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool ensureDdInfInstalled();
+    bool ensureDdRuntimeReady();
     void showDdUnavailableMessage();
     void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
     void applyRuntimeVisualRefresh();

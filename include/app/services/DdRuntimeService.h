@@ -3,6 +3,7 @@
 #include "DdDriver.h"
 
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,10 @@ public:
         bool infMouseServiceInstalled = false;
         bool infKeyboardSysInstalled = false;
         bool infMouseSysInstalled = false;
+        bool infKeyboardDeviceStarted = false;
+        bool infMouseDeviceStarted = false;
+        bool infKeyboardDeviceBound = false;
+        bool infMouseDeviceBound = false;
         std::filesystem::path logFilePath;
         std::vector<std::wstring> candidateDlls;
         std::vector<std::wstring> notes;
@@ -28,6 +33,10 @@ public:
 
     [[nodiscard]] RuntimeStatus Inspect(const DdDriver& driver) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
+    [[nodiscard]] bool RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
+                                               std::wstring* resultMessage = nullptr) const;
+    [[nodiscard]] bool InfDevicesReady() const;
+    void LogRuntimeReady(const std::wstring& source) const;
     [[nodiscard]] std::filesystem::path ExeDir() const noexcept;
     [[nodiscard]] std::filesystem::path LogsDir() const noexcept;
     [[nodiscard]] std::filesystem::path DriverRootDir() const;

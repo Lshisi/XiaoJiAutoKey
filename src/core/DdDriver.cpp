@@ -1,9 +1,103 @@
 #include "DdDriver.h"
 
+#include <chrono>
 #include <filesystem>
 #include <sstream>
+#include <string_view>
+#include <thread>
 
 namespace {
+
+LRESULT CALLBACK BlockWinKeyProc(int code, WPARAM wParam, LPARAM lParam) {
+    if (code == HC_ACTION) {
+        const auto* event = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
+        if (event != nullptr && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN ||
+                wParam == WM_KEYUP || wParam == WM_SYSKEYUP) &&
+            (event->vkCode == VK_LWIN || event->vkCode == VK_RWIN)) {
+            return 1;
+        }
+    }
+    return ::CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+class HidInitGuard {
+public:
+    HidInitGuard() {
+        stopEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        readyEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (stopEvent_ != nullptr && readyEvent_ != nullptr) {
+            hookThread_ = std::thread([this]() {
+                const HHOOK hook = ::SetWindowsHookExW(
+                    WH_KEYBOARD_LL,
+                    BlockWinKeyProc,
+                    ::GetModuleHandleW(nullptr),
+                    0);
+                ::SetEvent(readyEvent_);
+
+                MSG message{};
+                while (true) {
+                    const DWORD waitResult = ::MsgWaitForMultipleObjects(
+                        1,
+                        &stopEvent_,
+                        FALSE,
+                        INFINITE,
+                        QS_ALLINPUT);
+                    if (waitResult == WAIT_OBJECT_0) {
+                        break;
+                    }
+                    while (::PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+                        ::TranslateMessage(&message);
+                        ::DispatchMessageW(&message);
+                    }
+                }
+
+                if (hook != nullptr) {
+                    ::UnhookWindowsHookEx(hook);
+                }
+            });
+            ::WaitForSingleObject(readyEvent_, 1000);
+        }
+
+        cursorCaptured_ = ::GetCursorPos(&oldPos_) != FALSE;
+        if (cursorCaptured_) {
+            RECT rect{oldPos_.x, oldPos_.y, oldPos_.x + 1, oldPos_.y + 1};
+            cursorClipped_ = ::ClipCursor(&rect) != FALSE;
+        }
+    }
+
+    ~HidInitGuard() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        if (stopEvent_ != nullptr) {
+            ::SetEvent(stopEvent_);
+        }
+        if (hookThread_.joinable()) {
+            hookThread_.join();
+        }
+        if (cursorClipped_) {
+            ::ClipCursor(nullptr);
+        }
+        if (cursorCaptured_) {
+            ::SetCursorPos(oldPos_.x, oldPos_.y);
+        }
+        if (readyEvent_ != nullptr) {
+            ::CloseHandle(readyEvent_);
+        }
+        if (stopEvent_ != nullptr) {
+            ::CloseHandle(stopEvent_);
+        }
+    }
+
+    HidInitGuard(const HidInitGuard&) = delete;
+    HidInitGuard& operator=(const HidInitGuard&) = delete;
+
+private:
+    POINT oldPos_{};
+    HANDLE readyEvent_ = nullptr;
+    HANDLE stopEvent_ = nullptr;
+    std::thread hookThread_;
+    bool cursorCaptured_ = false;
+    bool cursorClipped_ = false;
+};
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -98,6 +192,14 @@ DdDriver::~DdDriver() {
 }
 
 bool DdDriver::LoadFrom(const std::wstring& dllPath) {
+    return LoadFrom(dllPath, RuntimeKind::Legacy);
+}
+
+bool DdDriver::LoadHidFrom(const std::wstring& dllPath) {
+    return LoadFrom(dllPath, RuntimeKind::Hid);
+}
+
+bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
     Unload();
 
     module_ = ::LoadLibraryW(dllPath.c_str());
@@ -115,20 +217,30 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
         return false;
     }
 
-    const int initResult = ddBtn_(0);
+    const int initResult = [this, runtimeKind]() {
+        if (runtimeKind == RuntimeKind::Hid) {
+            HidInitGuard guard;
+            return ddBtn_(0);
+        }
+        return ddBtn_(0);
+    }();
     if (initResult != 1) {
-        lastError_ = L"Please install the DD INF driver package first";
+        lastError_ = runtimeKind == RuntimeKind::Hid
+            ? L"Please install the DD HID driver package first"
+            : L"Please install the DD INF driver package first";
         Unload();
         return false;
     }
 
+    runtimeKind_ = runtimeKind;
     lastError_.clear();
     return true;
 }
 
-bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
+bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHid) {
     const std::filesystem::path directory(directoryPath);
     const std::filesystem::path driverDir = directory / L"driver";
+    const std::filesystem::path hidDll = driverDir / L"hid" / L"ddhid.63340.dll";
 
 #if defined(_WIN64)
     constexpr std::wstring_view primaryDllName = L"DD64.dll";
@@ -138,22 +250,27 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
     constexpr std::wstring_view secondaryDllName = L"DD64.dll";
 #endif
 
-    if (LoadFrom((driverDir / primaryDllName).wstring())) {
-        return true;
-    }
-    if (LoadFrom((driverDir / secondaryDllName).wstring())) {
+    if (allowHid && LoadHidFrom(hidDll.wstring())) {
         return true;
     }
 
-    if (LoadFrom((directory / primaryDllName).wstring())) {
+    if (LoadFrom((driverDir / primaryDllName).wstring(), RuntimeKind::Legacy)) {
         return true;
     }
-    if (LoadFrom((directory / secondaryDllName).wstring())) {
+    if (LoadFrom((driverDir / secondaryDllName).wstring(), RuntimeKind::Legacy)) {
         return true;
     }
 
-    if (lastError_ != L"Please install the DD INF driver package first") {
-        lastError_ = L"Unable to load DD32.dll or DD64.dll";
+    if (LoadFrom((directory / primaryDllName).wstring(), RuntimeKind::Legacy)) {
+        return true;
+    }
+    if (LoadFrom((directory / secondaryDllName).wstring(), RuntimeKind::Legacy)) {
+        return true;
+    }
+
+    if (lastError_ != L"Please install the DD HID driver package first" &&
+        lastError_ != L"Please install the DD INF driver package first") {
+        lastError_ = L"Unable to load DD HID DLL, DD32.dll, or DD64.dll";
     }
     return false;
 }
@@ -166,6 +283,7 @@ void DdDriver::Unload() {
     ddBtn_ = nullptr;
     ddKey_ = nullptr;
     ddToDc_ = nullptr;
+    runtimeKind_ = RuntimeKind::Unknown;
 }
 
 bool DdDriver::IsReady() const noexcept {
@@ -174,6 +292,10 @@ bool DdDriver::IsReady() const noexcept {
 
 std::wstring DdDriver::GetLastError() const {
     return lastError_;
+}
+
+DdDriver::RuntimeKind DdDriver::GetRuntimeKind() const noexcept {
+    return runtimeKind_;
 }
 
 bool DdDriver::IsSimulating() const noexcept {

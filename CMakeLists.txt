@@ -20,6 +20,9 @@ find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
 set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
 set(AUTOKEY_DD_DLL64 "${AUTOKEY_DD_DIR}/DD64.dll")
+set(AUTOKEY_DD_HID_DIR "${AUTOKEY_DD_DIR}/hid")
+set(AUTOKEY_DD_HID_DLL "${AUTOKEY_DD_HID_DIR}/ddhid.63340.dll")
+set(AUTOKEY_DD_HID_DRV_DIR "${AUTOKEY_DD_HID_DIR}/drv")
 
 set(CORE_SOURCES
     src/core/AppTypes.cpp
@@ -188,6 +191,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     shlwapi
     winmm
     dwmapi
+    cfgmgr32
 )
 
 if(MSVC)
@@ -223,9 +227,32 @@ if(EXISTS "${AUTOKEY_DD_DLL64}")
     )
 endif()
 
+if(EXISTS "${AUTOKEY_DD_HID_DLL}")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_DLL}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/ddhid.63340.dll"
+        COMMENT "Copying DD HID runtime DLL to the target driver directory"
+    )
+endif()
+
+if(EXISTS "${AUTOKEY_DD_HID_DRV_DIR}")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${AUTOKEY_DD_HID_DRV_DIR}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv"
+        COMMENT "Copying DD HID driver package to the target driver directory"
+    )
+endif()
+
 add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -f
         "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD32.dll"
         "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD64.dll"
+        "$<TARGET_FILE_DIR:XiaoJiAutoKey>/ddhid.63340.dll"
     COMMENT "Removing legacy DD DLLs from the executable root directory"
 )

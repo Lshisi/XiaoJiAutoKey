@@ -50,6 +50,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->settingsPage()->setConfigPath(QString::fromStdWString(context_.configPath.wstring()));
     context_.view->settingsPage()->setCloseAction(context_.config->closeAction);
     context_.view->settingsPage()->setFaction(QString::fromStdString(context_.config->faction));
+    context_.view->settingsPage()->setDriverMode(context_.config->driverMode);
     context_.view->settingsPage()->setCustomSoundPaths(QString(), QString());
 }
 

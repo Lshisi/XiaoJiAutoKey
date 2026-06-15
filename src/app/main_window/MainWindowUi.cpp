@@ -135,7 +135,10 @@ void MainWindow::setupUi() {
             refreshStatusOverlay();
         },
         [this]() { refreshStatusOverlay(); },
-        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
+        [this](DriverMode mode) { handleDriverModeChanged(mode); },
+        [this]() { refreshDriverStatusUi(); },
+        [this]() { handleHidUninstallRequested(); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;

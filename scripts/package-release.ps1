@@ -141,8 +141,15 @@ if (Test-Path $driverSrcDir) {
         Copy-Item $dd64Path (Join-Path $driverDstDir "DD64.dll") -Force
     }
 
-    if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path)) {
-        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll not found."
+    $hidSrcDir = Join-Path $driverSrcDir "hid"
+    if (Test-Path $hidSrcDir) {
+        $hidDstDir = Join-Path $driverDstDir "hid"
+        New-Item -ItemType Directory -Path $hidDstDir -Force | Out-Null
+        Copy-Item (Join-Path $hidSrcDir "*") $hidDstDir -Recurse -Force
+    }
+
+    if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path) -and -not (Test-Path $hidSrcDir)) {
+        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll / hid not found."
     }
 } else {
     Write-Warning "third_party\dd directory not found."

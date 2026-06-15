@@ -14,15 +14,23 @@
 
 class DdDriver {
 public:
+    enum class RuntimeKind {
+        Unknown,
+        Hid,
+        Legacy,
+    };
+
     DdDriver() = default;
     ~DdDriver();
 
     bool LoadFrom(const std::wstring& dllPath);
-    bool LoadFromDirectory(const std::wstring& directoryPath);
+    bool LoadHidFrom(const std::wstring& dllPath);
+    bool LoadFromDirectory(const std::wstring& directoryPath, bool allowHid = true);
     void Unload();
 
     [[nodiscard]] bool IsReady() const noexcept;
     [[nodiscard]] std::wstring GetLastError() const;
+    [[nodiscard]] RuntimeKind GetRuntimeKind() const noexcept;
     [[nodiscard]] bool IsSimulating() const noexcept;
     [[nodiscard]] bool IsKeySimulating(const KeyDescriptor& key) const;
 
@@ -38,6 +46,7 @@ private:
     using DD_key_t = int(__stdcall*)(int, int);
     using DD_todc_t = int(__stdcall*)(int);
 
+    bool LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind);
     bool SendKeyboardTap(std::uint32_t vk);
     bool SendMouseTap(std::uint32_t vk);
     void RegisterPress(const KeyDescriptor& key);
@@ -48,6 +57,7 @@ private:
     DD_btn_t ddBtn_ = nullptr;
     DD_key_t ddKey_ = nullptr;
     DD_todc_t ddToDc_ = nullptr;
+    RuntimeKind runtimeKind_ = RuntimeKind::Unknown;
     std::wstring lastError_;
     std::atomic<int> simulateDepth_{0};
 

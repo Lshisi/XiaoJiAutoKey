@@ -1,4 +1,5 @@
 ﻿#include "MainWindow.h"
+#include "DdDriver.h"
 #include "ui/styles/DesignTokens.h"
 #include <QApplication>
 #include <QCoreApplication>
@@ -18,6 +19,15 @@ Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 
 int main(int argc, char *argv[]) {
     const QStringList args(argv, argv + argc);
+    if (args.contains(QStringLiteral("--probe-dd-hid"))) {
+        const int index = args.indexOf(QStringLiteral("--probe-dd-hid"));
+        if (index < 0 || index + 1 >= args.size()) {
+            return 2;
+        }
+        DdDriver probeDriver;
+        return probeDriver.LoadHidFrom(args.at(index + 1).toStdWString()) ? 0 : 3;
+    }
+
     if (args.contains(QStringLiteral("--restart-wait"))) {
         Sleep(1500);
     }

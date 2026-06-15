@@ -47,6 +47,11 @@ enum class CloseAction {
     Exit,
 };
 
+enum class DriverMode {
+    Legacy,
+    Hid,
+};
+
 enum class MacroTriggerMode {
     Toggle,
     Hold,
@@ -88,6 +93,7 @@ struct AppConfig {
     int statusOverlayY = 6;
     int statusOverlayOpacity = 70;
     CloseAction closeAction = CloseAction::Ask;
+    DriverMode driverMode = DriverMode::Legacy;
     std::string faction = "cangjian";
 
     std::wstring customSoundOn;

@@ -23,6 +23,9 @@ public:
         std::function<void()> refreshFactionVisuals;
         std::function<void()> refreshOverlay;
         std::function<void()> editHotkey;
+        std::function<void(DriverMode)> changeDriverMode;
+        std::function<void()> refreshDriverStatus;
+        std::function<void()> uninstallHidDriver;
     };
 
     explicit SettingsCoordinator(QObject* parent = nullptr);

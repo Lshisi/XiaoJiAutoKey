@@ -1,11 +1,14 @@
-#include "MainWindow.h"
+﻿#include "MainWindow.h"
 
 #include "dialogs/AppMessageDialog.h"
+#include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
 
+#include <QAbstractButton>
 #include <QApplication>
-#include <QFont>
 #include <QEvent>
+#include <QFont>
+#include <QMessageBox>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QString>
@@ -111,6 +114,7 @@ MainWindow::MainWindow(QWidget* parent)
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),
+      ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
@@ -131,10 +135,12 @@ bool MainWindow::Initialize() {
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-
+    if (!ensureDdInfInstalled()) {
+        return false;
+    }
     if (!driver_.LoadFromDirectory(appPaths_.exeDir())) {
         std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " + driver_.GetLastError() +
-            L"\n\n\u8bf7\u786e\u8ba4\uff1a\n1. \u662f\u5426\u5df2\u5b89\u88c5 DD \u9a71\u52a8\n2. DD64.dll / DD32.dll \u662f\u5426\u5728 exe \u540c\u76ee\u5f55\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002";
+            L"\n\n\u8bf7\u786e\u8ba4\uff1a\n1. \u662f\u5426\u5df2\u5b89\u88c5 DD INF \u9a71\u52a8\n2. DD64.dll / DD32.dll \u662f\u5426\u5728 driver \u76ee\u5f55\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002";
         AppMessageDialog::warning(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
             QString::fromStdWString(errorMsg));
         return false;
@@ -158,6 +164,48 @@ bool MainWindow::Initialize() {
         view_.initializeTray(this);
     });
     return true;
+}
+
+bool MainWindow::ensureDdInfInstalled() {
+    const auto status = ddRuntimeService_.Inspect(driver_);
+    if (status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
+        status.infKeyboardSysInstalled && status.infMouseSysInstalled) {
+        return true;
+    }
+
+    QMessageBox prompt(this);
+    prompt.setIcon(QMessageBox::Warning);
+    prompt.setWindowTitle(QString::fromWCharArray(L"必须先安装 DD INF 驱动"));
+    prompt.setText(QString::fromWCharArray(L"检测到 DD 虚拟键盘/鼠标驱动未安装。"));
+    prompt.setInformativeText(QString::fromWCharArray(
+        L"小叽必须先安装 DD 的 INF 驱动后才能继续启动。\n\n"
+        L"点击“安装”后会在当前进程中完成安装，安装成功后将直接继续启动。"));
+    prompt.addButton(QString::fromWCharArray(L"安装"), QMessageBox::AcceptRole);
+    prompt.addButton(QString::fromWCharArray(L"退出"), QMessageBox::RejectRole);
+    prompt.exec();
+    auto* clicked = prompt.clickedButton();
+    if (clicked == nullptr || clicked->text() != QString::fromWCharArray(L"安装")) {
+        return false;
+    }
+
+    std::wstring installMessage;
+    const bool installed = ddRuntimeService_.InstallEmbeddedInfDriver(&installMessage);
+    if (!installed) {
+        AppMessageDialog::warning(this,
+            QString::fromWCharArray(L"DD INF 驱动安装失败"),
+            QString::fromStdWString(installMessage));
+        return false;
+    }
+
+    AppMessageDialog::information(this,
+        QString::fromWCharArray(L"DD INF 驱动已安装"),
+        QString::fromStdWString(
+            L"驱动安装完成，程序将直接继续初始化。\n\n" + installMessage));
+    const auto postInstallStatus = ddRuntimeService_.Inspect(driver_);
+    return postInstallStatus.infKeyboardServiceInstalled &&
+        postInstallStatus.infMouseServiceInstalled &&
+        postInstallStatus.infKeyboardSysInstalled &&
+        postInstallStatus.infMouseSysInstalled;
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
@@ -505,5 +553,24 @@ void MainWindow::refreshStatusOverlay() {
     const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
     statusOverlay_.updateStatus(config_, profile, macro, repeatRunning, macroRunning);
     view_.updateActivityIcons(this, repeatRunning, macroRunning);
+}
+
+void MainWindow::showDdUnavailableMessage() {
+    if (ddUnavailablePromptVisible_) {
+        return;
+    }
+    ddUnavailablePromptVisible_ = true;
+
+    std::wstring message =
+        L"DD \u9a71\u52a8\u5f53\u524d\u4e0d\u53ef\u7528\uff0c\u65e0\u6cd5\u6a21\u62df\u6309\u952e\u6216\u9f20\u6807\u3002"
+        L"\n\n\u9519\u8bef: " + (driver_.GetLastError().empty() ? std::wstring(L"(none)") : driver_.GetLastError()) +
+        L"\n\n\u8bf7\u68c0\u67e5 driver \u76ee\u5f55\u4e0b\u7684 DD \u6587\u4ef6\u662f\u5426\u5b58\u5728\u3002";
+
+    AppMessageDialog::warning(
+        this,
+        QString::fromWCharArray(L"DD \u9a71\u52a8\u4e0d\u53ef\u7528"),
+        QString::fromStdWString(message));
+
+    ddUnavailablePromptVisible_ = false;
 }
 

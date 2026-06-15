@@ -43,6 +43,8 @@ void MainWindow::setupHooks() {
             macroCoordinator_.pollRunningState();
             refreshStatusOverlay();
         },
+        [this]() { return driver_.IsReady(); },
+        [this]() { showDdUnavailableMessage(); },
         this
     });
 

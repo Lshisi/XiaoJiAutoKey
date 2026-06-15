@@ -15,6 +15,10 @@ void EngineHookCoordinator::bind(Context context) {
         if (context_.capturedKey) context_.capturedKey(encodedKey);
     });
     connect(context_.hook, &GlobalInputHook::controlHotkeyPressed, this, [this]() {
+        if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
+            if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
+            return;
+        }
         if (context_.repeaterEngine && !context_.repeaterEngine->IsToolRunning() && context_.validateActiveConfig) {
             auto validation = context_.validateActiveConfig();
             if (!validation.ok) {
@@ -36,6 +40,10 @@ void EngineHookCoordinator::bind(Context context) {
     connect(context_.hook, &GlobalInputHook::macroTriggerChanged, this, [this](const KeyDescriptor& key, bool pressed) {
         if (!context_.macroEngine) return;
         if (pressed) {
+            if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
+                if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
+                return;
+            }
             const auto triggerKey = context_.macroTriggerKey ? context_.macroTriggerKey() : std::nullopt;
             if (triggerKey.has_value() && *triggerKey == key
                 && !context_.macroEngine->HasActiveMacro()

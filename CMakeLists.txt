@@ -98,6 +98,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/view/MainWindowView.h
     include/app/controllers/ProfileController.h
     include/app/services/AppPaths.h
+    include/app/services/DdRuntimeService.h
     include/app/services/SoundService.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
@@ -132,6 +133,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/view/MainWindowView.cpp
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
+    src/app/services/DdRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
@@ -201,18 +203,29 @@ set_target_properties(XiaoJiAutoKey PROPERTIES OUTPUT_NAME "XiaoJiAutoKey")
 
 if(EXISTS "${AUTOKEY_DD_DLL32}")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${AUTOKEY_DD_DLL32}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD32.dll"
-        COMMENT "Copying DD32.dll to the target output directory"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD32.dll"
+        COMMENT "Copying DD32.dll to the target driver directory"
     )
 endif()
 
 if(EXISTS "${AUTOKEY_DD_DLL64}")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${AUTOKEY_DD_DLL64}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD64.dll"
-        COMMENT "Copying DD64.dll to the target output directory"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD64.dll"
+        COMMENT "Copying DD64.dll to the target driver directory"
     )
 endif()
+
+add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD32.dll"
+        "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD64.dll"
+    COMMENT "Removing legacy DD DLLs from the executable root directory"
+)

@@ -31,6 +31,8 @@ public:
         std::function<void(bool)> setBeepEnabled;
         std::function<void(bool)> setStatusOverlayEnabled;
         std::function<MacroConfig*()> activeMacro;
+        std::function<bool()> canUseDdDriver;
+        std::function<void()> showDdUnavailableMessage;
     };
 
     explicit KeyBindingsCoordinator(QObject* parent = nullptr);

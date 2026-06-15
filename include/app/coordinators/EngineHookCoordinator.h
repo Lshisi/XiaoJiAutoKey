@@ -28,6 +28,8 @@ public:
         std::function<void(quint64)> capturedKey;
         std::function<ControllerResult()> validateActiveConfig;
         std::function<void()> macroStateChanged;
+        std::function<bool()> canUseDdDriver;
+        std::function<void()> showDdUnavailableMessage;
         QWidget* parent = nullptr;
     };
 

@@ -35,6 +35,8 @@ public:
         std::function<void(bool)> setStatusOverlayEnabled;
         std::function<ProfileConfig*()> activeProfile;
         std::function<ControllerResult()> validateActiveConfig;
+        std::function<bool()> canUseDdDriver;
+        std::function<void()> showDdUnavailableMessage;
     };
 
     explicit MacroCoordinator(QObject* parent = nullptr);

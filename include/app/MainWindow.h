@@ -8,6 +8,7 @@
 #include "view/MainWindowView.h"
 #include "controllers/ProfileController.h"
 #include "RepeaterEngine.h"
+#include "services/DdRuntimeService.h"
 #include "services/SoundService.h"
 #include "coordinators/SettingsCoordinator.h"
 #include "coordinators/ProfileCoordinator.h"
@@ -46,6 +47,8 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
+    bool ensureDdInfInstalled();
+    void showDdUnavailableMessage();
     void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
     void applyRuntimeVisualRefresh();
     void bindDpiRefreshSignals();
@@ -68,6 +71,7 @@ private:
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;
+    DdRuntimeService ddRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;
     SettingsCoordinator settingsCoordinator_;
@@ -90,5 +94,6 @@ private:
     int observedScreenDpi_ = 0;
     int runtimeDpiOverride_ = 0;
     bool recreatedFractionalDpiSurface_ = false;
+    bool ddUnavailablePromptVisible_ = false;
 
 };

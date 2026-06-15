@@ -62,7 +62,9 @@ void MainWindow::setupUi() {
         },
         [this](bool enabled) { config_.beepEnabled = enabled; },
         [this](bool enabled) { config_.statusOverlayShowRepeat = enabled; },
-        [this]() { return macroController_.activeMacro(); }
+        [this]() { return macroController_.activeMacro(); },
+        [this]() { return driver_.IsReady(); },
+        [this]() { showDdUnavailableMessage(); }
     });
 
     profileCoordinator_.bind(ProfileCoordinator::Context{
@@ -117,7 +119,9 @@ void MainWindow::setupUi() {
             return ActiveConfigValidator::validateActiveHotkeys(
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
-        }
+        },
+        [this]() { return driver_.IsReady(); },
+        [this]() { showDdUnavailableMessage(); }
     });
 
     settingsCoordinator_.bind(SettingsCoordinator::Context{

@@ -72,6 +72,10 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
 void KeyBindingsCoordinator::onStartClicked() {
     if (!context_.engine || !context_.setRepeatRunning) return;
     const bool shouldStart = !context_.engine->IsToolRunning();
+    if (shouldStart && context_.canUseDdDriver && !context_.canUseDdDriver()) {
+        if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
+        return;
+    }
     if (shouldStart && context_.controller) {
         auto validation = ActiveConfigValidator::validateActiveHotkeys(
             context_.controller->activeProfile(),

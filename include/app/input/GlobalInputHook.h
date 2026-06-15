@@ -56,4 +56,5 @@ private:
     std::atomic<bool> dialogOpen_{false};
     std::atomic<bool> repeatRunning_{false};
     std::atomic<bool> controlHotkeyPressed_{false};
+    std::atomic<ULONGLONG> startupIgnoreUntilTick_{0};
 };

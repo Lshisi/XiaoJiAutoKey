@@ -1,6 +1,7 @@
 #include "DdDriver.h"
 
 #include <filesystem>
+#include <sstream>
 
 namespace {
 
@@ -86,11 +87,7 @@ int ResolveKeyboardDdCode(DDToDcFn ddToDc, std::uint32_t vk) {
         return *numpadCode;
     }
 
-    int ddCode = ddToDc(static_cast<int>(vk));
-    if (ddCode > 0) {
-        return ddCode;
-    }
-    return ddCode;
+    return ddToDc(static_cast<int>(vk));
 }
 
 }  // namespace
@@ -105,7 +102,7 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
 
     module_ = ::LoadLibraryW(dllPath.c_str());
     if (module_ == nullptr) {
-        lastError_ = L"无法加载 dd.dll";
+        lastError_ = L"Unable to load DD DLL: " + dllPath;
         return false;
     }
 
@@ -113,13 +110,14 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
     ddKey_ = reinterpret_cast<DD_key_t>(::GetProcAddress(module_, "DD_key"));
     ddToDc_ = reinterpret_cast<DD_todc_t>(::GetProcAddress(module_, "DD_todc"));
     if (ddBtn_ == nullptr || ddKey_ == nullptr || ddToDc_ == nullptr) {
-        lastError_ = L"dd.dll 缺少必要导出函数";
+        lastError_ = L"DD DLL is missing required exports";
         Unload();
         return false;
     }
 
-    if (ddBtn_(0) != 1) {
-        lastError_ = L"请先安装 DD 驱动";
+    const int initResult = ddBtn_(0);
+    if (initResult != 1) {
+        lastError_ = L"Please install the DD INF driver package first";
         Unload();
         return false;
     }
@@ -129,6 +127,9 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath) {
 }
 
 bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
+    const std::filesystem::path directory(directoryPath);
+    const std::filesystem::path driverDir = directory / L"driver";
+
 #if defined(_WIN64)
     constexpr std::wstring_view primaryDllName = L"DD64.dll";
     constexpr std::wstring_view secondaryDllName = L"DD32.dll";
@@ -137,10 +138,6 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
     constexpr std::wstring_view secondaryDllName = L"DD64.dll";
 #endif
 
-    const std::filesystem::path directory(directoryPath);
-    const std::filesystem::path driverDir = directory / L"driver";
-
-    // 优先从 driver 子目录加载
     if (LoadFrom((driverDir / primaryDllName).wstring())) {
         return true;
     }
@@ -148,7 +145,6 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
         return true;
     }
 
-    // 回退：从当前目录加载
     if (LoadFrom((directory / primaryDllName).wstring())) {
         return true;
     }
@@ -156,10 +152,8 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath) {
         return true;
     }
 
-    if (lastError_ == L"请先安装 DD 驱动") {
-        // 保持原错误
-    } else {
-        lastError_ = L"无法加载 DD32.dll 或 DD64.dll";
+    if (lastError_ != L"Please install the DD INF driver package first") {
+        lastError_ = L"Unable to load DD32.dll or DD64.dll";
     }
     return false;
 }
@@ -194,11 +188,8 @@ bool DdDriver::IsKeySimulating(const KeyDescriptor& key) const {
 
 bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
     if (!IsReady()) return false;
+    if (simulateDepth_.load() > 3) return false;
 
-    if (simulateDepth_.load() > 3)
-        return false;
-
-    // 标记为自我注入（仅当来源为Injected时）
     if (src == InputSource::Injected) {
         MarkInjected(key);
     }
@@ -219,17 +210,18 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
         if (!mouseCodes.has_value()) return false;
         ++simulateDepth_;
         RegisterPress(key);
-        ddBtn_(mouseCodes->first);
+        const int result = ddBtn_(mouseCodes->first);
         --simulateDepth_;
-    } else {
-        const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
-        if (ddCode <= 0) return false;
-        ++simulateDepth_;
-        RegisterPress(key);
-        ddKey_(ddCode, 1);
-        --simulateDepth_;
+        return result == 1;
     }
-    return true;
+
+    const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
+    if (ddCode <= 0) return false;
+    ++simulateDepth_;
+    RegisterPress(key);
+    const int result = ddKey_(ddCode, 1);
+    --simulateDepth_;
+    return result == 1;
 }
 
 bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
@@ -244,18 +236,19 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
         const auto mouseCodes = ToMouseCodes(key.code);
         if (!mouseCodes.has_value()) return false;
         ++simulateDepth_;
-        ddBtn_(mouseCodes->second);
+        const int result = ddBtn_(mouseCodes->second);
         RegisterRelease(key);
         --simulateDepth_;
-    } else {
-        const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
-        if (ddCode <= 0) return false;
-        ++simulateDepth_;
-        ddKey_(ddCode, 2);
-        RegisterRelease(key);
-        --simulateDepth_;
+        return result == 1;
     }
-    return true;
+
+    const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
+    if (ddCode <= 0) return false;
+    ++simulateDepth_;
+    const int result = ddKey_(ddCode, 2);
+    RegisterRelease(key);
+    --simulateDepth_;
+    return result == 1;
 }
 
 void DdDriver::ReleaseAll() {
@@ -303,11 +296,11 @@ bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
     const KeyDescriptor key{InputDevice::Keyboard, vk};
     ++simulateDepth_;
     RegisterPress(key);
-    ddKey_(ddCode, 1);
-    ddKey_(ddCode, 2);
+    const int downResult = ddKey_(ddCode, 1);
+    const int upResult = ddKey_(ddCode, 2);
     RegisterRelease(key);
     --simulateDepth_;
-    return true;
+    return downResult == 1 && upResult == 1;
 }
 
 bool DdDriver::SendMouseTap(std::uint32_t vk) {
@@ -319,11 +312,11 @@ bool DdDriver::SendMouseTap(std::uint32_t vk) {
     const KeyDescriptor key{InputDevice::Mouse, vk};
     ++simulateDepth_;
     RegisterPress(key);
-    ddBtn_(mouseCodes->first);
-    ddBtn_(mouseCodes->second);
+    const int downResult = ddBtn_(mouseCodes->first);
+    const int upResult = ddBtn_(mouseCodes->second);
     RegisterRelease(key);
     --simulateDepth_;
-    return true;
+    return downResult == 1 && upResult == 1;
 }
 
 void DdDriver::RegisterPress(const KeyDescriptor& key) {

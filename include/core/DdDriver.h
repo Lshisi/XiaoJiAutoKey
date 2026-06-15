@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 class DdDriver {
 public:
@@ -29,7 +30,7 @@ public:
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected);
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected);
     void ReleaseAll();
-    void ClearAllStates();  // 清空所有内部状态（pressedKeys_和selfInjected_）
+    void ClearAllStates();  // Clear pressedKeys_ and selfInjected_ state.
     bool IsSelfInjected(const KeyDescriptor& key) const;
 
 private:
@@ -50,7 +51,7 @@ private:
     std::wstring lastError_;
     std::atomic<int> simulateDepth_{0};
 
-    mutable     std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
     std::unordered_set<std::uint64_t> selfInjected_;
 };

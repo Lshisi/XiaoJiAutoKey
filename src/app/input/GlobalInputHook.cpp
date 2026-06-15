@@ -28,6 +28,7 @@ bool GlobalInputHook::start() {
     }
 
     g_hookInstance = this;
+    startupIgnoreUntilTick_ = GetTickCount64() + 1200;
     hookThread_ = std::thread(&GlobalInputHook::runHookLoop, this);
 
     std::unique_lock lock(hookInitMutex_);
@@ -112,6 +113,12 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     if (info->flags & LLKHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
+    const ULONGLONG nowTick = GetTickCount64();
+    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
+    if (nowTick < ignoreUntil) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
     bool captureActive = false;
@@ -158,6 +165,10 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
+    const ULONGLONG nowTick = GetTickCount64();
+    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
+    if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
+
     const bool pressed = IsMouseDownMessage(wParam);
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;

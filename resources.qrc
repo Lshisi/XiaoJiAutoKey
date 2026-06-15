@@ -24,5 +24,19 @@
     <file>assets/factions/wanling.svg</file>
     <file>assets/factions/duanshi.svg</file>
     <file>assets/factions/wuxiang.svg</file>
+    <file alias="dd/inf/0/dc64.exe">third_party/dd/inf/0/dc64.exe</file>
+    <file alias="dd/inf/0/dd.key.96688.cat">third_party/dd/inf/0/dd.key.96688.cat</file>
+    <file alias="dd/inf/0/dd.key.96688.inf">third_party/dd/inf/0/dd.key.96688.inf</file>
+    <file alias="dd/inf/0/dd.key.96688.sys">third_party/dd/inf/0/dd.key.96688.sys</file>
+    <file alias="dd/inf/0/dd.mou.96688.cat">third_party/dd/inf/0/dd.mou.96688.cat</file>
+    <file alias="dd/inf/0/dd.mou.96688.inf">third_party/dd/inf/0/dd.mou.96688.inf</file>
+    <file alias="dd/inf/0/dd.mou.96688.sys">third_party/dd/inf/0/dd.mou.96688.sys</file>
+    <file alias="dd/inf/1/dc64.exe">third_party/dd/inf/1/dc64.exe</file>
+    <file alias="dd/inf/1/dd.key.96688.cat">third_party/dd/inf/1/dd.key.96688.cat</file>
+    <file alias="dd/inf/1/dd.key.96688.inf">third_party/dd/inf/1/dd.key.96688.inf</file>
+    <file alias="dd/inf/1/dd.key.96688.sys">third_party/dd/inf/1/dd.key.96688.sys</file>
+    <file alias="dd/inf/1/dd.mou.96688.cat">third_party/dd/inf/1/dd.mou.96688.cat</file>
+    <file alias="dd/inf/1/dd.mou.96688.inf">third_party/dd/inf/1/dd.mou.96688.inf</file>
+    <file alias="dd/inf/1/dd.mou.96688.sys">third_party/dd/inf/1/dd.mou.96688.sys</file>
 </qresource>
 </RCC>

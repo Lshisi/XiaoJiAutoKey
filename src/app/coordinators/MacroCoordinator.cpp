@@ -237,6 +237,10 @@ void MacroCoordinator::onMacroStartStopClicked() {
         lastMacroRunning_ = false;
         if (context_.playToggleSound) context_.playToggleSound(false);
     } else {
+        if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
+            if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
+            return;
+        }
         if (!macro->triggerKey.has_value()) {
             AppMessageDialog::warning(context_.parent,
                 QString::fromWCharArray(L"\u65e0\u6cd5\u542f\u52a8"),

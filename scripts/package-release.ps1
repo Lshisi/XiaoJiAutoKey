@@ -131,12 +131,18 @@ if (Test-Path $audioSrcDir) {
 # Driver files
 if (Test-Path $driverSrcDir) {
     New-Item -ItemType Directory -Path $driverDstDir -Force | Out-Null
-    Copy-Item (Join-Path $driverSrcDir "*") $driverDstDir -Recurse -Force
 
     $dd32Path = Join-Path $driverSrcDir "DD32.dll"
     $dd64Path = Join-Path $driverSrcDir "DD64.dll"
+    if (Test-Path $dd32Path) {
+        Copy-Item $dd32Path (Join-Path $driverDstDir "DD32.dll") -Force
+    }
+    if (Test-Path $dd64Path) {
+        Copy-Item $dd64Path (Join-Path $driverDstDir "DD64.dll") -Force
+    }
+
     if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path)) {
-        Write-Warning "third_party\dd\DD32.dll / DD64.dll not found."
+        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll not found."
     }
 } else {
     Write-Warning "third_party\dd directory not found."
@@ -151,6 +157,12 @@ if (Test-Path $zipPath) {
 $configInPackage = Join-Path $packageDir "config.json"
 if (Test-Path $configInPackage) {
     Remove-Item $configInPackage -Force
+}
+
+# Ensure no runtime logs directory is included in the package
+$logsInPackage = Join-Path $packageDir "logs"
+if (Test-Path $logsInPackage) {
+    Remove-Item $logsInPackage -Recurse -Force
 }
 
 Compress-Archive -Path $packageDir -DestinationPath $zipPath -Force

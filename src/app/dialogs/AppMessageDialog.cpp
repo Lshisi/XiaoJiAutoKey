@@ -10,14 +10,22 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QVBoxLayout>
 
-AppMessageDialog::AppMessageDialog(Kind kind, const QString& title, const QString& message, QWidget* parent)
+AppMessageDialog::AppMessageDialog(Kind kind,
+    const QString& title,
+    const QString& message,
+    const QString& primaryButtonText,
+    const QString& secondaryButtonText,
+    QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(title);
     DialogChrome::apply(this);
     setModal(true);
-    setFixedSize(360, 170);
+    resize(420, 260);
+    setMinimumSize(360, 170);
+    setMaximumSize(520, 420);
     setStyleSheet(
         "QLabel#messageIcon { border-radius: 18px; color: white; font-size: 20px; font-weight: 600; }"
     );
@@ -50,32 +58,64 @@ AppMessageDialog::AppMessageDialog(Kind kind, const QString& title, const QStrin
     auto* messageLabel = new QLabel(message, this);
     messageLabel->setFont(Fluent::Typography::body());
     messageLabel->setWordWrap(true);
+    messageLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     QPalette msgPal = messageLabel->palette();
     msgPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     messageLabel->setPalette(msgPal);
-    textLayout->addWidget(messageLabel);
+
+    auto* messageContainer = new QWidget(this);
+    auto* messageContainerLayout = new QVBoxLayout(messageContainer);
+    messageContainerLayout->setContentsMargins(0, 0, 0, 0);
+    messageContainerLayout->addWidget(messageLabel);
+
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setWidget(messageContainer);
+    scrollArea->setMinimumHeight(72);
+    textLayout->addWidget(scrollArea, 1);
 
     content->addLayout(textLayout, 1);
     root->addLayout(content, 1);
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
-    auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), this);
-    okBtn->setFixedWidth(86);
-    buttons->addWidget(okBtn);
+    QPushButton* secondaryBtn = nullptr;
+    if (!secondaryButtonText.isEmpty()) {
+        secondaryBtn = new FluentButton(FluentButton::Secondary, secondaryButtonText, this);
+        secondaryBtn->setFixedWidth(86);
+        buttons->addWidget(secondaryBtn);
+        buttons->addSpacing(8);
+    }
+    auto* primaryBtn = new FluentButton(FluentButton::Primary, primaryButtonText, this);
+    primaryBtn->setFixedWidth(86);
+    buttons->addWidget(primaryBtn);
     root->addLayout(buttons);
 
-    connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
+    if (secondaryBtn) {
+        connect(secondaryBtn, &QPushButton::clicked, this, &QDialog::reject);
+    }
+    connect(primaryBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
 
 void AppMessageDialog::warning(QWidget* parent, const QString& title, const QString& message) {
-    AppMessageDialog dialog(Kind::Warning, title, message, parent);
+    AppMessageDialog dialog(Kind::Warning, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
     dialog.exec();
 }
 
 void AppMessageDialog::information(QWidget* parent, const QString& title, const QString& message) {
-    AppMessageDialog dialog(Kind::Information, title, message, parent);
+    AppMessageDialog dialog(Kind::Information, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
     dialog.exec();
+}
+
+bool AppMessageDialog::informationWithActions(QWidget* parent,
+    const QString& title,
+    const QString& message,
+    const QString& primaryButtonText,
+    const QString& secondaryButtonText) {
+    AppMessageDialog dialog(Kind::Information, title, message, primaryButtonText, secondaryButtonText, parent);
+    return dialog.exec() == QDialog::Accepted;
 }
 
 void AppMessageDialog::paintEvent(QPaintEvent* event) {

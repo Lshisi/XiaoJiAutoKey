@@ -30,18 +30,6 @@ void SettingsCoordinator::bind(Context context) {
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
     });
-    connect(context_.page, &SettingsPage::driverModeChanged, this, [this](DriverMode mode) {
-        if (!context_.config) return;
-        context_.config->driverMode = mode;
-        if (context_.saveConfig) context_.saveConfig();
-        if (context_.changeDriverMode) context_.changeDriverMode(mode);
-    });
-    connect(context_.page, &SettingsPage::driverRefreshRequested, this, [this]() {
-        if (context_.refreshDriverStatus) context_.refreshDriverStatus();
-    });
-    connect(context_.page, &SettingsPage::hidUninstallRequested, this, [this]() {
-        if (context_.uninstallHidDriver) context_.uninstallHidDriver();
-    });
 }
 
 void SettingsCoordinator::setFaction(const QString& factionId) {

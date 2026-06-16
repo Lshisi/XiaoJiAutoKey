@@ -26,6 +26,7 @@ public:
     explicit Parser(const std::string& text) : text_(text) {}
 
     bool ParseRoot(Value& value, std::string& error) {
+        SkipUtf8Bom();
         SkipWhitespace();
         if (!ParseValue(value, error)) {
             return false;
@@ -267,6 +268,15 @@ private:
     void SkipWhitespace() {
         while (pos_ < text_.size() && std::isspace(static_cast<unsigned char>(text_[pos_])) != 0) {
             ++pos_;
+        }
+    }
+
+    void SkipUtf8Bom() {
+        if (text_.size() >= 3 &&
+            static_cast<unsigned char>(text_[0]) == 0xEF &&
+            static_cast<unsigned char>(text_[1]) == 0xBB &&
+            static_cast<unsigned char>(text_[2]) == 0xBF) {
+            pos_ = 3;
         }
     }
 

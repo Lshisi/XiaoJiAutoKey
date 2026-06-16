@@ -1,23 +1,31 @@
 #include "services/DdRuntimeService.h"
 
 #include <Windows.h>
-#include <cfgmgr32.h>
 #include <SetupAPI.h>
+#include <cfgmgr32.h>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QString>
+#include <QTextStream>
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <cwctype>
+#include <fstream>
 #include <functional>
+#include <iomanip>
 #include <sstream>
 
 namespace {
 
+constexpr const wchar_t* kHidServiceName = L"ddhid63340";
+constexpr const wchar_t* kHidSysName = L"ddhid63340.sys";
+constexpr const wchar_t* kHidRootDevicePrefix = L"ROOT\\HIDCLASS\\";
+constexpr const wchar_t* kHidChildDevicePrefix = L"HID\\DDHID63340";
 constexpr const wchar_t* kInfKeyboardServiceName = L"dd.key.96688";
 constexpr const wchar_t* kInfMouseServiceName = L"dd.mou.96688";
 constexpr const wchar_t* kInfKeyboardSysName = L"dd.key.96688.sys";
@@ -49,39 +57,20 @@ bool CopyResourceFile(const QString& resourcePath, const QString& outputPath, QS
     return true;
 }
 
-std::wstring QuoteArg(const std::wstring& value) {
-    std::wstring escaped;
-    escaped.reserve(value.size() + 2);
-    escaped.push_back(L'"');
-    for (const wchar_t ch : value) {
-        if (ch == L'"') {
-            escaped.append(L"\\\"");
-        } else {
-            escaped.push_back(ch);
-        }
-    }
-    escaped.push_back(L'"');
-    return escaped;
-}
-
-std::wstring JoinArgs(const std::vector<std::wstring>& args) {
-    std::wstring text;
-    for (std::size_t i = 0; i < args.size(); ++i) {
-        if (i > 0) {
-            text.push_back(L' ');
-        }
-        text.append(QuoteArg(args[i]));
-    }
-    return text;
-}
-
 bool RunProcess(const std::wstring& program,
                 const std::vector<std::wstring>& args,
                 DWORD* exitCode,
                 std::wstring* outputMessage,
-                std::wstring* errorMessage) {
+                std::wstring* errorMessage,
+                const std::wstring& workingDirectory = {},
+                int timeoutMs = -1,
+                const QByteArray& stdinData = {}) {
     QProcess process;
     process.setProgram(QString::fromStdWString(program));
+    if (!workingDirectory.empty()) {
+        process.setWorkingDirectory(QString::fromStdWString(workingDirectory));
+    }
+
     QStringList qtArgs;
     for (const auto& arg : args) {
         qtArgs.push_back(QString::fromStdWString(arg));
@@ -96,7 +85,32 @@ bool RunProcess(const std::wstring& program,
         return false;
     }
 
-    process.waitForFinished(-1);
+    if (!stdinData.isEmpty()) {
+        process.write(stdinData);
+        process.closeWriteChannel();
+    }
+
+    const bool finished = process.waitForFinished(timeoutMs);
+    if (!finished) {
+        process.kill();
+        process.waitForFinished(3000);
+        if (exitCode) {
+            *exitCode = WAIT_TIMEOUT;
+        }
+        if (outputMessage) {
+            const QString stdoutText = QString::fromLocal8Bit(process.readAllStandardOutput());
+            const QString stderrText = QString::fromLocal8Bit(process.readAllStandardError());
+            *outputMessage = (stdoutText + stderrText).toStdWString();
+        }
+        if (errorMessage) {
+            *errorMessage = L"Process timed out after " + std::to_wstring(timeoutMs) + L" ms";
+            if (outputMessage && !outputMessage->empty()) {
+                *errorMessage += L": " + *outputMessage;
+            }
+        }
+        return false;
+    }
+
     const DWORD processExitCode = process.exitStatus() == QProcess::NormalExit
         ? static_cast<DWORD>(process.exitCode())
         : 1;
@@ -123,6 +137,40 @@ bool RunProcess(const std::wstring& program,
     return true;
 }
 
+void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, const std::wstring& message) {
+    if (logsDir.empty()) {
+        return;
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(logsDir, error);
+    if (error) {
+        return;
+    }
+
+    const QString logPath = QString::fromStdWString((logsDir / fileName).wstring());
+    QFile logFile(logPath);
+    if (!logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        return;
+    }
+
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+    std::tm localTime{};
+    localtime_s(&localTime, &nowTime);
+
+    wchar_t timeBuffer[32] = {};
+    if (std::wcsftime(timeBuffer, std::size(timeBuffer), L"%Y-%m-%d %H:%M:%S", &localTime) == 0) {
+        return;
+    }
+
+    QTextStream stream(&logFile);
+    stream.setCodec("UTF-8");
+    stream << "[" << QString::fromWCharArray(timeBuffer) << "]\n"
+           << QString::fromStdWString(message) << "\n";
+    stream.flush();
+}
+
 std::wstring ToLower(std::wstring value) {
     std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch) {
         return static_cast<wchar_t>(std::towlower(ch));
@@ -134,6 +182,153 @@ bool ContainsText(const std::wstring& text, const std::wstring& needle) {
     return text.find(needle) != std::wstring::npos;
 }
 
+bool IsPublishedInfName(const std::wstring& value) {
+    const std::wstring lowerValue = ToLower(value);
+    return lowerValue.size() > 7 &&
+           lowerValue.rfind(L"oem", 0) == 0 &&
+           lowerValue.substr(lowerValue.size() - 4) == L".inf";
+}
+
+std::wstring TrimText(std::wstring text) {
+    const auto first = text.find_first_not_of(L" \t\r\n");
+    if (first == std::wstring::npos) {
+        return {};
+    }
+    const auto last = text.find_last_not_of(L" \t\r\n");
+    return text.substr(first, last - first + 1);
+}
+
+void AddUniquePublishedName(std::vector<std::wstring>* names, const std::wstring& name) {
+    if (!names || name.empty()) {
+        return;
+    }
+    const auto exists = std::find_if(names->begin(), names->end(), [&name](const std::wstring& existing) {
+        return _wcsicmp(existing.c_str(), name.c_str()) == 0;
+    });
+    if (exists == names->end()) {
+        names->push_back(name);
+    }
+}
+
+std::vector<std::wstring> ExtractHidPublishedNamesFromPnputilOutput(const std::wstring& output) {
+    std::vector<std::wstring> names;
+    std::wistringstream input(output);
+    std::wstring line;
+    std::vector<std::wstring> blockValues;
+    bool blockHasHidOriginalName = false;
+
+    const auto flushBlock = [&]() {
+        if (blockHasHidOriginalName) {
+            for (const auto& value : blockValues) {
+                if (IsPublishedInfName(value)) {
+                    AddUniquePublishedName(&names, value);
+                }
+            }
+        }
+        blockValues.clear();
+        blockHasHidOriginalName = false;
+    };
+
+    while (std::getline(input, line)) {
+        line = TrimText(line);
+        if (line.empty()) {
+            flushBlock();
+            continue;
+        }
+
+        const auto colon = line.find(L':');
+        if (colon == std::wstring::npos) {
+            continue;
+        }
+
+        const std::wstring value = TrimText(line.substr(colon + 1));
+        const std::wstring lowerValue = ToLower(value);
+        if (!value.empty()) {
+            blockValues.push_back(value);
+        }
+        if (lowerValue == L"ddhid63340.inf") {
+            blockHasHidOriginalName = true;
+        }
+    }
+    flushBlock();
+    return names;
+}
+
+std::vector<std::wstring> EnumerateHidDriverPublishedNames(const std::wstring& pnputilPath,
+                                                           std::wstringstream* message,
+                                                           bool* enumSucceeded = nullptr) {
+    if (enumSucceeded) {
+        *enumSucceeded = false;
+    }
+
+    DWORD enumExitCode = 1;
+    std::wstring enumOutput;
+    std::wstring enumError;
+    const bool enumOk = RunProcess(
+        pnputilPath,
+        {L"/enum-drivers"},
+        &enumExitCode,
+        &enumOutput,
+        &enumError,
+        {},
+        15000);
+
+    if (!enumOk) {
+        if (message) {
+            *message << L"HID enum driver packages -> failed (exit_code=" << enumExitCode << L")\n";
+            if (!enumOutput.empty()) {
+                *message << enumOutput << L"\n";
+            }
+            if (!enumError.empty()) {
+                *message << enumError << L"\n";
+            }
+        }
+        return {};
+    }
+
+    if (enumSucceeded) {
+        *enumSucceeded = true;
+    }
+    auto publishedNames = ExtractHidPublishedNamesFromPnputilOutput(enumOutput);
+    if (message) {
+        *message << L"HID enum driver packages -> found " << publishedNames.size() << L"\n";
+    }
+    return publishedNames;
+}
+
+bool HidCreateDeviceAlreadyExists(const std::wstring& text) {
+    const std::wstring lowerText = ToLower(text);
+    return ContainsText(lowerText, L"already exists") &&
+           ContainsText(lowerText, L"ddhid63340");
+}
+
+bool PnputilDeleteDriverSucceeded(bool processOk, DWORD exitCode, const std::wstring& output) {
+    if (processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
+        return true;
+    }
+
+    const std::wstring lowerOutput = ToLower(output);
+    if (ContainsText(lowerOutput, L"failed") ||
+        ContainsText(lowerOutput, L"error") ||
+        ContainsText(lowerOutput, L"failure")) {
+        return false;
+    }
+
+    return ContainsText(lowerOutput, L"deleted successfully") ||
+           ContainsText(lowerOutput, L"package deleted successfully") ||
+           ContainsText(lowerOutput, L"删除成功");
+}
+
+bool ServiceDeleteAccepted(bool processOk, DWORD exitCode, const std::wstring& output) {
+    if (processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
+        return true;
+    }
+
+    const std::wstring lowerOutput = ToLower(output);
+    return ContainsText(lowerOutput, L"marked for deletion") ||
+           ContainsText(lowerOutput, L"已标记为删除");
+}
+
 bool PnputilAddDriverSucceeded(bool processOk, DWORD exitCode, const std::wstring& output) {
     if (processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
         return true;
@@ -141,12 +336,16 @@ bool PnputilAddDriverSucceeded(bool processOk, DWORD exitCode, const std::wstrin
 
     const std::wstring lowerOutput = ToLower(output);
     if (ContainsText(lowerOutput, L"failed") ||
+        ContainsText(lowerOutput, L"error") ||
+        ContainsText(lowerOutput, L"failed to") ||
+        ContainsText(lowerOutput, L"failure") ||
         ContainsText(lowerOutput, L"失败") ||
         ContainsText(lowerOutput, L"未能")) {
         return false;
     }
 
     return ContainsText(lowerOutput, L"driver package added successfully") ||
+           ContainsText(lowerOutput, L"driver package installed successfully") ||
            ContainsText(lowerOutput, L"驱动程序包已成功添加") ||
            ContainsText(lowerOutput, L"已成功添加驱动程序包");
 }
@@ -186,6 +385,175 @@ bool DeviceStarted(DEVINST devInst) {
     return statusResult == CR_SUCCESS &&
            (status & DN_STARTED) != 0 &&
            (status & DN_HAS_PROBLEM) == 0;
+}
+
+std::vector<std::wstring> EnumerateDeviceInstanceIds(const wchar_t* instanceIdPrefix) {
+    std::vector<std::wstring> ids;
+    if (instanceIdPrefix == nullptr || *instanceIdPrefix == L'\0') {
+        return ids;
+    }
+
+    ULONG deviceIdListSize = 0;
+    CONFIGRET result = CM_Get_Device_ID_List_SizeW(&deviceIdListSize, nullptr, CM_GETIDLIST_FILTER_NONE);
+    if (result != CR_SUCCESS || deviceIdListSize == 0) {
+        return ids;
+    }
+
+    std::vector<wchar_t> deviceIds(deviceIdListSize);
+    result = CM_Get_Device_ID_ListW(nullptr, deviceIds.data(), deviceIdListSize, CM_GETIDLIST_FILTER_NONE);
+    if (result != CR_SUCCESS) {
+        return ids;
+    }
+
+    const std::wstring prefix(instanceIdPrefix);
+    for (const wchar_t* id = deviceIds.data(); id != nullptr && *id != L'\0'; id += wcslen(id) + 1) {
+        if (_wcsnicmp(id, prefix.c_str(), prefix.size()) == 0) {
+            ids.emplace_back(id);
+        }
+    }
+    return ids;
+}
+
+std::wstring FormatConfigRet(CONFIGRET result) {
+    return std::to_wstring(static_cast<unsigned long>(result));
+}
+
+std::wstring QueryDeviceRegistryStringProperty(HDEVINFO deviceInfo,
+                                               SP_DEVINFO_DATA* deviceData,
+                                               DWORD property) {
+    wchar_t buffer[512] = {};
+    DWORD propertyType = 0;
+    DWORD requiredSize = 0;
+    const BOOL ok = SetupDiGetDeviceRegistryPropertyW(
+        deviceInfo,
+        deviceData,
+        property,
+        &propertyType,
+        reinterpret_cast<PBYTE>(buffer),
+        sizeof(buffer),
+        &requiredSize);
+    if (!ok || propertyType != REG_SZ) {
+        return {};
+    }
+    return buffer;
+}
+
+std::vector<std::wstring> EnumerateHidRootDeviceInstanceIds() {
+    std::vector<std::wstring> ids;
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return ids;
+    }
+
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (!SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
+            break;
+        }
+
+        wchar_t instanceId[MAX_DEVICE_ID_LEN] = {};
+        if (CM_Get_Device_IDW(deviceData.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) != CR_SUCCESS) {
+            continue;
+        }
+
+        if (_wcsnicmp(instanceId, kHidRootDevicePrefix, wcslen(kHidRootDevicePrefix)) != 0) {
+            continue;
+        }
+
+        const std::wstring service = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_SERVICE);
+        const std::wstring description = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_DEVICEDESC);
+        const std::wstring manufacturer = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_MFG);
+        if (_wcsicmp(service.c_str(), kHidServiceName) != 0 &&
+            _wcsicmp(description.c_str(), L"ddhid63340") != 0 &&
+            _wcsicmp(manufacturer.c_str(), L"www.ddxoft.com") != 0) {
+            continue;
+        }
+
+        ids.emplace_back(instanceId);
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfo);
+    return ids;
+}
+
+bool RemoveDeviceInstanceBestEffort(const std::wstring& instanceId, std::wstring* detail) {
+    if (detail) {
+        detail->clear();
+    }
+
+    DEVINST devInst = 0;
+    CONFIGRET locateResult = CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(instanceId.c_str()), CM_LOCATE_DEVNODE_NORMAL);
+    if (locateResult != CR_SUCCESS) {
+        if (detail) {
+            *detail = L"locate=" + FormatConfigRet(locateResult);
+        }
+        return false;
+    }
+
+    PNP_VETO_TYPE vetoType = PNP_VetoTypeUnknown;
+    wchar_t vetoName[MAX_PATH] = {};
+    CONFIGRET queryRemoveResult = CM_Query_And_Remove_SubTreeW(
+        devInst,
+        &vetoType,
+        vetoName,
+        MAX_PATH,
+        CM_REMOVE_NO_RESTART);
+    if (queryRemoveResult == CR_SUCCESS) {
+        if (detail) {
+            *detail = L"query_remove=ok";
+        }
+        return true;
+    }
+
+    if (CM_Uninstall_DevNode(devInst, 0) == CR_SUCCESS) {
+        if (detail) {
+            *detail = L"uninstall=ok";
+        }
+        return true;
+    }
+
+    if (CM_Remove_SubTree(devInst, 0) == CR_SUCCESS) {
+        if (detail) {
+            *detail = L"remove_subtree=ok";
+        }
+        return true;
+    }
+
+    HDEVINFO deviceInfo = SetupDiCreateDeviceInfoList(nullptr, nullptr);
+    if (deviceInfo != INVALID_HANDLE_VALUE) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (SetupDiOpenDeviceInfoW(deviceInfo, instanceId.c_str(), nullptr, 0, &deviceData)) {
+            SP_REMOVEDEVICE_PARAMS removeParams{};
+            removeParams.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
+            removeParams.ClassInstallHeader.InstallFunction = DIF_REMOVE;
+            removeParams.Scope = DI_REMOVEDEVICE_GLOBAL;
+            removeParams.HwProfile = 0;
+
+            if (SetupDiSetClassInstallParamsW(
+                    deviceInfo,
+                    &deviceData,
+                    &removeParams.ClassInstallHeader,
+                    sizeof(removeParams)) &&
+                SetupDiCallClassInstaller(DIF_REMOVE, deviceInfo, &deviceData)) {
+                SetupDiDestroyDeviceInfoList(deviceInfo);
+                if (detail) {
+                    *detail = L"setupapi_remove=ok";
+                }
+                return true;
+            }
+        }
+        SetupDiDestroyDeviceInfoList(deviceInfo);
+    }
+
+    if (detail) {
+        *detail = L"query_remove=" + FormatConfigRet(queryRemoveResult);
+        if (vetoType != PNP_VetoTypeUnknown && vetoName[0] != L'\0') {
+            *detail += L", veto=" + std::to_wstring(static_cast<unsigned long>(vetoType)) + L":" + vetoName;
+        }
+    }
+    return false;
 }
 
 InfDeviceState QueryInfDeviceStateByService(const wchar_t* serviceName) {
@@ -330,7 +698,8 @@ bool InstallInfVariant(int variant,
         stepOutput.clear();
         stepError.clear();
         exitCode = 1;
-        const bool removeKeyOk = RunProcess(paths.dcPath.toStdWString(),
+        const bool removeKeyOk = RunProcess(
+            paths.dcPath.toStdWString(),
             {L"remove", L"dd.key.96688"},
             &exitCode,
             &stepOutput,
@@ -344,7 +713,8 @@ bool InstallInfVariant(int variant,
         stepOutput.clear();
         stepError.clear();
         exitCode = 1;
-        const bool removeMouOk = RunProcess(paths.dcPath.toStdWString(),
+        const bool removeMouOk = RunProcess(
+            paths.dcPath.toStdWString(),
             {L"remove", L"dd.mou.96688"},
             &exitCode,
             &stepOutput,
@@ -359,7 +729,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool addKeyProcessOk = RunProcess(pnputilPath,
+    const bool addKeyProcessOk = RunProcess(
+        pnputilPath,
         {L"/add-driver", paths.keyInfPath.toStdWString(), L"/install"},
         &exitCode,
         &stepOutput,
@@ -373,7 +744,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool addMouProcessOk = RunProcess(pnputilPath,
+    const bool addMouProcessOk = RunProcess(
+        pnputilPath,
         {L"/add-driver", paths.mouInfPath.toStdWString(), L"/install"},
         &exitCode,
         &stepOutput,
@@ -387,7 +759,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool updateKeyProcessOk = RunProcess(paths.dcPath.toStdWString(),
+    const bool updateKeyProcessOk = RunProcess(
+        paths.dcPath.toStdWString(),
         {L"update", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
         &exitCode,
         &stepOutput,
@@ -401,7 +774,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool updateMouProcessOk = RunProcess(paths.dcPath.toStdWString(),
+    const bool updateMouProcessOk = RunProcess(
+        paths.dcPath.toStdWString(),
         {L"update", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
         &exitCode,
         &stepOutput,
@@ -417,7 +791,8 @@ bool InstallInfVariant(int variant,
         stepOutput.clear();
         stepError.clear();
         exitCode = 1;
-        const bool installKeyOk = RunProcess(paths.dcPath.toStdWString(),
+        const bool installKeyOk = RunProcess(
+            paths.dcPath.toStdWString(),
             {L"install", paths.keyInfPath.toStdWString(), L"dd.key.96688"},
             &exitCode,
             &stepOutput,
@@ -436,7 +811,8 @@ bool InstallInfVariant(int variant,
         stepOutput.clear();
         stepError.clear();
         exitCode = 1;
-        const bool installMouOk = RunProcess(paths.dcPath.toStdWString(),
+        const bool installMouOk = RunProcess(
+            paths.dcPath.toStdWString(),
             {L"install", paths.mouInfPath.toStdWString(), L"dd.mou.96688"},
             &exitCode,
             &stepOutput,
@@ -453,7 +829,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool enableKeyProcessOk = RunProcess(paths.dcPath.toStdWString(),
+    const bool enableKeyProcessOk = RunProcess(
+        paths.dcPath.toStdWString(),
         {L"enable", L"dd.key.96688"},
         &exitCode,
         &stepOutput,
@@ -467,7 +844,8 @@ bool InstallInfVariant(int variant,
     stepOutput.clear();
     stepError.clear();
     exitCode = 1;
-    const bool enableMouProcessOk = RunProcess(paths.dcPath.toStdWString(),
+    const bool enableMouProcessOk = RunProcess(
+        paths.dcPath.toStdWString(),
         {L"enable", L"dd.mou.96688"},
         &exitCode,
         &stepOutput,
@@ -479,18 +857,28 @@ bool InstallInfVariant(int variant,
     }
 
     return addKeyOk && addMouOk &&
-           ((updateKeyOk && updateMouOk) || (installKeyAccepted && installMouAccepted) || (enableKeyOk && enableMouOk));
+           ((updateKeyOk && updateMouOk) ||
+            (installKeyAccepted && installMouAccepted) ||
+            (enableKeyOk && enableMouOk));
 }
 
 }  // namespace
 
-DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir)
-    : exeDir_(std::move(exeDir)) {}
+DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir)
+    : exeDir_(std::move(exeDir)),
+      logsDir_(std::move(logsDir)) {}
 
 DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver) const {
     RuntimeStatus status;
     status.driverReady = driver.IsReady();
     status.lastError = driver.GetLastError();
+    status.hidRuntimeExists = std::filesystem::exists(HidRuntimePath());
+    status.hidEmbeddedDriverExists = EmbeddedHidDriverExists();
+    status.hidServiceInstalled = ServiceExists(kHidServiceName);
+    status.hidSysInstalled = std::filesystem::exists(SystemDriversDir() / kHidSysName);
+    status.hidDriverStorePresent = HidDriverStorePresent();
+    status.hidRootDeviceOk = HidRootDeviceOk();
+    status.hidChildDeviceOk = HidChildDeviceOk();
     status.legacy32Exists = std::filesystem::exists(Legacy32Path());
     status.legacy64Exists = std::filesystem::exists(Legacy64Path());
     status.embeddedInfVariant0Exists = EmbeddedInfVariantExists(0);
@@ -499,6 +887,7 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
     status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
     status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
+
     const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
     const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
     status.infKeyboardDeviceStarted = keyDevice.started;
@@ -506,18 +895,19 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.infKeyboardDeviceBound = keyDevice.boundToService;
     status.infMouseDeviceBound = mouseDevice.boundToService;
     status.candidateDlls = {
+        HidRuntimePath().wstring(),
         Legacy64Path().wstring(),
         Legacy32Path().wstring(),
     };
 
     if (!status.driverReady) {
-        status.notes.push_back(L"DD is not ready. Input simulation will fail until the INF driver and runtime DLL are both available.");
+        status.notes.push_back(L"DD is not ready. Input simulation will fail until the selected runtime and driver are available.");
     }
-    if (!status.legacy32Exists && !status.legacy64Exists) {
+    if (!status.hidRuntimeExists && !status.legacy32Exists && !status.legacy64Exists) {
         status.notes.push_back(L"No DD runtime files were found in the application directory.");
     }
-    if (!status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
-        status.notes.push_back(L"No embedded INF driver package was found.");
+    if (!status.hidEmbeddedDriverExists && !status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
+        status.notes.push_back(L"No embedded driver package was found.");
     }
     if (!status.infKeyboardDeviceStarted || !status.infMouseDeviceStarted ||
         !status.infKeyboardDeviceBound || !status.infMouseDeviceBound) {
@@ -526,6 +916,349 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
 
     return status;
 }
+
+bool DdRuntimeService::InstallEmbeddedHidDriver(std::wstring* resultMessage) const {
+    const QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (tempRoot.isEmpty()) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the temp directory.";
+        }
+        return false;
+    }
+
+    const std::wstring pnputilPath = ResolvePnputilPath();
+    if (pnputilPath.empty()) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the Windows system directory.";
+        }
+        return false;
+    }
+
+    if (!EmbeddedHidDriverExists()) {
+        if (resultMessage) {
+            *resultMessage = L"No embedded HID driver package is available.";
+        }
+        return false;
+    }
+
+    {
+        std::wstring probeMessage;
+        const bool serviceReady = ServiceExists(kHidServiceName);
+        const bool sysReady = std::filesystem::exists(SystemDriversDir() / kHidSysName);
+        const bool rootDeviceOk = HidRootDeviceOk();
+        const bool childDeviceOk = HidChildDeviceOk();
+        const bool runtimeProbeOk = ProbeHidRuntime(8000, &probeMessage);
+        if (serviceReady && sysReady && rootDeviceOk && childDeviceOk && runtimeProbeOk) {
+            std::wstringstream summary;
+            summary << L"HID install skipped: runtime is already ready.\n"
+                    << L"HID final state -> service=yes, sys=yes, root_device=yes, child_device=yes, runtime_probe=yes\n";
+            if (!probeMessage.empty()) {
+                summary << probeMessage << L"\n";
+            }
+            if (resultMessage) {
+                *resultMessage = summary.str();
+            }
+            AppendLog(logsDir_, L"dd-hid-install.log", summary.str());
+            return true;
+        }
+    }
+
+    const auto uniqueToken = std::to_wstring(GetCurrentProcessId()) + L"-" +
+        std::to_wstring(static_cast<unsigned long long>(GetTickCount64()));
+    const QString installRoot = QDir(tempRoot).filePath(QStringLiteral("xiaoji-dd-hid"));
+    const QString outputDir = QDir(installRoot).filePath(QString::fromStdWString(uniqueToken));
+    QDir().mkpath(outputDir);
+
+    const QString ddcPath = QDir(outputDir).filePath(QStringLiteral("ddc.exe"));
+    const QString infPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.inf"));
+    const QString catPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.cat"));
+    const QString sysPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.sys"));
+
+    QString extractError;
+    const QString prefix = QStringLiteral(":/dd/hid/drv/");
+    std::wstringstream message;
+    if (!CopyResourceFile(prefix + QStringLiteral("ddc.exe"), ddcPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.inf"), infPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.cat"), catPath, &extractError) ||
+        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.sys"), sysPath, &extractError)) {
+        message << L"HID extract failed: " << extractError.toStdWString() << L"\n";
+        if (resultMessage) {
+            *resultMessage = message.str();
+        }
+        AppendLog(logsDir_, L"dd-hid-install.log", message.str());
+        return false;
+    }
+
+    DWORD exitCode = 1;
+    std::wstring stepOutput;
+    std::wstring stepError;
+    const bool addHidProcessOk = RunProcess(
+        pnputilPath,
+        {L"/add-driver", infPath.toStdWString(), L"/install"},
+        &exitCode,
+        &stepOutput,
+        &stepError);
+    const bool addHidOk = PnputilAddDriverSucceeded(addHidProcessOk, exitCode, stepOutput);
+    message << L"HID add inf -> "
+            << FormatStepResult(addHidOk, addHidProcessOk, exitCode, stepOutput, stepError) << L"\n";
+
+    stepOutput.clear();
+    stepError.clear();
+    exitCode = 1;
+    const bool createDeviceOk = RunProcess(
+        ddcPath.toStdWString(),
+        {},
+        &exitCode,
+        &stepOutput,
+        &stepError,
+        outputDir.toStdWString(),
+        15000,
+        QByteArray("\r\n\r\n"));
+    const bool createDeviceAccepted = createDeviceOk || HidCreateDeviceAlreadyExists(stepOutput) ||
+        HidCreateDeviceAlreadyExists(stepError);
+    message << L"HID create device -> "
+            << FormatStepResult(createDeviceAccepted, createDeviceOk, exitCode, stepOutput, stepError) << L"\n";
+
+    const bool serviceReady = ServiceExists(kHidServiceName);
+    const bool sysReady = std::filesystem::exists(SystemDriversDir() / kHidSysName);
+    const bool rootDeviceOk = HidRootDeviceOk();
+    const bool childDeviceOk = HidChildDeviceOk();
+    std::wstring probeMessage;
+    const bool runtimeProbeOk = ProbeHidRuntime(8000, &probeMessage);
+    const bool overallInstalled = serviceReady && sysReady && rootDeviceOk && childDeviceOk && runtimeProbeOk;
+    message << L"HID final state -> service="
+            << (serviceReady ? L"yes" : L"no")
+            << L", sys="
+            << (sysReady ? L"yes" : L"no")
+            << L", root_device="
+            << (rootDeviceOk ? L"yes" : L"no")
+            << L", child_device="
+            << (childDeviceOk ? L"yes" : L"no")
+            << L", runtime_probe="
+            << (runtimeProbeOk ? L"yes" : L"no")
+            << L"\n";
+    if (!probeMessage.empty()) {
+        message << probeMessage << L"\n";
+    }
+
+    std::wstringstream summary;
+    summary << (overallInstalled ? L"HID install succeeded.\n" : L"HID install did not complete successfully.\n");
+    summary << message.str();
+    if (resultMessage) {
+        *resultMessage = summary.str();
+    }
+    AppendLog(logsDir_, L"dd-hid-install.log", summary.str());
+    return overallInstalled;
+}
+
+bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) const {
+    wchar_t systemDir[MAX_PATH] = {};
+    const UINT systemDirLen = GetSystemDirectoryW(systemDir, MAX_PATH);
+    if (systemDirLen == 0 || systemDirLen >= MAX_PATH) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the Windows system directory.";
+        }
+        return false;
+    }
+    const std::filesystem::path systemPath(systemDir);
+    const std::wstring pnputilPath = (systemPath / L"pnputil.exe").wstring();
+    const std::wstring scPath = (systemPath / L"sc.exe").wstring();
+
+    std::wstringstream message;
+    bool initialEnumSucceeded = false;
+    std::vector<std::wstring> publishedNames = EnumerateHidDriverPublishedNames(
+        pnputilPath,
+        &message,
+        &initialEnumSucceeded);
+
+    if (initialEnumSucceeded &&
+        publishedNames.empty() &&
+        !HidRootDeviceOk() && !HidChildDeviceOk() &&
+        !ServiceExists(kHidServiceName) &&
+        !std::filesystem::exists(SystemDriversDir() / kHidSysName) &&
+        !HidDriverStorePresent()) {
+        const std::wstring summary = L"HID uninstall skipped: runtime and driver package are already removed.\n";
+        if (resultMessage) {
+            *resultMessage = summary;
+        }
+        AppendLog(logsDir_, L"dd-hid-uninstall.log", summary);
+        return true;
+    }
+
+    message << L"HID remove device -> skipped (use system uninstall path)\n";
+
+    bool removedPackage = initialEnumSucceeded;
+    bool packageRemovalNeedsReboot = false;
+    for (const auto& publishedName : publishedNames) {
+        DWORD exitCode = 1;
+        std::wstring stepOutput;
+        std::wstring stepError;
+        const bool deleteProcessOk = RunProcess(
+            pnputilPath,
+            {L"/delete-driver", publishedName, L"/uninstall", L"/force"},
+            &exitCode,
+            &stepOutput,
+            &stepError,
+            {},
+            30000);
+        if (exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
+            packageRemovalNeedsReboot = true;
+        }
+        const bool deleted = PnputilDeleteDriverSucceeded(deleteProcessOk, exitCode, stepOutput);
+        message << L"HID delete driver " << publishedName << L" -> "
+                << FormatStepResult(deleted, deleteProcessOk, exitCode, stepOutput, stepError) << L"\n";
+        removedPackage = removedPackage && deleted;
+    }
+
+    bool finalEnumSucceeded = false;
+    const auto remainingPublishedNames = EnumerateHidDriverPublishedNames(
+        pnputilPath,
+        &message,
+        &finalEnumSucceeded);
+    removedPackage = removedPackage && finalEnumSucceeded && remainingPublishedNames.empty();
+
+    if (packageRemovalNeedsReboot && removedPackage) {
+        std::wstringstream summary;
+        summary << L"HID \u5378\u8f7d\u5df2\u63d0\u4ea4\uff0c\u9700\u8981\u91cd\u542f\u5b8c\u6210\u3002\n";
+        summary << L"Windows \u5df2\u63a5\u53d7\u9a71\u52a8\u5305\u5378\u8f7d\u8bf7\u6c42\uff0c\u5e76\u8fd4\u56de 3010\uff08\u9700\u8981\u91cd\u542f\uff09\u3002\n";
+        summary << L"\u4e3a\u907f\u514d\u5728 PnP \u5f85\u91cd\u542f\u72b6\u6001\u4e0b\u7ee7\u7eed\u5f3a\u5220\u670d\u52a1\u6216\u8bbe\u5907\u8282\u70b9\uff0c\u672c\u6b21\u5df2\u505c\u6b62\u540e\u7eed\u6e05\u7406\uff0c\u91cd\u542f\u540e\u7531 Windows \u63d0\u4ea4\u5378\u8f7d\u3002\n";
+        summary << L"\u8be6\u7ec6\u8fc7\u7a0b\u5df2\u5199\u5165\u65e5\u5fd7\u3002";
+        if (resultMessage) {
+            *resultMessage = summary.str();
+        }
+        AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
+        return true;
+    }
+
+    DWORD scExitCode = 1;
+    std::wstring scOutput;
+    std::wstring scError;
+    const bool serviceDeleteProcessOk = RunProcess(
+        scPath,
+        {L"delete", kHidServiceName},
+        &scExitCode,
+        &scOutput,
+        &scError,
+        {},
+        10000);
+    const bool serviceDeleted = ServiceDeleteAccepted(serviceDeleteProcessOk, scExitCode, scOutput + L"\n" + scError);
+    message << L"HID delete service -> "
+            << FormatStepResult(serviceDeleted, serviceDeleteProcessOk, scExitCode, scOutput, scError) << L"\n";
+
+    if (scExitCode == ERROR_SERVICE_MARKED_FOR_DELETE &&
+        removedPackage &&
+        !HidRootDeviceOk() &&
+        !HidChildDeviceOk() &&
+        !std::filesystem::exists(SystemDriversDir() / kHidSysName) &&
+        !HidDriverStorePresent()) {
+        std::wstringstream summary;
+        summary << L"HID \u5378\u8f7d\u5df2\u63d0\u4ea4\uff0c\u9700\u8981\u91cd\u542f\u5b8c\u6210\u3002\n";
+        summary << L"\u9a71\u52a8\u5305\u3001SYS \u548c\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\uff0c\u670d\u52a1\u5df2\u6807\u8bb0\u4e3a\u5220\u9664\uff0c\u91cd\u542f\u540e Windows \u4f1a\u5b8c\u6210\u6700\u7ec8\u6e05\u7406\u3002\n";
+        summary << L"\u8be6\u7ec6\u8fc7\u7a0b\u5df2\u5199\u5165\u65e5\u5fd7\u3002";
+        if (resultMessage) {
+            *resultMessage = summary.str();
+        }
+        AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
+        return true;
+    }
+
+    std::error_code removeError;
+    const auto sysPath = SystemDriversDir() / kHidSysName;
+    const bool sysRemoved = !std::filesystem::exists(sysPath) || std::filesystem::remove(sysPath, removeError);
+    message << L"HID remove sys -> " << (sysRemoved ? L"ok" : L"failed") << L"\n";
+
+    for (const auto& instanceId : EnumerateDeviceInstanceIds(kHidChildDevicePrefix)) {
+        std::wstring removeDetail;
+        const bool removed = RemoveDeviceInstanceBestEffort(instanceId, &removeDetail);
+        message << L"HID remove child instance " << instanceId << L" -> "
+                << (removed ? L"ok" : L"failed");
+        if (!removeDetail.empty()) {
+            message << L" (" << removeDetail << L")";
+        }
+        message << L"\n";
+    }
+
+    for (const auto& instanceId : EnumerateHidRootDeviceInstanceIds()) {
+        std::wstring removeDetail;
+        const bool removed = RemoveDeviceInstanceBestEffort(instanceId, &removeDetail);
+        message << L"HID remove root instance " << instanceId << L" -> "
+                << (removed ? L"ok" : L"failed");
+        if (!removeDetail.empty()) {
+            message << L" (" << removeDetail << L")";
+        }
+        message << L"\n";
+    }
+
+    const bool stillHasRoot = HidRootDeviceOk();
+    const bool stillHasChild = HidChildDeviceOk();
+    const bool stillHasService = ServiceExists(kHidServiceName);
+    const bool stillHasSys = std::filesystem::exists(SystemDriversDir() / kHidSysName);
+    const bool stillHasDriverStore = HidDriverStorePresent();
+    const bool servicePendingDelete = serviceDeleted && stillHasService;
+    const bool overallUninstalled = !stillHasRoot && !stillHasChild &&
+        !stillHasService &&
+        !stillHasSys &&
+        !stillHasDriverStore &&
+        removedPackage;
+    message << L"HID final state -> root_device="
+            << (stillHasRoot ? L"yes" : L"no")
+            << L", child_device="
+            << (stillHasChild ? L"yes" : L"no")
+            << L", service="
+            << (stillHasService ? L"yes" : L"no")
+            << L", sys="
+            << (stillHasSys ? L"yes" : L"no")
+            << L", driver_store="
+            << (stillHasDriverStore ? L"yes" : L"no")
+            << L", service_pending_delete="
+            << (servicePendingDelete ? L"yes" : L"no")
+            << L", package_removed="
+            << (removedPackage ? L"yes" : L"no")
+            << L", remaining_packages="
+            << remainingPublishedNames.size()
+            << L"\n";
+
+    std::wstringstream summary;
+    summary << (overallUninstalled
+        ? L"HID \u5378\u8f7d\u6210\u529f\u3002\n"
+        : L"HID \u5378\u8f7d\u672a\u5b8c\u5168\u5b8c\u6210\u3002\n");
+    if (!stillHasRoot && !stillHasChild && !stillHasSys && !stillHasDriverStore &&
+        !stillHasService && removedPackage) {
+        summary << L"\u9a71\u52a8\u670d\u52a1\u3001\u9a71\u52a8\u5305\u548c\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\u3002\n";
+    } else if (!stillHasRoot && !stillHasChild && removedPackage) {
+        summary << L"\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\uff0c\u4f46 SYS \u6216 DriverStore \u4ecd\u53ef\u80fd\u6b8b\u7559\uff0c\u670d\u52a1\u72b6\u6001\u4e5f\u53ef\u80fd\u9700\u91cd\u542f\u540e\u91ca\u653e\u3002\n";
+    } else {
+        summary << L"\u7cfb\u7edf\u4e2d\u4ecd\u53ef\u80fd\u6b8b\u7559\u90e8\u5206\u9a71\u52a8\u5305\u3001\u8bbe\u5907\u8282\u70b9\u6216\u670d\u52a1\u72b6\u6001\u3002\n";
+    }
+    summary << L"\u5efa\u8bae\u91cd\u542f\u7cfb\u7edf\uff1b\u81f3\u5c11\u4e5f\u8bf7\u91cd\u542f\u8f6f\u4ef6\u540e\u518d\u7ee7\u7eed\u4f7f\u7528\u3002\n";
+    summary << L"\u8be6\u7ec6\u8fc7\u7a0b\u5df2\u5199\u5165\u65e5\u5fd7\u3002";
+    if (resultMessage) {
+        *resultMessage = summary.str();
+    }
+    AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
+    return overallUninstalled;
+}
+#if 0
+    std::wstringstream summary;
+    summary << (overallUninstalled
+        ? L"HID 卸载成功。\n"
+        : L"HID 卸载未完全完成。\n");
+    if (!stillHasRoot && !stillHasChild && (!stillHasService || servicePendingDelete) && removedPackage) {
+        summary << L"驱动服务、驱动包和设备节点已移除。\n";
+    } else if (!stillHasRoot && !stillHasChild && removedPackage) {
+        summary << L"驱动包和设备节点已移除，服务状态可能需重启后完全释放。\n";
+    } else {
+        summary << L"系统中仍可能残留部分设备节点或服务状态。\n";
+    }
+    summary << L"建议重启系统；至少也请重启软件后再继续使用。\n";
+    summary << L"详细过程已写入日志。";
+    if (resultMessage) {
+        *resultMessage = summary.str();
+    }
+    AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
+    return overallUninstalled;
+}
+#endif
 
 bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) const {
     const std::wstring pnputilPath = ResolvePnputilPath();
@@ -549,7 +1282,8 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
     std::wstringstream message;
     bool overallInstalled = false;
     int installedVariant = -1;
-    const QString uniqueToken = QString::fromStdWString(std::to_wstring(GetCurrentProcessId()) + L"-" +
+    const QString uniqueToken = QString::fromStdWString(
+        std::to_wstring(GetCurrentProcessId()) + L"-" +
         std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
 
     for (const int variant : variants) {
@@ -570,17 +1304,59 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
         }
     }
 
+    std::wstringstream summary;
+    if (overallInstalled) {
+        summary << L"INF install succeeded. active_variant=" << installedVariant << L"\n";
+    } else {
+        summary << L"INF install did not complete successfully.\n";
+    }
+    summary << message.str();
     if (resultMessage) {
-        std::wstringstream summary;
-        if (overallInstalled) {
-            summary << L"INF install succeeded. active_variant=" << installedVariant << L"\n";
-        } else {
-            summary << L"INF install did not complete successfully.\n";
-        }
-        summary << message.str();
         *resultMessage = summary.str();
     }
+    AppendLog(logsDir_, L"dd-inf-install.log", summary.str());
     return overallInstalled;
+}
+
+bool DdRuntimeService::ProbeHidRuntime(int timeoutMs, std::wstring* resultMessage) const {
+    wchar_t exePath[MAX_PATH] = {};
+    const DWORD exePathLen = GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    if (exePathLen == 0 || exePathLen >= MAX_PATH) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the executable path.";
+        }
+        return false;
+    }
+
+    DWORD exitCode = 1;
+    std::wstring output;
+    std::wstring error;
+    const bool ok = RunProcess(
+        exePath,
+        {L"--probe-dd-hid", HidRuntimePath().wstring()},
+        &exitCode,
+        &output,
+        &error,
+        ExeDir().wstring(),
+        timeoutMs);
+
+    std::wstringstream message;
+    message << L"HID runtime probe -> ";
+    if (ok && exitCode == 0) {
+        message << L"ok";
+    } else if (!error.empty()) {
+        message << L"failed (" << error << L")";
+    } else {
+        message << L"failed (exit_code=" << exitCode << L")";
+    }
+    if (!output.empty()) {
+        message << L"\n" << output;
+    }
+    if (resultMessage) {
+        *resultMessage = message.str();
+    }
+    AppendLog(logsDir_, L"dd-hid-probe.log", message.str());
+    return ok && exitCode == 0;
 }
 
 bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
@@ -613,7 +1389,8 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
     std::wstringstream message;
     bool repaired = false;
     int repairedVariant = -1;
-    const QString uniqueToken = QString::fromStdWString(std::to_wstring(GetCurrentProcessId()) + L"-repair-" +
+    const QString uniqueToken = QString::fromStdWString(
+        std::to_wstring(GetCurrentProcessId()) + L"-repair-" +
         std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
 
     for (const int variant : variants) {
@@ -649,7 +1426,12 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
     if (resultMessage) {
         *resultMessage = summary.str();
     }
+    AppendLog(logsDir_, L"dd-inf-repair.log", summary.str());
     return repaired;
+}
+
+void DdRuntimeService::LogRuntimeError(const wchar_t* fileName, const std::wstring& message) const {
+    AppendLog(logsDir_, fileName && *fileName ? fileName : L"dd-runtime.log", message);
 }
 
 bool DdRuntimeService::InfDevicesReady() const {
@@ -663,8 +1445,16 @@ std::filesystem::path DdRuntimeService::ExeDir() const noexcept {
     return exeDir_;
 }
 
+std::filesystem::path DdRuntimeService::LogsDir() const noexcept {
+    return logsDir_;
+}
+
 std::filesystem::path DdRuntimeService::DriverRootDir() const {
     return exeDir_ / L"driver";
+}
+
+bool DdRuntimeService::EmbeddedHidDriverExists() const {
+    return QFile::exists(QStringLiteral(":/dd/hid/drv/ddhid63340.inf"));
 }
 
 bool DdRuntimeService::EmbeddedInfVariantExists(int variant) const {
@@ -672,20 +1462,108 @@ bool DdRuntimeService::EmbeddedInfVariantExists(int variant) const {
     return QFile::exists(variantPath);
 }
 
+bool DdRuntimeService::HidRootDeviceOk() const {
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    bool found = false;
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (!SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
+            break;
+        }
+
+        wchar_t instanceId[MAX_DEVICE_ID_LEN] = {};
+        if (CM_Get_Device_IDW(deviceData.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) != CR_SUCCESS) {
+            continue;
+        }
+
+        if (_wcsnicmp(instanceId, kHidRootDevicePrefix, wcslen(kHidRootDevicePrefix)) != 0) {
+            continue;
+        }
+
+        const std::wstring service = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_SERVICE);
+        const std::wstring description = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_DEVICEDESC);
+        const std::wstring manufacturer = QueryDeviceRegistryStringProperty(deviceInfo, &deviceData, SPDRP_MFG);
+        if (_wcsicmp(service.c_str(), kHidServiceName) != 0 &&
+            _wcsicmp(description.c_str(), L"ddhid63340") != 0 &&
+            _wcsicmp(manufacturer.c_str(), L"www.ddxoft.com") != 0) {
+            continue;
+        }
+
+        if (DeviceStarted(deviceData.DevInst)) {
+            found = true;
+            break;
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfo);
+    return found;
+}
+
+bool DdRuntimeService::HidChildDeviceOk() const {
+    return DeviceInstanceOk(kHidChildDevicePrefix);
+}
+
+bool DdRuntimeService::DeviceInstanceOk(const wchar_t* instanceIdPrefix) const {
+    if (instanceIdPrefix == nullptr || *instanceIdPrefix == L'\0') {
+        return false;
+    }
+
+    ULONG deviceIdListSize = 0;
+    CONFIGRET result = CM_Get_Device_ID_List_SizeW(&deviceIdListSize, nullptr, CM_GETIDLIST_FILTER_NONE);
+    if (result != CR_SUCCESS || deviceIdListSize == 0) {
+        return false;
+    }
+
+    std::vector<wchar_t> deviceIds(deviceIdListSize);
+    result = CM_Get_Device_ID_ListW(nullptr, deviceIds.data(), deviceIdListSize, CM_GETIDLIST_FILTER_NONE);
+    if (result != CR_SUCCESS) {
+        return false;
+    }
+
+    const std::wstring prefix(instanceIdPrefix);
+    for (const wchar_t* id = deviceIds.data(); id != nullptr && *id != L'\0'; id += wcslen(id) + 1) {
+        const std::wstring instanceId(id);
+        if (instanceId.size() < prefix.size() ||
+            _wcsnicmp(instanceId.c_str(), prefix.c_str(), prefix.size()) != 0) {
+            continue;
+        }
+
+        DEVINST devInst = 0;
+        if (CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(id), CM_LOCATE_DEVNODE_NORMAL) != CR_SUCCESS) {
+            continue;
+        }
+
+        ULONG status = 0;
+        ULONG problem = 0;
+        if (CM_Get_DevNode_Status(&status, &problem, devInst, 0) == CR_SUCCESS && problem == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool DdRuntimeService::ServiceExists(const wchar_t* serviceName) const {
     if (serviceName == nullptr || *serviceName == L'\0') {
         return false;
     }
+
     SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
     if (scm == nullptr) {
         return false;
     }
+
     SC_HANDLE service = OpenServiceW(scm, serviceName, SERVICE_QUERY_STATUS);
     if (service != nullptr) {
         CloseServiceHandle(service);
         CloseServiceHandle(scm);
         return true;
     }
+
     CloseServiceHandle(scm);
     return false;
 }
@@ -697,6 +1575,43 @@ std::filesystem::path DdRuntimeService::SystemDriversDir() const {
         return std::filesystem::path(L"C:\\Windows\\System32\\drivers");
     }
     return std::filesystem::path(windowsDir) / L"System32" / L"drivers";
+}
+
+bool DdRuntimeService::HidDriverStorePresent() const {
+    wchar_t windowsDir[MAX_PATH] = {};
+    const UINT length = GetWindowsDirectoryW(windowsDir, MAX_PATH);
+    const std::filesystem::path base = (length == 0 || length >= MAX_PATH)
+        ? std::filesystem::path(L"C:\\Windows")
+        : std::filesystem::path(windowsDir);
+    const auto fileRepository = base / L"System32" / L"DriverStore" / L"FileRepository";
+
+    std::error_code error;
+    if (!std::filesystem::exists(fileRepository, error) || error) {
+        return false;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(fileRepository, error)) {
+        if (error) {
+            return false;
+        }
+        if (!entry.is_directory(error) || error) {
+            continue;
+        }
+
+        const auto name = entry.path().filename().wstring();
+        if (name.rfind(L"ddhid63340.inf_", 0) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::filesystem::path DdRuntimeService::HidRootPath() const {
+    return DriverRootDir() / L"hid";
+}
+
+std::filesystem::path DdRuntimeService::HidRuntimePath() const {
+    return HidRootPath() / L"ddhid.63340.dll";
 }
 
 std::filesystem::path DdRuntimeService::Legacy32Path() const {

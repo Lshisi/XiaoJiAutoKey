@@ -4,11 +4,9 @@
 #include "../components/FactionMenu.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
-#include "../components/FluentComboBox.h"
 #include "FactionTheme.h"
 
 #include <QButtonGroup>
-#include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -189,45 +187,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addWidget(factionPreview);
 
     panelLayout->addWidget(makeDivider(panel));
-    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u9a71\u52a8"), panel));
-    auto* driverModeRow = new QHBoxLayout();
-    driverModeRow->setContentsMargins(0, 0, kSettingsActionRightInset, 0);
-    driverModeRow->setSpacing(10);
-    auto* driverModeLabel = new QLabel(QString::fromWCharArray(L"\u9a71\u52a8\u6a21\u5f0f"), panel);
-    driverModeLabel->setFont(Fluent::Typography::body());
-    driverModeRow->addWidget(driverModeLabel);
-    driverModeRow->addStretch();
-    driverModeCombo_ = new FluentComboBox(panel);
-    driverModeCombo_->addItem(QString::fromWCharArray(L"\u65e7 DD\uff08\u9ed8\u8ba4\uff09"), static_cast<int>(DriverMode::Legacy));
-    driverModeCombo_->addItem(QString::fromWCharArray(L"HID\uff08\u5b9e\u9a8c\uff09"), static_cast<int>(DriverMode::Hid));
-    driverModeCombo_->setFixedSize(180, kSettingsActionButtonHeight);
-    driverModeRow->addWidget(driverModeCombo_);
-    panelLayout->addLayout(driverModeRow);
-
-    auto* driverStatusRow = new QHBoxLayout();
-    driverStatusRow->setContentsMargins(0, 0, kSettingsActionRightInset, 0);
-    driverStatusRow->setSpacing(10);
-    auto* driverStatusCaption = new QLabel(QString::fromWCharArray(L"\u5f53\u524d\u4f7f\u7528"), panel);
-    driverStatusCaption->setFont(Fluent::Typography::body());
-    driverStatusRow->addWidget(driverStatusCaption);
-    driverStatusLabel_ = new QLabel(QString::fromWCharArray(L"\u672a\u52a0\u8f7d"), panel);
-    driverStatusLabel_->setFont(Fluent::Typography::bodyStrong());
-    driverStatusRow->addWidget(driverStatusLabel_);
-    driverStatusRow->addStretch();
-    auto* refreshDriverBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u5237\u65b0"), panel);
-    refreshDriverBtn->setFixedSize(72, kSettingsActionButtonHeight);
-    auto* uninstallHidBtn = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u5378\u8f7d HID"), panel);
-    uninstallHidBtn->setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);
-    driverStatusRow->addWidget(refreshDriverBtn);
-    driverStatusRow->addWidget(uninstallHidBtn);
-    panelLayout->addLayout(driverStatusRow);
-
-    driverStatusDetailLabel_ = new QLabel(panel);
-    driverStatusDetailLabel_->setFont(Fluent::Typography::caption());
-    driverStatusDetailLabel_->setWordWrap(true);
-    driverStatusDetailLabel_->setPalette(mutedPalette(driverStatusDetailLabel_));
-    panelLayout->addWidget(driverStatusDetailLabel_);
-    panelLayout->addWidget(makeDivider(panel));
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u72b6\u6001\u6d6e\u7a97"), panel));
     auto* opacityRow = new QHBoxLayout();
@@ -308,12 +267,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         emit statusOverlayOpacityChanged(value);
     });
     connect(factionButton_, &QPushButton::clicked, this, &SettingsPage::showFactionMenu);
-    connect(driverModeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (!driverModeCombo_ || index < 0) return;
-        emit driverModeChanged(static_cast<DriverMode>(driverModeCombo_->itemData(index).toInt()));
-    });
-    connect(refreshDriverBtn, &QPushButton::clicked, this, &SettingsPage::driverRefreshRequested);
-    connect(uninstallHidBtn, &QPushButton::clicked, this, &SettingsPage::hidUninstallRequested);
 
     applyPageTheme();
 }
@@ -344,27 +297,6 @@ void SettingsPage::setCloseAction(CloseAction action) {
 }
 
 void SettingsPage::setCustomSoundPaths(const QString&, const QString&) {}
-
-void SettingsPage::setDriverMode(DriverMode mode) {
-    if (!driverModeCombo_) return;
-    const int target = static_cast<int>(mode);
-    for (int i = 0; i < driverModeCombo_->count(); ++i) {
-        if (driverModeCombo_->itemData(i).toInt() == target) {
-            driverModeCombo_->blockSignals(true);
-            driverModeCombo_->setCurrentIndex(i);
-            driverModeCombo_->blockSignals(false);
-            break;
-        }
-    }
-}
-
-void SettingsPage::setDriverStatus(const QString& modeText, const QString& detailText) {
-    if (driverStatusLabel_) driverStatusLabel_->setText(modeText);
-    if (driverStatusDetailLabel_) {
-        driverStatusDetailLabel_->setText(detailText);
-        driverStatusDetailLabel_->setToolTip(detailText);
-    }
-}
 
 void SettingsPage::setFaction(const QString& factionId) {
     Q_UNUSED(factionId);

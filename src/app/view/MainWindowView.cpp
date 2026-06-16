@@ -8,6 +8,7 @@
 #include "ui/components/FluentTable.h"
 #include "ui/components/FluentTitleBar.h"
 #include "ui/pages/AboutPage.h"
+#include "ui/pages/DriverPage.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
@@ -437,6 +438,7 @@ void MainWindowView::setup(QMainWindow* window) {
     sidebar_ = new FluentSidebar(window);
     sidebar_->addNavItem(QStringLiteral("keys"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
     sidebar_->addNavItem(QStringLiteral("macro"), QString::fromWCharArray(L"\u5faa\u73af\u8fde\u53d1"), "macro");
+    sidebar_->addNavItem(QStringLiteral("driver"), QString::fromWCharArray(L"\u9a71\u52a8\u7ba1\u7406"), "driver");
     sidebar_->addNavItem(QStringLiteral("settings"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
     sidebar_->addNavItem(QStringLiteral("about"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
     sidebar_->setCurrentPage("keys");
@@ -445,10 +447,12 @@ void MainWindowView::setup(QMainWindow* window) {
     pageStack_ = new QStackedWidget(window);
     keyPage_ = new KeyPage(window);
     macroPage_ = new MacroPage(window);
+    driverPage_ = new DriverPage(window);
     settingsPage_ = new SettingsPage(window);
     aboutPage_ = new AboutPage(window);
     pageStack_->addWidget(keyPage_);
     pageStack_->addWidget(macroPage_);
+    pageStack_->addWidget(driverPage_);
     pageStack_->addWidget(settingsPage_);
     pageStack_->addWidget(aboutPage_);
     pageStack_->setCurrentWidget(keyPage_);
@@ -508,6 +512,7 @@ void MainWindowView::initializeTray(QMainWindow* window) {
 void MainWindowView::navigateTo(const QString& pageId) {
     if (pageId == "keys") pageStack_->setCurrentWidget(keyPage_);
     else if (pageId == "macro") pageStack_->setCurrentWidget(macroPage_);
+    else if (pageId == "driver") pageStack_->setCurrentWidget(driverPage_);
     else if (pageId == "settings") pageStack_->setCurrentWidget(settingsPage_);
     else if (pageId == "about") pageStack_->setCurrentWidget(aboutPage_);
 }

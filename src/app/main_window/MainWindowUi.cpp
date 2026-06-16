@@ -1,11 +1,12 @@
 #include "MainWindow.h"
 
 #include "FactionTheme.h"
+#include "config/ActiveConfigValidator.h"
 #include "ui/components/FluentSidebar.h"
+#include "ui/pages/DriverPage.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
-#include "config/ActiveConfigValidator.h"
 
 #include <QTimer>
 
@@ -37,7 +38,8 @@ void MainWindow::setupUi() {
         configCoordinator_.configPath(),
         [this]() { return profileController_.activeProfile(); },
         [this]() { return macroController_.activeMacro(); },
-        [this]() { view_.updateFactionVisuals(this); }
+        [this]() { view_.updateFactionVisuals(this); },
+        [this]() { refreshDriverStatusUi(); }
     });
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
@@ -135,10 +137,20 @@ void MainWindow::setupUi() {
             refreshStatusOverlay();
         },
         [this]() { refreshStatusOverlay(); },
-        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
-        [this](DriverMode mode) { handleDriverModeChanged(mode); },
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+    });
+    driverCoordinator_.bind(DriverCoordinator::Context{
+        view_.driverPage(),
+        &config_,
+        &ddRuntimeService_,
+        this,
+        [this](DriverMode mode) { return switchDriverMode(mode); },
+        [this]() { prepareHidDriverUninstall(); },
+        [this]() { finalizeHidDriverUninstall(); },
+        [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
-        [this]() { handleHidUninstallRequested(); }
+        [this]() { configCoordinator_.save(); },
+        [this](bool open) { inputHook_.setDialogOpen(open); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;

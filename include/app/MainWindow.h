@@ -10,6 +10,7 @@
 #include "RepeaterEngine.h"
 #include "services/DdRuntimeService.h"
 #include "services/SoundService.h"
+#include "coordinators/DriverCoordinator.h"
 #include "coordinators/SettingsCoordinator.h"
 #include "coordinators/ProfileCoordinator.h"
 #include "coordinators/MacroCoordinator.h"
@@ -47,7 +48,18 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool ensureDdRuntimeReady();
+    bool loadConfiguredDriver();
+    bool loadHidDriver();
+    bool loadLegacyDriver();
+    bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
+    bool ensureHidDriverInstalledForSwitch();
+    void refreshDriverStatusUi();
+    DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
+    void prepareHidDriverUninstall();
+    void finalizeHidDriverUninstall();
+    bool restartForDriverModeChange();
+    bool restartApplication(const QString& reasonMessage);
+    bool rebootComputer();
     void showDdUnavailableMessage();
     void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
     void applyRuntimeVisualRefresh();
@@ -74,6 +86,7 @@ private:
     DdRuntimeService ddRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;
+    DriverCoordinator driverCoordinator_;
     SettingsCoordinator settingsCoordinator_;
     ProfileCoordinator profileCoordinator_;
     MacroCoordinator macroCoordinator_;
@@ -95,5 +108,7 @@ private:
     int runtimeDpiOverride_ = 0;
     bool recreatedFractionalDpiSurface_ = false;
     bool ddUnavailablePromptVisible_ = false;
+    bool suppressDdUnavailablePrompt_ = false;
+    std::wstring driverStatusNote_;
 
 };

@@ -56,6 +56,19 @@ void drawGearIcon(QPainter& p, const QRectF& rect, const QColor& color) {
     p.drawEllipse(c, 1.8, 1.8);
 }
 
+void drawDriverIcon(QPainter& p, const QRectF& rect, const QColor& color) {
+    QPen pen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    const qreal x = rect.left();
+    const qreal y = rect.top();
+    p.drawRoundedRect(QRectF(x + 3.5, y + 4.0, 12.0, 8.5), 2.0, 2.0);
+    p.drawLine(QPointF(x + 6.0, y + 14.0), QPointF(x + 13.0, y + 14.0));
+    p.drawLine(QPointF(x + 9.5, y + 12.5), QPointF(x + 9.5, y + 16.5));
+    p.drawLine(QPointF(x + 17.0, y + 6.0), QPointF(x + 18.5, y + 7.5));
+    p.drawLine(QPointF(x + 17.0, y + 10.5), QPointF(x + 18.5, y + 9.0));
+}
+
 void drawInfoIcon(QPainter& p, const QRectF& rect, const QColor& color) {
     QPen pen(color, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
@@ -72,6 +85,8 @@ void drawNavIcon(QPainter& p, const QRectF& rect, const QString& iconId, const Q
         drawKeyboardIcon(p, rect, color);
     } else if (iconId == QStringLiteral("macro")) {
         drawListIcon(p, rect, color);
+    } else if (iconId == QStringLiteral("driver")) {
+        drawDriverIcon(p, rect, color);
     } else if (iconId == QStringLiteral("settings")) {
         drawGearIcon(p, rect, color);
     } else if (iconId == QStringLiteral("about")) {

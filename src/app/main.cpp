@@ -1,6 +1,10 @@
-﻿#include "MainWindow.h"
+#include "MainWindow.h"
+#include "ConfigStore.h"
 #include "DdDriver.h"
+#include "services/AppPaths.h"
+#include "services/DdRuntimeService.h"
 #include "ui/styles/DesignTokens.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QFont>
@@ -8,14 +12,77 @@
 #include <QStringList>
 #include <QStyleFactory>
 #include <QtPlugin>
+
 #include <Windows.h>
 #include <mmsystem.h>
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
 
 // Static Qt plugin imports
 Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
 Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 
 #pragma comment(lib, "winmm.lib")
+
+namespace {
+
+const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
+    switch (kind) {
+    case DdDriver::RuntimeKind::Hid:
+        return "hid";
+    case DdDriver::RuntimeKind::Legacy:
+        return "legacy";
+    default:
+        return "unknown";
+    }
+}
+
+const char* DriverModeText(DriverMode mode) {
+    return mode == DriverMode::Hid ? "hid" : "legacy";
+}
+
+std::string ToUtf8Line(const std::wstring& text) {
+    QString value = QString::fromStdWString(text);
+    value.replace('\r', QStringLiteral("\\r"));
+    value.replace('\n', QStringLiteral("\\n"));
+    return value.toUtf8().constData();
+}
+
+std::string ReadFileText(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        return {};
+    }
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+std::string DetectDriverModeFromRawConfig(const std::string& text) {
+    if (text.find("\"driverMode\": \"hid\"") != std::string::npos ||
+        text.find("\"driverMode\":\"hid\"") != std::string::npos) {
+        return "hid";
+    }
+    if (text.find("\"driverMode\": \"legacy\"") != std::string::npos ||
+        text.find("\"driverMode\":\"legacy\"") != std::string::npos) {
+        return "legacy";
+    }
+    return "unknown";
+}
+
+void WriteBool(std::ostringstream& out, const char* key, bool value) {
+    out << key << "=" << (value ? "1" : "0") << "\n";
+}
+
+void WriteText(std::ostringstream& out, const char* key, const std::string& value) {
+    out << key << "=" << value << "\n";
+}
+
+}  // namespace
 
 int main(int argc, char *argv[]) {
     const QStringList args(argv, argv + argc);
@@ -27,12 +94,63 @@ int main(int argc, char *argv[]) {
         DdDriver probeDriver;
         return probeDriver.LoadHidFrom(args.at(index + 1).toStdWString()) ? 0 : 3;
     }
+    if (args.contains(QStringLiteral("--diagnose-driver"))) {
+        AppPaths appPaths;
+        const std::string rawConfigText = ReadFileText(appPaths.configPath());
+        ConfigStore store(appPaths.configPath());
+        const AppConfig config = store.Load();
+        DdRuntimeService runtime(std::filesystem::path(appPaths.exeDir()), appPaths.logsDir());
+        DdDriver driver;
+        std::error_code error;
+        std::filesystem::create_directories(appPaths.logsDir(), error);
+        std::ostringstream reportText;
+
+        const auto statusBefore = runtime.Inspect(driver);
+        std::wstring probeMessage;
+        const bool probeOk = runtime.ProbeHidRuntime(8000, &probeMessage);
+
+        bool loadOk = false;
+        bool loadedAsConfigured = false;
+        if (config.driverMode == DriverMode::Hid) {
+            loadOk = driver.LoadFromDirectory(appPaths.exeDir(), true);
+            loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Hid;
+        } else {
+            loadOk = driver.LoadFromDirectory(appPaths.exeDir(), false);
+            loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy;
+        }
+
+        WriteText(reportText, "config_path", appPaths.configPath().string());
+        WriteText(reportText, "config_driver_mode_raw_scan", DetectDriverModeFromRawConfig(rawConfigText));
+        WriteText(reportText, "config_driver_mode", DriverModeText(config.driverMode));
+        WriteBool(reportText, "status_hid_runtime_exists", statusBefore.hidRuntimeExists);
+        WriteBool(reportText, "status_hid_service_installed", statusBefore.hidServiceInstalled);
+        WriteBool(reportText, "status_hid_sys_installed", statusBefore.hidSysInstalled);
+        WriteBool(reportText, "status_hid_root_device_ok", statusBefore.hidRootDeviceOk);
+        WriteBool(reportText, "status_hid_child_device_ok", statusBefore.hidChildDeviceOk);
+        WriteBool(reportText, "status_legacy32_exists", statusBefore.legacy32Exists);
+        WriteBool(reportText, "status_legacy64_exists", statusBefore.legacy64Exists);
+        WriteBool(reportText, "probe_hid_ok", probeOk);
+        WriteText(reportText, "probe_hid_message", ToUtf8Line(probeMessage));
+        WriteBool(reportText, "load_ok", loadOk);
+        WriteBool(reportText, "loaded_as_configured", loadedAsConfigured);
+        WriteText(reportText, "loaded_runtime_kind", RuntimeKindText(driver.GetRuntimeKind()));
+        WriteBool(reportText, "driver_ready", driver.IsReady());
+        WriteText(reportText, "driver_last_error", ToUtf8Line(driver.GetLastError()));
+
+        const std::string reportContent = reportText.str();
+        std::ofstream report(appPaths.logsDir() / "driver-diagnose.log", std::ios::binary | std::ios::trunc);
+        if (!report) {
+            return 5;
+        }
+        report.write(reportContent.data(), static_cast<std::streamsize>(reportContent.size()));
+        report.flush();
+        return loadedAsConfigured ? 0 : 4;
+    }
 
     if (args.contains(QStringLiteral("--restart-wait"))) {
         Sleep(1500);
     }
 
-    // 鍗曞疄渚嬪畧鎶?
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, L"XiaoJiAutoKey_SingleInstance_Mutex");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
@@ -40,7 +158,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // 鎻愬崌鏃堕挓绮惧害鍒?1ms
     timeBeginPeriod(1);
 
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -51,7 +168,6 @@ int main(int argc, char *argv[]) {
     app.setStyle(QStyleFactory::create("Fusion"));
     app.setPalette(Fluent::Theme::applicationPalette());
 
-    // Set global font - compact UI with crisp CJK rendering.
     QFont globalFont = Fluent::Typography::body();
     app.setFont(globalFont);
 
@@ -63,7 +179,7 @@ int main(int argc, char *argv[]) {
     }
     window.show();
 
-    int result = app.exec();
+    const int result = app.exec();
 
     timeEndPeriod(1);
     if (hMutex) CloseHandle(hMutex);

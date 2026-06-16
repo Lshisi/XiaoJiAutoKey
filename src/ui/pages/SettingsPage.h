@@ -6,7 +6,6 @@
 #include <QLabel>
 
 class QButtonGroup;
-class QComboBox;
 class QPushButton;
 class QRadioButton;
 class FluentLineEdit;
@@ -23,8 +22,6 @@ public:
     void setCloseAction(CloseAction action);
     void setFaction(const QString& factionId);
     void setCustomSoundPaths(const QString& onPath, const QString& offPath);
-    void setDriverMode(DriverMode mode);
-    void setDriverStatus(const QString& modeText, const QString& detailText);
 
 signals:
     void hotkeyEditClicked();
@@ -33,9 +30,6 @@ signals:
     void closeActionChanged(CloseAction action);
     void openConfigFolder();
     void factionChanged(const QString& factionId);
-    void driverModeChanged(DriverMode mode);
-    void driverRefreshRequested();
-    void hidUninstallRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -46,9 +40,6 @@ private:
     void updateFactionButtonText();
 
     QLabel* configPathLabel_;
-    QComboBox* driverModeCombo_ = nullptr;
-    QLabel* driverStatusLabel_ = nullptr;
-    QLabel* driverStatusDetailLabel_ = nullptr;
     QButtonGroup* closeActionGroup_ = nullptr;
     QPushButton* factionButton_ = nullptr;
     QSlider* statusOverlayOpacitySlider_ = nullptr;

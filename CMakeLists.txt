@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOMOC OFF)
+set(CMAKE_AUTOUIC OFF)
+set(CMAKE_AUTORCC OFF)
 
 # Static Qt path (single exe output):
 set(CMAKE_PREFIX_PATH "C:/Qt/5.15.2-static" ${CMAKE_PREFIX_PATH})
@@ -17,9 +17,58 @@ set(CMAKE_PREFIX_PATH "C:/Qt/5.15.2-static" ${CMAKE_PREFIX_PATH})
 
 find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 
+set(MOC_HEADERS
+    include/app/MainWindow.h
+    include/app/input/GlobalInputHook.h
+    include/app/coordinators/SettingsCoordinator.h
+    include/app/coordinators/DriverCoordinator.h
+    include/app/coordinators/ProfileCoordinator.h
+    include/app/coordinators/MacroCoordinator.h
+    include/app/coordinators/KeyBindingsCoordinator.h
+    include/app/coordinators/EngineHookCoordinator.h
+    include/app/coordinators/SoundCoordinator.h
+    include/app/coordinators/CaptureCoordinator.h
+    include/app/coordinators/PageRefreshCoordinator.h
+    include/app/coordinators/CloseCoordinator.h
+    include/app/coordinators/ConfigCoordinator.h
+    include/app/coordinators/EngineStateCoordinator.h
+    include/app/dialogs/BindingEditDialog.h
+    include/app/dialogs/AppMessageDialog.h
+    include/app/dialogs/CloseConfirmDialog.h
+    include/app/dialogs/KeyCaptureDialogBase.h
+    include/app/dialogs/MacroStepDialog.h
+    include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/SoundSettingsDialog.h
+    include/app/widgets/StatusOverlayWindow.h
+    src/ui/components/DraggableTable.h
+    src/ui/components/FluentButton.h
+    src/ui/components/FluentCard.h
+    src/ui/components/FluentComboBox.h
+    src/ui/components/FluentLineEdit.h
+    src/ui/components/FluentSidebar.h
+    src/ui/components/FluentSwitch.h
+    src/ui/components/FluentTable.h
+    src/ui/components/FluentTitleBar.h
+    src/ui/pages/KeyPage.h
+    src/ui/pages/MacroPage.h
+    src/ui/pages/DriverPage.h
+    src/ui/pages/SettingsPage.h
+    src/ui/pages/AboutPage.h
+)
+
+qt5_wrap_cpp(MOC_SOURCES ${MOC_HEADERS})
+qt5_add_resources(RESOURCE_SOURCES resources.qrc)
+
 set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
 set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
 set(AUTOKEY_DD_DLL64 "${AUTOKEY_DD_DIR}/DD64.dll")
+set(AUTOKEY_DD_HID_DIR "${AUTOKEY_DD_DIR}/hid")
+set(AUTOKEY_DD_HID_DLL "${AUTOKEY_DD_HID_DIR}/ddhid.63340.dll")
+set(AUTOKEY_DD_HID_DRV_DIR "${AUTOKEY_DD_HID_DIR}/drv")
+set(AUTOKEY_DD_HID_DDC "${AUTOKEY_DD_HID_DRV_DIR}/ddc.exe")
+set(AUTOKEY_DD_HID_CAT "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.cat")
+set(AUTOKEY_DD_HID_INF "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.inf")
+set(AUTOKEY_DD_HID_SYS "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.sys")
 
 set(CORE_SOURCES
     src/core/AppTypes.cpp
@@ -49,6 +98,7 @@ set(UI_COMPONENT_SOURCES
 set(UI_PAGE_SOURCES
     src/ui/pages/KeyPage.cpp
     src/ui/pages/MacroPage.cpp
+    src/ui/pages/DriverPage.cpp
     src/ui/pages/SettingsPage.cpp
     src/ui/pages/AboutPage.cpp
 )
@@ -71,6 +121,7 @@ set(UI_COMPONENT_HEADERS
 set(UI_PAGE_HEADERS
     src/ui/pages/KeyPage.h
     src/ui/pages/MacroPage.h
+    src/ui/pages/DriverPage.h
     src/ui/pages/SettingsPage.h
     src/ui/pages/AboutPage.h
 )
@@ -82,6 +133,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/controllers/ControllerResult.h
     include/app/config/ConfigNormalizer.h
     include/app/coordinators/SettingsCoordinator.h
+    include/app/coordinators/DriverCoordinator.h
     include/app/coordinators/ProfileCoordinator.h
     include/app/coordinators/MacroCoordinator.h
     include/app/coordinators/KeyBindingsCoordinator.h
@@ -114,6 +166,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/config/ActiveConfigValidator.cpp
     src/app/config/ConfigNormalizer.cpp
     src/app/coordinators/SettingsCoordinator.cpp
+    src/app/coordinators/DriverCoordinator.cpp
     src/app/coordinators/ProfileCoordinator.cpp
     src/app/coordinators/MacroCoordinator.cpp
     src/app/coordinators/KeyBindingsCoordinator.cpp
@@ -150,7 +203,8 @@ add_executable(XiaoJiAutoKey WIN32
     ${UI_COMPONENT_HEADERS}
     ${UI_PAGE_SOURCES}
     ${UI_PAGE_HEADERS}
-    resources.qrc
+    ${MOC_SOURCES}
+    ${RESOURCE_SOURCES}
     app.rc
 )
 
@@ -222,6 +276,40 @@ if(EXISTS "${AUTOKEY_DD_DLL64}")
             "${AUTOKEY_DD_DLL64}"
             "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD64.dll"
         COMMENT "Copying DD64.dll to the target driver directory"
+    )
+endif()
+
+if(EXISTS "${AUTOKEY_DD_HID_DLL}")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_DLL}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/ddhid.63340.dll"
+        COMMENT "Copying DD HID runtime DLL to the target driver directory"
+    )
+endif()
+
+if(EXISTS "${AUTOKEY_DD_HID_DDC}" OR
+   EXISTS "${AUTOKEY_DD_HID_CAT}" OR
+   EXISTS "${AUTOKEY_DD_HID_INF}" OR
+   EXISTS "${AUTOKEY_DD_HID_SYS}")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_DDC}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddc.exe"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_CAT}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.cat"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_INF}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.inf"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_DD_HID_SYS}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.sys"
+        COMMENT "Copying DD HID driver helper files to the target driver directory"
     )
 endif()
 

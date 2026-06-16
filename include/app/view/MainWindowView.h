@@ -11,6 +11,7 @@ class FluentSidebar;
 class FluentTitleBar;
 class KeyPage;
 class MacroPage;
+class DriverPage;
 class SettingsPage;
 
 class MainWindowView {
@@ -32,6 +33,7 @@ public:
     [[nodiscard]] FluentSidebar* sidebar() const { return sidebar_; }
     [[nodiscard]] KeyPage* keyPage() const { return keyPage_; }
     [[nodiscard]] MacroPage* macroPage() const { return macroPage_; }
+    [[nodiscard]] DriverPage* driverPage() const { return driverPage_; }
     [[nodiscard]] SettingsPage* settingsPage() const { return settingsPage_; }
     [[nodiscard]] AboutPage* aboutPage() const { return aboutPage_; }
     [[nodiscard]] QSystemTrayIcon* trayIcon() const { return trayIcon_; }
@@ -41,6 +43,7 @@ private:
     QStackedWidget* pageStack_ = nullptr;
     KeyPage* keyPage_ = nullptr;
     MacroPage* macroPage_ = nullptr;
+    DriverPage* driverPage_ = nullptr;
     SettingsPage* settingsPage_ = nullptr;
     AboutPage* aboutPage_ = nullptr;
     FluentTitleBar* titleBar_ = nullptr;

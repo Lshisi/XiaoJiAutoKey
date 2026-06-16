@@ -4,11 +4,33 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Normalize PATH casing for child tool invocations.
+# Some launch environments inject both PATH and Path, which breaks MSBuild/CL startup.
+$processPath = [System.Environment]::GetEnvironmentVariable("PATH", "Process")
+if (-not $processPath) {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $processPath = (@($machinePath, $userPath) | Where-Object { $_ }) -join ";"
+}
+[System.Environment]::SetEnvironmentVariable("Path", $null, "Process")
+[System.Environment]::SetEnvironmentVariable("PATH", $processPath, "Process")
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $cmake = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+$qtCandidates = @(
+    "C:\Qt\5.15.2-static",
+    "D:\Qt\5.15.2-static",
+    "D:\software\anaconda\Library"
+)
+$qtPrefixPath = $qtCandidates | Where-Object {
+    Test-Path (Join-Path $_ "lib\cmake\Qt5\Qt5Config.cmake")
+} | Select-Object -First 1
 
 if (-not (Test-Path $cmake)) {
     throw "cmake.exe not found: $cmake"
+}
+if (-not $qtPrefixPath) {
+    throw "Qt5Config.cmake not found. Checked: $($qtCandidates -join ', ')"
 }
 
 $buildDir = Join-Path $repoRoot "build"
@@ -38,7 +60,7 @@ $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # } else {
 #     Write-Warning "Could not find version string in CMakeLists.txt"
 # }
-& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64
+& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath"
 if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed"
 }
@@ -141,15 +163,8 @@ if (Test-Path $driverSrcDir) {
         Copy-Item $dd64Path (Join-Path $driverDstDir "DD64.dll") -Force
     }
 
-    $hidSrcDir = Join-Path $driverSrcDir "hid"
-    if (Test-Path $hidSrcDir) {
-        $hidDstDir = Join-Path $driverDstDir "hid"
-        New-Item -ItemType Directory -Path $hidDstDir -Force | Out-Null
-        Copy-Item (Join-Path $hidSrcDir "*") $hidDstDir -Recurse -Force
-    }
-
-    if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path) -and -not (Test-Path $hidSrcDir)) {
-        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll / hid not found."
+    if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path)) {
+        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll not found."
     }
 } else {
     Write-Warning "third_party\dd directory not found."

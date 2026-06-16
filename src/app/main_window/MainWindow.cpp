@@ -113,7 +113,7 @@ MainWindow::MainWindow(QWidget* parent)
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),
-      ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
+      ddRuntimeService_(std::filesystem::path(appPaths_.exeDir())),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
@@ -161,7 +161,6 @@ bool MainWindow::Initialize() {
 bool MainWindow::ensureDdRuntimeReady() {
     const bool initialRuntimeReady = driver_.LoadFromDirectory(appPaths_.exeDir());
     if (initialRuntimeReady && ddRuntimeService_.InfDevicesReady()) {
-        ddRuntimeService_.LogRuntimeReady(L"initial_probe");
         return true;
     }
 
@@ -174,20 +173,16 @@ bool MainWindow::ensureDdRuntimeReady() {
     };
     const bool repaired = ddRuntimeService_.RepairEmbeddedInfDriver(probe, &repairMessage);
     if (repaired && driver_.IsReady() && ddRuntimeService_.InfDevicesReady()) {
-        ddRuntimeService_.LogRuntimeReady(L"repair_probe");
         return true;
     }
     if (driver_.LoadFromDirectory(appPaths_.exeDir()) && ddRuntimeService_.InfDevicesReady()) {
-        ddRuntimeService_.LogRuntimeReady(L"final_probe");
         return true;
     }
 
-    const std::filesystem::path logPath = appPaths_.logsDir() / L"dd-inf-install.log";
     std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " +
         (driver_.GetLastError().empty() ? initialError : driver_.GetLastError()) +
         L"\n\n\u5df2\u5c1d\u8bd5\u91cd\u5efa DD \u865a\u62df\u952e\u76d8/\u9f20\u6807\u8bbe\u5907\uff0c\u4f46\u8fd0\u884c\u65f6\u4ecd\u4e0d\u53ef\u7528\u3002"
         L"\n\n\u4fee\u590d\u7ed3\u679c:\n" + repairMessage +
-        L"\n\n\u65e5\u5fd7: " + logPath.wstring() +
         L"\n\n\u8bf7\u786e\u8ba4:\n1. \u7a0b\u5e8f\u662f\u5426\u4ee5\u7ba1\u7406\u5458\u6743\u9650\u8fd0\u884c"
         L"\n2. Windows \u5185\u6838\u9694\u79bb/\u5b89\u5168\u542f\u52a8/\u6740\u8f6f\u662f\u5426\u963b\u6b62\u865a\u62df\u9a71\u52a8"
         L"\n3. driver \u76ee\u5f55\u4e0b\u7684 DD64.dll \u662f\u5426\u5b58\u5728";

@@ -24,21 +24,18 @@ public:
         bool infMouseDeviceStarted = false;
         bool infKeyboardDeviceBound = false;
         bool infMouseDeviceBound = false;
-        std::filesystem::path logFilePath;
         std::vector<std::wstring> candidateDlls;
         std::vector<std::wstring> notes;
     };
 
-    DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir);
+    explicit DdRuntimeService(std::filesystem::path exeDir);
 
     [[nodiscard]] RuntimeStatus Inspect(const DdDriver& driver) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
                                                std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool InfDevicesReady() const;
-    void LogRuntimeReady(const std::wstring& source) const;
     [[nodiscard]] std::filesystem::path ExeDir() const noexcept;
-    [[nodiscard]] std::filesystem::path LogsDir() const noexcept;
     [[nodiscard]] std::filesystem::path DriverRootDir() const;
 
 private:
@@ -49,5 +46,4 @@ private:
     [[nodiscard]] std::filesystem::path Legacy64Path() const;
 
     std::filesystem::path exeDir_;
-    std::filesystem::path logsDir_;
 };

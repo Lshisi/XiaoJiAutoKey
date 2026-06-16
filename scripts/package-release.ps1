@@ -159,12 +159,6 @@ if (Test-Path $configInPackage) {
     Remove-Item $configInPackage -Force
 }
 
-# Ensure no runtime logs directory is included in the package
-$logsInPackage = Join-Path $packageDir "logs"
-if (Test-Path $logsInPackage) {
-    Remove-Item $logsInPackage -Recurse -Force
-}
-
 Compress-Archive -Path $packageDir -DestinationPath $zipPath -Force
 
 Write-Host "Package ready:"

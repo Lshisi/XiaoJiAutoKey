@@ -18,8 +18,7 @@ std::wstring ResolveExeDir() {
 
 AppPaths::AppPaths()
     : exeDir_(ResolveExeDir()),
-      configPath_(std::filesystem::path(exeDir_) / L"config.json"),
-      logsDir_(std::filesystem::path(exeDir_) / L"logs") {}
+      configPath_(std::filesystem::path(exeDir_) / L"config.json") {}
 
 const std::wstring& AppPaths::exeDir() const noexcept {
     return exeDir_;
@@ -27,8 +26,4 @@ const std::wstring& AppPaths::exeDir() const noexcept {
 
 const std::filesystem::path& AppPaths::configPath() const noexcept {
     return configPath_;
-}
-
-const std::filesystem::path& AppPaths::logsDir() const noexcept {
-    return logsDir_;
 }

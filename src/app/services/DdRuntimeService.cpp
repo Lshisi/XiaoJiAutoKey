@@ -14,8 +14,6 @@
 #include <algorithm>
 #include <cwctype>
 #include <functional>
-#include <fstream>
-#include <iomanip>
 #include <sstream>
 
 namespace {
@@ -24,7 +22,6 @@ constexpr const wchar_t* kInfKeyboardServiceName = L"dd.key.96688";
 constexpr const wchar_t* kInfMouseServiceName = L"dd.mou.96688";
 constexpr const wchar_t* kInfKeyboardSysName = L"dd.key.96688.sys";
 constexpr const wchar_t* kInfMouseSysName = L"dd.mou.96688.sys";
-constexpr const wchar_t* kInfInstallLogName = L"dd-inf-install.log";
 
 bool CopyResourceFile(const QString& resourcePath, const QString& outputPath, QString* errorMessage) {
     QFile source(resourcePath);
@@ -245,30 +242,6 @@ std::wstring FormatStepResult(bool accepted,
         text << L"\n" << output;
     }
     return text.str();
-}
-
-void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, const std::wstring& message) {
-    if (logsDir.empty()) {
-        return;
-    }
-
-    std::error_code error;
-    std::filesystem::create_directories(logsDir, error);
-    if (error) {
-        return;
-    }
-
-    std::wofstream logFile(logsDir / fileName, std::ios::app);
-    if (!logFile) {
-        return;
-    }
-
-    const auto now = std::chrono::system_clock::now();
-    const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
-    std::tm localTime{};
-    localtime_s(&localTime, &nowTime);
-    logFile << L"[" << std::put_time(&localTime, L"%Y-%m-%d %H:%M:%S") << L"]\n"
-            << message << L"\n";
 }
 
 struct InfVariantPaths {
@@ -511,9 +484,8 @@ bool InstallInfVariant(int variant,
 
 }  // namespace
 
-DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir)
-    : exeDir_(std::move(exeDir)),
-      logsDir_(std::move(logsDir)) {}
+DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir)
+    : exeDir_(std::move(exeDir)) {}
 
 DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver) const {
     RuntimeStatus status;
@@ -608,14 +580,6 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
         summary << message.str();
         *resultMessage = summary.str();
     }
-    std::wstringstream logMessage;
-    if (overallInstalled) {
-        logMessage << L"INF install succeeded. active_variant=" << installedVariant << L"\n";
-    } else {
-        logMessage << L"INF install did not complete successfully.\n";
-    }
-    logMessage << message.str();
-    AppendLog(logsDir_, kInfInstallLogName, logMessage.str());
     return overallInstalled;
 }
 
@@ -685,43 +649,7 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
     if (resultMessage) {
         *resultMessage = summary.str();
     }
-    AppendLog(logsDir_, kInfInstallLogName, summary.str());
     return repaired;
-}
-
-void DdRuntimeService::LogRuntimeReady(const std::wstring& source) const {
-    RuntimeStatus status;
-    status.driverReady = true;
-    status.legacy32Exists = std::filesystem::exists(Legacy32Path());
-    status.legacy64Exists = std::filesystem::exists(Legacy64Path());
-    status.embeddedInfVariant0Exists = EmbeddedInfVariantExists(0);
-    status.embeddedInfVariant1Exists = EmbeddedInfVariantExists(1);
-    status.infKeyboardServiceInstalled = ServiceExists(kInfKeyboardServiceName);
-    status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
-    status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
-    status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
-    const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
-    const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
-    status.infKeyboardDeviceStarted = keyDevice.started;
-    status.infMouseDeviceStarted = mouseDevice.started;
-    status.infKeyboardDeviceBound = keyDevice.boundToService;
-    status.infMouseDeviceBound = mouseDevice.boundToService;
-
-    std::wstringstream message;
-    message << L"DD runtime ready. source=" << source << L"\n"
-            << L"DD64.dll=" << (status.legacy64Exists ? L"present" : L"missing") << L"\n"
-            << L"DD32.dll=" << (status.legacy32Exists ? L"present" : L"missing") << L"\n"
-            << L"embedded_inf_variant_1=" << (status.embeddedInfVariant1Exists ? L"present" : L"missing") << L"\n"
-            << L"embedded_inf_variant_0=" << (status.embeddedInfVariant0Exists ? L"present" : L"missing") << L"\n"
-            << L"service_key=" << (status.infKeyboardServiceInstalled ? L"present" : L"missing") << L"\n"
-            << L"service_mouse=" << (status.infMouseServiceInstalled ? L"present" : L"missing") << L"\n"
-            << L"sys_key=" << (status.infKeyboardSysInstalled ? L"present" : L"missing") << L"\n"
-            << L"sys_mouse=" << (status.infMouseSysInstalled ? L"present" : L"missing") << L"\n"
-            << L"device_key_started=" << (status.infKeyboardDeviceStarted ? L"yes" : L"no") << L"\n"
-            << L"device_mouse_started=" << (status.infMouseDeviceStarted ? L"yes" : L"no") << L"\n"
-            << L"device_key_bound=" << (status.infKeyboardDeviceBound ? L"yes" : L"no") << L"\n"
-            << L"device_mouse_bound=" << (status.infMouseDeviceBound ? L"yes" : L"no") << L"\n";
-    AppendLog(logsDir_, kInfInstallLogName, message.str());
 }
 
 bool DdRuntimeService::InfDevicesReady() const {
@@ -733,10 +661,6 @@ bool DdRuntimeService::InfDevicesReady() const {
 
 std::filesystem::path DdRuntimeService::ExeDir() const noexcept {
     return exeDir_;
-}
-
-std::filesystem::path DdRuntimeService::LogsDir() const noexcept {
-    return logsDir_;
 }
 
 std::filesystem::path DdRuntimeService::DriverRootDir() const {

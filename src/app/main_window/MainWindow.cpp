@@ -16,7 +16,6 @@
 #include <QWindow>
 #include <Windows.h>
 #include <stdexcept>
-#include <sstream>
 
 namespace {
 constexpr int kBaseWindowWidth = 780;
@@ -114,7 +113,7 @@ MainWindow::MainWindow(QWidget* parent)
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),
-      ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
+      ddRuntimeService_(std::filesystem::path(appPaths_.exeDir())),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
@@ -135,11 +134,7 @@ bool MainWindow::Initialize() {
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-    if (!loadConfiguredDriver()) {
-        std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " + driver_.GetLastError() +
-            L"\n\n\u8bf7\u786e\u8ba4\uff1a\n1. \u5f53\u524d\u9009\u62e9\u7684\u9a71\u52a8\u662f\u5426\u5df2\u5b89\u88c5\n2. driver \u76ee\u5f55\u4e0b\u7684 DD/HID \u6587\u4ef6\u662f\u5426\u5b58\u5728\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002";
-        AppMessageDialog::warning(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
-            QString::fromStdWString(errorMsg));
+    if (!ensureDdRuntimeReady()) {
         return false;
     }
 
@@ -154,7 +149,6 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
     pageRefreshCoordinator_.refreshAll();
-    refreshDriverStatusUi();
     refreshStatusOverlay();
     bindDpiRefreshSignals();
     observedScreenDpi_ = currentScreenDpi();
@@ -164,145 +158,38 @@ bool MainWindow::Initialize() {
     return true;
 }
 
-bool MainWindow::loadConfiguredDriver() {
-    driverStatusNote_.clear();
-    if (config_.driverMode == DriverMode::Hid) {
-        if (loadHidDriver()) {
-            return true;
-        }
-        driverStatusNote_ = L"HID \u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u56de\u9000\u65e7 DD: " +
-            (driver_.GetLastError().empty() ? std::wstring(L"(none)") : driver_.GetLastError());
-        return loadLegacyDriver();
-    }
-    return loadLegacyDriver();
-}
-
-bool MainWindow::loadHidDriver() {
-    driver_.ReleaseAll();
-    driver_.Unload();
-
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    if (status.hidRuntimeExists && status.hidRootDeviceOk && status.hidChildDeviceOk &&
-        ddRuntimeService_.ProbeHidRuntime(8000)) {
-        if (driver_.LoadFromDirectory(appPaths_.exeDir(), true)) {
-            return true;
-        }
-    }
-
-    if (status.hidEmbeddedDriverExists) {
-        std::wstring hidInstallMessage;
-        const bool hidInstalled = ddRuntimeService_.InstallEmbeddedHidDriver(&hidInstallMessage);
-        Q_UNUSED(hidInstalled)
-        const auto postHidStatus = ddRuntimeService_.Inspect(driver_);
-        if (postHidStatus.hidRuntimeExists && postHidStatus.hidRootDeviceOk &&
-            postHidStatus.hidChildDeviceOk && ddRuntimeService_.ProbeHidRuntime(8000)) {
-            if (driver_.LoadFromDirectory(appPaths_.exeDir(), true)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-bool MainWindow::loadLegacyDriver() {
-    driver_.ReleaseAll();
-    driver_.Unload();
-    ensureLegacyDdInfInstalled();
-    return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
-}
-
-bool MainWindow::ensureLegacyDdInfInstalled() {
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    if (status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
-        status.infKeyboardSysInstalled && status.infMouseSysInstalled) {
+bool MainWindow::ensureDdRuntimeReady() {
+    const bool initialRuntimeReady = driver_.LoadFromDirectory(appPaths_.exeDir());
+    if (initialRuntimeReady && ddRuntimeService_.InfDevicesReady()) {
         return true;
     }
 
-    std::wstring installMessage;
-    const bool installed = ddRuntimeService_.InstallEmbeddedInfDriver(&installMessage);
-    if (!installed) {
-        return false;
+    const std::wstring initialError = initialRuntimeReady
+        ? L"DD runtime loaded, but DD INF device instances are not started and bound"
+        : driver_.GetLastError();
+    std::wstring repairMessage;
+    const auto probe = [this]() {
+        return driver_.LoadFromDirectory(appPaths_.exeDir()) && ddRuntimeService_.InfDevicesReady();
+    };
+    const bool repaired = ddRuntimeService_.RepairEmbeddedInfDriver(probe, &repairMessage);
+    if (repaired && driver_.IsReady() && ddRuntimeService_.InfDevicesReady()) {
+        return true;
+    }
+    if (driver_.LoadFromDirectory(appPaths_.exeDir()) && ddRuntimeService_.InfDevicesReady()) {
+        return true;
     }
 
-    const auto postInstallStatus = ddRuntimeService_.Inspect(driver_);
-    return postInstallStatus.infKeyboardServiceInstalled &&
-        postInstallStatus.infMouseServiceInstalled &&
-        postInstallStatus.infKeyboardSysInstalled &&
-        postInstallStatus.infMouseSysInstalled;
-}
+    std::wstring errorMsg = L"\u9519\u8bef\u539f\u56e0: " +
+        (driver_.GetLastError().empty() ? initialError : driver_.GetLastError()) +
+        L"\n\n\u5df2\u5c1d\u8bd5\u91cd\u5efa DD \u865a\u62df\u952e\u76d8/\u9f20\u6807\u8bbe\u5907\uff0c\u4f46\u8fd0\u884c\u65f6\u4ecd\u4e0d\u53ef\u7528\u3002"
+        L"\n\n\u4fee\u590d\u7ed3\u679c:\n" + repairMessage +
+        L"\n\n\u8bf7\u786e\u8ba4:\n1. \u7a0b\u5e8f\u662f\u5426\u4ee5\u7ba1\u7406\u5458\u6743\u9650\u8fd0\u884c"
+        L"\n2. Windows \u5185\u6838\u9694\u79bb/\u5b89\u5168\u542f\u52a8/\u6740\u8f6f\u662f\u5426\u963b\u6b62\u865a\u62df\u9a71\u52a8"
+        L"\n3. driver \u76ee\u5f55\u4e0b\u7684 DD64.dll \u662f\u5426\u5b58\u5728";
 
-void MainWindow::refreshDriverStatusUi() {
-    auto* page = view_.settingsPage();
-    if (!page) {
-        return;
-    }
-
-    page->setDriverMode(config_.driverMode);
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    QString modeText = QString::fromWCharArray(L"\u672a\u52a0\u8f7d");
-    if (driver_.IsReady()) {
-        modeText = driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid
-            ? QString::fromWCharArray(L"HID")
-            : QString::fromWCharArray(L"\u65e7 DD");
-    }
-
-    std::wstringstream detail;
-    detail << L"\u914d\u7f6e: " << (config_.driverMode == DriverMode::Hid ? L"HID" : L"\u65e7 DD")
-           << L" | DD DLL: " << (status.legacy64Exists || status.legacy32Exists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230")
-           << L" | HID DLL: " << (status.hidRuntimeExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230")
-           << L" | HID \u8bbe\u5907: " << (status.hidRootDeviceOk && status.hidChildDeviceOk ? L"OK" : L"\u672a\u5c31\u7eea");
-    if (!status.lastError.empty()) {
-        detail << L" | " << status.lastError;
-    }
-    if (!driverStatusNote_.empty()) {
-        detail << L" | " << driverStatusNote_;
-    }
-    page->setDriverStatus(modeText, QString::fromStdWString(detail.str()));
-}
-
-void MainWindow::handleDriverModeChanged(DriverMode mode) {
-    Q_UNUSED(mode)
-    engineStateCoordinator_.setRepeatRunning(false);
-    macroEngine_.StopAll();
-    driver_.ReleaseAll();
-    const bool loaded = loadConfiguredDriver();
-    refreshDriverStatusUi();
-    if (!loaded) {
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"\u9a71\u52a8\u5207\u6362\u5931\u8d25"),
-            QString::fromStdWString(driver_.GetLastError().empty() ? std::wstring(L"\u5f53\u524d\u9a71\u52a8\u65e0\u6cd5\u52a0\u8f7d") : driver_.GetLastError()));
-    }
-}
-
-void MainWindow::handleHidUninstallRequested() {
-    if (driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) {
-        engineStateCoordinator_.setRepeatRunning(false);
-        macroEngine_.StopAll();
-        driver_.ReleaseAll();
-        driver_.Unload();
-    }
-
-    std::wstring resultMessage;
-    const bool uninstalled = ddRuntimeService_.UninstallEmbeddedHidDriver(&resultMessage);
-    if (config_.driverMode == DriverMode::Hid) {
-        config_.driverMode = DriverMode::Legacy;
-        configCoordinator_.save();
-        loadLegacyDriver();
-    }
-    refreshDriverStatusUi();
-    if (uninstalled) {
-        AppMessageDialog::information(
-            this,
-            QString::fromWCharArray(L"HID \u9a71\u52a8\u5df2\u5378\u8f7d"),
-            QString::fromStdWString(resultMessage));
-    } else {
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"HID \u9a71\u52a8\u672a\u5b8c\u5168\u5378\u8f7d"),
-            QString::fromStdWString(resultMessage));
-    }
+    AppMessageDialog::warning(this, QString::fromWCharArray(L"DD \u9a71\u52a8\u4fee\u590d\u5931\u8d25"),
+        QString::fromStdWString(errorMsg));
+    return false;
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
@@ -661,7 +548,7 @@ void MainWindow::showDdUnavailableMessage() {
     std::wstring message =
         L"DD \u9a71\u52a8\u5f53\u524d\u4e0d\u53ef\u7528\uff0c\u65e0\u6cd5\u6a21\u62df\u6309\u952e\u6216\u9f20\u6807\u3002"
         L"\n\n\u9519\u8bef: " + (driver_.GetLastError().empty() ? std::wstring(L"(none)") : driver_.GetLastError()) +
-        L"\n\n\u8bf7\u68c0\u67e5 driver \u76ee\u5f55\u4e0b\u7684 DD HID \u6216 DD \u6587\u4ef6\u662f\u5426\u5b58\u5728\u3002";
+        L"\n\n\u8bf7\u68c0\u67e5 driver \u76ee\u5f55\u4e0b\u7684 DD \u6587\u4ef6\u662f\u5426\u5b58\u5728\u3002";
 
     AppMessageDialog::warning(
         this,

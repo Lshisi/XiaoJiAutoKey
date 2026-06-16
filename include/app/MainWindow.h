@@ -47,13 +47,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool loadConfiguredDriver();
-    bool loadHidDriver();
-    bool loadLegacyDriver();
-    bool ensureLegacyDdInfInstalled();
-    void refreshDriverStatusUi();
-    void handleDriverModeChanged(DriverMode mode);
-    void handleHidUninstallRequested();
+    bool ensureDdRuntimeReady();
     void showDdUnavailableMessage();
     void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
     void applyRuntimeVisualRefresh();
@@ -101,6 +95,5 @@ private:
     int runtimeDpiOverride_ = 0;
     bool recreatedFractionalDpiSurface_ = false;
     bool ddUnavailablePromptVisible_ = false;
-    std::wstring driverStatusNote_;
 
 };

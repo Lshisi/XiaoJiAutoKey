@@ -151,7 +151,7 @@ XiaoJiAutoKey/
 └── driver/             # DD 驱动 DLL（DD32.dll / DD64.dll）
 ```
 
-`config.json` 和 `logs/` 都是运行时生成内容，不应进入发布包。
+`config.json` 是运行时生成内容，不应进入发布包。
 
 ## 运行准备
 

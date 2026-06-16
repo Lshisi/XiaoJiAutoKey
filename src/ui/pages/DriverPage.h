@@ -18,6 +18,7 @@ public:
     void setCurrentRuntime(const QString& runtimeText);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
+    void setHidUninstallAvailable(bool available);
     void setBusy(bool busy);
 
 signals:

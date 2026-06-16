@@ -77,6 +77,8 @@ QString compactDriverDetails(const QString& details) {
     };
     const QString found = QString::fromWCharArray(L"\u5df2\u627e\u5230");
     const QString installed = QString::fromWCharArray(L"\u5df2\u5b89\u88c5");
+    const QString notInstalled = QString::fromWCharArray(L"\u672a\u5b89\u88c5");
+    const QString pendingRestart = QString::fromWCharArray(L"\u7b49\u5f85\u91cd\u542f");
     const QString ok = QStringLiteral("OK");
 
     QStringList dd;
@@ -98,12 +100,22 @@ QString compactDriverDetails(const QString& details) {
         hid.push_back(QStringLiteral("DLL: ") + hidDll);
     }
     if (!hidService.isEmpty() || !hidSys.isEmpty()) {
+        const bool hidServiceSysInstalled = hidService == installed && hidSys == installed;
+        const bool hidServiceSysMissing = hidService == notInstalled && hidSys == notInstalled;
+        const bool hidServicePendingRestart = hidService == pendingRestart && hidSys == notInstalled;
         hid.push_back(QString::fromWCharArray(L"\u670d\u52a1/SYS: ") +
-            (hidService == installed && hidSys == installed ? QString::fromWCharArray(L"\u5df2\u5b89\u88c5") : QString::fromWCharArray(L"\u4e0d\u5b8c\u6574")));
+            (hidServiceSysInstalled ? QString::fromWCharArray(L"\u5df2\u5b89\u88c5") :
+                (hidServicePendingRestart ? QString::fromWCharArray(L"\u7b49\u5f85\u91cd\u542f") :
+                    (hidServiceSysMissing ? QString::fromWCharArray(L"\u672a\u5b89\u88c5") : QString::fromWCharArray(L"\u4e0d\u5b8c\u6574")))));
     }
     if (!hidRootDevice.isEmpty() || !hidChildDevice.isEmpty()) {
+        const bool hidDevicesOk = hidRootDevice == ok && hidChildDevice == ok;
+        const bool hidDevicesMissing = hidRootDevice == notInstalled && hidChildDevice == notInstalled;
+        const bool hidDevicesPendingRestart = hidRootDevice == pendingRestart && hidChildDevice == pendingRestart;
         hid.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") +
-            (hidRootDevice == ok && hidChildDevice == ok ? QStringLiteral("OK") : QString::fromWCharArray(L"\u5f02\u5e38")));
+            (hidDevicesOk ? QStringLiteral("OK") :
+                (hidDevicesPendingRestart ? QString::fromWCharArray(L"\u7b49\u5f85\u91cd\u542f") :
+                    (hidDevicesMissing ? QString::fromWCharArray(L"\u672a\u5b89\u88c5") : QString::fromWCharArray(L"\u5f02\u5e38")))));
     }
 
     if (!dd.isEmpty()) {
@@ -264,9 +276,6 @@ void DriverPage::setDriverMode(DriverMode mode) {
             driverModeCombo_->blockSignals(true);
             driverModeCombo_->setCurrentIndex(i);
             driverModeCombo_->blockSignals(false);
-            if (uninstallHidButton_) {
-                uninstallHidButton_->setVisible(mode == DriverMode::Hid);
-            }
             break;
         }
     }
@@ -282,6 +291,12 @@ void DriverPage::setStatusSummary(const QString& summary) {
 
 void DriverPage::setDetailText(const QString& details) {
     if (summaryDetailValue_) summaryDetailValue_->setPlainText(compactDriverDetails(details));
+}
+
+void DriverPage::setHidUninstallAvailable(bool available) {
+    if (uninstallHidButton_) {
+        uninstallHidButton_->setVisible(available);
+    }
 }
 
 void DriverPage::setBusy(bool busy) {

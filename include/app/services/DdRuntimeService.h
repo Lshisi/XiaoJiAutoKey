@@ -15,6 +15,7 @@ public:
         bool hidRuntimeExists = false;
         bool hidEmbeddedDriverExists = false;
         bool hidServiceInstalled = false;
+        bool hidServicePendingDelete = false;
         bool hidSysInstalled = false;
         bool hidDriverStorePresent = false;
         bool hidRootDeviceOk = false;

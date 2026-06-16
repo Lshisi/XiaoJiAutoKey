@@ -12,12 +12,37 @@
 
 namespace {
 
+constexpr auto kHidInitGuardTailDelay = std::chrono::milliseconds(20);
+constexpr int kHidInitCornerTolerancePx = 3;
+
+bool IsNearHidInitCorner(const POINT& point) {
+    const int virtualLeft = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int virtualTop = ::GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const bool nearVirtualTopLeft =
+        std::abs(point.x - virtualLeft) <= kHidInitCornerTolerancePx &&
+        std::abs(point.y - virtualTop) <= kHidInitCornerTolerancePx;
+    const bool nearPrimaryTopLeft =
+        std::abs(point.x) <= kHidInitCornerTolerancePx &&
+        std::abs(point.y) <= kHidInitCornerTolerancePx;
+    return nearVirtualTopLeft || nearPrimaryTopLeft;
+}
+
 LRESULT CALLBACK BlockWinKeyProc(int code, WPARAM wParam, LPARAM lParam) {
     if (code == HC_ACTION) {
         const auto* event = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
         if (event != nullptr && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN ||
                 wParam == WM_KEYUP || wParam == WM_SYSKEYUP) &&
             (event->vkCode == VK_LWIN || event->vkCode == VK_RWIN)) {
+            return 1;
+        }
+    }
+    return ::CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+LRESULT CALLBACK BlockHidInitMouseProc(int code, WPARAM wParam, LPARAM lParam) {
+    if (code == HC_ACTION && wParam == WM_MOUSEMOVE) {
+        const auto* event = reinterpret_cast<const MSLLHOOKSTRUCT*>(lParam);
+        if (event != nullptr && IsNearHidInitCorner(event->pt)) {
             return 1;
         }
     }
@@ -31,9 +56,14 @@ public:
         readyEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         if (stopEvent_ != nullptr && readyEvent_ != nullptr) {
             hookThread_ = std::thread([this]() {
-                const HHOOK hook = ::SetWindowsHookExW(
+                const HHOOK keyboardHook = ::SetWindowsHookExW(
                     WH_KEYBOARD_LL,
                     BlockWinKeyProc,
+                    ::GetModuleHandleW(nullptr),
+                    0);
+                const HHOOK mouseHook = ::SetWindowsHookExW(
+                    WH_MOUSE_LL,
+                    BlockHidInitMouseProc,
                     ::GetModuleHandleW(nullptr),
                     0);
                 ::SetEvent(readyEvent_);
@@ -55,33 +85,28 @@ public:
                     }
                 }
 
-                if (hook != nullptr) {
-                    ::UnhookWindowsHookEx(hook);
+                if (mouseHook != nullptr) {
+                    ::UnhookWindowsHookEx(mouseHook);
+                }
+                if (keyboardHook != nullptr) {
+                    ::UnhookWindowsHookEx(keyboardHook);
                 }
             });
             ::WaitForSingleObject(readyEvent_, 1000);
         }
 
         cursorCaptured_ = ::GetCursorPos(&oldPos_) != FALSE;
-        if (cursorCaptured_) {
-            RECT rect{oldPos_.x, oldPos_.y, oldPos_.x + 1, oldPos_.y + 1};
-            cursorClipped_ = ::ClipCursor(&rect) != FALSE;
-        }
     }
 
     ~HidInitGuard() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        // Keep the input guard briefly after DD_btn(0) returns because the HID runtime may emit delayed input.
+        std::this_thread::sleep_for(kHidInitGuardTailDelay);
+        RestoreCursorIfHidJumped();
         if (stopEvent_ != nullptr) {
             ::SetEvent(stopEvent_);
         }
         if (hookThread_.joinable()) {
             hookThread_.join();
-        }
-        if (cursorClipped_) {
-            ::ClipCursor(nullptr);
-        }
-        if (cursorCaptured_) {
-            ::SetCursorPos(oldPos_.x, oldPos_.y);
         }
         if (readyEvent_ != nullptr) {
             ::CloseHandle(readyEvent_);
@@ -95,12 +120,25 @@ public:
     HidInitGuard& operator=(const HidInitGuard&) = delete;
 
 private:
+    void RestoreCursorIfHidJumped() const {
+        if (!cursorCaptured_ || IsNearHidInitCorner(oldPos_)) {
+            return;
+        }
+
+        POINT current{};
+        if (::GetCursorPos(&current) == FALSE) {
+            return;
+        }
+        if (IsNearHidInitCorner(current)) {
+            ::SetCursorPos(oldPos_.x, oldPos_.y);
+        }
+    }
+
     POINT oldPos_{};
     HANDLE readyEvent_ = nullptr;
     HANDLE stopEvent_ = nullptr;
     std::thread hookThread_;
     bool cursorCaptured_ = false;
-    bool cursorClipped_ = false;
 };
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {

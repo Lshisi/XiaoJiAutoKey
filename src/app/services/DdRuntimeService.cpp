@@ -387,6 +387,71 @@ bool DeviceStarted(DEVINST devInst) {
            (status & DN_HAS_PROBLEM) == 0;
 }
 
+bool ServiceMarkedForDelete(const wchar_t* serviceName) {
+    if (serviceName == nullptr || *serviceName == L'\0') {
+        return false;
+    }
+
+    SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (scm == nullptr) {
+        return false;
+    }
+
+    SC_HANDLE service = OpenServiceW(scm, serviceName, SERVICE_QUERY_STATUS);
+    if (service != nullptr) {
+        CloseServiceHandle(service);
+        CloseServiceHandle(scm);
+        return false;
+    }
+
+    const DWORD error = GetLastError();
+    CloseServiceHandle(scm);
+    return error == ERROR_SERVICE_MARKED_FOR_DELETE;
+}
+
+bool RemoveFileNowOrOnReboot(const std::filesystem::path& path, std::wstring* detail) {
+    if (detail) {
+        detail->clear();
+    }
+
+    std::error_code error;
+    if (!std::filesystem::exists(path, error) || error) {
+        if (detail) {
+            *detail = L"missing";
+        }
+        return true;
+    }
+
+    error.clear();
+    if (std::filesystem::remove(path, error)) {
+        if (detail) {
+            *detail = L"deleted_now";
+        }
+        return true;
+    }
+
+    if (!error && !std::filesystem::exists(path)) {
+        if (detail) {
+            *detail = L"deleted_now";
+        }
+        return true;
+    }
+
+    if (::MoveFileExW(path.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT)) {
+        if (detail) {
+            *detail = L"scheduled_delete_on_reboot";
+        }
+        return true;
+    }
+
+    if (detail) {
+        const DWORD moveError = ::GetLastError();
+        *detail = L"delete_error=" + std::to_wstring(error.value()) +
+                  L", movefileex=" + std::to_wstring(moveError);
+    }
+    return false;
+}
+
 std::vector<std::wstring> EnumerateDeviceInstanceIds(const wchar_t* instanceIdPrefix) {
     std::vector<std::wstring> ids;
     if (instanceIdPrefix == nullptr || *instanceIdPrefix == L'\0') {
@@ -411,6 +476,38 @@ std::vector<std::wstring> EnumerateDeviceInstanceIds(const wchar_t* instanceIdPr
             ids.emplace_back(id);
         }
     }
+    return ids;
+}
+
+std::vector<std::wstring> EnumerateDeviceInstanceIdsFromSetupApi(const wchar_t* instanceIdPrefix) {
+    std::vector<std::wstring> ids;
+    if (instanceIdPrefix == nullptr || *instanceIdPrefix == L'\0') {
+        return ids;
+    }
+
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return ids;
+    }
+
+    const std::wstring prefix(instanceIdPrefix);
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (!SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
+            break;
+        }
+
+        wchar_t instanceId[MAX_DEVICE_ID_LEN] = {};
+        if (CM_Get_Device_IDW(deviceData.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) != CR_SUCCESS) {
+            continue;
+        }
+        if (_wcsnicmp(instanceId, prefix.c_str(), prefix.size()) == 0) {
+            ids.emplace_back(instanceId);
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfo);
     return ids;
 }
 
@@ -875,6 +972,7 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.hidRuntimeExists = std::filesystem::exists(HidRuntimePath());
     status.hidEmbeddedDriverExists = EmbeddedHidDriverExists();
     status.hidServiceInstalled = ServiceExists(kHidServiceName);
+    status.hidServicePendingDelete = ServiceMarkedForDelete(kHidServiceName);
     status.hidSysInstalled = std::filesystem::exists(SystemDriversDir() / kHidSysName);
     status.hidDriverStorePresent = HidDriverStorePresent();
     status.hidRootDeviceOk = HidRootDeviceOk();
@@ -1076,7 +1174,8 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
         !HidRootDeviceOk() && !HidChildDeviceOk() &&
         !ServiceExists(kHidServiceName) &&
         !std::filesystem::exists(SystemDriversDir() / kHidSysName) &&
-        !HidDriverStorePresent()) {
+        !HidDriverStorePresent() &&
+        EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix).empty()) {
         const std::wstring summary = L"HID uninstall skipped: runtime and driver package are already removed.\n";
         if (resultMessage) {
             *resultMessage = summary;
@@ -1118,16 +1217,7 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
     removedPackage = removedPackage && finalEnumSucceeded && remainingPublishedNames.empty();
 
     if (packageRemovalNeedsReboot && removedPackage) {
-        std::wstringstream summary;
-        summary << L"HID \u5378\u8f7d\u5df2\u63d0\u4ea4\uff0c\u9700\u8981\u91cd\u542f\u5b8c\u6210\u3002\n";
-        summary << L"Windows \u5df2\u63a5\u53d7\u9a71\u52a8\u5305\u5378\u8f7d\u8bf7\u6c42\uff0c\u5e76\u8fd4\u56de 3010\uff08\u9700\u8981\u91cd\u542f\uff09\u3002\n";
-        summary << L"\u4e3a\u907f\u514d\u5728 PnP \u5f85\u91cd\u542f\u72b6\u6001\u4e0b\u7ee7\u7eed\u5f3a\u5220\u670d\u52a1\u6216\u8bbe\u5907\u8282\u70b9\uff0c\u672c\u6b21\u5df2\u505c\u6b62\u540e\u7eed\u6e05\u7406\uff0c\u91cd\u542f\u540e\u7531 Windows \u63d0\u4ea4\u5378\u8f7d\u3002\n";
-        summary << L"\u8be6\u7ec6\u8fc7\u7a0b\u5df2\u5199\u5165\u65e5\u5fd7\u3002";
-        if (resultMessage) {
-            *resultMessage = summary.str();
-        }
-        AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
-        return true;
+        message << L"HID package removal requires reboot; continuing best-effort cleanup of stale nodes.\n";
     }
 
     DWORD scExitCode = 1;
@@ -1162,12 +1252,16 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
         return true;
     }
 
-    std::error_code removeError;
     const auto sysPath = SystemDriversDir() / kHidSysName;
-    const bool sysRemoved = !std::filesystem::exists(sysPath) || std::filesystem::remove(sysPath, removeError);
-    message << L"HID remove sys -> " << (sysRemoved ? L"ok" : L"failed") << L"\n";
+    std::wstring sysRemoveDetail;
+    const bool sysRemoved = RemoveFileNowOrOnReboot(sysPath, &sysRemoveDetail);
+    message << L"HID remove sys -> " << (sysRemoved ? L"ok" : L"failed");
+    if (!sysRemoveDetail.empty()) {
+        message << L" (" << sysRemoveDetail << L")";
+    }
+    message << L"\n";
 
-    for (const auto& instanceId : EnumerateDeviceInstanceIds(kHidChildDevicePrefix)) {
+    for (const auto& instanceId : EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix)) {
         std::wstring removeDetail;
         const bool removed = RemoveDeviceInstanceBestEffort(instanceId, &removeDetail);
         message << L"HID remove child instance " << instanceId << L" -> "
@@ -1195,6 +1289,21 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
     const bool stillHasSys = std::filesystem::exists(SystemDriversDir() / kHidSysName);
     const bool stillHasDriverStore = HidDriverStorePresent();
     const bool servicePendingDelete = serviceDeleted && stillHasService;
+    const bool pendingRebootCleanup = packageRemovalNeedsReboot && removedPackage &&
+        !stillHasSys &&
+        !stillHasDriverStore;
+    const bool pendingRebootOnly = pendingRebootCleanup &&
+        !stillHasRoot &&
+        !stillHasChild &&
+        (!stillHasService || servicePendingDelete);
+    const bool pendingSysFileCleanup = removedPackage &&
+        !packageRemovalNeedsReboot &&
+        !stillHasRoot &&
+        !stillHasChild &&
+        !stillHasService &&
+        stillHasSys &&
+        !stillHasDriverStore;
+    const bool sysDeleteScheduled = sysRemoveDetail == L"scheduled_delete_on_reboot";
     const bool overallUninstalled = !stillHasRoot && !stillHasChild &&
         !stillHasService &&
         !stillHasSys &&
@@ -1214,15 +1323,28 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
             << (servicePendingDelete ? L"yes" : L"no")
             << L", package_removed="
             << (removedPackage ? L"yes" : L"no")
+            << L", package_removal_needs_reboot="
+            << (packageRemovalNeedsReboot ? L"yes" : L"no")
             << L", remaining_packages="
             << remainingPublishedNames.size()
             << L"\n";
 
     std::wstringstream summary;
-    summary << (overallUninstalled
+    summary << ((overallUninstalled || pendingRebootOnly || pendingSysFileCleanup)
         ? L"HID \u5378\u8f7d\u6210\u529f\u3002\n"
         : L"HID \u5378\u8f7d\u672a\u5b8c\u5168\u5b8c\u6210\u3002\n");
-    if (!stillHasRoot && !stillHasChild && !stillHasSys && !stillHasDriverStore &&
+    if (pendingRebootCleanup) {
+        summary << L"Windows \u5df2\u63a5\u53d7\u9a71\u52a8\u5305\u5378\u8f7d\u8bf7\u6c42\uff0c\u5e76\u8fd4\u56de 3010\uff08\u9700\u8981\u91cd\u542f\uff09\u3002\n";
+        if (pendingRebootOnly) {
+            summary << L"\u9a71\u52a8\u5305\u3001SYS \u548c\u8bbe\u5907\u8282\u70b9\u5df2\u6e05\u7406\uff0c\u670d\u52a1\u5df2\u6807\u8bb0\u4e3a\u5220\u9664\uff0c\u91cd\u542f\u540e Windows \u4f1a\u5b8c\u6210\u6700\u7ec8\u63d0\u4ea4\u3002\n";
+        } else {
+            summary << L"\u5df2\u7ee7\u7eed\u5c1d\u8bd5\u6e05\u7406\u6b8b\u7559\u670d\u52a1\u548c\u8bbe\u5907\u8282\u70b9\uff0c\u4ecd\u53ef\u80fd\u9700\u91cd\u542f\u540e\u91ca\u653e\u3002\n";
+        }
+    } else if (sysDeleteScheduled) {
+        summary << L"\u9a71\u52a8\u5305\u3001\u670d\u52a1\u548c\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\uff0cSYS \u6587\u4ef6\u5df2\u767b\u8bb0\u4e3a\u91cd\u542f\u65f6\u5f3a\u5236\u5220\u9664\u3002\n";
+    } else if (pendingSysFileCleanup) {
+        summary << L"\u9a71\u52a8\u5305\u3001\u670d\u52a1\u548c\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\uff0c\u4ec5\u5269 SYS \u6587\u4ef6\u5f85 Windows \u5728\u91cd\u542f\u540e\u5b8c\u6210\u6e05\u7406\u3002\n";
+    } else if (!stillHasRoot && !stillHasChild && !stillHasSys && !stillHasDriverStore &&
         !stillHasService && removedPackage) {
         summary << L"\u9a71\u52a8\u670d\u52a1\u3001\u9a71\u52a8\u5305\u548c\u8bbe\u5907\u8282\u70b9\u5df2\u79fb\u9664\u3002\n";
     } else if (!stillHasRoot && !stillHasChild && removedPackage) {
@@ -1236,7 +1358,7 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
         *resultMessage = summary.str();
     }
     AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
-    return overallUninstalled;
+    return overallUninstalled || pendingRebootOnly || pendingSysFileCleanup || sysDeleteScheduled;
 }
 #if 0
     std::wstringstream summary;

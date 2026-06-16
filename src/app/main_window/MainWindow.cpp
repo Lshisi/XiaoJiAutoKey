@@ -397,6 +397,14 @@ void MainWindow::refreshDriverStatusUi() {
         summary += QString::fromWCharArray(L" / \u5df2\u56de\u9000");
     }
     page->setStatusSummary(summary);
+    const bool hidUninstallAvailable =
+        status.hidServiceInstalled ||
+        status.hidServicePendingDelete ||
+        status.hidSysInstalled ||
+        status.hidDriverStorePresent ||
+        status.hidRootDeviceOk ||
+        status.hidChildDeviceOk;
+    page->setHidUninstallAvailable(hidUninstallAvailable);
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: " << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\n";
@@ -405,11 +413,16 @@ void MainWindow::refreshDriverStatusUi() {
     else detail << (driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid ? L"HID" : L"DD");
     detail << L"\n\n";
     detail << L"HID DLL: " << (status.hidRuntimeExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
-    detail << L"HID \u670d\u52a1: " << (status.hidServiceInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
+    detail << L"HID \u670d\u52a1: "
+           << (status.hidServiceInstalled ? L"\u5df2\u5b89\u88c5" :
+               (status.hidServicePendingDelete ? L"\u7b49\u5f85\u91cd\u542f" : L"\u672a\u5b89\u88c5"))
+           << L"\n";
     detail << L"HID SYS: " << (status.hidSysInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
     detail << L"HID DriverStore: " << (status.hidDriverStorePresent ? L"\u4ecd\u5b58\u5728" : L"\u5df2\u79fb\u9664") << L"\n";
-    detail << L"HID Root \u8bbe\u5907: " << (status.hidRootDeviceOk ? L"OK" : L"\u5f02\u5e38") << L"\n";
-    detail << L"HID Child \u8bbe\u5907: " << (status.hidChildDeviceOk ? L"OK" : L"\u5f02\u5e38") << L"\n\n";
+    const bool hidInstalled = status.hidServiceInstalled || status.hidSysInstalled || status.hidDriverStorePresent;
+    const bool hidPendingRestart = status.hidServicePendingDelete && !status.hidSysInstalled && !status.hidDriverStorePresent;
+    detail << L"HID Root \u8bbe\u5907: " << (status.hidRootDeviceOk ? L"OK" : (hidPendingRestart ? L"\u7b49\u5f85\u91cd\u542f" : (hidInstalled ? L"\u5f02\u5e38" : L"\u672a\u5b89\u88c5"))) << L"\n";
+    detail << L"HID Child \u8bbe\u5907: " << (status.hidChildDeviceOk ? L"OK" : (hidPendingRestart ? L"\u7b49\u5f85\u91cd\u542f" : (hidInstalled ? L"\u5f02\u5e38" : L"\u672a\u5b89\u88c5"))) << L"\n\n";
     detail << L"DD32.dll: " << (status.legacy32Exists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
     detail << L"DD64.dll: " << (status.legacy64Exists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
     detail << L"INF \u952e\u76d8\u670d\u52a1: " << (status.infKeyboardServiceInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";

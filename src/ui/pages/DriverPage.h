@@ -20,6 +20,7 @@ public:
     void setDetailText(const QString& details);
     void setHidUninstallAvailable(bool available);
     void setBusy(bool busy);
+    void updateThemeColors();
 
 signals:
     void driverModeChanged(DriverMode mode);

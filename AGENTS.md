@@ -31,3 +31,30 @@
 [System.Environment]::SetEnvironmentVariable('Path', 'C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin', 'Process')
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build --config Release --target XiaoJiAutoKey
 ```
+
+# UI 规则
+
+## 深色模式
+
+- 所有页面、滚动区域、滚动视口、卡片、输入框、表格、弹窗和状态区都必须兼容系统深色模式。
+- 页面背景必须使用 `Fluent::Colors` / `FactionTheme::palette()` 里的深色模式感知颜色，不能硬编码白色、浅灰或只适合浅色模式的背景。
+- `QScrollArea` 不只设置自身透明，还要确认 `viewport()` 和内部 content widget 不露出默认 `QPalette::Base` 白底。
+- 新增页面或主题刷新入口时，必须接入 `MainWindowView::updateFactionVisuals()` / `refreshRuntimeVisuals()`，确保切换门派、系统主题或运行时刷新后不会残留旧颜色。
+- 文本、边框、分割线、hover、selected、disabled 状态必须同时检查浅色和深色模式的对比度。
+
+## 布局和间距
+
+- 页面外边距统一优先使用 `Fluent::Spacing::pageMargin` 和 `Fluent::Spacing::cardGap`。
+- 卡片内边距统一优先使用 `Fluent::Spacing::cardPadding`，不要在同一页面里随意混用不同 padding。
+- 卡片之间的间距、表单行间距、按钮组间距要使用已有 spacing token 或同页面已有模式，避免视觉跳动。
+- 卡片边缘必须对齐：同级卡片左/右边界、标题、主要输入控件和操作按钮要按同一网格对齐。
+- 卡片内不要嵌套无必要的卡片；确实需要内层容器时，必须保证层级、边框和背景在深浅色模式下都清晰。
+- 文本必须能在中文、长配置名和窄窗口下换行或省略，不允许压到按钮、滚动条或相邻控件上。
+
+## DPI 和窗口缩放
+
+- 固定尺寸只用于图标按钮、标题栏、状态栏等稳定控件；内容区域应使用 `QSizePolicy`、stretch、最小/最大尺寸和布局管理器自适应。
+- 新增或修改布局后，必须考虑 100%、125%、150%、200% DPI 缩放，以及窗口在不同屏幕间移动后的布局刷新。
+- 不要用裸像素假设屏幕大小。窗口尺寸、最小尺寸和位置约束应走现有 `MainWindowView` 的屏幕/DPI 处理逻辑。
+- 表格列宽、卡片高度、文本编辑区高度等固定值要确认高 DPI 下不会裁切文字、按钮或滚动条。
+- 主题刷新或 DPI 变化后，相关控件应调用已有 refresh/update 方法，必要时 invalidate/activate layout，避免旧尺寸缓存导致错位。

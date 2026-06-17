@@ -37,7 +37,6 @@ QPalette mutedPalette(QWidget* widget) {
 }
 
 QString compactDriverDetails(const QString& details) {
-    QString configured;
     QString running;
     QString dd32;
     QString dd64;
@@ -53,8 +52,7 @@ QString compactDriverDetails(const QString& details) {
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QString::fromWCharArray(L"\u914d\u7f6e\u9a71\u52a8:"))) configured = trimmed;
-        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5f53\u524d\u8fd0\u884c:"))) running = trimmed;
+        if (trimmed.startsWith(QString::fromWCharArray(L"\u5f53\u524d\u8fd0\u884c:"))) running = trimmed;
         else if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QStringLiteral("DD64.dll:"))) dd64 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u952e\u76d8\u670d\u52a1:"))) infKeyboardService = trimmed.section(QLatin1Char(':'), 1).trimmed();
@@ -69,7 +67,6 @@ QString compactDriverDetails(const QString& details) {
     }
 
     QStringList sections;
-    if (!configured.isEmpty()) sections.push_back(configured);
     if (!running.isEmpty()) sections.push_back(running);
 
     const auto pairOk = [](const QString& a, const QString& b, const QString& okText) {
@@ -136,6 +133,7 @@ QString compactDriverDetails(const QString& details) {
 }
 
 DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
+    setObjectName(QStringLiteral("driverPageRoot"));
     setAttribute(Qt::WA_StyledBackground, true);
 
     auto* pageLayout = new QVBoxLayout(this);
@@ -146,8 +144,15 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setAutoFillBackground(false);
+    if (auto* viewport = scrollArea->viewport()) {
+        viewport->setAutoFillBackground(false);
+        viewport->setAttribute(Qt::WA_StyledBackground, true);
+        viewport->setStyleSheet(QStringLiteral("background: transparent;"));
+    }
     scrollArea->setStyleSheet(
         QString("QScrollArea { background: transparent; border: none; }"
+        "QScrollArea > QWidget > QWidget { background: transparent; }"
         "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
         "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
         "QScrollBar::handle:vertical:hover { background: %2; }"
@@ -189,7 +194,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u8fd0\u884c\u6a21\u5f0f"), panel));
     auto* modeRow = new QHBoxLayout();
-    auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u9ed8\u8ba4\u9a71\u52a8"), panel);
+    auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u4f7f\u7528\u9a71\u52a8"), panel);
     modeLabel->setFont(Fluent::Typography::body());
     modeRow->addWidget(modeLabel);
     modeRow->addStretch();
@@ -245,8 +250,8 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     summaryDetailValue_ = new QTextEdit(summaryPanel_);
     summaryDetailValue_->setReadOnly(true);
     summaryDetailValue_->setFrameShape(QFrame::NoFrame);
-    summaryDetailValue_->setMinimumHeight(204);
-    summaryDetailValue_->setMaximumHeight(204);
+    summaryDetailValue_->setMinimumHeight(208);
+    summaryDetailValue_->setMaximumHeight(208);
     summaryDetailValue_->setFont(Fluent::Typography::caption());
     summaryDetailValue_->setPlainText(QString::fromWCharArray(L"\u6682\u65e0\u8be6\u7ec6\u72b6\u6001"));
     summaryDetailValue_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -257,6 +262,9 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
 
     outerLayout->addWidget(panel, 1);
     scrollArea->setWidget(scrollContent);
+    if (auto* viewport = scrollArea->viewport()) {
+        viewport->setStyleSheet(QStringLiteral("background: transparent;"));
+    }
     pageLayout->addWidget(scrollArea);
 
     connect(driverModeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
@@ -266,6 +274,17 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     connect(uninstallHidButton_, &QPushButton::clicked, this, &DriverPage::uninstallHidRequested);
 
     applyTheme();
+}
+
+void DriverPage::updateThemeColors() {
+    applyTheme();
+    if (driverModeCombo_) {
+        driverModeCombo_->refreshThemeStyle();
+    }
+    if (uninstallHidButton_) {
+        uninstallHidButton_->refreshMetrics();
+    }
+    update();
 }
 
 void DriverPage::setDriverMode(DriverMode mode) {
@@ -307,7 +326,7 @@ void DriverPage::setBusy(bool busy) {
 void DriverPage::applyTheme() {
     const auto palette = FactionTheme::instance().palette();
     setStyleSheet(QString(
-        "DriverPage { background: %1; }"
+        "QWidget#driverPageRoot { background: %1; }"
         "QWidget#driverSummaryPanel { background-color: %2; border: 1px solid %3; border-radius: 8px; }"
         "QTextEdit { background: transparent; border: none; color: %4; padding: 0; }"
         "QTextEdit QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"

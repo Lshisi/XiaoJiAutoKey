@@ -25,6 +25,7 @@ public:
     void setBeepEnabled(bool enabled);
     void setStatusOverlayEnabled(bool enabled);
     void setMixedMode(bool enabled);
+    void setWasdProtection(bool enabled);
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void updateThemeColors();
     FluentLineEdit* hotkeyEditWidget() const { return hotkeyEdit_; }
@@ -43,6 +44,7 @@ signals:
     void beepToggled(bool enabled);
     void statusOverlayToggled(bool enabled);
     void mixedModeToggled(bool enabled);
+    void wasdProtectionToggled(bool enabled);
     void pauseKeyAddClicked();
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
@@ -71,6 +73,7 @@ private:
     QCheckBox* statusOverlayCheck_ = nullptr;
     FluentButton* soundSettingsBtn_ = nullptr;
     QCheckBox* mixedModeCheck_;
+    QCheckBox* wasdProtectionCheck_ = nullptr;
     QLabel* statusLabel_;
     std::vector<KeyBinding> bindings_;
     std::vector<KeyDescriptor> pauseKeys_;

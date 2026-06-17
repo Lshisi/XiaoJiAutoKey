@@ -133,6 +133,13 @@ ControllerResult ProfileController::setMixedMode(bool enabled) {
     return ControllerResult::success();
 }
 
+ControllerResult ProfileController::setWasdProtection(bool enabled) {
+    auto* profile = activeProfile();
+    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+    profile->wasdProtection = enabled;
+    return ControllerResult::success();
+}
+
 ControllerResult ProfileController::deleteBinding(std::uint64_t id) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));

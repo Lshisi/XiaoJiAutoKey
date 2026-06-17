@@ -242,6 +242,23 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
+    mixedCard->contentLayout()->addSpacing(10);
+    auto* wasdSeparator = new QWidget(this);
+    wasdSeparator->setFixedHeight(1);
+    wasdSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+    mixedCard->contentLayout()->addWidget(wasdSeparator);
+    mixedCard->contentLayout()->addSpacing(8);
+    wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361\u4f4d"), this);
+    wasdProtectionCheck_->setFont(Fluent::Typography::body());
+    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
+    mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
+    auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u79fb\u52a8\u65f6\uff0c\n\u5f00\u5173\u6a21\u5f0f\u81f3\u5c11\u6309 50ms \u8282\u594f\u53d1\u9001\uff0c\n\u51cf\u5c11\u6e38\u620f\u6f0f\u6389\u677e\u952e\u3002"), this);
+    wasdDesc->setFont(Fluent::Typography::caption());
+    wasdDesc->setWordWrap(true);
+    QPalette wPal = wasdDesc->palette();
+    wPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    wasdDesc->setPalette(wPal);
+    mixedCard->contentLayout()->addWidget(wasdDesc);
     mixedCard->contentLayout()->addStretch();
     mixedCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     rightLayout->addWidget(mixedCard, 1);
@@ -256,6 +273,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(beepCheck_, &QCheckBox::toggled, this, &KeyPage::beepToggled);
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &KeyPage::statusOverlayToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
+    connect(wasdProtectionCheck_, &QCheckBox::toggled, this, &KeyPage::wasdProtectionToggled);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
     connect(hotkeyClearBtn_, &QPushButton::clicked, this, &KeyPage::hotkeyClearClicked);
@@ -314,6 +332,7 @@ void KeyPage::setRunning(bool running) {
             && hotkeyName_ != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
     }
     mixedModeCheck_->setEnabled(!running);
+    if (wasdProtectionCheck_) wasdProtectionCheck_->setEnabled(!running);
 }
 
 void KeyPage::setHotkeyText(const QString& text) {
@@ -346,6 +365,13 @@ void KeyPage::setMixedMode(bool enabled) {
     mixedModeCheck_->blockSignals(false);
 }
 
+void KeyPage::setWasdProtection(bool enabled) {
+    if (!wasdProtectionCheck_) return;
+    wasdProtectionCheck_->blockSignals(true);
+    wasdProtectionCheck_->setChecked(enabled);
+    wasdProtectionCheck_->blockSignals(false);
+}
+
 void KeyPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
@@ -353,6 +379,7 @@ void KeyPage::updateThemeColors() {
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();
     mixedModeCheck_->update();
+    if (wasdProtectionCheck_) wasdProtectionCheck_->update();
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
 }

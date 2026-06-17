@@ -35,6 +35,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setBeepEnabled(context_.config->beepEnabled);
     context_.view->keyPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowRepeat);
     context_.view->keyPage()->setMixedMode(profile->mixedMode);
+    context_.view->keyPage()->setWasdProtection(profile->wasdProtection);
     context_.view->keyPage()->setPauseKeys(profile->pauseKeys);
     context_.view->keyPage()->updateThemeColors();
 

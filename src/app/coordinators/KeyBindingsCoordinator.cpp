@@ -26,6 +26,7 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::beepToggled, this, &KeyBindingsCoordinator::onBeepToggled);
     connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
     connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
+    connect(context_.page, &KeyPage::wasdProtectionToggled, this, &KeyBindingsCoordinator::onWasdProtectionToggled);
     connect(context_.page, &KeyPage::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
     connect(context_.page, &KeyPage::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
 }
@@ -121,6 +122,14 @@ void KeyBindingsCoordinator::onMixedModeToggled(bool enabled) {
     auto result = context_.controller->setMixedMode(enabled);
     if (!result.ok) return;
     context_.engine->SetMixedMode(enabled);
+    if (context_.saveConfig) context_.saveConfig();
+}
+
+void KeyBindingsCoordinator::onWasdProtectionToggled(bool enabled) {
+    if (!context_.controller || !context_.engine) return;
+    auto result = context_.controller->setWasdProtection(enabled);
+    if (!result.ok) return;
+    context_.engine->SetWasdProtection(enabled);
     if (context_.saveConfig) context_.saveConfig();
 }
 

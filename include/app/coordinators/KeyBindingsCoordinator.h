@@ -50,6 +50,7 @@ private:
     void onBeepToggled(bool enabled);
     void onStatusOverlayToggled(bool enabled);
     void onMixedModeToggled(bool enabled);
+    void onWasdProtectionToggled(bool enabled);
     void onPauseKeyAdd();
     void onPauseKeyDelete(int index);
     void openEditDialog(std::optional<std::uint64_t> bindingId);

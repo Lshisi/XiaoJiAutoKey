@@ -3,8 +3,23 @@
 #include <algorithm>
 
 namespace {
+constexpr int kWasdProtectionMinIntervalMs = 50;
+
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
+}
+
+bool IsWasdKey(const KeyDescriptor& key) {
+    if (key.device != InputDevice::Keyboard) return false;
+    switch (key.code) {
+    case 'W':
+    case 'A':
+    case 'S':
+    case 'D':
+        return true;
+    default:
+        return false;
+    }
 }
 }  // namespace
 
@@ -34,6 +49,11 @@ bool RepeaterEngine::IsToolRunning() const noexcept {
 void RepeaterEngine::SetMixedMode(bool enabled) {
     std::lock_guard lock(mutex_);
     mixedMode_ = enabled;
+}
+
+void RepeaterEngine::SetWasdProtection(bool enabled) {
+    std::lock_guard lock(mutex_);
+    wasdProtection_ = enabled;
 }
 
 void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
@@ -166,6 +186,10 @@ bool RepeaterEngine::IsHoldActive() const {
     });
 }
 
+bool RepeaterEngine::IsWasdProtectionActive() const {
+    return wasdProtection_ && std::any_of(physicalDown_.begin(), physicalDown_.end(), IsWasdKey);
+}
+
 void RepeaterEngine::ReleaseAll() {
     {
         std::lock_guard lock(mutex_);
@@ -227,11 +251,15 @@ void RepeaterEngine::WorkerLoop() {
 
             const bool holdActive = IsHoldActive();
             const bool pauseActive = IsPauseActive();
+            const bool wasdProtectionActive = IsWasdProtectionActive();
 
             for (auto& t : tasks_) {
                 if (!t.config.enabled) continue;
 
-                const int interval = std::max(1, t.config.intervalMs);
+                int interval = std::max(1, t.config.intervalMs);
+                if (wasdProtectionActive && t.config.mode == RepeatMode::Toggle) {
+                    interval = std::max(interval, kWasdProtectionMinIntervalMs);
+                }
                 const bool isDown = physicalDown_.count(t.config.key) > 0;
 
                 // Hold模式：必须按住才发

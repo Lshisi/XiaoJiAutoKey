@@ -27,6 +27,7 @@ public:
     ControllerResult setControlHotkey(const KeyDescriptor& key);
     ControllerResult clearControlHotkey();
     ControllerResult setMixedMode(bool enabled);
+    ControllerResult setWasdProtection(bool enabled);
 
     ControllerResult deleteBinding(std::uint64_t id);
     ControllerResult setBindingEnabled(std::uint64_t id, bool enabled);

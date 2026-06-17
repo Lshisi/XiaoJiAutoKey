@@ -275,6 +275,8 @@ AppConfig ConfigStore::Load() const {
                     profile.defaultDelayMs = std::max(*delay, kMinDelayMs);
                 if (auto mixed = GetBoolField(*pObj, "mixedMode"); mixed.has_value())
                     profile.mixedMode = *mixed;
+                if (auto wasdProtection = GetBoolField(*pObj, "wasdProtection"); wasdProtection.has_value())
+                    profile.wasdProtection = *wasdProtection;
 
                 // Load pause keys
                 const auto pauseKeysIt = pObj->find("pauseKeys");
@@ -377,6 +379,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
         pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
         pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
         pObj.emplace("mixedMode", profile.mixedMode);
+        pObj.emplace("wasdProtection", profile.wasdProtection);
 
         // Serialize pause keys
         jsonlite::Array pauseKeysArr;

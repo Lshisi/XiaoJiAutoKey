@@ -49,6 +49,7 @@ void EngineStateCoordinator::applyBindings() {
 
     context_.repeaterEngine->UpdateBindings(profile->bindings);
     context_.repeaterEngine->SetMixedMode(profile->mixedMode);
+    context_.repeaterEngine->SetWasdProtection(profile->wasdProtection);
     context_.repeaterEngine->SetPauseKeys(profile->pauseKeys);
 
     if (context_.refreshHookState) context_.refreshHookState();

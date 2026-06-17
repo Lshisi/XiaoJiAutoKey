@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr auto kHidInitGuardTailDelay = std::chrono::milliseconds(20);
+constexpr auto kHidInitGuardTailDelay = std::chrono::milliseconds(100);
 constexpr int kHidInitCornerTolerancePx = 3;
 
 bool IsNearHidInitCorner(const POINT& point) {

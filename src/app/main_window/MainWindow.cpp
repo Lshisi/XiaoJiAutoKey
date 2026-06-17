@@ -212,12 +212,6 @@ bool MainWindow::Initialize() {
                  << L"last_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
                  << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
         ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
-
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"\u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
-            QString::fromWCharArray(L"\u5f53\u524d\u9a71\u52a8\u65e0\u6cd5\u52a0\u8f7d\uff0c\u8bf7\u786e\u8ba4\u5df2\u5b89\u88c5\u5bf9\u5e94\u9a71\u52a8\uff0c\u5e76\u68c0\u67e5 logs \u76ee\u5f55\u4e2d\u7684\u8be6\u7ec6\u65e5\u5fd7\u3002\n\n\u7a0b\u5e8f\u5373\u5c06\u9000\u51fa\u3002"));
-        return false;
     }
     try {
         setupHooks();

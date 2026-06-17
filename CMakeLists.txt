@@ -313,6 +313,15 @@ if(EXISTS "${AUTOKEY_DD_HID_DDC}" OR
     )
 endif()
 
+if(EXISTS "${CMAKE_SOURCE_DIR}/assets/audio")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/audio"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/audio"
+        COMMENT "Copying built-in audio files to the target audio directory"
+    )
+endif()
+
 add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -f
         "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD32.dll"

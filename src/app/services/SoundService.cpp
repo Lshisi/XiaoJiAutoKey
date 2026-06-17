@@ -67,7 +67,7 @@ void SoundService::playFile(const std::filesystem::path& soundPath, int volume, 
         while (!queue_.empty()) {
             auto request = std::move(queue_.front());
             queue_.pop();
-            if (request.alias != aliasName) {
+            if (request.play && request.alias != aliasName) {
                 retained.push(std::move(request));
             }
         }

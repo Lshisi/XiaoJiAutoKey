@@ -41,6 +41,8 @@ $zipPath = Join-Path $distDir "XiaoJiAutoKey.zip"
 $exePath = Join-Path $buildDir "$Configuration\XiaoJiAutoKey.exe"
 $driverSrcDir = Join-Path $repoRoot "third_party\dd"
 $driverDstDir = Join-Path $packageDir "driver"
+$hidDriverSrcDir = Join-Path $driverSrcDir "hid"
+$hidDriverDstDir = Join-Path $driverDstDir "hid"
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
 $usageShortcutName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).url"
@@ -156,11 +158,18 @@ if (Test-Path $driverSrcDir) {
 
     $dd32Path = Join-Path $driverSrcDir "DD32.dll"
     $dd64Path = Join-Path $driverSrcDir "DD64.dll"
+    $hidRuntimePath = Join-Path $hidDriverSrcDir "ddhid.63340.dll"
     if (Test-Path $dd32Path) {
         Copy-Item $dd32Path (Join-Path $driverDstDir "DD32.dll") -Force
     }
     if (Test-Path $dd64Path) {
         Copy-Item $dd64Path (Join-Path $driverDstDir "DD64.dll") -Force
+    }
+    if (Test-Path $hidRuntimePath) {
+        New-Item -ItemType Directory -Path $hidDriverDstDir -Force | Out-Null
+        Copy-Item $hidRuntimePath (Join-Path $hidDriverDstDir "ddhid.63340.dll") -Force
+    } else {
+        Write-Warning "third_party\\dd\\hid\\ddhid.63340.dll not found."
     }
 
     if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path)) {

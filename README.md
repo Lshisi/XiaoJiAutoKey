@@ -148,7 +148,7 @@ XiaoJiAutoKey/
 ├── XiaoJiAutoKey.exe   # 主程序（静态链接 Qt，无需额外 DLL）
 ├── 使用说明.url        # 使用说明入口链接
 ├── audio/              # 启停提示音（按键开启/关闭、宏开启/关闭）
-└── driver/             # DD 驱动 DLL（DD32.dll / DD64.dll）
+└── driver/             # DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll）
 ```
 
 `config.json` 是运行时生成内容，不应进入发布包。
@@ -156,7 +156,7 @@ XiaoJiAutoKey/
 ## 运行准备
 
 1. 安装 DD 驱动（运行 DD 官方安装程序）
-2. 解压发布包，`driver/` 目录下已包含 DD32.dll / DD64.dll
+2. 解压发布包，`driver/` 目录下已包含 DD32.dll / DD64.dll / hid/ddhid.63340.dll
 3. 以管理员身份启动程序，配置全局控制键和按键列表
 
 ## 配置文件

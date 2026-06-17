@@ -13,7 +13,7 @@
 - `XiaoJiAutoKey.exe` -- 主程序
 - `使用说明.url` -- 使用说明入口链接
 - `audio/` -- 内置提示音文件
-- `driver/` -- DD 驱动 DLL（DD32.dll / DD64.dll）
+- `driver/` -- DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll）
 
 不应包含：
 

@@ -4,8 +4,10 @@
 
 void ConfigNormalizer::normalize(AppConfig& config) {
     for (auto& profile : config.profiles) {
+        profile.defaultDelayMs = std::max(profile.defaultDelayMs, kMinDelayMs);
         for (auto& binding : profile.bindings) {
             if (binding.id == 0) binding.id = nextBindingId(profile);
+            binding.delayMs = std::max(binding.delayMs, kMinDelayMs);
             if (binding.mode != RepeatMode::Hold) binding.suppressMixedMode = false;
         }
     }
@@ -13,6 +15,9 @@ void ConfigNormalizer::normalize(AppConfig& config) {
     std::uint64_t nextMacro = nextMacroId(config);
     for (auto& macro : config.macros) {
         if (macro.id == 0) macro.id = nextMacro++;
+        for (auto& step : macro.steps) {
+            step.delayAfterMs = std::max(step.delayAfterMs, kMinDelayMs);
+        }
     }
     if (config.macros.empty()) {
         MacroConfig defaultMacro;

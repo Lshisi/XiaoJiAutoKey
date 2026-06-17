@@ -125,9 +125,9 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
         }
         bool ok = false;
         int delay = delayEdit_->text().toInt(&ok);
-        if (!ok || delay <= 0) {
+        if (!ok || delay < kMinDelayMs) {
             AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
-                QString::fromWCharArray(L"\u5ef6\u8fdf\u5fc5\u987b\u662f\u5927\u4e8e 0 \u7684\u6574\u6570\u3002"));
+                QString::fromWCharArray(L"\u5ef6\u8fdf\u5fc5\u987b\u662f\u4e0d\u5c0f\u4e8e 10 \u7684\u6574\u6570\u3002"));
             return;
         }
         accept();

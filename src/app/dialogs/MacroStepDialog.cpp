@@ -68,7 +68,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
         setCapturedKey(existing->key);
         delayEdit_->setText(QString::number(existing->delayAfterMs));
     } else {
-        delayEdit_->setText("50");
+        delayEdit_->setText(QString::number(kDefaultDelayMs));
     }
 
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
@@ -80,8 +80,10 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
         }
         bool ok = false;
         int delay = delayEdit_->text().toInt(&ok);
-        if (!ok || delay <= 0) {
-            delayEdit_->setText("50");
+        if (!ok || delay < kMinDelayMs) {
+            AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
+                QString::fromWCharArray(L"\u95f4\u9694\u5fc5\u987b\u662f\u4e0d\u5c0f\u4e8e 10 \u7684\u6574\u6570\u3002"));
+            return;
         }
         accept();
     });
@@ -92,6 +94,6 @@ MacroStepEditResult MacroStepDialog::editResult() const {
     value.key = *capturedKey();
     bool ok = false;
     value.delayAfterMs = delayEdit_->text().toInt(&ok);
-    if (!ok || value.delayAfterMs <= 0) value.delayAfterMs = 50;
+    if (!ok || value.delayAfterMs < kMinDelayMs) value.delayAfterMs = kDefaultDelayMs;
     return value;
 }

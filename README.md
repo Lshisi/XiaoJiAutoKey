@@ -179,7 +179,7 @@ XiaoJiAutoKey/
       "id": 1,
       "name": "默认配置",
       "controlHotkey": "...",
-      "defaultDelayMs": 10,
+      "defaultDelayMs": 30,
       "mixedMode": false,
       "pauseKeys": [],
       "bindings": [...],
@@ -206,7 +206,7 @@ XiaoJiAutoKey/
 
 每个配置方案包含：
 - `controlHotkey`：全局启停键
-- `defaultDelayMs`：新增按键默认延迟（默认 10ms）
+- `defaultDelayMs`：新增按键默认延迟（默认 30ms，最低 10ms）
 - `mixedMode`：是否开启连发优先（Hold 压制 Toggle，默认 false）
 - `pauseKeys`：暂停按键列表
 - `bindings`：按键列表

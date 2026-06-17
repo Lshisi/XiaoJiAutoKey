@@ -21,6 +21,9 @@ enum class InputSource {
     Capture,
 };
 
+constexpr int kMinDelayMs = 10;
+constexpr int kDefaultDelayMs = 30;
+
 struct KeyDescriptor {
     InputDevice device = InputDevice::Keyboard;
     std::uint32_t code = 0;
@@ -37,7 +40,7 @@ struct KeyBinding {
     bool enabled = true;
     KeyDescriptor key;
     RepeatMode mode = RepeatMode::Toggle;
-    int delayMs = 10;
+    int delayMs = kDefaultDelayMs;
     bool suppressMixedMode = false;
 };
 
@@ -59,7 +62,7 @@ enum class MacroTriggerMode {
 
 struct MacroStep {
     KeyDescriptor key;
-    int delayAfterMs = 50;
+    int delayAfterMs = kDefaultDelayMs;
 };
 
 struct MacroConfig {
@@ -77,7 +80,7 @@ struct ProfileConfig {
     std::uint64_t id = 0;
     std::wstring name;
     std::optional<KeyDescriptor> controlHotkey;
-    int defaultDelayMs = 10;
+    int defaultDelayMs = kDefaultDelayMs;
     bool mixedMode = false;
     std::vector<KeyDescriptor> pauseKeys;
     std::vector<KeyBinding> bindings;

@@ -6,7 +6,7 @@ class FluentLineEdit;
 
 struct MacroStepEditResult {
     KeyDescriptor key;
-    int delayAfterMs = 50;
+    int delayAfterMs = kDefaultDelayMs;
 };
 
 class MacroStepDialog : public KeyCaptureDialogBase {

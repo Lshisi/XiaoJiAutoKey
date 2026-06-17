@@ -53,6 +53,7 @@ private:
     bool loadLegacyDriver();
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
+    void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     void prepareHidDriverUninstall();
@@ -107,8 +108,8 @@ private:
     int observedScreenDpi_ = 0;
     int runtimeDpiOverride_ = 0;
     bool recreatedFractionalDpiSurface_ = false;
-    bool ddUnavailablePromptVisible_ = false;
     bool suppressDdUnavailablePrompt_ = false;
+    bool driverUnavailableLogged_ = false;
     std::wstring driverStatusNote_;
 
 };

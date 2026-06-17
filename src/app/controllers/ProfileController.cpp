@@ -166,6 +166,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
+    delayMs = std::max(delayMs, kMinDelayMs);
 
     if (profile->controlHotkey.has_value() && *profile->controlHotkey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));

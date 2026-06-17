@@ -207,11 +207,7 @@ bool MainWindow::Initialize() {
         config_.macroSoundOn,
         config_.macroSoundOff);
     if (!loadConfiguredDriver()) {
-        std::wstringstream errorLog;
-        errorLog << L"driver_mode=" << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\n"
-                 << L"last_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
-                 << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
-        ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
+        logDriverUnavailableOnce();
     }
     try {
         setupHooks();
@@ -238,6 +234,7 @@ bool MainWindow::loadConfiguredDriver() {
     driverStatusNote_.clear();
     if (config_.driverMode == DriverMode::Hid) {
         if (loadHidDriver()) {
+            driverUnavailableLogged_ = false;
             return true;
         }
         driverStatusNote_ = L"HID \u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u56de\u9000\u65e7 DD: " +
@@ -246,10 +243,15 @@ bool MainWindow::loadConfiguredDriver() {
         if (legacyLoaded) {
             config_.driverMode = DriverMode::Legacy;
             configCoordinator_.save();
+            driverUnavailableLogged_ = false;
         }
         return legacyLoaded;
     }
-    return loadLegacyDriver();
+    const bool legacyLoaded = loadLegacyDriver();
+    if (legacyLoaded) {
+        driverUnavailableLogged_ = false;
+    }
+    return legacyLoaded;
 }
 
 bool MainWindow::loadHidDriver() {
@@ -895,21 +897,22 @@ void MainWindow::refreshStatusOverlay() {
 }
 
 void MainWindow::showDdUnavailableMessage() {
-    if (suppressDdUnavailablePrompt_ || ddUnavailablePromptVisible_) {
+    if (suppressDdUnavailablePrompt_) {
         return;
     }
-    ddUnavailablePromptVisible_ = true;
+
+    logDriverUnavailableOnce();
+}
+
+void MainWindow::logDriverUnavailableOnce() {
+    if (driverUnavailableLogged_) {
+        return;
+    }
+    driverUnavailableLogged_ = true;
 
     std::wstringstream errorLog;
     errorLog << L"driver_mode=" << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\n"
              << L"last_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
              << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
     ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
-
-    AppMessageDialog::warning(
-        this,
-        QString::fromWCharArray(L"\u9a71\u52a8\u52a0\u8f7d\u5931\u8d25"),
-        QString::fromWCharArray(L"\u5f53\u524d\u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u65e0\u6cd5\u6a21\u62df\u6309\u952e\u6216\u9f20\u6807\u3002\n\n\u8be6\u7ec6\u9519\u8bef\u5df2\u5199\u5165 logs \u76ee\u5f55\uff0c\u8bf7\u68c0\u67e5 dd-runtime.log\u3002"));
-
-    ddUnavailablePromptVisible_ = false;
 }

@@ -30,6 +30,7 @@ constexpr const wchar_t* kInfKeyboardServiceName = L"dd.key.96688";
 constexpr const wchar_t* kInfMouseServiceName = L"dd.mou.96688";
 constexpr const wchar_t* kInfKeyboardSysName = L"dd.key.96688.sys";
 constexpr const wchar_t* kInfMouseSysName = L"dd.mou.96688.sys";
+constexpr std::uintmax_t kMaxDriverLogBytes = 1024 * 1024;
 
 bool CopyResourceFile(const QString& resourcePath, const QString& outputPath, QString* errorMessage) {
     QFile source(resourcePath);
@@ -148,9 +149,20 @@ void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, co
         return;
     }
 
-    const QString logPath = QString::fromStdWString((logsDir / fileName).wstring());
+    const auto fullPath = logsDir / fileName;
+    bool truncate = false;
+    if (std::filesystem::exists(fullPath, error) && !error) {
+        const auto currentSize = std::filesystem::file_size(fullPath, error);
+        truncate = !error && currentSize > kMaxDriverLogBytes;
+    }
+    error.clear();
+
+    const QString logPath = QString::fromStdWString(fullPath.wstring());
     QFile logFile(logPath);
-    if (!logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    const auto openMode = QIODevice::WriteOnly |
+        (truncate ? QIODevice::Truncate : QIODevice::Append) |
+        QIODevice::Text;
+    if (!logFile.open(openMode)) {
         return;
     }
 

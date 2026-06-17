@@ -9,7 +9,7 @@ class FluentSwitch;
 struct BindingEditResult {
     KeyDescriptor key;
     RepeatMode mode = RepeatMode::Toggle;
-    int delayMs = 10;
+    int delayMs = kDefaultDelayMs;
     bool enabled = true;
     bool suppressMixedMode = false;
 };

@@ -56,7 +56,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         binding.id = GetUInt64Field(*entry, "id").value_or(0);
         binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
         binding.key = *key;
-        binding.delayMs = *delay;
+        binding.delayMs = std::max(*delay, kMinDelayMs);
         const auto mode = GetStringField(*entry, "mode").value_or("toggle");
         binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
@@ -107,7 +107,9 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                             auto k = StorageToKeyDescriptor(ToWide(*keyText));
                             if (k.has_value()) step.key = *k;
                         }
-                        step.delayAfterMs = GetIntField(*stepObj, "delayAfterMs").value_or(50);
+                        step.delayAfterMs = std::max(
+                            GetIntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs),
+                            kMinDelayMs);
                         if (step.key.IsValid()) macro.steps.push_back(step);
                     }
                 }
@@ -270,7 +272,7 @@ AppConfig ConfigStore::Load() const {
                 if (auto hotkeyText = GetStringField(*pObj, "controlHotkey"))
                     profile.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
                 if (auto delay = GetIntField(*pObj, "defaultDelayMs"); delay.has_value() && *delay > 0)
-                    profile.defaultDelayMs = *delay;
+                    profile.defaultDelayMs = std::max(*delay, kMinDelayMs);
                 if (auto mixed = GetBoolField(*pObj, "mixedMode"); mixed.has_value())
                     profile.mixedMode = *mixed;
 

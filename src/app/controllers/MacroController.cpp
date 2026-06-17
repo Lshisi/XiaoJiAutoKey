@@ -152,7 +152,7 @@ ControllerResult MacroController::addStep(const KeyDescriptor& key, int delayAft
     auto validation = validateStepKey(*macro, key);
     if (!validation.ok) return validation;
 
-    if (delayAfterMs <= 0) delayAfterMs = 50;
+    delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
     macro->steps.push_back({key, delayAfterMs});
     return ControllerResult::success();
 }
@@ -167,7 +167,7 @@ ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor&
     auto validation = validateStepKey(*macro, key);
     if (!validation.ok) return validation;
 
-    if (delayAfterMs <= 0) delayAfterMs = 50;
+    delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
     macro->steps[stepIndex].key = key;
     macro->steps[stepIndex].delayAfterMs = delayAfterMs;
     return ControllerResult::success();

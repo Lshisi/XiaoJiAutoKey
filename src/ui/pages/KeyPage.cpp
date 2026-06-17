@@ -230,19 +230,20 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 连发优先 --
-    auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
+    auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
     mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u542f\u7528\u8fde\u53d1\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
+    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
-    mixedCard->contentLayout()->addSpacing(4);
-    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\n\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\n\u677e\u5f00\u540e\u6062\u590d\u3002"), this);
+    mixedCard->contentLayout()->addSpacing(2);
+    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\u65f6\uff0c\u6682\u505c\u5f00\u5173\u8fde\u53d1\u3002"), this);
     mixedDesc->setFont(Fluent::Typography::caption());
     mixedDesc->setWordWrap(true);
     QPalette mPal = mixedDesc->palette();
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
     mixedCard->contentLayout()->addWidget(mixedDesc);
-    mixedCard->contentLayout()->addSpacing(10);
+    mixedCard->contentLayout()->addSpacing(8);
     auto* wasdSeparator = new QWidget(this);
     wasdSeparator->setFixedHeight(1);
     wasdSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
@@ -252,7 +253,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     wasdProtectionCheck_->setFont(Fluent::Typography::body());
     wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
-    auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u79fb\u52a8\u65f6\uff0c\n\u5f00\u5173\u6a21\u5f0f\u81f3\u5c11\u6309 50ms \u8282\u594f\u53d1\u9001\uff0c\n\u51cf\u5c11\u6e38\u620f\u6f0f\u6389\u677e\u952e\u3002"), this);
+    mixedCard->contentLayout()->addSpacing(2);
+    auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u4e34\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
     wasdDesc->setFont(Fluent::Typography::caption());
     wasdDesc->setWordWrap(true);
     QPalette wPal = wasdDesc->palette();

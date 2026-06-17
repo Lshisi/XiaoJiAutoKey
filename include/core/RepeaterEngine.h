@@ -47,6 +47,7 @@ public:
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
     void SetMixedMode(bool enabled);
+    void SetWasdProtection(bool enabled);
     void SetPauseKeys(const std::vector<KeyDescriptor>& keys);
 
     void OnPhysicalDown(const KeyDescriptor& key);
@@ -72,6 +73,7 @@ private:
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> physicalDown_;
     bool toolRunning_ = false;
     bool mixedMode_ = false;
+    bool wasdProtection_ = false;
 
     std::vector<KeyDescriptor> pauseKeys_;
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;
@@ -85,4 +87,5 @@ private:
     std::unordered_map<std::uint64_t, int> holdUpIgnoreCount_;
     bool IsHoldBinding(const KeyDescriptor& key) const;
     bool IsHoldActive() const;
+    bool IsWasdProtectionActive() const;
 };

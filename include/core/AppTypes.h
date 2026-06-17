@@ -82,6 +82,7 @@ struct ProfileConfig {
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = kDefaultDelayMs;
     bool mixedMode = false;
+    bool wasdProtection = false;
     std::vector<KeyDescriptor> pauseKeys;
     std::vector<KeyBinding> bindings;
 };

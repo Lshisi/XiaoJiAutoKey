@@ -48,9 +48,10 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool loadConfiguredDriver();
+    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();
+    bool canLoadLegacyDriver();
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();
@@ -110,6 +111,7 @@ private:
     bool recreatedFractionalDpiSurface_ = false;
     bool suppressDdUnavailablePrompt_ = false;
     bool driverUnavailableLogged_ = false;
+    bool driverStatusFallback_ = false;
     std::wstring driverStatusNote_;
 
 };

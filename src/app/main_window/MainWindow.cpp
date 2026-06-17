@@ -230,12 +230,16 @@ bool MainWindow::Initialize() {
     return true;
 }
 
-bool MainWindow::loadConfiguredDriver() {
+bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
     driverStatusNote_.clear();
+    driverStatusFallback_ = false;
     if (config_.driverMode == DriverMode::Hid) {
         if (loadHidDriver()) {
             driverUnavailableLogged_ = false;
             return true;
+        }
+        if (!allowHidFallbackToLegacy) {
+            return false;
         }
         driverStatusNote_ = L"HID \u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u56de\u9000\u65e7 DD: " +
             (driver_.GetLastError().empty() ? std::wstring(L"(none)") : driver_.GetLastError());
@@ -244,6 +248,7 @@ bool MainWindow::loadConfiguredDriver() {
             config_.driverMode = DriverMode::Legacy;
             configCoordinator_.save();
             driverUnavailableLogged_ = false;
+            driverStatusFallback_ = true;
         }
         return legacyLoaded;
     }
@@ -291,6 +296,15 @@ bool MainWindow::loadLegacyDriver() {
     driver_.Unload();
     ensureLegacyDdInfInstalled();
     return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+}
+
+bool MainWindow::canLoadLegacyDriver() {
+    ensureLegacyDdInfInstalled();
+    DdDriver probeDriver;
+    const bool loaded = probeDriver.LoadFromDirectory(appPaths_.exeDir(), false);
+    probeDriver.ReleaseAll();
+    probeDriver.Unload();
+    return loaded;
 }
 
 bool MainWindow::ensureLegacyDdInfInstalled(std::wstring* resultMessage) {
@@ -389,7 +403,7 @@ void MainWindow::refreshDriverStatusUi() {
     QString summary = driver_.IsReady()
         ? QString::fromWCharArray(L"\u53ef\u7528")
         : QString::fromWCharArray(L"\u4e0d\u53ef\u7528");
-    if (!driverStatusNote_.empty()) {
+    if (driverStatusFallback_) {
         summary += QString::fromWCharArray(L" / \u5df2\u56de\u9000");
     }
     page->setStatusSummary(summary);
@@ -465,11 +479,18 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         }
     }
 
+    if (mode == DriverMode::Legacy && !canLoadLegacyDriver()) {
+        driverStatusNote_ = L"\u76ee\u6807 DD \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d HID \u8fd0\u884c\u6001\u3002";
+        refreshDriverStatusUi();
+        return DriverCoordinator::SwitchResult::Failed;
+    }
+
     engineStateCoordinator_.setRepeatRunning(false);
     macroEngine_.StopAll();
     driver_.ReleaseAll();
     driver_.Unload();
     driverStatusNote_.clear();
+    driverStatusFallback_ = false;
 
     config_.driverMode = mode;
     const bool loaded = (mode == DriverMode::Hid)
@@ -478,7 +499,13 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     if (!loaded) {
         config_.driverMode = originalMode;
         configCoordinator_.save();
-        loadConfiguredDriver();
+        const bool restored = loadConfiguredDriver(false);
+        if (!restored) {
+            driverStatusFallback_ = false;
+            driverStatusNote_ = originalMode == DriverMode::Hid
+                ? L"\u5207\u6362\u5931\u8d25\uff0c\u5c1d\u8bd5\u6062\u590d HID \u4e5f\u5931\u8d25\uff0c\u672a\u81ea\u52a8\u56de\u9000 DD\u3002"
+                : L"\u5207\u6362\u5931\u8d25\uff0c\u5c1d\u8bd5\u6062\u590d DD \u4e5f\u5931\u8d25\u3002";
+        }
     } else {
         configCoordinator_.save();
     }

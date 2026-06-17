@@ -18,3 +18,16 @@
 不应包含：
 
 - `config.json` -- 用户配置（运行时自动生成）
+
+## 构建注意事项
+
+- 当前环境里 `cmake` 可能不在 `PATH`，优先使用 VS BuildTools 自带的 CMake：
+  `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`
+- 如果 MSBuild 报 `System.ArgumentException: 已添加项。字典中的关键字:“Path”所添加的关键字:“PATH”`，说明当前进程环境里同时存在 `Path` / `PATH`。构建前先在当前 PowerShell 进程清掉重复项并设置单一 `Path`。
+- 推荐构建命令：
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
+[System.Environment]::SetEnvironmentVariable('Path', 'C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin', 'Process')
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build --config Release --target XiaoJiAutoKey
+```

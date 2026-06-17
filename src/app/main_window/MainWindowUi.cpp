@@ -164,7 +164,11 @@ void MainWindow::setupUi() {
         refreshStatusOverlay();
     });
     connect(&statusOverlay_, &StatusOverlayWindow::keyConfigRequested, this, [this]() {
-        view_.showRepeatPage();
+        if (config_.statusOverlayShowRepeat || !config_.statusOverlayShowMacro) {
+            view_.showRepeatPage();
+        } else {
+            view_.showMacroPage();
+        }
         showNormal();
         raise();
         activateWindow();

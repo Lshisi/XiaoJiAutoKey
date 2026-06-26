@@ -1,7 +1,12 @@
 #include "DdDriver.h"
 
+#include <SetupAPI.h>
+#include <hidsdi.h>
+
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cwctype>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +19,11 @@ namespace {
 
 constexpr auto kHidInitGuardTailDelay = std::chrono::milliseconds(100);
 constexpr int kHidInitCornerTolerancePx = 3;
+constexpr wchar_t kDdxoftHidDeviceToken[] = L"ddhid63340";
+constexpr DWORD kDdxoftHidMouseOutputReportBytes = 65;
+constexpr std::uint8_t kDdxoftHidOutputReportId = 0x40;
+constexpr std::uint8_t kDdxoftHidMouseCommand = 0x09;
+constexpr std::uint8_t kDdxoftHidRelativeMouseReportId = 0x04;
 
 bool IsNearHidInitCorner(const POINT& point) {
     const int virtualLeft = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -160,6 +170,50 @@ std::optional<std::pair<int, int>> ToMouseCodes(std::uint32_t vk) {
     default:
         return std::nullopt;
     }
+}
+
+std::optional<std::uint8_t> ToHidMouseButtonBit(std::uint32_t vk) {
+    switch (vk) {
+    case VK_LBUTTON:
+        return 0x01;
+    case VK_RBUTTON:
+        return 0x02;
+    case VK_MBUTTON:
+        return 0x04;
+    case VK_XBUTTON1:
+        return 0x08;
+    case VK_XBUTTON2:
+        return 0x10;
+    default:
+        return std::nullopt;
+    }
+}
+
+std::wstring ToLower(std::wstring value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch) {
+        return static_cast<wchar_t>(std::towlower(ch));
+    });
+    return value;
+}
+
+bool IsDdxoftHidDevicePath(const wchar_t* devicePath) {
+    if (devicePath == nullptr || *devicePath == L'\0') {
+        return false;
+    }
+    return ToLower(devicePath).find(kDdxoftHidDeviceToken) != std::wstring::npos;
+}
+
+bool HasDdxoftHidOutputReport(HANDLE handle) {
+    PHIDP_PREPARSED_DATA preparsedData = nullptr;
+    if (!::HidD_GetPreparsedData(handle, &preparsedData)) {
+        return false;
+    }
+
+    HIDP_CAPS caps{};
+    const NTSTATUS capsStatus = ::HidP_GetCaps(preparsedData, &caps);
+    ::HidD_FreePreparsedData(preparsedData);
+    return capsStatus == HIDP_STATUS_SUCCESS &&
+        caps.OutputReportByteLength >= kDdxoftHidMouseOutputReportBytes;
 }
 
 using DDToDcFn = int(__stdcall*)(int);
@@ -398,6 +452,11 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHi
 }
 
 void DdDriver::Unload() {
+    {
+        std::lock_guard lock(hidMouseMutex_);
+        CloseHidMouseHandleLocked();
+        hidMouseButtonState_ = 0;
+    }
     CloseInjectedInfHandles();
     if (module_ != nullptr) {
         ::FreeLibrary(module_);
@@ -557,13 +616,11 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     }
 
     if (key.device == InputDevice::Mouse) {
-        const auto mouseCodes = ToMouseCodes(key.code);
-        if (!mouseCodes.has_value()) return false;
         ++simulateDepth_;
         RegisterPress(key);
-        const int result = ddBtn_(mouseCodes->first);
+        const bool result = SendMouseDown(key.code);
         --simulateDepth_;
-        return result == 1;
+        return result;
     }
 
     const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
@@ -584,13 +641,11 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
     }
 
     if (key.device == InputDevice::Mouse) {
-        const auto mouseCodes = ToMouseCodes(key.code);
-        if (!mouseCodes.has_value()) return false;
         ++simulateDepth_;
-        const int result = ddBtn_(mouseCodes->second);
         RegisterRelease(key);
+        const bool result = SendMouseUp(key.code);
         --simulateDepth_;
-        return result == 1;
+        return result;
     }
 
     const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
@@ -617,9 +672,7 @@ void DdDriver::ReleaseAll() {
         const std::uint32_t code = static_cast<std::uint32_t>(encoded & 0xFFFFFFFFull);
 
         if (isMouse) {
-            if (const auto mouseCodes = ToMouseCodes(code); mouseCodes.has_value()) {
-                ddBtn_(mouseCodes->second);
-            }
+            SendMouseUp(code);
             continue;
         }
 
@@ -629,6 +682,13 @@ void DdDriver::ReleaseAll() {
         }
     }
     pressedKeys_.clear();
+    {
+        std::lock_guard hidLock(hidMouseMutex_);
+        hidMouseButtonState_ = 0;
+        if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
+            WriteHidMouseReportLocked();
+        }
+    }
 }
 
 void DdDriver::ClearAllStates() {
@@ -655,19 +715,191 @@ bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
 }
 
 bool DdDriver::SendMouseTap(std::uint32_t vk) {
+    const KeyDescriptor key{InputDevice::Mouse, vk};
+    ++simulateDepth_;
+    RegisterPress(key);
+    const bool downResult = SendMouseDown(vk);
+    const bool upResult = SendMouseUp(vk);
+    RegisterRelease(key);
+    --simulateDepth_;
+    return downResult && upResult;
+}
+
+bool DdDriver::SendMouseDown(std::uint32_t vk) {
+    if (runtimeKind_ == RuntimeKind::Hid) {
+        if (SendHidMouseButton(vk, true)) {
+            return true;
+        }
+        if (vk == VK_XBUTTON1 || vk == VK_XBUTTON2) {
+            return false;
+        }
+    }
+
     const auto mouseCodes = ToMouseCodes(vk);
     if (!mouseCodes.has_value()) {
         return false;
     }
+    return ddBtn_(mouseCodes->first) == 1;
+}
 
-    const KeyDescriptor key{InputDevice::Mouse, vk};
-    ++simulateDepth_;
-    RegisterPress(key);
-    const int downResult = ddBtn_(mouseCodes->first);
-    const int upResult = ddBtn_(mouseCodes->second);
-    RegisterRelease(key);
-    --simulateDepth_;
-    return downResult == 1 && upResult == 1;
+bool DdDriver::SendMouseUp(std::uint32_t vk) {
+    if (runtimeKind_ == RuntimeKind::Hid) {
+        if (SendHidMouseButton(vk, false)) {
+            return true;
+        }
+        if (vk == VK_XBUTTON1 || vk == VK_XBUTTON2) {
+            return false;
+        }
+    }
+
+    const auto mouseCodes = ToMouseCodes(vk);
+    if (!mouseCodes.has_value()) {
+        return false;
+    }
+    return ddBtn_(mouseCodes->second) == 1;
+}
+
+bool DdDriver::SendHidMouseButton(std::uint32_t vk, bool down) {
+    const auto buttonBit = ToHidMouseButtonBit(vk);
+    if (!buttonBit.has_value()) {
+        return false;
+    }
+
+    std::lock_guard lock(hidMouseMutex_);
+    if (!EnsureHidMouseHandleLocked()) {
+        return false;
+    }
+
+    const std::uint8_t oldState = hidMouseButtonState_;
+    if (down) {
+        hidMouseButtonState_ = static_cast<std::uint8_t>(hidMouseButtonState_ | *buttonBit);
+    } else {
+        hidMouseButtonState_ = static_cast<std::uint8_t>(hidMouseButtonState_ & ~*buttonBit);
+    }
+
+    if (WriteHidMouseReportLocked()) {
+        return true;
+    }
+
+    CloseHidMouseHandleLocked();
+    if (!EnsureHidMouseHandleLocked()) {
+        hidMouseButtonState_ = oldState;
+        return false;
+    }
+    if (WriteHidMouseReportLocked()) {
+        return true;
+    }
+
+    hidMouseButtonState_ = oldState;
+    return false;
+}
+
+bool DdDriver::EnsureHidMouseHandleLocked() {
+    if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
+        return true;
+    }
+
+    GUID hidGuid{};
+    ::HidD_GetHidGuid(&hidGuid);
+
+    HDEVINFO deviceInfo = ::SetupDiGetClassDevsW(
+        &hidGuid,
+        nullptr,
+        nullptr,
+        DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    bool opened = false;
+    for (DWORD index = 0; !opened; ++index) {
+        SP_DEVICE_INTERFACE_DATA interfaceData{};
+        interfaceData.cbSize = sizeof(interfaceData);
+        if (!::SetupDiEnumDeviceInterfaces(deviceInfo, nullptr, &hidGuid, index, &interfaceData)) {
+            break;
+        }
+
+        DWORD requiredSize = 0;
+        ::SetupDiGetDeviceInterfaceDetailW(
+            deviceInfo,
+            &interfaceData,
+            nullptr,
+            0,
+            &requiredSize,
+            nullptr);
+        if (requiredSize == 0) {
+            continue;
+        }
+
+        std::vector<BYTE> detailBuffer(requiredSize);
+        auto* detailData = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(detailBuffer.data());
+        detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+        if (!::SetupDiGetDeviceInterfaceDetailW(
+                deviceInfo,
+                &interfaceData,
+                detailData,
+                requiredSize,
+                nullptr,
+                nullptr)) {
+            continue;
+        }
+
+        if (!IsDdxoftHidDevicePath(detailData->DevicePath)) {
+            continue;
+        }
+
+        HANDLE handle = ::CreateFileW(
+            detailData->DevicePath,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+        if (handle == INVALID_HANDLE_VALUE) {
+            continue;
+        }
+
+        if (!HasDdxoftHidOutputReport(handle)) {
+            ::CloseHandle(handle);
+            continue;
+        }
+
+        ::HidD_SetNumInputBuffers(handle, 64);
+        hidMouseHandle_ = handle;
+        opened = true;
+    }
+
+    ::SetupDiDestroyDeviceInfoList(deviceInfo);
+    return opened;
+}
+
+bool DdDriver::WriteHidMouseReportLocked() {
+    if (hidMouseHandle_ == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    std::array<BYTE, kDdxoftHidMouseOutputReportBytes> report{};
+    report[0] = kDdxoftHidOutputReportId;
+    report[1] = kDdxoftHidMouseCommand;
+    report[2] = kDdxoftHidRelativeMouseReportId;
+    report[3] = hidMouseButtonState_;
+
+    DWORD written = 0;
+    return ::WriteFile(
+        hidMouseHandle_,
+        report.data(),
+        static_cast<DWORD>(report.size()),
+        &written,
+        nullptr) != FALSE &&
+        written == report.size();
+}
+
+void DdDriver::CloseHidMouseHandleLocked() {
+    if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
+        ::CloseHandle(hidMouseHandle_);
+        hidMouseHandle_ = INVALID_HANDLE_VALUE;
+    }
 }
 
 void DdDriver::RegisterPress(const KeyDescriptor& key) {

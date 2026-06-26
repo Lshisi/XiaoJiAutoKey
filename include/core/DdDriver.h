@@ -49,6 +49,12 @@ private:
     bool LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind);
     bool SendKeyboardTap(std::uint32_t vk);
     bool SendMouseTap(std::uint32_t vk);
+    bool SendMouseDown(std::uint32_t vk);
+    bool SendMouseUp(std::uint32_t vk);
+    bool SendHidMouseButton(std::uint32_t vk, bool down);
+    bool EnsureHidMouseHandleLocked();
+    bool WriteHidMouseReportLocked();
+    void CloseHidMouseHandleLocked();
     bool TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage);
     bool WriteModuleHandleSlot(std::uintptr_t rva, HANDLE value);
     void CloseInjectedInfHandles();
@@ -70,4 +76,8 @@ private:
     mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
     std::unordered_set<std::uint64_t> selfInjected_;
+
+    std::mutex hidMouseMutex_;
+    HANDLE hidMouseHandle_ = INVALID_HANDLE_VALUE;
+    std::uint8_t hidMouseButtonState_ = 0;
 };

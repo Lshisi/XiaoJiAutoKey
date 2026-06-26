@@ -242,6 +242,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     shlwapi
     winmm
     dwmapi
+    hid
     setupapi
     cfgmgr32
 )

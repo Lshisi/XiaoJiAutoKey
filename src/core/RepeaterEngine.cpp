@@ -260,7 +260,10 @@ void RepeaterEngine::WorkerLoop() {
                 if (wasdProtectionActive && t.config.mode == RepeatMode::Toggle) {
                     interval = std::max(interval, kWasdProtectionMinIntervalMs);
                 }
-                const bool isDown = physicalDown_.count(t.config.key) > 0;
+                // Hold 依赖专用追踪，避免被通用 physicalDown_ 的瞬态变化误判为松开。
+                const bool isDown = t.config.mode == RepeatMode::Hold
+                    ? holdPhysicalDown_.count(t.config.key) > 0
+                    : physicalDown_.count(t.config.key) > 0;
 
                 // Hold模式：必须按住才发
                 if (t.config.mode == RepeatMode::Hold && !isDown) {

@@ -2,13 +2,23 @@
 
 #include "input/InputKeyUtils.h"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <stdexcept>
 #include <windowsx.h>
 
 namespace {
 
+constexpr int kStartupIgnoreWindowMs = 300;
+
 GlobalInputHook* g_hookInstance = nullptr;
+const QEvent::Type kControlHotkeyEventType =
+    static_cast<QEvent::Type>(QEvent::registerEventType());
+
+void postControlHotkeyEvent(GlobalInputHook* hook) {
+    if (!hook) return;
+    QCoreApplication::postEvent(hook, new QEvent(kControlHotkeyEventType), Qt::HighEventPriority);
+}
 
 }  // namespace
 
@@ -28,7 +38,8 @@ bool GlobalInputHook::start() {
     }
 
     g_hookInstance = this;
-    startupIgnoreUntilTick_ = GetTickCount64() + 1200;
+    // 只保留很短的启动静默窗，避免把用户首个启停热键也吞掉。
+    startupIgnoreUntilTick_ = GetTickCount64() + kStartupIgnoreWindowMs;
     hookThread_ = std::thread(&GlobalInputHook::runHookLoop, this);
 
     std::unique_lock lock(hookInitMutex_);
@@ -51,6 +62,7 @@ void GlobalInputHook::stop() {
 void GlobalInputHook::setControlHotkey(std::optional<KeyDescriptor> key) {
     std::lock_guard lock(stateMutex_);
     controlHotkey_ = key;
+    controlHotkeyPressed_ = false;
 }
 
 void GlobalInputHook::setCaptureActive(bool active) {
@@ -71,6 +83,14 @@ void GlobalInputHook::setDialogOpen(bool open) {
 void GlobalInputHook::setRepeatRunning(bool running) {
     repeatRunning_ = running;
     if (!running) controlHotkeyPressed_ = false;
+}
+
+bool GlobalInputHook::event(QEvent* event) {
+    if (event && event->type() == kControlHotkeyEventType) {
+        emit controlHotkeyPressed();
+        return true;
+    }
+    return QObject::event(event);
 }
 
 void GlobalInputHook::runHookLoop() {
@@ -139,7 +159,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
     if (isControlHotkey) {
         if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
-            QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
+            postControlHotkeyEvent(hook);
         } else if (released) {
             hook->controlHotkeyPressed_ = false;
         }
@@ -193,7 +213,7 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
     if (isControlHotkey) {
         if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
-            QMetaObject::invokeMethod(hook, [hook] { emit hook->controlHotkeyPressed(); }, Qt::QueuedConnection);
+            postControlHotkeyEvent(hook);
         } else if (!pressed) {
             hook->controlHotkeyPressed_ = false;
         }

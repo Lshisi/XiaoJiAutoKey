@@ -250,8 +250,9 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     summaryDetailValue_ = new QTextEdit(summaryPanel_);
     summaryDetailValue_->setReadOnly(true);
     summaryDetailValue_->setFrameShape(QFrame::NoFrame);
-    summaryDetailValue_->setMinimumHeight(208);
-    summaryDetailValue_->setMaximumHeight(208);
+    summaryDetailValue_->document()->setDocumentMargin(0);
+    summaryDetailValue_->setMinimumHeight(194);
+    summaryDetailValue_->setMaximumHeight(194);
     summaryDetailValue_->setFont(Fluent::Typography::caption());
     summaryDetailValue_->setPlainText(QString::fromWCharArray(L"\u6682\u65e0\u8be6\u7ec6\u72b6\u6001"));
     summaryDetailValue_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);

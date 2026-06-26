@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <QEvent>
 #include <Windows.h>
 #include <atomic>
 #include <condition_variable>
@@ -31,6 +32,9 @@ signals:
     void controlHotkeyPressed();
     void physicalKeyChanged(KeyDescriptor key, bool pressed);
     void macroTriggerChanged(KeyDescriptor key, bool pressed);
+
+protected:
+    bool event(QEvent* event) override;
 
 private:
     void runHookLoop();

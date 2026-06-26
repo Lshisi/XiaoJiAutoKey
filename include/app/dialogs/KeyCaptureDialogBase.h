@@ -16,6 +16,7 @@ public:
 
     void handleCapturedKey(quint64 encodedKey);
     [[nodiscard]] std::optional<KeyDescriptor> capturedKey() const;
+    void setPrimaryMouseButtonsAllowed(bool allowed);
 
 signals:
     void keyCaptureRequested();
@@ -33,6 +34,7 @@ protected:
 private:
     FluentLineEdit* keyEdit_ = nullptr;
     std::optional<KeyDescriptor> capturedKey_;
+    bool allowPrimaryMouseButtons_ = false;
     bool dragging_ = false;
     QPoint dragStartGlobal_;
     QPoint dragStartFrame_;

@@ -16,6 +16,8 @@
 
 BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs, QWidget* parent)
     : KeyCaptureDialogBase(parent) {
+    setPrimaryMouseButtonsAllowed(true);
+
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));

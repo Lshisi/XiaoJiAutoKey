@@ -16,7 +16,9 @@ KeyCaptureDialogBase::KeyCaptureDialogBase(QWidget* parent)
 
 void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
     KeyDescriptor key = DecodeKey(encodedKey);
-    if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
+    if (!allowPrimaryMouseButtons_
+        && key.device == InputDevice::Mouse
+        && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
         if (keyEdit_ && capturedKey_.has_value()) {
             keyEdit_->setText(QString::fromStdWString(GetKeyDisplayName(*capturedKey_)));
         } else if (keyEdit_) {
@@ -30,6 +32,10 @@ void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
 
 std::optional<KeyDescriptor> KeyCaptureDialogBase::capturedKey() const {
     return capturedKey_;
+}
+
+void KeyCaptureDialogBase::setPrimaryMouseButtonsAllowed(bool allowed) {
+    allowPrimaryMouseButtons_ = allowed;
 }
 
 void KeyCaptureDialogBase::paintEvent(QPaintEvent* event) {

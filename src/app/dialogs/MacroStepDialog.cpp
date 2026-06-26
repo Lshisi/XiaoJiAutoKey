@@ -13,6 +13,8 @@
 
 MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QWidget* parent)
     : KeyCaptureDialogBase(parent) {
+    setPrimaryMouseButtonsAllowed(true);
+
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));

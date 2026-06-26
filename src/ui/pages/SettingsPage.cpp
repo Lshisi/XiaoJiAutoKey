@@ -248,7 +248,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     openBtn->setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);
     configPathRow->addWidget(openBtn);
     panelLayout->addLayout(configPathRow);
-    panelLayout->addWidget(makeDivider(panel));
 
     outerLayout->addWidget(panel);
     outerLayout->addSpacing(0);

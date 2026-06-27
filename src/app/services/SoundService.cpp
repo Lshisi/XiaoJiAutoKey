@@ -67,12 +67,12 @@ void SoundService::playFile(const std::filesystem::path& soundPath, int volume, 
         while (!queue_.empty()) {
             auto request = std::move(queue_.front());
             queue_.pop();
-            if (request.play && request.alias != aliasName) {
+            if (request.mode == RequestMode::Play && request.alias != aliasName) {
                 retained.push(std::move(request));
             }
         }
         queue_ = std::move(retained);
-        queue_.push(PlayRequest{soundPath, volume, aliasName, true});
+        queue_.push(PlayRequest{soundPath, volume, aliasName, RequestMode::Play});
     }
     queueCv_.notify_one();
 }
@@ -105,10 +105,10 @@ void SoundService::warmUpToggleSounds(
     const std::wstring& macroOn,
     const std::wstring& macroOff) const {
     const std::array requests{
-        PlayRequest{resolveToggleSoundPath(true, false, repeatOn, repeatOff), 80, L"autokey_repeat_on_sound", false},
-        PlayRequest{resolveToggleSoundPath(false, false, repeatOn, repeatOff), 80, L"autokey_repeat_off_sound", false},
-        PlayRequest{resolveToggleSoundPath(true, true, macroOn, macroOff), 80, L"autokey_macro_on_sound", false},
-        PlayRequest{resolveToggleSoundPath(false, true, macroOn, macroOff), 80, L"autokey_macro_off_sound", false},
+        PlayRequest{resolveToggleSoundPath(true, false, repeatOn, repeatOff), 0, L"autokey_repeat_on_sound", RequestMode::SilentPrime},
+        PlayRequest{resolveToggleSoundPath(false, false, repeatOn, repeatOff), 0, L"autokey_repeat_off_sound", RequestMode::SilentPrime},
+        PlayRequest{resolveToggleSoundPath(true, true, macroOn, macroOff), 0, L"autokey_macro_on_sound", RequestMode::SilentPrime},
+        PlayRequest{resolveToggleSoundPath(false, true, macroOn, macroOff), 0, L"autokey_macro_off_sound", RequestMode::SilentPrime},
     };
 
     {
@@ -187,13 +187,19 @@ void SoundService::workerLoop() {
 void SoundService::playFileSync(const PlayRequest& request) const {
     if (request.soundPath.empty() || request.alias.empty()) return;
 
-    if (!ensureAliasOpen(request) || !request.play) return;
+    if (!ensureAliasOpen(request)) return;
+    if (request.mode == RequestMode::OpenOnly) return;
 
     const int mciVolume = std::clamp(request.volume, 0, 100) * 10;
     const std::wstring volumeCommand = L"setaudio " + request.alias + L" volume to " + std::to_wstring(mciVolume);
     mciSendStringW(volumeCommand.c_str(), nullptr, 0, nullptr);
     mciSendStringW((L"seek " + request.alias + L" to start").c_str(), nullptr, 0, nullptr);
     mciSendStringW((L"play " + request.alias + L" from 0").c_str(), nullptr, 0, nullptr);
+
+    if (request.mode == RequestMode::SilentPrime) {
+        mciSendStringW((L"stop " + request.alias).c_str(), nullptr, 0, nullptr);
+        mciSendStringW((L"seek " + request.alias + L" to start").c_str(), nullptr, 0, nullptr);
+    }
 }
 
 bool SoundService::ensureAliasOpen(const PlayRequest& request) const {

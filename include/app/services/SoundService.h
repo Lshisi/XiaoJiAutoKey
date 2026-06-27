@@ -33,11 +33,17 @@ public:
     [[nodiscard]] bool isValidAudioFile(const QString& path) const;
 
 private:
+    enum class RequestMode {
+        Play,
+        OpenOnly,
+        SilentPrime,
+    };
+
     struct PlayRequest {
         std::filesystem::path soundPath;
         int volume = 80;
         std::wstring alias;
-        bool play = true;
+        RequestMode mode = RequestMode::Play;
     };
 
     [[nodiscard]] std::filesystem::path resolveAudioPath(const wchar_t* fileName) const;

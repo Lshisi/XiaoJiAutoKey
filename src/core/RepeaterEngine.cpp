@@ -78,7 +78,8 @@ void RepeaterEngine::SetToolRunning(bool running) {
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
         independentDown_.clear();
-        independentLastUpTick_.clear();
+        independentDownIgnoreCount_.clear();
+        independentUpIgnoreCount_.clear();
         independentActiveKey_.reset();
 
         for (auto& t : tasks_) {
@@ -112,24 +113,23 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     auto it = ignoreCount_.find(encoded);
 
     if (independentBinding) {
-        const auto now = NowMs();
-        const int intervalMs = GetIndependentIntervalMsLocked(key);
-        const auto lastUpIt = independentLastUpTick_.find(encoded);
-        if (independentDown_.count(key) > 0) {
-            if (it != ignoreCount_.end() && it->second > 0) {
-                --it->second;
-            }
+        auto independentIgnoreIt = independentDownIgnoreCount_.find(encoded);
+        if (independentIgnoreIt != independentDownIgnoreCount_.end() && independentIgnoreIt->second > 0) {
+            --independentIgnoreIt->second;
             return;
         }
-        if (lastUpIt != independentLastUpTick_.end() && lastUpIt->second != 0
-            && now - lastUpIt->second < static_cast<ULONGLONG>(intervalMs)) {
-            if (it != ignoreCount_.end() && it->second > 0) {
-                --it->second;
-            }
+        if (independentDown_.count(key) > 0) {
             return;
         }
         independentDown_.insert(key);
-        physicalDown_.erase(key);
+        physicalDown_.insert(key);
+        if (independentActiveKey_.has_value() && *independentActiveKey_ == key) {
+            independentActiveKey_.reset();
+        } else {
+            independentActiveKey_ = key;
+            ResetIndependentTaskTimingLocked(key);
+        }
+        return;
     }
 
     // ⭐ Hold模式key的独立追踪
@@ -174,9 +174,14 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     pauseKeysDown_.erase(key);
 
     if (independentBinding) {
+        auto independentIgnoreIt = independentUpIgnoreCount_.find(encoded);
+        if (independentIgnoreIt != independentUpIgnoreCount_.end() && independentIgnoreIt->second > 0) {
+            --independentIgnoreIt->second;
+            return;
+        }
         independentDown_.erase(key);
-        independentLastUpTick_[encoded] = NowMs();
         physicalDown_.erase(key);
+        return;
     }
 
     // ⭐ Hold模式key的独立追踪：用独立的KEYUP计数器过滤SendTap的KEYUP
@@ -203,6 +208,12 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
 void RepeaterEngine::BeforeSend(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+    if (IsIndependentBinding(key)) {
+        independentDownIgnoreCount_[encoded] += 1;
+        independentUpIgnoreCount_[encoded] += 1;
+        return;
+    }
+
     // down 产生1个事件，up 产生1个事件，总共还是2个需要忽略
     // 但现在 down 和 up 分开调用，down 时先加2（预留给后续的 up 事件）
     ignoreCount_[encoded] += 2;
@@ -256,16 +267,6 @@ void RepeaterEngine::ResetIndependentTaskTimingLocked(const KeyDescriptor& key) 
     }
 }
 
-int RepeaterEngine::GetIndependentIntervalMsLocked(const KeyDescriptor& key) const {
-    const auto it = std::find_if(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
-        return t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key;
-    });
-    if (it == tasks_.end()) {
-        return 1;
-    }
-    return std::max(1, it->config.intervalMs);
-}
-
 bool RepeaterEngine::IsWasdProtectionActive() const {
     return wasdProtection_ && std::any_of(physicalDown_.begin(), physicalDown_.end(), IsWasdKey);
 }
@@ -278,7 +279,8 @@ void RepeaterEngine::ReleaseAll() {
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
         independentDown_.clear();
-        independentLastUpTick_.clear();
+        independentDownIgnoreCount_.clear();
+        independentUpIgnoreCount_.clear();
         independentActiveKey_.reset();
         ResetAllLocked();
     }

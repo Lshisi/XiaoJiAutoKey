@@ -165,9 +165,13 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         }
     }
     if (repeatRunning) {
-        emit hook->physicalKeyChanged(key, pressed);
+        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+            emit hook->physicalKeyChanged(key, pressed);
+        }, Qt::QueuedConnection);
     }
-    emit hook->macroTriggerChanged(key, pressed);
+    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+        emit hook->macroTriggerChanged(key, pressed);
+    }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
@@ -215,9 +219,13 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         }
     }
     if (repeatRunning) {
-        emit hook->physicalKeyChanged(key, pressed);
+        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+            emit hook->physicalKeyChanged(key, pressed);
+        }, Qt::QueuedConnection);
     }
-    emit hook->macroTriggerChanged(key, pressed);
+    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+        emit hook->macroTriggerChanged(key, pressed);
+    }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }

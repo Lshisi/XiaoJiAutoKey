@@ -55,6 +55,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     modeCombo_ = new FluentComboBox(this);
     modeCombo_->addItem(QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f"));
     modeCombo_->addItem(QString::fromWCharArray(L"\u6309\u538b\u6a21\u5f0f"));
+    modeCombo_->addItem(QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f"));
     modeRow->addWidget(modeCombo_);
     layout->addLayout(modeRow);
 
@@ -103,7 +104,13 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
 
     if (existing.has_value()) {
         setCapturedKey(existing->key);
-        modeCombo_->setCurrentIndex(existing->mode == RepeatMode::Hold ? 1 : 0);
+        if (existing->mode == RepeatMode::Hold) {
+            modeCombo_->setCurrentIndex(1);
+        } else if (existing->mode == RepeatMode::Independent) {
+            modeCombo_->setCurrentIndex(2);
+        } else {
+            modeCombo_->setCurrentIndex(0);
+        }
         delayEdit_->setText(QString::number(existing->delayMs));
         enabledSwitch_->setChecked(existing->enabled);
         mixedModeSuppressionSwitch_->setChecked(existing->mode != RepeatMode::Hold || !existing->suppressMixedMode);
@@ -139,7 +146,17 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
 BindingEditResult BindingEditDialog::editResult() const {
     BindingEditResult value;
     value.key = *capturedKey();
-    value.mode = modeCombo_->currentIndex() == 1 ? RepeatMode::Hold : RepeatMode::Toggle;
+    switch (modeCombo_->currentIndex()) {
+    case 1:
+        value.mode = RepeatMode::Hold;
+        break;
+    case 2:
+        value.mode = RepeatMode::Independent;
+        break;
+    default:
+        value.mode = RepeatMode::Toggle;
+        break;
+    }
     value.delayMs = delayEdit_->text().toInt();
     value.enabled = enabledSwitch_->isChecked();
     value.suppressMixedMode = value.mode == RepeatMode::Hold && !mixedModeSuppressionSwitch_->isChecked();

@@ -111,7 +111,7 @@ ControllerResult ProfileController::setControlHotkey(const KeyDescriptor& key) {
     const bool conflict = std::any_of(profile->bindings.begin(), profile->bindings.end(),
         [&](const KeyBinding& binding) { return binding.key == key; });
     if (conflict) {
-        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b\u6309\u952e\u3002"));
+        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e\u3002"));
     }
 
     profile->controlHotkey = key;
@@ -230,7 +230,7 @@ ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
     }
     for (const auto& binding : profile->bindings) {
         if (binding.key == key) {
-            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1\u6309\u952e\u3002"));
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e\u3002"));
         }
     }
 

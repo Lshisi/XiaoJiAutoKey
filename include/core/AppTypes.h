@@ -13,6 +13,7 @@ enum class InputDevice {
 enum class RepeatMode {
     Toggle,
     Hold,
+    Independent,
 };
 
 enum class InputSource {
@@ -119,6 +120,7 @@ std::string ToUtf8(const std::wstring& text);
 
 std::wstring GetKeyDisplayName(const KeyDescriptor& key);
 std::wstring RepeatModeToText(RepeatMode mode);
+bool IsToggleLikeRepeatMode(RepeatMode mode) noexcept;
 std::wstring DeviceToText(InputDevice device);
 
 constexpr std::uint32_t kNumpadEnterKeyCode = 0x0100000D;

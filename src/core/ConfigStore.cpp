@@ -58,7 +58,9 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         binding.key = *key;
         binding.delayMs = std::max(*delay, kMinDelayMs);
         const auto mode = GetStringField(*entry, "mode").value_or("toggle");
-        binding.mode = (mode == "hold") ? RepeatMode::Hold : RepeatMode::Toggle;
+        if (mode == "hold") binding.mode = RepeatMode::Hold;
+        else if (mode == "independent") binding.mode = RepeatMode::Independent;
+        else binding.mode = RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
         result.push_back(binding);
     }
@@ -128,7 +130,10 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("id", static_cast<double>(b.id));
         entry.emplace("enabled", b.enabled);
         entry.emplace("key", ToUtf8(KeyDescriptorToStorage(b.key)));
-        entry.emplace("mode", std::string(b.mode == RepeatMode::Hold ? "hold" : "toggle"));
+        const char* mode = "toggle";
+        if (b.mode == RepeatMode::Hold) mode = "hold";
+        else if (b.mode == RepeatMode::Independent) mode = "independent";
+        entry.emplace("mode", std::string(mode));
         entry.emplace("delayMs", b.delayMs);
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
         arr.emplace_back(std::move(entry));

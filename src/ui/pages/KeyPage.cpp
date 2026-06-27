@@ -151,7 +151,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     QPalette pauseLabelPal = pauseLabel->palette();
     pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     pauseLabel->setPalette(pauseLabelPal);
-    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
+    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
     pauseRow->addWidget(pauseLabel);
 
     pauseKeyListWidget_ = new QWidget(this);
@@ -231,12 +231,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
 
     // -- Card 3: 连发优先 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
-    mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u542f\u7528\u8fde\u53d1\u4f18\u5148"), this);
+    mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
+    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
     mixedCard->contentLayout()->addSpacing(2);
-    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\u65f6\uff0c\u6682\u505c\u5f00\u5173\u8fde\u53d1\u3002"), this);
+    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\uff0c\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
     mixedDesc->setFont(Fluent::Typography::caption());
     mixedDesc->setWordWrap(true);
     QPalette mPal = mixedDesc->palette();
@@ -249,12 +249,12 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     wasdSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     mixedCard->contentLayout()->addWidget(wasdSeparator);
     mixedCard->contentLayout()->addSpacing(8);
-    wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361\u4f4d"), this);
+    wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361"), this);
     wasdProtectionCheck_->setFont(Fluent::Typography::body());
-    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
+    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
     mixedCard->contentLayout()->addSpacing(2);
-    auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u4e34\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
+    auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
     wasdDesc->setFont(Fluent::Typography::caption());
     wasdDesc->setWordWrap(true);
     QPalette wPal = wasdDesc->palette();
@@ -487,6 +487,8 @@ void KeyPage::refreshTable() {
             mixedTip = b.suppressMixedMode
                 ? QString::fromWCharArray(L"\u4e0d\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4e0d\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1")
                 : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
+        } else if (b.mode == RepeatMode::Independent) {
+            mixedTip = QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f\u4e5f\u4f1a\u53d7\u8fde\u53d1\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u4f4d\u5f71\u54cd");
         }
         auto* mixedWidget = new PriorityIconWidget(mixedKind);
         mixedWidget->setToolTip(mixedTip);

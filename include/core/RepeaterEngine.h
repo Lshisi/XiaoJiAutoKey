@@ -59,6 +59,9 @@ public:
 private:
     void WorkerLoop();
     void ResetAllLocked();
+    void NormalizeIndependentSelectionLocked();
+    void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
+    int GetIndependentIntervalMsLocked(const KeyDescriptor& key) const;
     static ULONGLONG NowMs();
 
     DdDriver& driver_;
@@ -86,6 +89,11 @@ private:
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> holdPhysicalDown_;
     std::unordered_map<std::uint64_t, int> holdUpIgnoreCount_;
     bool IsHoldBinding(const KeyDescriptor& key) const;
+    bool IsIndependentBinding(const KeyDescriptor& key) const;
     bool IsHoldActive() const;
     bool IsWasdProtectionActive() const;
+
+    std::unordered_set<KeyDescriptor, KeyDescriptorHash> independentDown_;
+    std::unordered_map<std::uint64_t, ULONGLONG> independentLastUpTick_;
+    std::optional<KeyDescriptor> independentActiveKey_;
 };

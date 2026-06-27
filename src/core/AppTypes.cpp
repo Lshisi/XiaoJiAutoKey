@@ -141,7 +141,20 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key) {
 }
 
 std::wstring RepeatModeToText(RepeatMode mode) {
-    return mode == RepeatMode::Toggle ? L"\u5f00\u5173" : L"\u6309\u538b";
+    switch (mode) {
+    case RepeatMode::Toggle:
+        return L"\u5f00\u5173";
+    case RepeatMode::Hold:
+        return L"\u6309\u538b";
+    case RepeatMode::Independent:
+        return L"\u72ec\u7acb";
+    default:
+        return L"\u672a\u77e5";
+    }
+}
+
+bool IsToggleLikeRepeatMode(RepeatMode mode) noexcept {
+    return mode == RepeatMode::Toggle || mode == RepeatMode::Independent;
 }
 
 std::wstring DeviceToText(InputDevice device) {

@@ -1,4 +1,4 @@
-#include "RepeaterEngine.h"
+﻿#include "RepeaterEngine.h"
 
 #include <algorithm>
 
@@ -77,6 +77,9 @@ void RepeaterEngine::SetToolRunning(bool running) {
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
+        independentDown_.clear();
+        independentLastUpTick_.clear();
+        independentActiveKey_.reset();
 
         for (auto& t : tasks_) {
             t.lastFire = 0;
@@ -96,6 +99,7 @@ void RepeaterEngine::SetToolRunning(bool running) {
 void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+    const bool independentBinding = IsIndependentBinding(key);
 
     // 暂停键追踪
     for (const auto& pk : pauseKeys_) {
@@ -103,6 +107,29 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
             pauseKeysDown_.insert(key);
             break;
         }
+    }
+
+    auto it = ignoreCount_.find(encoded);
+
+    if (independentBinding) {
+        const auto now = NowMs();
+        const int intervalMs = GetIndependentIntervalMsLocked(key);
+        const auto lastUpIt = independentLastUpTick_.find(encoded);
+        if (independentDown_.count(key) > 0) {
+            if (it != ignoreCount_.end() && it->second > 0) {
+                --it->second;
+            }
+            return;
+        }
+        if (lastUpIt != independentLastUpTick_.end() && lastUpIt->second != 0
+            && now - lastUpIt->second < static_cast<ULONGLONG>(intervalMs)) {
+            if (it != ignoreCount_.end() && it->second > 0) {
+                --it->second;
+            }
+            return;
+        }
+        independentDown_.insert(key);
+        physicalDown_.erase(key);
     }
 
     // ⭐ Hold模式key的独立追踪
@@ -115,7 +142,6 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     }
 
     // 原有的physicalDown_追踪（用于Hold模式的isDown判断）
-    auto it = ignoreCount_.find(encoded);
     if (physicalDown_.count(key) > 0) {
         if (it != ignoreCount_.end() && it->second > 0) {
             --it->second;
@@ -128,14 +154,30 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
         return;
     }
     physicalDown_.insert(key);
+
+    if (independentBinding) {
+        if (independentActiveKey_.has_value() && *independentActiveKey_ == key) {
+            independentActiveKey_.reset();
+        } else {
+            independentActiveKey_ = key;
+        }
+        ResetIndependentTaskTimingLocked(key);
+    }
 }
 
 void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
+    const bool independentBinding = IsIndependentBinding(key);
 
     // 暂停键追踪
     pauseKeysDown_.erase(key);
+
+    if (independentBinding) {
+        independentDown_.erase(key);
+        independentLastUpTick_[encoded] = NowMs();
+        physicalDown_.erase(key);
+    }
 
     // ⭐ Hold模式key的独立追踪：用独立的KEYUP计数器过滤SendTap的KEYUP
     if (IsHoldBinding(key)) {
@@ -177,6 +219,12 @@ bool RepeaterEngine::IsHoldBinding(const KeyDescriptor& key) const {
     });
 }
 
+bool RepeaterEngine::IsIndependentBinding(const KeyDescriptor& key) const {
+    return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+        return t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key;
+    });
+}
+
 bool RepeaterEngine::IsHoldActive() const {
     return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
         return t.config.enabled
@@ -184,6 +232,38 @@ bool RepeaterEngine::IsHoldActive() const {
             && !t.config.suppressMixedMode
             && holdPhysicalDown_.count(t.config.key) > 0;
     });
+}
+
+void RepeaterEngine::NormalizeIndependentSelectionLocked() {
+    if (!independentActiveKey_.has_value()) {
+        return;
+    }
+
+    const KeyDescriptor key = *independentActiveKey_;
+    const bool stillValid = std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+        return t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key;
+    });
+    if (!stillValid) {
+        independentActiveKey_.reset();
+    }
+}
+
+void RepeaterEngine::ResetIndependentTaskTimingLocked(const KeyDescriptor& key) {
+    for (auto& t : tasks_) {
+        if (t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key) {
+            t.lastFire = 0;
+        }
+    }
+}
+
+int RepeaterEngine::GetIndependentIntervalMsLocked(const KeyDescriptor& key) const {
+    const auto it = std::find_if(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+        return t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key;
+    });
+    if (it == tasks_.end()) {
+        return 1;
+    }
+    return std::max(1, it->config.intervalMs);
 }
 
 bool RepeaterEngine::IsWasdProtectionActive() const {
@@ -197,6 +277,9 @@ void RepeaterEngine::ReleaseAll() {
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
+        independentDown_.clear();
+        independentLastUpTick_.clear();
+        independentActiveKey_.reset();
         ResetAllLocked();
     }
 
@@ -237,6 +320,7 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
     }
 
     tasks_ = std::move(updated);
+    NormalizeIndependentSelectionLocked();
 }
 
 
@@ -244,49 +328,66 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
 // ── Worker（状态机版：down/up 分离发送） ─────────────
 void RepeaterEngine::WorkerLoop() {
     while (!exit_.load()) {
-        // 收集需要发送的事件
-        std::vector<std::pair<KeyDescriptor, bool>> toSend;  // key, isDown
+        std::vector<KeyDescriptor> releases;
+        std::vector<KeyDescriptor> presses;
         {
             std::lock_guard lock(mutex_);
+
+            NormalizeIndependentSelectionLocked();
 
             const bool holdActive = IsHoldActive();
             const bool pauseActive = IsPauseActive();
             const bool wasdProtectionActive = IsWasdProtectionActive();
+            const std::optional<KeyDescriptor> selectedIndependentKey = independentActiveKey_;
 
             for (auto& t : tasks_) {
                 if (!t.config.enabled) continue;
 
+                const bool isHoldMode = t.config.mode == RepeatMode::Hold;
+                const bool isIndependentMode = t.config.mode == RepeatMode::Independent;
+                const bool isToggleLikeMode = IsToggleLikeRepeatMode(t.config.mode);
+
                 int interval = std::max(1, t.config.intervalMs);
-                if (wasdProtectionActive && t.config.mode == RepeatMode::Toggle) {
+                if (wasdProtectionActive && isToggleLikeMode) {
                     interval = std::max(interval, kWasdProtectionMinIntervalMs);
                 }
-                // Hold 依赖专用追踪，避免被通用 physicalDown_ 的瞬态变化误判为松开。
-                const bool isDown = t.config.mode == RepeatMode::Hold
-                    ? holdPhysicalDown_.count(t.config.key) > 0
-                    : physicalDown_.count(t.config.key) > 0;
 
-                // Hold模式：必须按住才发
-                if (t.config.mode == RepeatMode::Hold && !isDown) {
-                    // 如果松开了但还有 pending 的 down，立即发 up
-                    if (t.isDown) {
-                        toSend.push_back({t.config.key, false});
-                        t.isDown = false;
-                    }
-                    continue;
-                }
-
-                // Toggle模式：仅在混合模式开启时被Hold激活压制，或暂停键按住时压制
-                if (t.config.mode == RepeatMode::Toggle) {
-                    if (!toolRunning_) {
+                if (isHoldMode) {
+                    const bool isDown = holdPhysicalDown_.count(t.config.key) > 0;
+                    if (!isDown) {
                         if (t.isDown) {
-                            toSend.push_back({t.config.key, false});
+                            releases.push_back(t.config.key);
+                            t.isDown = false;
+                        }
+                        continue;
+                    }
+                } else if (isIndependentMode) {
+                    const bool selected = selectedIndependentKey.has_value() && *selectedIndependentKey == t.config.key;
+                    if (!toolRunning_ || !selected) {
+                        if (t.isDown) {
+                            releases.push_back(t.config.key);
                             t.isDown = false;
                         }
                         continue;
                     }
                     if ((mixedMode_ && holdActive) || pauseActive) {
                         if (t.isDown) {
-                            toSend.push_back({t.config.key, false});
+                            releases.push_back(t.config.key);
+                            t.isDown = false;
+                        }
+                        continue;
+                    }
+                } else {
+                    if (!toolRunning_) {
+                        if (t.isDown) {
+                            releases.push_back(t.config.key);
+                            t.isDown = false;
+                        }
+                        continue;
+                    }
+                    if ((mixedMode_ && holdActive) || pauseActive) {
+                        if (t.isDown) {
+                            releases.push_back(t.config.key);
                             t.isDown = false;
                         }
                         continue;
@@ -295,42 +396,54 @@ void RepeaterEngine::WorkerLoop() {
 
                 const auto now = NowMs();
 
-                // 如果当前处于 down 状态，检查是否该发 up
+                if (isIndependentMode) {
+                    if (t.isDown) {
+                        const int holdMs = std::max(2, std::min(interval / 8, 6));
+                        if (now - t.downTime >= static_cast<ULONGLONG>(holdMs)) {
+                            releases.push_back(t.config.key);
+                            t.isDown = false;
+                            t.lastFire = now;
+                        }
+                        continue;
+                    }
+
+                    if (t.lastFire == 0 || now - t.lastFire >= static_cast<ULONGLONG>(interval)) {
+                        presses.push_back(t.config.key);
+                        t.isDown = true;
+                        t.downTime = now;
+                    }
+                    continue;
+                }
+
                 if (t.isDown) {
-                    // hold 时间 = min(interval / 3, 30)，最少 2ms
                     const int holdMs = std::max(2, std::min(interval / 3, 30));
-                    if (now - t.downTime >= (ULONGLONG)holdMs) {
-                        toSend.push_back({t.config.key, false});
+                    if (now - t.downTime >= static_cast<ULONGLONG>(holdMs)) {
+                        releases.push_back(t.config.key);
                         t.isDown = false;
                         t.lastFire = now;
                     }
                     continue;
                 }
 
-                // 检查是否该发 down
-                if (t.lastFire == 0 || now - t.lastFire >= (ULONGLONG)interval) {
-                    toSend.push_back({t.config.key, true});
+                if (t.lastFire == 0 || now - t.lastFire >= static_cast<ULONGLONG>(interval)) {
+                    presses.push_back(t.config.key);
                     t.isDown = true;
                     t.downTime = now;
                 }
             }
         }
 
-        // 在锁外发送事件
-        for (const auto& [key, down] : toSend) {
-            if (down) {
-                BeforeSend(key);
-                driver_.SendDown(key, InputSource::Injected);
-            } else {
-                driver_.SendUp(key, InputSource::Injected);
-            }
+        for (const auto& key : releases) {
+            driver_.SendUp(key, InputSource::Injected);
+        }
+        for (const auto& key : presses) {
+            BeforeSend(key);
+            driver_.SendDown(key, InputSource::Injected);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
-
-// ── reset ─────────────────────────────
 void RepeaterEngine::ResetAllLocked() {
     for (auto& t : tasks_) {
         t.lastFire = 0;
@@ -343,3 +456,4 @@ void RepeaterEngine::ResetAllLocked() {
 ULONGLONG RepeaterEngine::NowMs() {
     return ::GetTickCount64();
 }
+

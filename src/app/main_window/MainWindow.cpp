@@ -551,7 +551,7 @@ bool MainWindow::rebootComputer() {
     const QString program = QStringLiteral("shutdown.exe");
     const QStringList arguments = {
         QStringLiteral("/r"),
-        QStringLiteral("/t"), QStringLiteral("8"),
+        QStringLiteral("/t"), QStringLiteral("0"),
         QStringLiteral("/f")
     };
     return QProcess::startDetached(program, arguments, QCoreApplication::applicationDirPath());

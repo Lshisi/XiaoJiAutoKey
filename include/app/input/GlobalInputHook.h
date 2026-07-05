@@ -26,6 +26,10 @@ public:
     void setCaptureStartedTick(ULONGLONG tick);
     void setDialogOpen(bool open);
     void setRepeatRunning(bool running);
+    void setRawKeyboardActive(bool active);
+
+    [[nodiscard]] bool isDialogOpen() const noexcept;
+    [[nodiscard]] bool isRawKeyboardActive() const noexcept;
 
 signals:
     void capturedKey(quint64 encodedKey);
@@ -59,6 +63,7 @@ private:
 
     std::atomic<bool> dialogOpen_{false};
     std::atomic<bool> repeatRunning_{false};
+    std::atomic<bool> rawKeyboardActive_{false};
     std::atomic<bool> controlHotkeyPressed_{false};
     std::atomic<ULONGLONG> startupIgnoreUntilTick_{0};
 };

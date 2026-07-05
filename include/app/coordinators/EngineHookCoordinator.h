@@ -9,6 +9,7 @@
 
 class GlobalInputHook;
 class MacroEngine;
+class RawInputManager;
 class RepeaterEngine;
 class QWidget;
 
@@ -18,6 +19,7 @@ class EngineHookCoordinator : public QObject {
 public:
     struct Context {
         GlobalInputHook* hook = nullptr;
+        RawInputManager* rawInput = nullptr;
         RepeaterEngine* repeaterEngine = nullptr;
         MacroEngine* macroEngine = nullptr;
         std::function<void()> toggleRepeatRunning;
@@ -30,6 +32,7 @@ public:
         std::function<void()> macroStateChanged;
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
+        std::function<bool()> selfInjectedKeyboardVisible;
         QWidget* parent = nullptr;
     };
 
@@ -40,6 +43,13 @@ public:
     void refreshState();
 
 private:
+    void syncKeyboardInputMode();
+    void handleRawKeyboardChanged(const KeyDescriptor& key, bool pressed);
+    void handlePhysicalChanged(const KeyDescriptor& key, bool pressed);
+    void handleControlHotkeyPressed();
+    void handleMacroTriggerChanged(const KeyDescriptor& key, bool pressed);
+
     Context context_;
     bool conflictPromptVisible_ = false;
+    bool rawControlHotkeyPressed_ = false;
 };

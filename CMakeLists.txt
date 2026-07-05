@@ -20,6 +20,7 @@ find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 set(MOC_HEADERS
     include/app/MainWindow.h
     include/app/input/GlobalInputHook.h
+    include/app/input/RawInputManager.h
     include/app/coordinators/SettingsCoordinator.h
     include/app/coordinators/DriverCoordinator.h
     include/app/coordinators/ProfileCoordinator.h
@@ -129,6 +130,7 @@ set(UI_PAGE_HEADERS
 add_executable(XiaoJiAutoKey WIN32
     include/app/input/GlobalInputHook.h
     include/app/input/InputKeyUtils.h
+    include/app/input/RawInputManager.h
     include/app/config/ActiveConfigValidator.h
     include/app/controllers/ControllerResult.h
     include/app/config/ConfigNormalizer.h
@@ -163,6 +165,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/SoundSettingsDialog.h
     include/core/MacroEngine.h
     src/app/input/GlobalInputHook.cpp
+    src/app/input/RawInputManager.cpp
     src/app/config/ActiveConfigValidator.cpp
     src/app/config/ConfigNormalizer.cpp
     src/app/coordinators/SettingsCoordinator.cpp

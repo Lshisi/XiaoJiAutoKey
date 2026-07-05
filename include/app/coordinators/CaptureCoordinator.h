@@ -12,6 +12,7 @@ class KeyPage;
 class MacroController;
 class MacroPage;
 class ProfileController;
+class RawInputManager;
 class SettingsPage;
 class QWidget;
 
@@ -29,6 +30,7 @@ public:
         ProfileController* profileController = nullptr;
         MacroController* macroController = nullptr;
         GlobalInputHook* inputHook = nullptr;
+        RawInputManager* rawInput = nullptr;
         std::function<void()> applyMacros;
         std::function<void()> saveConfig;
         std::function<void()> refreshAll;

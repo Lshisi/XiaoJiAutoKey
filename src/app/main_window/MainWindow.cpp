@@ -185,6 +185,7 @@ MainWindow::MainWindow(QWidget* parent)
       engine_(driver_),
       macroEngine_(driver_),
       inputHook_(this),
+      rawInput_(this),
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr) {
@@ -509,6 +510,7 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     } else {
         configCoordinator_.save();
     }
+    engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
     return loaded ? DriverCoordinator::SwitchResult::Succeeded : DriverCoordinator::SwitchResult::Failed;
 }
@@ -544,6 +546,7 @@ void MainWindow::finalizeHidDriverUninstall() {
         configCoordinator_.save();
         loadLegacyDriver();
     }
+    engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
 }
 
@@ -601,8 +604,11 @@ bool MainWindow::event(QEvent* event) {
 bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
     Q_UNUSED(eventType)
 #ifdef Q_OS_WIN
-    const auto* msg = static_cast<MSG*>(message);
+    auto* msg = static_cast<MSG*>(message);
     if (msg) {
+        if (msg->message == WM_INPUT) {
+            rawInput_.handleNativeMessage(msg, result);
+        }
         switch (msg->message) {
         case WM_THEMECHANGED:
             Fluent::Theme::refreshDarkModeCache();
@@ -867,6 +873,8 @@ void MainWindow::recreateWindowSurfaceAfterDpiChange(int dpi) {
         destroy(true, true);
         setGeometry(originalGeometry);
         createWinId();
+        rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+        engineHookCoordinator_.refreshState();
 
         if (wasVisible) {
             show();

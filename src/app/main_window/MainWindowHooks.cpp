@@ -6,8 +6,11 @@
 #include <stdexcept>
 
 void MainWindow::setupHooks() {
+    rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{
         &inputHook_,
+        &rawInput_,
         &engine_,
         &macroEngine_,
         [this]() {
@@ -45,6 +48,7 @@ void MainWindow::setupHooks() {
         },
         [this]() { return driver_.IsReady(); },
         [this]() { showDdUnavailableMessage(); },
+        [this]() { return driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid; },
         this
     });
 

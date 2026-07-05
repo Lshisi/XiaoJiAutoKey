@@ -85,6 +85,19 @@ void GlobalInputHook::setRepeatRunning(bool running) {
     if (!running) controlHotkeyPressed_ = false;
 }
 
+void GlobalInputHook::setRawKeyboardActive(bool active) {
+    rawKeyboardActive_ = active;
+    if (active) controlHotkeyPressed_ = false;
+}
+
+bool GlobalInputHook::isDialogOpen() const noexcept {
+    return dialogOpen_.load();
+}
+
+bool GlobalInputHook::isRawKeyboardActive() const noexcept {
+    return rawKeyboardActive_.load();
+}
+
 bool GlobalInputHook::event(QEvent* event) {
     if (event && event->type() == kControlHotkeyEventType) {
         emit controlHotkeyPressed();
@@ -146,6 +159,10 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
         captureActive = hook->captureActive_;
+    }
+
+    if (!captureActive && hook->rawKeyboardActive_.load()) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
     if (captureActive && pressed) {

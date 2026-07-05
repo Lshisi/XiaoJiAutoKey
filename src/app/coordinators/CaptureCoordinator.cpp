@@ -6,6 +6,7 @@
 #include "dialogs/KeyCaptureDialogBase.h"
 #include "input/GlobalInputHook.h"
 #include "input/InputKeyUtils.h"
+#include "input/RawInputManager.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
@@ -16,6 +17,21 @@ CaptureCoordinator::CaptureCoordinator(QObject* parent) : QObject(parent) {}
 
 void CaptureCoordinator::bind(Context context) {
     context_ = std::move(context);
+    if (context_.rawInput) {
+        connect(context_.rawInput, &RawInputManager::keyboardChanged, this, [this](const KeyDescriptor& key, bool pressed) {
+            if (!pressed || !target_.has_value()) {
+                return;
+            }
+            const auto encoded = EncodeKey(key);
+            if (*target_ == Target::DialogKey && activeDialog_) {
+                activeDialog_->handleCapturedKey(encoded);
+                target_.reset();
+                if (context_.refreshHookState) context_.refreshHookState();
+                return;
+            }
+            handleCapturedKey(encoded);
+        });
+    }
 }
 
 bool CaptureCoordinator::captureActive() const {
@@ -42,6 +58,9 @@ void CaptureCoordinator::runKeyCaptureDialog(KeyCaptureDialogBase& dialog) {
     if (!context_.inputHook) return;
 
     auto keyConn = connect(context_.inputHook, &GlobalInputHook::capturedKey, &dialog, [&](quint64 encodedKey) {
+        if (!target_.has_value() || *target_ != Target::DialogKey) {
+            return;
+        }
         dialog.handleCapturedKey(encodedKey);
         target_.reset();
         if (context_.refreshHookState) context_.refreshHookState();

@@ -48,6 +48,7 @@ public:
     bool IsToolRunning() const noexcept;
     void SetMixedMode(bool enabled);
     void SetWasdProtection(bool enabled);
+    void SetSelfInjectedKeyboardVisible(bool visible);
     void SetPauseKeys(const std::vector<KeyDescriptor>& keys);
 
     void OnPhysicalDown(const KeyDescriptor& key);
@@ -67,6 +68,7 @@ private:
 
     std::atomic<bool> exit_{false};
     std::atomic<bool> running_{false};
+    std::atomic<std::uint64_t> runGeneration_{0};
     std::thread worker_;
 
     mutable std::mutex mutex_;
@@ -76,13 +78,14 @@ private:
     bool toolRunning_ = false;
     bool mixedMode_ = false;
     bool wasdProtection_ = false;
+    bool selfInjectedKeyboardVisible_ = true;
 
     std::vector<KeyDescriptor> pauseKeys_;
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;
     bool IsPauseActive() const;
 
     std::unordered_map<std::uint64_t, int> ignoreCount_;
-    void BeforeSend(const KeyDescriptor& key);
+    void BeforeSendLocked(const KeyDescriptor& key);
     bool ShouldIgnore(const KeyDescriptor& key);
 
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> holdPhysicalDown_;

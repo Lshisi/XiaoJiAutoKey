@@ -182,6 +182,7 @@ void MainWindow::setupUi() {
         &profileController_,
         &macroController_,
         &inputHook_,
+        &rawInput_,
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
         [this]() {

@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 #include "DdDriver.h"
 #include "input/GlobalInputHook.h"
+#include "input/RawInputManager.h"
 #include "MacroEngine.h"
 #include "controllers/MacroController.h"
 #include "view/MainWindowView.h"
@@ -85,6 +86,7 @@ private:
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;
+    RawInputManager rawInput_;
     DdRuntimeService ddRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;

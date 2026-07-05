@@ -56,6 +56,18 @@ void RepeaterEngine::SetWasdProtection(bool enabled) {
     wasdProtection_ = enabled;
 }
 
+void RepeaterEngine::SetSelfInjectedKeyboardVisible(bool visible) {
+    std::lock_guard lock(mutex_);
+    if (selfInjectedKeyboardVisible_ == visible) {
+        return;
+    }
+    selfInjectedKeyboardVisible_ = visible;
+    ignoreCount_.clear();
+    holdUpIgnoreCount_.clear();
+    independentDownIgnoreCount_.clear();
+    independentUpIgnoreCount_.clear();
+}
+
 void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
     std::lock_guard lock(mutex_);
     pauseKeys_ = keys;
@@ -70,10 +82,12 @@ bool RepeaterEngine::IsPauseActive() const {
 void RepeaterEngine::SetToolRunning(bool running) {
     {
         std::lock_guard lock(mutex_);
+        ++runGeneration_;
         toolRunning_ = running;
         running_.store(running);
 
         physicalDown_.clear();
+        ignoreCount_.clear();
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
@@ -205,8 +219,11 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     physicalDown_.erase(key);
 }
 
-void RepeaterEngine::BeforeSend(const KeyDescriptor& key) {
-    std::lock_guard lock(mutex_);
+void RepeaterEngine::BeforeSendLocked(const KeyDescriptor& key) {
+    if (key.device == InputDevice::Keyboard && !selfInjectedKeyboardVisible_) {
+        return;
+    }
+
     const auto encoded = EncodeKey(key);
     if (IsIndependentBinding(key)) {
         independentDownIgnoreCount_[encoded] += 1;
@@ -274,7 +291,11 @@ bool RepeaterEngine::IsWasdProtectionActive() const {
 void RepeaterEngine::ReleaseAll() {
     {
         std::lock_guard lock(mutex_);
+        ++runGeneration_;
+        running_.store(false);
+        toolRunning_ = false;
         physicalDown_.clear();
+        ignoreCount_.clear();
         holdPhysicalDown_.clear();
         holdUpIgnoreCount_.clear();
         pauseKeysDown_.clear();
@@ -332,8 +353,10 @@ void RepeaterEngine::WorkerLoop() {
     while (!exit_.load()) {
         std::vector<KeyDescriptor> releases;
         std::vector<KeyDescriptor> presses;
+        std::uint64_t batchGeneration = 0;
         {
             std::lock_guard lock(mutex_);
+            batchGeneration = runGeneration_.load();
 
             NormalizeIndependentSelectionLocked();
 
@@ -433,14 +456,19 @@ void RepeaterEngine::WorkerLoop() {
                     t.downTime = now;
                 }
             }
-        }
 
-        for (const auto& key : releases) {
-            driver_.SendUp(key, InputSource::Injected);
-        }
-        for (const auto& key : presses) {
-            BeforeSend(key);
-            driver_.SendDown(key, InputSource::Injected);
+            for (const auto& key : presses) {
+                BeforeSendLocked(key);
+            }
+
+            if (batchGeneration == runGeneration_.load()) {
+                for (const auto& key : releases) {
+                    driver_.SendUp(key, InputSource::Injected);
+                }
+                for (const auto& key : presses) {
+                    driver_.SendDown(key, InputSource::Injected);
+                }
+            }
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

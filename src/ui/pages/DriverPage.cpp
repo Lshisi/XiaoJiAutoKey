@@ -49,6 +49,9 @@ QString compactDriverDetails(const QString& details) {
     QString hidSys;
     QString hidRootDevice;
     QString hidChildDevice;
+    QString usbPico;
+    QString usbPort;
+    QString usbFirmware;
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
@@ -64,6 +67,9 @@ QString compactDriverDetails(const QString& details) {
         else if (trimmed.startsWith(QStringLiteral("HID SYS:"))) hidSys = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Root \u8bbe\u5907:"))) hidRootDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Child \u8bbe\u5907:"))) hidChildDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QStringLiteral("USB Pico:"))) usbPico = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u7aef\u53e3:"))) usbPort = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u56fa\u4ef6:"))) usbFirmware = trimmed.section(QLatin1Char(':'), 1).trimmed();
     }
 
     QStringList sections;
@@ -125,6 +131,15 @@ QString compactDriverDetails(const QString& details) {
         sections.push_back(QStringLiteral("HID"));
         sections.append(hid);
     }
+    QStringList usb;
+    if (!usbPico.isEmpty()) usb.push_back(QStringLiteral("Pico: ") + usbPico);
+    if (!usbPort.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u7aef\u53e3: ") + usbPort);
+    if (!usbFirmware.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u56fa\u4ef6: ") + usbFirmware);
+    if (!usb.isEmpty()) {
+        if (!sections.isEmpty()) sections.push_back(QString());
+        sections.push_back(QStringLiteral("USB"));
+        sections.append(usb);
+    }
     return sections.isEmpty()
         ? QString::fromWCharArray(L"\u6682\u65e0\u8be6\u7ec6\u72b6\u6001")
         : sections.join(QLatin1Char('\n'));
@@ -185,7 +200,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     pageTitle->setFont(Fluent::Typography::pageTitle());
     panelLayout->addWidget(pageTitle);
 
-    auto* pageDesc = new QLabel(QString::fromWCharArray(L"\u7ba1\u7406 DD \u548c HID \u9a71\u52a8\uff0c\u67e5\u770b\u5f53\u524d\u72b6\u6001\u3001\u5207\u6362\u9a71\u52a8\u3001\u5b89\u88c5\u6216\u5378\u8f7d\u9a71\u52a8\u3002"), panel);
+    auto* pageDesc = new QLabel(QString::fromWCharArray(L"\u7ba1\u7406 DD\u3001HID \u548c USB \u5c0f\u53fd\u786c\u4ef6\u9a71\u52a8\uff0c\u67e5\u770b\u5f53\u524d\u72b6\u6001\u3001\u5207\u6362\u9a71\u52a8\u3001\u5b89\u88c5\u6216\u5378\u8f7d\u9a71\u52a8\u3002"), panel);
     pageDesc->setFont(Fluent::Typography::body());
     pageDesc->setWordWrap(true);
     pageDesc->setPalette(mutedPalette(pageDesc));
@@ -201,6 +216,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     driverModeCombo_ = new FluentComboBox(panel);
     driverModeCombo_->addItem(QStringLiteral("DD"), static_cast<int>(DriverMode::Legacy));
     driverModeCombo_->addItem(QStringLiteral("HID"), static_cast<int>(DriverMode::Hid));
+    driverModeCombo_->addItem(QStringLiteral("USB"), static_cast<int>(DriverMode::Usb));
     driverModeCombo_->setFixedSize(190, 28);
     modeRow->addWidget(driverModeCombo_);
     panelLayout->addLayout(modeRow);

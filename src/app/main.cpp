@@ -42,7 +42,14 @@ const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
 }
 
 const char* DriverModeText(DriverMode mode) {
-    return mode == DriverMode::Hid ? "hid" : "legacy";
+    switch (mode) {
+    case DriverMode::Hid:
+        return "hid";
+    case DriverMode::Usb:
+        return "usb";
+    default:
+        return "legacy";
+    }
 }
 
 std::string ToUtf8Line(const std::wstring& text) {
@@ -70,6 +77,12 @@ std::string DetectDriverModeFromRawConfig(const std::string& text) {
     if (text.find("\"driverMode\": \"legacy\"") != std::string::npos ||
         text.find("\"driverMode\":\"legacy\"") != std::string::npos) {
         return "legacy";
+    }
+    if (text.find("\"driverMode\": \"usb\"") != std::string::npos ||
+        text.find("\"driverMode\":\"usb\"") != std::string::npos ||
+        text.find("\"driverMode\": \"pico\"") != std::string::npos ||
+        text.find("\"driverMode\":\"pico\"") != std::string::npos) {
+        return "usb";
     }
     return "unknown";
 }
@@ -111,7 +124,10 @@ int main(int argc, char *argv[]) {
 
         bool loadOk = false;
         bool loadedAsConfigured = false;
-        if (config.driverMode == DriverMode::Hid) {
+        if (config.driverMode == DriverMode::Usb) {
+            loadOk = false;
+            loadedAsConfigured = false;
+        } else if (config.driverMode == DriverMode::Hid) {
             loadOk = driver.LoadFromDirectory(appPaths.exeDir(), true);
             loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Hid;
         } else {

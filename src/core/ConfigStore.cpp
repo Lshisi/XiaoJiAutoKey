@@ -235,7 +235,9 @@ AppConfig ConfigStore::Load() const {
     }
 
     if (const auto driverMode = GetStringField(*object, "driverMode"); driverMode.has_value()) {
-        config.driverMode = (*driverMode == "hid") ? DriverMode::Hid : DriverMode::Legacy;
+        if (*driverMode == "hid") config.driverMode = DriverMode::Hid;
+        else if (*driverMode == "usb" || *driverMode == "pico") config.driverMode = DriverMode::Usb;
+        else config.driverMode = DriverMode::Legacy;
     }
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
@@ -353,7 +355,10 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
     else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
     root.emplace("closeAction", closeActionStr);
-    root.emplace("driverMode", config.driverMode == DriverMode::Hid ? std::string("hid") : std::string("legacy"));
+    const char* driverMode = "legacy";
+    if (config.driverMode == DriverMode::Hid) driverMode = "hid";
+    else if (config.driverMode == DriverMode::Usb) driverMode = "usb";
+    root.emplace("driverMode", std::string(driverMode));
 
     if (!config.faction.empty())
         root.emplace("faction", config.faction);

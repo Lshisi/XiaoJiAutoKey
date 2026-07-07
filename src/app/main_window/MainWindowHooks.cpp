@@ -46,9 +46,9 @@ void MainWindow::setupHooks() {
             macroCoordinator_.pollRunningState();
             refreshStatusOverlay();
         },
-        [this]() { return driver_.IsReady(); },
+        [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { return driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid; },
+        [this]() { return config_.driverMode == DriverMode::Usb || driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid; },
         this
     });
 

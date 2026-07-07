@@ -23,7 +23,7 @@ bool IsWasdKey(const KeyDescriptor& key) {
 }
 }  // namespace
 
-RepeaterEngine::RepeaterEngine(DdDriver& driver)
+RepeaterEngine::RepeaterEngine(InputDriver& driver)
     : driver_(driver) {}
 
 RepeaterEngine::~RepeaterEngine() {

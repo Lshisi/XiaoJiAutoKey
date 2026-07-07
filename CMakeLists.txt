@@ -76,8 +76,10 @@ set(CORE_SOURCES
     src/core/ConfigStore.cpp
     src/core/DdDriver.cpp
     src/core/FactionTheme.cpp
+    src/core/InputDriverRouter.cpp
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
+    src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
 )
 
@@ -164,6 +166,9 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/PauseKeyDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/core/MacroEngine.h
+    include/core/InputDriver.h
+    include/core/InputDriverRouter.h
+    include/core/PicoUsbDriver.h
     src/app/input/GlobalInputHook.cpp
     src/app/input/RawInputManager.cpp
     src/app/config/ActiveConfigValidator.cpp

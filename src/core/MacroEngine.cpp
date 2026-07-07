@@ -9,7 +9,7 @@ std::uint64_t EncodeKey(const KeyDescriptor& key) {
 }
 }  // namespace
 
-MacroEngine::MacroEngine(DdDriver& driver)
+MacroEngine::MacroEngine(InputDriver& driver)
     : driver_(driver) {}
 
 MacroEngine::~MacroEngine() {

@@ -65,7 +65,7 @@ void MainWindow::setupUi() {
         [this](bool enabled) { config_.beepEnabled = enabled; },
         [this](bool enabled) { config_.statusOverlayShowRepeat = enabled; },
         [this]() { return macroController_.activeMacro(); },
-        [this]() { return driver_.IsReady(); },
+        [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); }
     });
 
@@ -122,7 +122,7 @@ void MainWindow::setupUi() {
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },
-        [this]() { return driver_.IsReady(); },
+        [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); }
     });
 

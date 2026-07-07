@@ -2,9 +2,11 @@
 
 #include "AppTypes.h"
 #include "DdDriver.h"
+#include "InputDriverRouter.h"
 #include "input/GlobalInputHook.h"
 #include "input/RawInputManager.h"
 #include "MacroEngine.h"
+#include "PicoUsbDriver.h"
 #include "controllers/MacroController.h"
 #include "view/MainWindowView.h"
 #include "controllers/ProfileController.h"
@@ -52,6 +54,9 @@ private:
     bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();
+    bool loadPicoUsbDriver();
+    bool activeInputDriverReady() const;
+    std::wstring activeInputDriverError() const;
     bool canLoadLegacyDriver();
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
@@ -83,6 +88,8 @@ private:
     MacroController macroController_;
 
     DdDriver driver_;
+    PicoUsbDriver picoDriver_;
+    InputDriverRouter inputDriver_;
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;

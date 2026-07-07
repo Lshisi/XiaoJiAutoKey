@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AppTypes.h"
+#include "InputDriver.h"
 
 #include <Windows.h>
 
@@ -12,7 +12,7 @@
 #include <unordered_set>
 #include <vector>
 
-class DdDriver {
+class DdDriver : public InputDriver {
 public:
     enum class RuntimeKind {
         Unknown,
@@ -21,24 +21,24 @@ public:
     };
 
     DdDriver() = default;
-    ~DdDriver();
+    ~DdDriver() override;
 
     bool LoadFrom(const std::wstring& dllPath);
     bool LoadHidFrom(const std::wstring& dllPath);
     bool LoadFromDirectory(const std::wstring& directoryPath, bool allowHid = true);
     void Unload();
 
-    [[nodiscard]] bool IsReady() const noexcept;
-    [[nodiscard]] std::wstring GetLastError() const;
+    [[nodiscard]] bool IsReady() const noexcept override;
+    [[nodiscard]] std::wstring GetLastError() const override;
     [[nodiscard]] RuntimeKind GetRuntimeKind() const noexcept;
     [[nodiscard]] bool IsSimulating() const noexcept;
     [[nodiscard]] bool IsKeySimulating(const KeyDescriptor& key) const;
 
-    bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected);
-    bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected);
-    bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected);
-    void ReleaseAll();
-    void ClearAllStates();  // Clear pressedKeys_ and selfInjected_ state.
+    bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    void ReleaseAll() override;
+    void ClearAllStates() override;  // Clear pressedKeys_ and selfInjected_ state.
     bool IsSelfInjected(const KeyDescriptor& key) const;
 
 private:

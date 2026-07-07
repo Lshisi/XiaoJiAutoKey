@@ -182,8 +182,8 @@ MainWindow::MainWindow(QWidget* parent)
       configCoordinator_(appPaths_.configPath(), this),
       profileController_(config_),
       macroController_(config_),
-      engine_(driver_),
-      macroEngine_(driver_),
+      engine_(inputDriver_),
+      macroEngine_(inputDriver_),
       inputHook_(this),
       rawInput_(this),
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
@@ -234,6 +234,13 @@ bool MainWindow::Initialize() {
 bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
     driverStatusNote_.clear();
     driverStatusFallback_ = false;
+    if (config_.driverMode == DriverMode::Usb) {
+        if (loadPicoUsbDriver()) {
+            driverUnavailableLogged_ = false;
+            return true;
+        }
+        return false;
+    }
     if (config_.driverMode == DriverMode::Hid) {
         if (loadHidDriver()) {
             driverUnavailableLogged_ = false;
@@ -261,6 +268,7 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
 }
 
 bool MainWindow::loadHidDriver() {
+    picoDriver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
 
@@ -273,6 +281,7 @@ bool MainWindow::loadHidDriver() {
     if (status.hidRuntimeExists && hidInstalled) {
         if (driver_.LoadHidFrom(hidDllPath) &&
             driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) {
+            inputDriver_.SetDriver(&driver_);
             return true;
         }
 
@@ -293,10 +302,36 @@ bool MainWindow::loadHidDriver() {
 }
 
 bool MainWindow::loadLegacyDriver() {
+    picoDriver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
     ensureLegacyDdInfInstalled();
-    return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    const bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    if (loaded) {
+        inputDriver_.SetDriver(&driver_);
+    }
+    return loaded;
+}
+
+bool MainWindow::loadPicoUsbDriver() {
+    driver_.ReleaseAll();
+    driver_.Unload();
+    picoDriver_.Disconnect();
+    const bool loaded = picoDriver_.AutoConnect();
+    if (loaded) {
+        inputDriver_.SetDriver(&picoDriver_);
+    } else {
+        inputDriver_.SetDriver(nullptr);
+    }
+    return loaded;
+}
+
+bool MainWindow::activeInputDriverReady() const {
+    return inputDriver_.IsReady();
+}
+
+std::wstring MainWindow::activeInputDriverError() const {
+    return inputDriver_.GetLastError();
 }
 
 bool MainWindow::canLoadLegacyDriver() {
@@ -394,14 +429,16 @@ void MainWindow::refreshDriverStatusUi() {
     const auto status = ddRuntimeService_.Inspect(driver_);
 
     QString runtimeText = QString::fromWCharArray(L"\u672a\u52a0\u8f7d");
-    if (driver_.IsReady()) {
+    if (config_.driverMode == DriverMode::Usb && picoDriver_.IsReady()) {
+        runtimeText = QStringLiteral("USB");
+    } else if (driver_.IsReady()) {
         runtimeText = driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid
             ? QStringLiteral("HID")
             : QStringLiteral("DD");
     }
     page->setCurrentRuntime(runtimeText);
 
-    QString summary = driver_.IsReady()
+    QString summary = activeInputDriverReady()
         ? QString::fromWCharArray(L"\u53ef\u7528")
         : QString::fromWCharArray(L"\u4e0d\u53ef\u7528");
     if (driverStatusFallback_) {
@@ -418,11 +455,23 @@ void MainWindow::refreshDriverStatusUi() {
     page->setHidUninstallAvailable(hidUninstallAvailable);
 
     std::wstringstream detail;
-    detail << L"\u914d\u7f6e\u9a71\u52a8: " << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\n";
+    detail << L"\u914d\u7f6e\u9a71\u52a8: ";
+    if (config_.driverMode == DriverMode::Usb) detail << L"USB";
+    else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
+    detail << L"\n";
     detail << L"\u5f53\u524d\u8fd0\u884c: ";
-    if (!driver_.IsReady()) detail << L"\u672a\u52a0\u8f7d";
+    if (config_.driverMode == DriverMode::Usb && picoDriver_.IsReady()) detail << L"USB";
+    else if (!driver_.IsReady()) detail << L"\u672a\u52a0\u8f7d";
     else detail << (driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid ? L"HID" : L"DD");
     detail << L"\n\n";
+    detail << L"USB Pico: " << (picoDriver_.IsReady() ? L"\u5df2\u8fde\u63a5" : L"\u672a\u8fde\u63a5") << L"\n";
+    if (picoDriver_.IsReady()) {
+        detail << L"USB \u7aef\u53e3: " << picoDriver_.PortName() << L"\n";
+        detail << L"USB \u56fa\u4ef6: " << picoDriver_.FirmwareVersion() << L"\n";
+    } else if (config_.driverMode == DriverMode::Usb && !picoDriver_.GetLastError().empty()) {
+        detail << L"USB \u9519\u8bef: " << picoDriver_.GetLastError() << L"\n";
+    }
+    detail << L"\n";
     detail << L"HID DLL: " << (status.hidRuntimeExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
     detail << L"HID \u670d\u52a1: "
            << (status.hidServiceInstalled ? L"\u5df2\u5b89\u88c5" :
@@ -488,8 +537,10 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
 
     engineStateCoordinator_.setRepeatRunning(false);
     macroEngine_.StopAll();
-    driver_.ReleaseAll();
+    inputDriver_.ReleaseAll();
     driver_.Unload();
+    picoDriver_.Disconnect();
+    inputDriver_.SetDriver(nullptr);
     driverStatusNote_.clear();
     driverStatusFallback_ = false;
 
@@ -946,8 +997,11 @@ void MainWindow::logDriverUnavailableOnce() {
     driverUnavailableLogged_ = true;
 
     std::wstringstream errorLog;
-    errorLog << L"driver_mode=" << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\n"
-             << L"last_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
+    errorLog << L"driver_mode=";
+    if (config_.driverMode == DriverMode::Usb) errorLog << L"USB";
+    else errorLog << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
+    errorLog << L"\n"
+             << L"last_error=" << (activeInputDriverError().empty() ? L"(none)" : activeInputDriverError()) << L"\n"
              << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
     ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
 }

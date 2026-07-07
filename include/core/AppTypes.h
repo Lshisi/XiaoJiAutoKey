@@ -54,6 +54,7 @@ enum class CloseAction {
 enum class DriverMode {
     Legacy,
     Hid,
+    Usb,
 };
 
 enum class MacroTriggerMode {

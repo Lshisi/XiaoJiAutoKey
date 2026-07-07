@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "DdDriver.h"
+#include "InputDriver.h"
 
 #include <Windows.h>
 
@@ -25,7 +25,7 @@ struct MacroRuntime {
 
 class MacroEngine {
 public:
-    explicit MacroEngine(DdDriver& driver);
+    explicit MacroEngine(InputDriver& driver);
     ~MacroEngine();
 
     void StartThread();
@@ -47,7 +47,7 @@ private:
     static ULONGLONG NowMs();
     bool IsPauseActive() const;
 
-    DdDriver& driver_;
+    InputDriver& driver_;
 
     std::atomic<bool> exit_{false};
     std::thread worker_;

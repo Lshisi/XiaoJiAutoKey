@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "DdDriver.h"
+#include "InputDriver.h"
 
 #include <Windows.h>
 
@@ -37,7 +37,7 @@ struct TaskRuntime {
 
 class RepeaterEngine {
 public:
-    explicit RepeaterEngine(DdDriver& driver);
+    explicit RepeaterEngine(InputDriver& driver);
     ~RepeaterEngine();
 
     void StartThread();
@@ -64,7 +64,7 @@ private:
     void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
     static ULONGLONG NowMs();
 
-    DdDriver& driver_;
+    InputDriver& driver_;
 
     std::atomic<bool> exit_{false};
     std::atomic<bool> running_{false};

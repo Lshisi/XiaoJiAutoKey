@@ -1,6 +1,7 @@
 # Build output
 build/
 dist/
+firmware/pico/build/
 
 # IDE files
 .vs/
@@ -44,6 +45,9 @@ Desktop.ini
 
 # Build output log
 build_output.txt
+
+# Local firmware/toolchain downloads
+/tools/
 
 # Config files (user-specific)
 config.json

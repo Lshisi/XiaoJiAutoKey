@@ -5,7 +5,8 @@
 烧录后，Pico 会枚举成一个小叽 USB 复合设备：
 
 - 厂商名：`XiaoJi`
-- 产品名：`XiaoJi AutoKey`
+- 产品名：`XiaoJi MX Keyboard`
+- 序列号：`XJAK-<板载 Flash 唯一 ID>`
 - USB 接口：
   - CDC 串口命令通道
   - HID 键盘
@@ -97,6 +98,8 @@ U 0 175
   - `5`：侧键 1
   - `6`：侧键 2
 - 音量、播放/暂停、下一曲、浏览器后退等媒体/浏览器键仍然使用设备 `0`，固件内部会转成 HID consumer report
+
+USB 序列号由 Pico SDK 的 `pico_unique_id` 从板载 Flash 唯一 ID 生成。同一块板子会保持同一个序列号，不同板子会枚举成不同 Windows 设备实例。
 
 响应格式：
 

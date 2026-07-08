@@ -1,3 +1,4 @@
+#include "pico/unique_id.h"
 #include "tusb.h"
 
 #include <cstdint>
@@ -26,6 +27,8 @@ enum {
     REPORT_ID_MOUSE = 2,
     REPORT_ID_CONSUMER = 3,
 };
+
+constexpr uint8_t STRING_INDEX_SERIAL = 3;
 
 static tusb_desc_device_t const desc_device = {
     sizeof(tusb_desc_device_t),
@@ -96,8 +99,8 @@ uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
 static char const* const string_desc_arr[] = {
     reinterpret_cast<const char*>(u"\u0409"),
     "XiaoJi",
-    "XiaoJi AutoKey",
-    "XJAK-RP2040-0001",
+    "XiaoJi MX Keyboard",
+    nullptr,
     "XiaoJi Control",
     "XiaoJi Keyboard",
     "XiaoJi Mouse",
@@ -105,6 +108,19 @@ static char const* const string_desc_arr[] = {
 };
 
 static uint16_t desc_str[32];
+
+static const char* serial_string() {
+    static char serial[sizeof("XJAK-") + 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES]{};
+    static bool initialized = false;
+    if (!initialized) {
+        std::memcpy(serial, "XJAK-", 5);
+        pico_get_unique_board_id_string(
+            serial + 5,
+            static_cast<uint>(sizeof(serial) - 5));
+        initialized = true;
+    }
+    return serial;
+}
 
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
     (void)langid;
@@ -117,7 +133,12 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
         if (index >= sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) {
             return nullptr;
         }
-        const char* str = string_desc_arr[index];
+        const char* str = index == STRING_INDEX_SERIAL
+            ? serial_string()
+            : string_desc_arr[index];
+        if (str == nullptr) {
+            return nullptr;
+        }
         chr_count = static_cast<uint8_t>(std::strlen(str));
         if (chr_count > 31) {
             chr_count = 31;

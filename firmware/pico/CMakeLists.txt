@@ -27,6 +27,7 @@ target_compile_definitions(xiaoji_pico PRIVATE
 
 target_link_libraries(xiaoji_pico PRIVATE
     pico_stdlib
+    pico_unique_id
     tinyusb_device
     tinyusb_board
 )
@@ -41,6 +42,5 @@ add_custom_command(TARGET xiaoji_pico POST_BUILD
         ${CMAKE_CURRENT_LIST_DIR}/tools/bin2uf2.py
         $<TARGET_FILE_DIR:xiaoji_pico>/xiaoji_pico.bin
         $<TARGET_FILE_DIR:xiaoji_pico>/xiaoji_pico.uf2
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tools/bin2uf2.py
     COMMENT "Generating XiaoJi UF2"
 )

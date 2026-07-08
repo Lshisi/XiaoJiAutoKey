@@ -78,6 +78,9 @@ private:
     void enforceNativeWindowSizeForDpi(int dpi);
     void syncQtGeometryWithNativeWindow();
     void recreateWindowSurfaceAfterDpiChange(int dpi);
+    void refreshUsbDriverAfterDeviceChange();
+    void registerUsbDeviceNotifications();
+    void unregisterUsbDeviceNotifications();
 
     MainWindowView view_;
 
@@ -110,6 +113,9 @@ private:
     CloseCoordinator closeCoordinator_;
     EngineStateCoordinator engineStateCoordinator_;
     QTimer runtimeVisualRefreshTimer_;
+    QTimer usbDeviceRefreshTimer_;
+    void* usbDeviceNotification_ = nullptr;
+    void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;
     bool runtimeThemeRefreshPending_ = false;
     bool runtimeDpiRefreshActive_ = false;

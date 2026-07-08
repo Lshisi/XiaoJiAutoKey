@@ -24,6 +24,7 @@
 #include <QVBoxLayout>
 #include <QWindow>
 #include <Windows.h>
+#include <Dbt.h>
 #include <memory>
 #include <stdexcept>
 #include <sstream>
@@ -32,6 +33,19 @@ namespace {
 constexpr int kBaseWindowWidth = 780;
 constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
+constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
+constexpr GUID kGuidDevInterfaceUsbDevice = {
+    0xA5DCBF10,
+    0x6530,
+    0x11D2,
+    {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED}
+};
+constexpr GUID kGuidDevInterfaceComPort = {
+    0x86E0D1E0,
+    0x8089,
+    0x11D0,
+    {0x9C, 0xE4, 0x08, 0x00, 0x3E, 0x30, 0x1F, 0x73}
+};
 
 int dpiScaled(int value, int dpi) {
     return qMax(value, (value * dpi + kBaseDpi / 2) / kBaseDpi);
@@ -44,6 +58,33 @@ int dpiFromWParam(WPARAM value) {
 }
 
 #ifdef Q_OS_WIN
+void* registerDeviceInterfaceNotification(HWND hwnd, const GUID& classGuid) {
+    if (!hwnd) {
+        return nullptr;
+    }
+
+    DEV_BROADCAST_DEVICEINTERFACE_W filter{};
+    filter.dbcc_size = sizeof(filter);
+    filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+    filter.dbcc_classguid = classGuid;
+    return ::RegisterDeviceNotificationW(hwnd, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
+}
+
+bool isXiaoJiUsbDeviceChange(WPARAM eventType, LPARAM eventData) {
+    if (eventType != DBT_DEVICEARRIVAL && eventType != DBT_DEVICEREMOVECOMPLETE) {
+        return false;
+    }
+
+    const auto* header = reinterpret_cast<const DEV_BROADCAST_HDR*>(eventData);
+    if (!header || header->dbch_devicetype != DBT_DEVTYP_DEVICEINTERFACE) {
+        return false;
+    }
+
+    const auto* deviceInterface = reinterpret_cast<const DEV_BROADCAST_DEVICEINTERFACE_W*>(header);
+    const QString devicePath = QString::fromWCharArray(deviceInterface->dbcc_name);
+    return devicePath.contains(QString::fromWCharArray(kXiaoJiUsbVidPid), Qt::CaseInsensitive);
+}
+
 int effectiveMonitorDpi(HWND hwnd) {
     if (!hwnd) {
         return 0;
@@ -193,9 +234,14 @@ MainWindow::MainWindow(QWidget* parent)
     connect(&runtimeVisualRefreshTimer_, &QTimer::timeout, this, [this]() {
         applyRuntimeVisualRefresh();
     });
+    usbDeviceRefreshTimer_.setSingleShot(true);
+    connect(&usbDeviceRefreshTimer_, &QTimer::timeout, this, [this]() {
+        refreshUsbDriverAfterDeviceChange();
+    });
 }
 
 MainWindow::~MainWindow() {
+    unregisterUsbDeviceNotifications();
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
@@ -203,6 +249,7 @@ MainWindow::~MainWindow() {
 
 bool MainWindow::Initialize() {
     setupUi();
+    registerUsbDeviceNotifications();
     configCoordinator_.load();
     soundService_.warmUpToggleSounds(
         config_.customSoundOn,
@@ -326,6 +373,49 @@ bool MainWindow::loadPicoUsbDriver() {
         inputDriver_.SetDriver(nullptr);
     }
     return loaded;
+}
+
+void MainWindow::registerUsbDeviceNotifications() {
+#ifdef Q_OS_WIN
+    unregisterUsbDeviceNotifications();
+    const HWND hwnd = reinterpret_cast<HWND>(winId());
+    usbDeviceNotification_ = registerDeviceInterfaceNotification(hwnd, kGuidDevInterfaceUsbDevice);
+    usbComPortNotification_ = registerDeviceInterfaceNotification(hwnd, kGuidDevInterfaceComPort);
+#endif
+}
+
+void MainWindow::unregisterUsbDeviceNotifications() {
+#ifdef Q_OS_WIN
+    if (usbDeviceNotification_) {
+        ::UnregisterDeviceNotification(static_cast<HDEVNOTIFY>(usbDeviceNotification_));
+        usbDeviceNotification_ = nullptr;
+    }
+    if (usbComPortNotification_) {
+        ::UnregisterDeviceNotification(static_cast<HDEVNOTIFY>(usbComPortNotification_));
+        usbComPortNotification_ = nullptr;
+    }
+#endif
+}
+
+void MainWindow::refreshUsbDriverAfterDeviceChange() {
+    if (config_.driverMode != DriverMode::Usb) {
+        return;
+    }
+
+    engineStateCoordinator_.setRepeatRunning(false);
+    macroEngine_.StopAll();
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    driverStatusNote_.clear();
+    driverStatusFallback_ = false;
+
+    const bool loaded = loadPicoUsbDriver();
+    if (loaded) {
+        driverUnavailableLogged_ = false;
+    }
+    engineHookCoordinator_.refreshState();
+    refreshDriverStatusUi();
+    refreshStatusOverlay();
 }
 
 bool MainWindow::activeInputDriverReady() const {
@@ -714,6 +804,12 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
             rawInput_.handleNativeMessage(msg, result);
         }
         switch (msg->message) {
+        case WM_DEVICECHANGE:
+            if (config_.driverMode == DriverMode::Usb &&
+                isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
+                usbDeviceRefreshTimer_.start(650);
+            }
+            break;
         case WM_THEMECHANGED:
             Fluent::Theme::refreshDarkModeCache();
             scheduleRuntimeVisualRefresh(false, true);
@@ -978,6 +1074,7 @@ void MainWindow::recreateWindowSurfaceAfterDpiChange(int dpi) {
         setGeometry(originalGeometry);
         createWinId();
         rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+        registerUsbDeviceNotifications();
         engineHookCoordinator_.refreshState();
 
         if (wasVisible) {

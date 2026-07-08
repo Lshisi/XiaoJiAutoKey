@@ -197,6 +197,8 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     engineStateCoordinator_.stopThreads();
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
 }
 
 bool MainWindow::Initialize() {
@@ -334,12 +336,35 @@ std::wstring MainWindow::activeInputDriverError() const {
     return inputDriver_.GetLastError();
 }
 
-bool MainWindow::canLoadLegacyDriver() {
-    ensureLegacyDdInfInstalled();
-    DdDriver probeDriver;
-    const bool loaded = probeDriver.LoadFromDirectory(appPaths_.exeDir(), false);
-    probeDriver.ReleaseAll();
-    probeDriver.Unload();
+bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage) {
+    std::wstring installMessage;
+    if (!ensureLegacyDdInfInstalled(&installMessage)) {
+        if (errorMessage) {
+            *errorMessage = installMessage.empty()
+                ? std::wstring(L"DD INF driver is not available.")
+                : installMessage;
+        }
+        return false;
+    }
+
+    if (!targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
+        if (errorMessage) {
+            *errorMessage = targetDriver.GetLastError();
+        }
+        targetDriver.ReleaseAll();
+        targetDriver.Unload();
+        return false;
+    }
+    return true;
+}
+
+bool MainWindow::canLoadPicoUsbDriver(std::wstring* errorMessage) {
+    PicoUsbDriver probeDriver;
+    const bool loaded = probeDriver.AutoConnect();
+    if (!loaded && errorMessage) {
+        *errorMessage = probeDriver.GetLastError();
+    }
+    probeDriver.Disconnect();
     return loaded;
 }
 
@@ -511,6 +536,9 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         return DriverCoordinator::SwitchResult::Succeeded;
     }
 
+    DdDriver stagedLegacyDriver;
+    bool hasStagedLegacyDriver = false;
+
     if (mode == DriverMode::Hid) {
         inputHook_.setDialogOpen(true);
         const bool confirmed = ConfigConfirmDialog::confirm(
@@ -529,10 +557,28 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         }
     }
 
-    if (mode == DriverMode::Legacy && !canLoadLegacyDriver()) {
-        driverStatusNote_ = L"\u76ee\u6807 DD \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d HID \u8fd0\u884c\u6001\u3002";
-        refreshDriverStatusUi();
-        return DriverCoordinator::SwitchResult::Failed;
+    if (mode == DriverMode::Legacy) {
+        std::wstring legacyError;
+        hasStagedLegacyDriver = loadLegacyDriverInto(stagedLegacyDriver, &legacyError);
+        if (!hasStagedLegacyDriver) {
+            driverStatusNote_ = L"\u76ee\u6807 DD \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d HID \u8fd0\u884c\u6001\u3002";
+            if (!legacyError.empty()) {
+                driverStatusNote_ += L" DD \u9519\u8bef: " + legacyError;
+            }
+            refreshDriverStatusUi();
+            return DriverCoordinator::SwitchResult::Failed;
+        }
+    }
+    if (mode == DriverMode::Usb) {
+        std::wstring usbError;
+        if (!canLoadPicoUsbDriver(&usbError)) {
+            driverStatusNote_ = L"\u76ee\u6807 USB \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d\u8fd0\u884c\u6001\u3002";
+            if (!usbError.empty()) {
+                driverStatusNote_ += L" USB \u9519\u8bef: " + usbError;
+            }
+            refreshDriverStatusUi();
+            return DriverCoordinator::SwitchResult::Failed;
+        }
     }
 
     engineStateCoordinator_.setRepeatRunning(false);
@@ -545,9 +591,16 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     driverStatusFallback_ = false;
 
     config_.driverMode = mode;
-    const bool loaded = (mode == DriverMode::Hid)
-        ? restartForDriverModeChange()
-        : loadConfiguredDriver();
+    bool loaded = false;
+    if (mode == DriverMode::Hid) {
+        loaded = restartForDriverModeChange();
+    } else if (mode == DriverMode::Legacy && hasStagedLegacyDriver) {
+        driver_.SwapWith(stagedLegacyDriver);
+        inputDriver_.SetDriver(&driver_);
+        loaded = true;
+    } else {
+        loaded = loadConfiguredDriver();
+    }
     if (!loaded) {
         config_.driverMode = originalMode;
         configCoordinator_.save();

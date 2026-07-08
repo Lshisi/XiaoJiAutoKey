@@ -115,18 +115,22 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
 }
 
 void MacroEngine::StopAll() {
-    std::lock_guard lock(mutex_);
-    for (auto& rt : macros_) {
-        rt.active = false;
-        rt.currentStep = 0;
-        rt.loopsCompleted = 0;
-        rt.lastStepTime = 0;
-        rt.waitingDelay = false;
-        rt.keyDown = false;
-        rt.keyDownTime = 0;
+    {
+        std::lock_guard lock(mutex_);
+        for (auto& rt : macros_) {
+            rt.active = false;
+            rt.currentStep = 0;
+            rt.loopsCompleted = 0;
+            rt.lastStepTime = 0;
+            rt.waitingDelay = false;
+            rt.keyDown = false;
+            rt.keyDownTime = 0;
+        }
+        triggerHeld_.clear();
+        pauseKeysDown_.clear();
     }
-    triggerHeld_.clear();
-    pauseKeysDown_.clear();
+
+    driver_.ReleaseAll();
 }
 
 bool MacroEngine::HasActiveMacro() const {

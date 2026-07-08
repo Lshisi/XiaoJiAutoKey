@@ -27,6 +27,7 @@ public:
     bool LoadHidFrom(const std::wstring& dllPath);
     bool LoadFromDirectory(const std::wstring& directoryPath, bool allowHid = true);
     void Unload();
+    void SwapWith(DdDriver& other);
 
     [[nodiscard]] bool IsReady() const noexcept override;
     [[nodiscard]] std::wstring GetLastError() const override;

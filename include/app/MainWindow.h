@@ -57,7 +57,8 @@ private:
     bool loadPicoUsbDriver();
     bool activeInputDriverReady() const;
     std::wstring activeInputDriverError() const;
-    bool canLoadLegacyDriver();
+    bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
+    bool canLoadPicoUsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();

@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -62,6 +63,7 @@ LRESULT CALLBACK BlockHidInitMouseProc(int code, WPARAM wParam, LPARAM lParam) {
 class HidInitGuard {
 public:
     HidInitGuard() {
+        CaptureMouseSettings();
         stopEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         readyEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         if (stopEvent_ != nullptr && readyEvent_ != nullptr) {
@@ -112,6 +114,7 @@ public:
         // Keep the input guard briefly after DD_btn(0) returns because the HID runtime may emit delayed input.
         std::this_thread::sleep_for(kHidInitGuardTailDelay);
         RestoreCursorIfHidJumped();
+        RestoreMouseSettingsIfChanged();
         if (stopEvent_ != nullptr) {
             ::SetEvent(stopEvent_);
         }
@@ -130,6 +133,29 @@ public:
     HidInitGuard& operator=(const HidInitGuard&) = delete;
 
 private:
+    void CaptureMouseSettings() {
+        mouseParamsCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSE, 0, mouseParams_.data(), 0) != FALSE;
+        mouseSpeedCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &mouseSpeed_, 0) != FALSE;
+    }
+
+    void RestoreMouseSettingsIfChanged() const {
+        if (mouseParamsCaptured_) {
+            std::array<int, 3> current{};
+            if (::SystemParametersInfoW(SPI_GETMOUSE, 0, current.data(), 0) != FALSE &&
+                current != mouseParams_) {
+                ::SystemParametersInfoW(SPI_SETMOUSE, 0, const_cast<int*>(mouseParams_.data()), 0);
+            }
+        }
+
+        if (mouseSpeedCaptured_) {
+            int currentSpeed = 0;
+            if (::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &currentSpeed, 0) != FALSE &&
+                currentSpeed != mouseSpeed_) {
+                ::SystemParametersInfoW(SPI_SETMOUSESPEED, 0, reinterpret_cast<void*>(static_cast<INT_PTR>(mouseSpeed_)), 0);
+            }
+        }
+    }
+
     void RestoreCursorIfHidJumped() const {
         if (!cursorCaptured_ || IsNearHidInitCorner(oldPos_)) {
             return;
@@ -149,6 +175,10 @@ private:
     HANDLE stopEvent_ = nullptr;
     std::thread hookThread_;
     bool cursorCaptured_ = false;
+    std::array<int, 3> mouseParams_{};
+    int mouseSpeed_ = 0;
+    bool mouseParamsCaptured_ = false;
+    bool mouseSpeedCaptured_ = false;
 };
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
@@ -466,6 +496,32 @@ void DdDriver::Unload() {
     ddKey_ = nullptr;
     ddToDc_ = nullptr;
     runtimeKind_ = RuntimeKind::Unknown;
+}
+
+void DdDriver::SwapWith(DdDriver& other) {
+    if (this == &other) {
+        return;
+    }
+
+    std::scoped_lock lock(mutex_, other.mutex_, hidMouseMutex_, other.hidMouseMutex_);
+    std::swap(module_, other.module_);
+    std::swap(ddBtn_, other.ddBtn_);
+    std::swap(ddKey_, other.ddKey_);
+    std::swap(ddToDc_, other.ddToDc_);
+    std::swap(runtimeKind_, other.runtimeKind_);
+    std::swap(infKeyboardHandle_, other.infKeyboardHandle_);
+    std::swap(infMouseHandle_, other.infMouseHandle_);
+    std::swap(infHandlesInjected_, other.infHandlesInjected_);
+    lastError_.swap(other.lastError_);
+
+    const int thisDepth = simulateDepth_.load(std::memory_order_relaxed);
+    simulateDepth_.store(other.simulateDepth_.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    other.simulateDepth_.store(thisDepth, std::memory_order_relaxed);
+
+    pressedKeys_.swap(other.pressedKeys_);
+    selfInjected_.swap(other.selfInjected_);
+    std::swap(hidMouseHandle_, other.hidMouseHandle_);
+    std::swap(hidMouseButtonState_, other.hidMouseButtonState_);
 }
 
 bool DdDriver::TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage) {

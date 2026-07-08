@@ -7,7 +7,6 @@
 #include <array>
 #include <chrono>
 #include <cwctype>
-#include <set>
 #include <sstream>
 #include <thread>
 #include <vector>
@@ -174,59 +173,8 @@ std::vector<std::wstring> EnumerateXiaoJiComPorts() {
     return ports;
 }
 
-std::vector<std::wstring> EnumerateRegistryComPorts() {
-    std::vector<std::wstring> ports;
-    HKEY key = nullptr;
-    if (::RegOpenKeyExW(
-            HKEY_LOCAL_MACHINE,
-            LR"(HARDWARE\DEVICEMAP\SERIALCOMM)",
-            0,
-            KEY_READ,
-            &key) != ERROR_SUCCESS) {
-        return ports;
-    }
-
-    for (DWORD index = 0;; ++index) {
-        wchar_t valueName[256]{};
-        DWORD valueNameChars = std::size(valueName);
-        DWORD type = 0;
-        wchar_t data[256]{};
-        DWORD dataBytes = sizeof(data);
-        const LONG result = ::RegEnumValueW(
-            key,
-            index,
-            valueName,
-            &valueNameChars,
-            nullptr,
-            &type,
-            reinterpret_cast<LPBYTE>(data),
-            &dataBytes);
-        if (result == ERROR_NO_MORE_ITEMS) {
-            break;
-        }
-        if (result == ERROR_SUCCESS && type == REG_SZ) {
-            AddUniquePort(ports, data);
-        }
-    }
-    ::RegCloseKey(key);
-
-    std::sort(ports.begin(), ports.end(), [](const auto& a, const auto& b) {
-        return ComNumber(a) > ComNumber(b);
-    });
-    return ports;
-}
-
 std::vector<std::wstring> BuildAutoConnectPortList() {
-    std::vector<std::wstring> ports = EnumerateXiaoJiComPorts();
-    for (const auto& port : EnumerateRegistryComPorts()) {
-        AddUniquePort(ports, port);
-    }
-    if (ports.empty()) {
-        for (int i = 16; i >= 1; --i) {
-            ports.push_back(L"COM" + std::to_wstring(i));
-        }
-    }
-    return ports;
+    return EnumerateXiaoJiComPorts();
 }
 }  // namespace
 
@@ -241,6 +189,11 @@ bool PicoUsbDriver::AutoConnect() {
 
     std::wstring errors;
     const std::vector<std::wstring> ports = BuildAutoConnectPortList();
+    if (ports.empty()) {
+        lastError_ = L"No XiaoJi Pico USB serial device found";
+        return false;
+    }
+
     for (const auto& port : ports) {
         if (!OpenPortLocked(port)) {
             continue;

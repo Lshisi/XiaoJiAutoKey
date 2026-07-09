@@ -243,6 +243,9 @@ MainWindow::MainWindow(QWidget* parent)
 MainWindow::~MainWindow() {
     unregisterUsbDeviceNotifications();
     engineStateCoordinator_.stopThreads();
+    if (config_.driverMode == DriverMode::Usb) {
+        picoDriver_.SetStatusLed(false);
+    }
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
 }
@@ -1130,6 +1133,14 @@ void MainWindow::refreshStatusOverlay() {
     const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
     statusOverlay_.updateStatus(config_, profile, macro, repeatRunning, macroRunning);
     view_.updateActivityIcons(this, repeatRunning, macroRunning);
+    syncPicoStatusLed(repeatRunning, macroRunning);
+}
+
+void MainWindow::syncPicoStatusLed(bool repeatRunning, bool macroRunning) {
+    if (config_.driverMode != DriverMode::Usb) {
+        return;
+    }
+    picoDriver_.SetStatusLed(repeatRunning || macroRunning);
 }
 
 void MainWindow::showDdUnavailableMessage() {

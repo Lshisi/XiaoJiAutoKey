@@ -51,6 +51,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
+    void syncPicoStatusLed(bool repeatRunning, bool macroRunning);
     bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();

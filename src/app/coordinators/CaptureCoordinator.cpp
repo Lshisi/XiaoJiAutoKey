@@ -11,6 +11,8 @@
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 
+#include <QMetaObject>
+#include <QPointer>
 #include <Windows.h>
 
 CaptureCoordinator::CaptureCoordinator(QObject* parent) : QObject(parent) {}
@@ -24,12 +26,20 @@ void CaptureCoordinator::bind(Context context) {
             }
             const auto encoded = EncodeKey(key);
             if (*target_ == Target::DialogKey && activeDialog_) {
-                activeDialog_->handleCapturedKey(encoded);
-                target_.reset();
-                if (context_.refreshHookState) context_.refreshHookState();
+                QPointer<KeyCaptureDialogBase> dialog = activeDialog_;
+                QMetaObject::invokeMethod(this, [this, dialog, encoded]() {
+                    if (!target_.has_value() || *target_ != Target::DialogKey || !dialog) {
+                        return;
+                    }
+                    dialog->handleCapturedKey(encoded);
+                    target_.reset();
+                    if (context_.refreshHookState) context_.refreshHookState();
+                }, Qt::QueuedConnection);
                 return;
             }
-            handleCapturedKey(encoded);
+            QMetaObject::invokeMethod(this, [this, encoded]() {
+                handleCapturedKey(encoded);
+            }, Qt::QueuedConnection);
         });
     }
 }

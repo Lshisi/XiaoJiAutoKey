@@ -28,6 +28,7 @@ uint8_t keyboard_modifiers = 0;
 std::array<uint8_t, 6> keyboard_keys{};
 uint8_t mouse_buttons = 0;
 uint16_t consumer_usage = 0;
+bool status_led = false;
 
 char command_buffer[96]{};
 uint8_t command_length = 0;
@@ -36,6 +37,11 @@ void cdc_write_line(const char* text) {
     tud_cdc_write_str(text);
     tud_cdc_write_str("\r\n");
     tud_cdc_write_flush();
+}
+
+void set_status_led(bool enabled) {
+    status_led = enabled;
+    board_led_write(status_led);
 }
 
 bool is_modifier(uint8_t keycode) {
@@ -116,7 +122,6 @@ void release_all() {
     send_keyboard_report();
     send_mouse_report();
     send_consumer_report();
-    board_led_write(false);
 }
 
 HidKey vk_to_hid(uint32_t vk) {
@@ -272,7 +277,6 @@ bool apply_keyboard(uint32_t vk, bool down) {
         } else {
             remove_key(hid.keycode);
         }
-        board_led_write(down);
         return send_keyboard_report();
     }
 
@@ -287,7 +291,6 @@ bool apply_keyboard(uint32_t vk, bool down) {
     } else {
         consumer_usage = 0;
     }
-    board_led_write(down);
     return send_consumer_report();
 }
 
@@ -301,7 +304,6 @@ bool apply_mouse(uint32_t vk, bool down) {
     } else {
         mouse_buttons = static_cast<uint8_t>(mouse_buttons & ~button);
     }
-    board_led_write(down);
     return send_mouse_report();
 }
 
@@ -360,8 +362,19 @@ void handle_command(char* line) {
         cdc_write_line("OK RELEASE_ALL");
         return;
     }
+    if (std::strcmp(command, "L") == 0) {
+        uint32_t enabled = 0;
+        if (!parse_u32(next_token(cursor), &enabled) || enabled > 1) {
+            cdc_write_line("ERR BAD_ARGUMENTS");
+            return;
+        }
+        set_status_led(enabled != 0);
+        cdc_write_line(status_led ? "OK LED_ON" : "OK LED_OFF");
+        return;
+    }
     if (std::strcmp(command, "B") == 0) {
         release_all();
+        set_status_led(false);
         cdc_write_line("OK BOOTSEL");
         sleep_ms(50);
         reset_usb_boot(0, 0);
@@ -417,6 +430,7 @@ void poll_cdc() {
 int main() {
     board_init();
     tusb_init();
+    set_status_led(false);
     release_all();
 
     while (true) {

@@ -229,6 +229,9 @@ bool PicoUsbDriver::Connect(const std::wstring& portName) {
 void PicoUsbDriver::Disconnect() {
     std::lock_guard lock(mutex_);
     if (handle_ != INVALID_HANDLE_VALUE) {
+        if (statusLedSupported_) {
+            SendCommandLocked("L 0");
+        }
         SendCommandLocked("R");
     }
     ClosePortLocked();
@@ -252,6 +255,20 @@ std::wstring PicoUsbDriver::PortName() const {
 std::wstring PicoUsbDriver::FirmwareVersion() const {
     std::lock_guard lock(mutex_);
     return firmwareVersion_;
+}
+
+bool PicoUsbDriver::SetStatusLed(bool enabled) {
+    std::lock_guard lock(mutex_);
+    if (handle_ == INVALID_HANDLE_VALUE) return false;
+    if (!statusLedSupported_) return false;
+    if (statusLed_.has_value() && *statusLed_ == enabled) return true;
+
+    if (!SendCommandLocked(enabled ? "L 1" : "L 0")) {
+        statusLedSupported_ = false;
+        return false;
+    }
+    statusLed_ = enabled;
+    return true;
 }
 
 bool PicoUsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {
@@ -347,6 +364,8 @@ void PicoUsbDriver::ClosePortLocked() {
     }
     portName_.clear();
     firmwareVersion_.clear();
+    statusLed_.reset();
+    statusLedSupported_ = true;
     pressedKeys_.clear();
 }
 
@@ -398,6 +417,13 @@ bool PicoUsbDriver::QueryVersionLocked() {
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\r'), firmwareVersion_.end());
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\n'), firmwareVersion_.end());
     SendCommandLocked("R");
+    if (SendCommandLocked("L 0")) {
+        statusLed_ = false;
+        statusLedSupported_ = true;
+    } else {
+        statusLed_.reset();
+        statusLedSupported_ = false;
+    }
     return true;
 }
 

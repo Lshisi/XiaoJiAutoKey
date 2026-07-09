@@ -22,6 +22,7 @@ public:
     [[nodiscard]] std::wstring GetLastError() const override;
     [[nodiscard]] std::wstring PortName() const;
     [[nodiscard]] std::wstring FirmwareVersion() const;
+    bool SetStatusLed(bool enabled);
 
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
@@ -44,5 +45,7 @@ private:
     std::wstring portName_;
     std::wstring firmwareVersion_;
     std::wstring lastError_;
+    std::optional<bool> statusLed_;
+    bool statusLedSupported_ = true;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
 };

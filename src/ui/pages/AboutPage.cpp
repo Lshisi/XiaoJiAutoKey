@@ -59,7 +59,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     appName->setFont(Fluent::Typography::cardTitle());
     appName->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     infoText->addWidget(appName);
-    auto* version = new QLabel(QString("v") + APP_VERSION, infoCard);
+    auto* version = new QLabel(QString("V") + APP_VERSION, infoCard);
     version->setFont(Fluent::Typography::caption());
     version->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     infoText->addWidget(version);

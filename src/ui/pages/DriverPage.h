@@ -18,14 +18,15 @@ public:
     void setCurrentRuntime(const QString& runtimeText);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
-    void setHidUninstallAvailable(bool available);
+    void setDriverAction(DriverMode mode, bool picoUpdateAvailable = false);
     void setBusy(bool busy);
     void updateThemeColors();
 
 signals:
     void driverModeChanged(DriverMode mode);
     void refreshRequested();
-    void uninstallHidRequested();
+    void uninstallDriverRequested(DriverMode mode);
+    void updatePicoFirmwareRequested();
 
 private:
     void applyTheme();
@@ -35,5 +36,6 @@ private:
     QLabel* statusSummaryValue_ = nullptr;
     QTextEdit* summaryDetailValue_ = nullptr;
     QWidget* summaryPanel_ = nullptr;
-    FluentButton* uninstallHidButton_ = nullptr;
+    FluentButton* driverActionButton_ = nullptr;
+    DriverMode driverActionMode_ = DriverMode::Legacy;
 };

@@ -55,7 +55,7 @@ firmware/pico/build/xiaoji_pico.uf2
 4. 把 `firmware/pico/build/xiaoji_pico.uf2` 复制到这个盘根目录
 5. Pico 会自动重启并运行小叽固件
 
-后续如果固件已经在运行，可以通过串口发送 `B`，让 Pico 自动重启进 BOOTSEL。
+后续如果固件已经在运行，小叽主程序会通过授权更新命令让 Pico 自动重启进 BOOTSEL。
 
 ## 串口协议
 
@@ -70,6 +70,7 @@ PING
 VER
 R
 B
+UPD 714021
 D 0 65
 U 0 65
 D 1 1
@@ -85,7 +86,8 @@ U 0 175
 - `D`：按下
 - `U`：松开
 - `R`：释放所有键盘、鼠标和媒体控制状态
-- `B`：释放所有输入，并重启进 BOOTSEL，方便升级固件
+- `B`：已禁用，返回 `ERR UPDATE_AUTH_REQUIRED`
+- `UPD <token>`：授权固件更新命令；token 正确时释放所有输入并重启进 BOOTSEL。小叽 exe 只会写入内置官方 UF2，不提供外部 UF2 文件选择入口
 
 参数说明：
 

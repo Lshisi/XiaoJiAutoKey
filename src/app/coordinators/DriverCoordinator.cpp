@@ -22,16 +22,21 @@
 #include <utility>
 
 namespace {
-struct HidUninstallResult {
+struct DriverUninstallResult {
     bool ok = false;
     std::wstring message;
 };
 
-class HidUninstallProgressDialog final : public QDialog {
+QString driverName(DriverMode mode) {
+    return mode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
+}
+
+class DriverUninstallProgressDialog final : public QDialog {
 public:
-    explicit HidUninstallProgressDialog(QWidget* parent)
+    explicit DriverUninstallProgressDialog(DriverMode mode, QWidget* parent)
         : QDialog(parent) {
-        setWindowTitle(QString::fromWCharArray(L"HID \u5378\u8f7d"));
+        const QString name = driverName(mode);
+        setWindowTitle(name + QString::fromWCharArray(L" \u5378\u8f7d"));
         DialogChrome::apply(this);
         setModal(true);
         setWindowModality(Qt::ApplicationModal);
@@ -41,12 +46,12 @@ public:
         root->setContentsMargins(24, 20, 24, 20);
         root->setSpacing(12);
 
-        auto* titleLabel = new QLabel(QString::fromWCharArray(L"\u6b63\u5728\u540e\u53f0\u5378\u8f7d HID"), this);
+        auto* titleLabel = new QLabel(QString::fromWCharArray(L"\u6b63\u5728\u540e\u53f0\u5378\u8f7d ") + name, this);
         titleLabel->setFont(Fluent::Typography::cardTitle());
         titleLabel->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
         root->addWidget(titleLabel);
 
-        messageLabel_ = new QLabel(QString::fromWCharArray(L"\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\uff0c\u5378\u8f7d\u5b8c\u6210\u540e\u5c06\u5f3a\u5236\u91cd\u542f\u7535\u8111\u3002"), this);
+        messageLabel_ = new QLabel(QString::fromWCharArray(L"\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\uff0c\u5378\u8f7d\u5b8c\u6210\u540e\u5c06\u5c1d\u8bd5\u91cd\u542f\u7535\u8111\u3002"), this);
         messageLabel_->setFont(Fluent::Typography::body());
         messageLabel_->setWordWrap(true);
         messageLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textSecondary().name()));
@@ -79,7 +84,7 @@ public:
         timer_.stop();
         if (progressBar_) progressBar_->setValue(100);
         if (messageLabel_) {
-            messageLabel_->setText(QString::fromWCharArray(L"\u5378\u8f7d\u5b8c\u6210\uff0c\u6b63\u5728\u53d1\u8d77\u7cfb\u7edf\u91cd\u542f..."));
+            messageLabel_->setText(QString::fromWCharArray(L"\u5378\u8f7d\u5b8c\u6210\uff0c\u6b63\u5728\u5904\u7406\u540e\u7eed\u72b6\u6001..."));
         }
     }
 
@@ -149,31 +154,42 @@ void DriverCoordinator::bind(Context context) {
         if (context_.refreshStatus) context_.refreshStatus();
     });
 
-    connect(context_.page, &DriverPage::uninstallHidRequested, this, [this]() {
+    connect(context_.page, &DriverPage::updatePicoFirmwareRequested, this, [this]() {
+        if (context_.updatePicoFirmware) context_.updatePicoFirmware();
+    });
+
+    connect(context_.page, &DriverPage::uninstallDriverRequested, this, [this](DriverMode mode) {
+        if (mode == DriverMode::Usb) {
+            if (context_.updatePicoFirmware) context_.updatePicoFirmware();
+            return;
+        }
         if (!context_.runtimeService) return;
+        const QString name = driverName(mode);
         const bool confirmed = ConfigConfirmDialog::confirm(
             context_.parentWidget,
-            QString::fromWCharArray(L"\u5378\u8f7d HID \u9a71\u52a8"),
-            QString::fromWCharArray(L"\u5378\u8f7d\u540e HID \u5c06\u4e0d\u53ef\u7528\uff0c\u5e76\u4f1a\u5728\u5378\u8f7d\u5b8c\u6210\u540e\u5f3a\u5236\u91cd\u542f\u7535\u8111\u3002\u5378\u8f7d\u8fc7\u7a0b\u4e2d\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
+            QString::fromWCharArray(L"\u5378\u8f7d ") + name + QString::fromWCharArray(L" \u9a71\u52a8"),
+            QString::fromWCharArray(L"\u5378\u8f7d\u540e ") + name + QString::fromWCharArray(L" \u5c06\u4e0d\u53ef\u7528\uff0c\u5e76\u4f1a\u5728\u5378\u8f7d\u5b8c\u6210\u540e\u91cd\u542f\u7535\u8111\u3002\u5378\u8f7d\u8fc7\u7a0b\u4e2d\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
             QString::fromWCharArray(L"\u5378\u8f7d"));
         if (!confirmed) return;
 
-        if (context_.prepareHidUninstall) context_.prepareHidUninstall();
+        if (context_.prepareDriverUninstall) context_.prepareDriverUninstall(mode);
         if (context_.page) context_.page->setBusy(true);
         if (context_.setDialogOpen) context_.setDialogOpen(true);
 
-        auto* progressDialog = new HidUninstallProgressDialog(context_.parentWidget);
-        const QPointer<HidUninstallProgressDialog> progressDialogPtr(progressDialog);
-        const auto result = std::make_shared<HidUninstallResult>();
-        auto* thread = QThread::create([runtimeService = context_.runtimeService, result]() {
-            result->ok = runtimeService->UninstallEmbeddedHidDriver(&result->message);
+        auto* progressDialog = new DriverUninstallProgressDialog(mode, context_.parentWidget);
+        const QPointer<DriverUninstallProgressDialog> progressDialogPtr(progressDialog);
+        const auto result = std::make_shared<DriverUninstallResult>();
+        auto* thread = QThread::create([runtimeService = context_.runtimeService, result, mode]() {
+            result->ok = mode == DriverMode::Hid
+                ? runtimeService->UninstallEmbeddedHidDriver(&result->message)
+                : runtimeService->UninstallEmbeddedInfDriver(&result->message);
         });
         thread->setParent(this);
 
-        connect(thread, &QThread::finished, this, [this, progressDialog, thread, result]() {
+        connect(thread, &QThread::finished, this, [this, progressDialog, thread, result, mode, name]() {
             thread->deleteLater();
 
-            if (context_.finalizeHidUninstall) context_.finalizeHidUninstall();
+            if (context_.finalizeDriverUninstall) context_.finalizeDriverUninstall(mode);
             if (context_.page) context_.page->setBusy(false);
             if (context_.refreshStatus) context_.refreshStatus();
 
@@ -190,13 +206,13 @@ void DriverCoordinator::bind(Context context) {
                     AppMessageDialog::warning(
                         context_.parentWidget,
                         QString::fromWCharArray(L"\u91cd\u542f\u5931\u8d25"),
-                        QString::fromWCharArray(L"\u65e0\u6cd5\u81ea\u52a8\u53d1\u8d77\u7cfb\u7edf\u91cd\u542f\uff0c\u8bf7\u7acb\u5373\u624b\u52a8\u91cd\u542f\u7535\u8111\u3002"));
+                        QString::fromWCharArray(L"\u65e0\u6cd5\u81ea\u52a8\u53d1\u8d77\u7cfb\u7edf\u91cd\u542f\uff0c\u8bf7\u624b\u52a8\u91cd\u542f\u7535\u8111\u3002"));
                 }
             } else {
                 AppMessageDialog::warning(
                     context_.parentWidget,
-                    QString::fromWCharArray(L"HID \u5378\u8f7d\u9700\u8981\u624b\u52a8\u91cd\u542f"),
-                    QString::fromWCharArray(L"HID \u9a71\u52a8\u5df2\u8fdb\u5165\u5378\u8f7d\u6d41\u7a0b\uff0c\u4f46 Windows \u4ecd\u663e\u793a\u6709\u8bbe\u5907\u6216\u670d\u52a1\u5904\u4e8e\u5f85\u91ca\u653e\u72b6\u6001\u3002\u4e3a\u907f\u514d\u7acb\u5373\u5f3a\u5236\u91cd\u542f\u89e6\u53d1\u84dd\u5c4f\uff0c\u672c\u6b21\u4e0d\u81ea\u52a8\u8c03\u7528 shutdown /f\u3002\n\n\u8bf7\u7acb\u5373\u624b\u52a8\u91cd\u542f\u7535\u8111\u3002\n\n\u5378\u8f7d\u7ed3\u679c\uff1a\n") +
+                    name + QString::fromWCharArray(L" \u5378\u8f7d\u9700\u8981\u624b\u52a8\u5904\u7406"),
+                    name + QString::fromWCharArray(L" \u9a71\u52a8\u5df2\u8fdb\u5165\u5378\u8f7d\u6d41\u7a0b\uff0c\u4f46 Windows \u4ecd\u663e\u793a\u6709\u8bbe\u5907\u6216\u670d\u52a1\u5904\u4e8e\u5f85\u91ca\u653e\u72b6\u6001\u3002\n\n\u8bf7\u624b\u52a8\u91cd\u542f\u7535\u8111\u540e\u518d\u7ee7\u7eed\u4f7f\u7528\u3002\n\n\u5378\u8f7d\u7ed3\u679c\uff1a\n") +
                         QString::fromStdWString(result->message));
             }
         }, Qt::QueuedConnection);

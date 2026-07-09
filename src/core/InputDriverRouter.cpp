@@ -35,3 +35,7 @@ void InputDriverRouter::ReleaseAll() {
 void InputDriverRouter::ClearAllStates() {
     if (driver_) driver_->ClearAllStates();
 }
+
+bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key) {
+    return driver_ && driver_->ConsumeSelfInjected(key);
+}

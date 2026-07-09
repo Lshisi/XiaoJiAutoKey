@@ -13,6 +13,25 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QVBoxLayout>
+#include <QtGlobal>
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#else
+#include <QApplication>
+#endif
+
+namespace {
+
+void playSystemDialogSound(AppMessageDialog::Kind kind) {
+#ifdef Q_OS_WIN
+    ::MessageBeep(kind == AppMessageDialog::Kind::Warning ? MB_ICONWARNING : MB_ICONINFORMATION);
+#else
+    QApplication::beep();
+#endif
+}
+
+}  // namespace
 
 AppMessageDialog::AppMessageDialog(Kind kind,
     const QString& title,
@@ -112,11 +131,13 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 }
 
 void AppMessageDialog::warning(QWidget* parent, const QString& title, const QString& message) {
+    playSystemDialogSound(Kind::Warning);
     AppMessageDialog dialog(Kind::Warning, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
     dialog.exec();
 }
 
 void AppMessageDialog::information(QWidget* parent, const QString& title, const QString& message) {
+    playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
     dialog.exec();
 }
@@ -126,6 +147,7 @@ bool AppMessageDialog::informationWithActions(QWidget* parent,
     const QString& message,
     const QString& primaryButtonText,
     const QString& secondaryButtonText) {
+    playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, primaryButtonText, secondaryButtonText, parent);
     return dialog.exec() == QDialog::Accepted;
 }

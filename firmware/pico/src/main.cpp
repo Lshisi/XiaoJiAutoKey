@@ -11,7 +11,8 @@
 
 namespace {
 
-constexpr const char* kVersion = "xiaoji-pico-cpp-0.1";
+constexpr const char* kVersion = "XiaoJi USB Bridge V1.0";
+constexpr uint32_t kUpdateToken = 714021;
 constexpr uint32_t kNumpadEnterKeyCode = 0x0100000D;
 
 enum class Device : uint32_t {
@@ -373,9 +374,18 @@ void handle_command(char* line) {
         return;
     }
     if (std::strcmp(command, "B") == 0) {
+        cdc_write_line("ERR UPDATE_AUTH_REQUIRED");
+        return;
+    }
+    if (std::strcmp(command, "UPD") == 0) {
+        uint32_t token = 0;
+        if (!parse_u32(next_token(cursor), &token) || token != kUpdateToken) {
+            cdc_write_line("ERR UPDATE_AUTH_REQUIRED");
+            return;
+        }
         release_all();
         set_status_led(false);
-        cdc_write_line("OK BOOTSEL");
+        cdc_write_line("OK UPDATE_BOOTSEL");
         sleep_ms(50);
         reset_usb_boot(0, 0);
         return;

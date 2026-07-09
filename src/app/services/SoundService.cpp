@@ -22,8 +22,8 @@ std::wstring defaultAliasForPath(const std::filesystem::path& soundPath) {
     const auto fileName = soundPath.filename().wstring();
     if (fileName == L"\u6309\u952e\u5f00\u542f.wma") return L"autokey_repeat_on_sound";
     if (fileName == L"\u6309\u952e\u5173\u95ed.wma") return L"autokey_repeat_off_sound";
-    if (fileName == L"\u5faa\u73af\u5f00\u542f.mp3") return L"autokey_macro_on_sound";
-    if (fileName == L"\u5faa\u73af\u5173\u95ed.mp3") return L"autokey_macro_off_sound";
+    if (fileName == L"\u5faa\u73af\u5f00\u542f.wma") return L"autokey_macro_on_sound";
+    if (fileName == L"\u5faa\u73af\u5173\u95ed.wma") return L"autokey_macro_off_sound";
     return {};
 }
 
@@ -139,7 +139,7 @@ std::filesystem::path SoundService::resolveToggleSoundPath(
 
     if (soundPath.empty()) {
         if (macroMode) {
-            soundPath = resolveAudioPath(running ? L"\u5faa\u73af\u5f00\u542f.mp3" : L"\u5faa\u73af\u5173\u95ed.mp3");
+            soundPath = resolveAudioPath(running ? L"\u5faa\u73af\u5f00\u542f.wma" : L"\u5faa\u73af\u5173\u95ed.wma");
         } else {
             soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.wma" : L"\u6309\u952e\u5173\u95ed.wma");
         }

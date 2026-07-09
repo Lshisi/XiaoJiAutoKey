@@ -7,6 +7,9 @@
 
 void MainWindow::setupHooks() {
     rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+    inputHook_.setSelfInjectedFilter([this](const KeyDescriptor& key) {
+        return inputDriver_.ConsumeSelfInjected(key);
+    });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{
         &inputHook_,
@@ -17,6 +20,13 @@ void MainWindow::setupHooks() {
             const bool shouldStart = !engine_.IsToolRunning();
             if (shouldStart) {
                 auto validation = ActiveConfigValidator::validateActiveHotkeys(
+                    profileController_.activeProfile(),
+                    macroController_.activeMacro());
+                if (!validation.ok) {
+                    AppMessageDialog::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+                    return;
+                }
+                validation = ActiveConfigValidator::validateRuntimeKeyConflicts(
                     profileController_.activeProfile(),
                     macroController_.activeMacro());
                 if (!validation.ok) {
@@ -38,7 +48,11 @@ void MainWindow::setupHooks() {
         [this]() { return engine_.IsToolRunning(); },
         [this](quint64 encodedKey) { captureCoordinator_.handleCapturedKey(encodedKey); },
         [this]() {
-            return ActiveConfigValidator::validateActiveHotkeys(
+            auto validation = ActiveConfigValidator::validateActiveHotkeys(
+                profileController_.activeProfile(),
+                macroController_.activeMacro());
+            if (!validation.ok) return validation;
+            return ActiveConfigValidator::validateRuntimeKeyConflicts(
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },

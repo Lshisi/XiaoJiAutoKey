@@ -67,7 +67,8 @@ QString compactDriverDetails(const QString& details) {
         else if (trimmed.startsWith(QStringLiteral("HID SYS:"))) hidSys = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Root \u8bbe\u5907:"))) hidRootDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Child \u8bbe\u5907:"))) hidChildDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
-        else if (trimmed.startsWith(QStringLiteral("USB Pico:"))) usbPico = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u8bbe\u5907:")) ||
+                 trimmed.startsWith(QStringLiteral("USB Pico:"))) usbPico = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u7aef\u53e3:"))) usbPort = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u56fa\u4ef6:"))) usbFirmware = trimmed.section(QLatin1Char(':'), 1).trimmed();
     }
@@ -132,7 +133,7 @@ QString compactDriverDetails(const QString& details) {
         sections.append(hid);
     }
     QStringList usb;
-    if (!usbPico.isEmpty()) usb.push_back(QStringLiteral("Pico: ") + usbPico);
+    if (!usbPico.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") + usbPico);
     if (!usbPort.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u7aef\u53e3: ") + usbPort);
     if (!usbFirmware.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u56fa\u4ef6: ") + usbFirmware);
     if (!usb.isEmpty()) {
@@ -227,10 +228,10 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     statusTitleRow->setSpacing(8);
     statusTitleRow->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5f53\u524d\u72b6\u6001"), panel));
     statusTitleRow->addStretch();
-    uninstallHidButton_ = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u5378\u8f7d HID"), panel);
-    uninstallHidButton_->setFixedWidth(88);
-    uninstallHidButton_->hide();
-    statusTitleRow->addWidget(uninstallHidButton_);
+    driverActionButton_ = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u5378\u8f7d DD"), panel);
+    driverActionButton_->setFixedWidth(128);
+    driverActionButton_->hide();
+    statusTitleRow->addWidget(driverActionButton_);
     panelLayout->addLayout(statusTitleRow);
 
     auto* runtimeRow = new QHBoxLayout();
@@ -288,7 +289,13 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
         if (!driverModeCombo_ || index < 0) return;
         emit driverModeChanged(static_cast<DriverMode>(driverModeCombo_->itemData(index).toInt()));
     });
-    connect(uninstallHidButton_, &QPushButton::clicked, this, &DriverPage::uninstallHidRequested);
+    connect(driverActionButton_, &QPushButton::clicked, this, [this]() {
+        if (driverActionMode_ == DriverMode::Usb) {
+            emit updatePicoFirmwareRequested();
+        } else {
+            emit uninstallDriverRequested(driverActionMode_);
+        }
+    });
 
     applyTheme();
 }
@@ -298,8 +305,8 @@ void DriverPage::updateThemeColors() {
     if (driverModeCombo_) {
         driverModeCombo_->refreshThemeStyle();
     }
-    if (uninstallHidButton_) {
-        uninstallHidButton_->refreshMetrics();
+    if (driverActionButton_) {
+        driverActionButton_->refreshMetrics();
     }
     update();
 }
@@ -329,15 +336,27 @@ void DriverPage::setDetailText(const QString& details) {
     if (summaryDetailValue_) summaryDetailValue_->setPlainText(compactDriverDetails(details));
 }
 
-void DriverPage::setHidUninstallAvailable(bool available) {
-    if (uninstallHidButton_) {
-        uninstallHidButton_->setVisible(available);
+void DriverPage::setDriverAction(DriverMode mode, bool picoUpdateAvailable) {
+    driverActionMode_ = mode;
+    if (!driverActionButton_) {
+        return;
+    }
+
+    if (mode == DriverMode::Usb) {
+        driverActionButton_->setText(QString::fromWCharArray(L"\u66f4\u65b0\u56fa\u4ef6"));
+        driverActionButton_->setVisible(picoUpdateAvailable);
+    } else if (mode == DriverMode::Hid) {
+        driverActionButton_->setText(QString::fromWCharArray(L"\u5378\u8f7d HID"));
+        driverActionButton_->setVisible(true);
+    } else {
+        driverActionButton_->setText(QString::fromWCharArray(L"\u5378\u8f7d DD"));
+        driverActionButton_->setVisible(true);
     }
 }
 
 void DriverPage::setBusy(bool busy) {
     if (driverModeCombo_) driverModeCombo_->setEnabled(!busy);
-    if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
+    if (driverActionButton_) driverActionButton_->setEnabled(!busy);
 }
 
 void DriverPage::applyTheme() {

@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <stdexcept>
+#include <utility>
 #include <windowsx.h>
 
 namespace {
@@ -90,6 +91,11 @@ void GlobalInputHook::setRawKeyboardActive(bool active) {
     if (active) controlHotkeyPressed_ = false;
 }
 
+void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescriptor&)> filter) {
+    std::lock_guard lock(stateMutex_);
+    selfInjectedFilter_ = std::move(filter);
+}
+
 bool GlobalInputHook::isDialogOpen() const noexcept {
     return dialogOpen_.load();
 }
@@ -154,11 +160,17 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
+    std::function<bool(const KeyDescriptor&)> selfInjectedFilter;
     bool captureActive = false;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
+        selfInjectedFilter = hook->selfInjectedFilter_;
         captureActive = hook->captureActive_;
+    }
+
+    if (selfInjectedFilter && selfInjectedFilter(key)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
     if (!captureActive && hook->rawKeyboardActive_.load()) {
@@ -209,13 +221,19 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     const bool pressed = IsMouseDownMessage(wParam);
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
+    std::function<bool(const KeyDescriptor&)> selfInjectedFilter;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
+        selfInjectedFilter = hook->selfInjectedFilter_;
         captureActive = hook->captureActive_;
         captureStartedTick = hook->captureStartedTick_;
+    }
+
+    if (selfInjectedFilter && selfInjectedFilter(key)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
     if (captureActive && pressed) {

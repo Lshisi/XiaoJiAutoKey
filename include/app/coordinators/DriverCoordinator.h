@@ -25,8 +25,9 @@ public:
         DdRuntimeService* runtimeService = nullptr;
         QWidget* parentWidget = nullptr;
         std::function<SwitchResult(DriverMode)> switchDriverMode;
-        std::function<void()> prepareHidUninstall;
-        std::function<void()> finalizeHidUninstall;
+        std::function<void(DriverMode)> prepareDriverUninstall;
+        std::function<void(DriverMode)> finalizeDriverUninstall;
+        std::function<void()> updatePicoFirmware;
         std::function<bool()> rebootComputer;
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;

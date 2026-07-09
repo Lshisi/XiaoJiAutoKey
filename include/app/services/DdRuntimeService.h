@@ -42,6 +42,7 @@ public:
     [[nodiscard]] bool InstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool UninstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
+    [[nodiscard]] bool UninstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool ProbeHidRuntime(int timeoutMs, std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
                                                std::wstring* resultMessage = nullptr) const;

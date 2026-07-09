@@ -308,6 +308,98 @@ std::vector<std::wstring> EnumerateHidDriverPublishedNames(const std::wstring& p
     return publishedNames;
 }
 
+std::vector<std::wstring> ExtractPublishedNamesForOriginalInfs(const std::wstring& output,
+                                                               const std::vector<std::wstring>& originalNames) {
+    std::vector<std::wstring> names;
+    std::wistringstream input(output);
+    std::wstring line;
+    std::vector<std::wstring> blockValues;
+    bool blockMatches = false;
+
+    const auto flushBlock = [&]() {
+        if (blockMatches) {
+            for (const auto& value : blockValues) {
+                if (IsPublishedInfName(value)) {
+                    AddUniquePublishedName(&names, value);
+                }
+            }
+        }
+        blockValues.clear();
+        blockMatches = false;
+    };
+
+    while (std::getline(input, line)) {
+        line = TrimText(line);
+        if (line.empty()) {
+            flushBlock();
+            continue;
+        }
+
+        const auto colon = line.find(L':');
+        if (colon == std::wstring::npos) {
+            continue;
+        }
+
+        const std::wstring value = TrimText(line.substr(colon + 1));
+        const std::wstring lowerValue = ToLower(value);
+        if (!value.empty()) {
+            blockValues.push_back(value);
+        }
+        for (const auto& originalName : originalNames) {
+            if (lowerValue == ToLower(originalName)) {
+                blockMatches = true;
+                break;
+            }
+        }
+    }
+    flushBlock();
+    return names;
+}
+
+std::vector<std::wstring> EnumerateInfDriverPublishedNames(const std::wstring& pnputilPath,
+                                                           std::wstringstream* message,
+                                                           bool* enumSucceeded = nullptr) {
+    if (enumSucceeded) {
+        *enumSucceeded = false;
+    }
+
+    DWORD enumExitCode = 1;
+    std::wstring enumOutput;
+    std::wstring enumError;
+    const bool enumOk = RunProcess(
+        pnputilPath,
+        {L"/enum-drivers"},
+        &enumExitCode,
+        &enumOutput,
+        &enumError,
+        {},
+        15000);
+
+    if (!enumOk) {
+        if (message) {
+            *message << L"DD enum driver packages -> failed (exit_code=" << enumExitCode << L")\n";
+            if (!enumOutput.empty()) {
+                *message << enumOutput << L"\n";
+            }
+            if (!enumError.empty()) {
+                *message << enumError << L"\n";
+            }
+        }
+        return {};
+    }
+
+    if (enumSucceeded) {
+        *enumSucceeded = true;
+    }
+    auto publishedNames = ExtractPublishedNamesForOriginalInfs(
+        enumOutput,
+        {L"dd.key.96688.inf", L"dd.mou.96688.inf"});
+    if (message) {
+        *message << L"DD enum driver packages -> found " << publishedNames.size() << L"\n";
+    }
+    return publishedNames;
+}
+
 bool HidCreateDeviceAlreadyExists(const std::wstring& text) {
     const std::wstring lowerText = ToLower(text);
     return ContainsText(lowerText, L"already exists") &&
@@ -693,6 +785,38 @@ InfDeviceState QueryInfDeviceStateByService(const wchar_t* serviceName) {
 
     SetupDiDestroyDeviceInfoList(deviceInfo);
     return state;
+}
+
+std::vector<std::wstring> EnumerateDeviceInstanceIdsByService(const wchar_t* serviceName) {
+    std::vector<std::wstring> ids;
+    if (serviceName == nullptr || *serviceName == L'\0') {
+        return ids;
+    }
+
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES);
+    if (deviceInfo == INVALID_HANDLE_VALUE) {
+        return ids;
+    }
+
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA deviceData{};
+        deviceData.cbSize = sizeof(deviceData);
+        if (!SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
+            break;
+        }
+
+        if (!DeviceBoundToService(deviceInfo, &deviceData, serviceName)) {
+            continue;
+        }
+
+        wchar_t instanceId[MAX_DEVICE_ID_LEN] = {};
+        if (CM_Get_Device_IDW(deviceData.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
+            ids.emplace_back(instanceId);
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfo);
+    return ids;
 }
 
 std::wstring FormatStepResult(bool accepted,
@@ -1393,6 +1517,138 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
     return overallUninstalled;
 }
 #endif
+
+bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) const {
+    const std::wstring pnputilPath = ResolvePnputilPath();
+    if (pnputilPath.empty()) {
+        if (resultMessage) {
+            *resultMessage = L"Unable to resolve the Windows system directory.";
+        }
+        return false;
+    }
+
+    std::wstringstream message;
+    bool enumSucceeded = false;
+    auto publishedNames = EnumerateInfDriverPublishedNames(pnputilPath, &message, &enumSucceeded);
+
+    bool removedPackage = publishedNames.empty() && enumSucceeded;
+    bool packageRemovalNeedsReboot = false;
+    for (const auto& publishedName : publishedNames) {
+        DWORD deleteExitCode = 1;
+        std::wstring deleteOutput;
+        std::wstring deleteError;
+        const bool deleteProcessOk = RunProcess(
+            pnputilPath,
+            {L"/delete-driver", publishedName, L"/uninstall", L"/force"},
+            &deleteExitCode,
+            &deleteOutput,
+            &deleteError,
+            {},
+            20000);
+        const bool deleteAccepted = PnputilDeleteDriverSucceeded(deleteProcessOk, deleteExitCode, deleteOutput);
+        packageRemovalNeedsReboot = packageRemovalNeedsReboot || deleteExitCode == ERROR_SUCCESS_REBOOT_REQUIRED;
+        removedPackage = removedPackage || deleteAccepted;
+        message << L"DD delete driver package " << publishedName << L" -> "
+                << FormatStepResult(deleteAccepted, deleteProcessOk, deleteExitCode, deleteOutput, deleteError)
+                << L"\n";
+    }
+
+    for (const auto* serviceName : {kInfKeyboardServiceName, kInfMouseServiceName}) {
+        for (const auto& instanceId : EnumerateDeviceInstanceIdsByService(serviceName)) {
+            std::wstring removeDetail;
+            const bool removed = RemoveDeviceInstanceBestEffort(instanceId, &removeDetail);
+            message << L"DD remove device " << instanceId << L" -> "
+                    << (removed ? L"ok" : L"failed");
+            if (!removeDetail.empty()) {
+                message << L" (" << removeDetail << L")";
+            }
+            message << L"\n";
+        }
+    }
+
+    bool serviceDeleteAccepted = true;
+    for (const auto* serviceName : {kInfKeyboardServiceName, kInfMouseServiceName}) {
+        DWORD serviceExitCode = 1;
+        std::wstring serviceOutput;
+        std::wstring serviceError;
+        const bool serviceProcessOk = RunProcess(
+            L"sc.exe",
+            {L"delete", serviceName},
+            &serviceExitCode,
+            &serviceOutput,
+            &serviceError,
+            {},
+            10000);
+        const bool accepted = ServiceDeleteAccepted(serviceProcessOk, serviceExitCode, serviceOutput) ||
+            !ServiceExists(serviceName);
+        serviceDeleteAccepted = serviceDeleteAccepted && accepted;
+        message << L"DD delete service " << serviceName << L" -> "
+                << FormatStepResult(accepted, serviceProcessOk, serviceExitCode, serviceOutput, serviceError)
+                << L"\n";
+    }
+
+    bool sysCleanupAccepted = true;
+    for (const auto* sysName : {kInfKeyboardSysName, kInfMouseSysName}) {
+        std::wstring removeDetail;
+        const bool removed = RemoveFileNowOrOnReboot(SystemDriversDir() / sysName, &removeDetail);
+        sysCleanupAccepted = sysCleanupAccepted && removed;
+        message << L"DD remove sys " << sysName << L" -> " << (removed ? L"ok" : L"failed");
+        if (!removeDetail.empty()) {
+            message << L" (" << removeDetail << L")";
+        }
+        message << L"\n";
+    }
+
+    bool finalEnumSucceeded = false;
+    auto remainingPublishedNames = EnumerateInfDriverPublishedNames(pnputilPath, &message, &finalEnumSucceeded);
+    const bool stillHasKeyService = ServiceExists(kInfKeyboardServiceName);
+    const bool stillHasMouseService = ServiceExists(kInfMouseServiceName);
+    const bool stillHasKeySys = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
+    const bool stillHasMouseSys = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
+    const InfDeviceState keyDevice = QueryInfDeviceStateByService(kInfKeyboardServiceName);
+    const InfDeviceState mouseDevice = QueryInfDeviceStateByService(kInfMouseServiceName);
+    const bool keyServicePendingDelete = ServiceMarkedForDelete(kInfKeyboardServiceName);
+    const bool mouseServicePendingDelete = ServiceMarkedForDelete(kInfMouseServiceName);
+
+    const bool noDevices = !keyDevice.present && !mouseDevice.present;
+    const bool noServices = (!stillHasKeyService || keyServicePendingDelete) &&
+        (!stillHasMouseService || mouseServicePendingDelete);
+    const bool noSys = !stillHasKeySys && !stillHasMouseSys;
+    const bool noPackages = finalEnumSucceeded && remainingPublishedNames.empty();
+    const bool overallUninstalled = noDevices && noServices && noSys && noPackages;
+    const bool pendingRebootOnly = noDevices && noServices &&
+        (noPackages || packageRemovalNeedsReboot) &&
+        (sysCleanupAccepted || !noSys);
+
+    message << L"DD final state -> key_device=" << (keyDevice.present ? L"yes" : L"no")
+            << L", mouse_device=" << (mouseDevice.present ? L"yes" : L"no")
+            << L", key_service=" << (stillHasKeyService ? L"yes" : L"no")
+            << L", mouse_service=" << (stillHasMouseService ? L"yes" : L"no")
+            << L", key_sys=" << (stillHasKeySys ? L"yes" : L"no")
+            << L", mouse_sys=" << (stillHasMouseSys ? L"yes" : L"no")
+            << L", key_service_pending_delete=" << (keyServicePendingDelete ? L"yes" : L"no")
+            << L", mouse_service_pending_delete=" << (mouseServicePendingDelete ? L"yes" : L"no")
+            << L", remaining_packages=" << remainingPublishedNames.size()
+            << L"\n";
+
+    std::wstringstream summary;
+    summary << ((overallUninstalled || pendingRebootOnly)
+        ? L"DD \u5378\u8f7d\u6210\u529f\u3002\n"
+        : L"DD \u5378\u8f7d\u672a\u5b8c\u5168\u5b8c\u6210\u3002\n");
+    if (overallUninstalled) {
+        summary << L"DD \u9a71\u52a8\u5305\u3001\u670d\u52a1\u3001SYS \u548c\u8bbe\u5907\u8282\u70b9\u5df2\u6e05\u7406\u3002\n";
+    } else if (pendingRebootOnly) {
+        summary << L"Windows \u5df2\u63a5\u53d7 DD \u5378\u8f7d\u8bf7\u6c42\uff0c\u5269\u4f59\u72b6\u6001\u9700\u8981\u91cd\u542f\u540e\u91ca\u653e\u3002\n";
+    } else {
+        summary << L"\u7cfb\u7edf\u4e2d\u4ecd\u53ef\u80fd\u6b8b\u7559 DD \u9a71\u52a8\u5305\u3001\u670d\u52a1\u3001SYS \u6216\u8bbe\u5907\u8282\u70b9\u3002\n";
+    }
+    summary << L"\u5efa\u8bae\u91cd\u542f\u7cfb\u7edf\uff1b\u8be6\u7ec6\u8fc7\u7a0b\u5df2\u5199\u5165\u65e5\u5fd7\u3002";
+    if (resultMessage) {
+        *resultMessage = summary.str();
+    }
+    AppendLog(logsDir_, L"dd-inf-uninstall.log", summary.str() + L"\n\n" + message.str());
+    return overallUninstalled || pendingRebootOnly || (removedPackage && serviceDeleteAccepted && sysCleanupAccepted);
+}
 
 bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) const {
     const std::wstring pnputilPath = ResolvePnputilPath();

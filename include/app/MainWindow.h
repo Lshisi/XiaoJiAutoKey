@@ -64,9 +64,12 @@ private:
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
+    bool isPicoFirmwareUpdateAvailable() const;
+    void checkPicoFirmwareUpdateOnStartup();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
-    void prepareHidDriverUninstall();
-    void finalizeHidDriverUninstall();
+    void prepareDriverUninstall(DriverMode mode);
+    void finalizeDriverUninstall(DriverMode mode);
+    void updatePicoFirmware(bool requireConfirmation = true);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
     bool rebootComputer();
@@ -130,5 +133,7 @@ private:
     bool driverUnavailableLogged_ = false;
     bool driverStatusFallback_ = false;
     std::wstring driverStatusNote_;
+    bool suppressAutoPlay_ = false;
+    bool startupPicoUpdatePromptShown_ = false;
 
 };

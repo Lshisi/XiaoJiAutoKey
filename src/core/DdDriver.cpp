@@ -25,6 +25,7 @@ constexpr DWORD kDdxoftHidMouseOutputReportBytes = 65;
 constexpr std::uint8_t kDdxoftHidOutputReportId = 0x40;
 constexpr std::uint8_t kDdxoftHidMouseCommand = 0x09;
 constexpr std::uint8_t kDdxoftHidRelativeMouseReportId = 0x04;
+constexpr ULONGLONG kSelfInjectedTtlMs = 500;
 
 bool IsNearHidInitCorner(const POINT& point) {
     const int virtualLeft = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -657,7 +658,7 @@ bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
     if (simulateDepth_.load() > 3) return false;
 
     if (src == InputSource::Injected) {
-        MarkInjected(key);
+        MarkInjected(key, 2);
     }
 
     return key.device == InputDevice::Mouse ? SendMouseTap(key.code) : SendKeyboardTap(key.code);
@@ -975,12 +976,42 @@ void DdDriver::RegisterRelease(const KeyDescriptor& key) {
     }
 }
 
-void DdDriver::MarkInjected(const KeyDescriptor& key) {
+void DdDriver::MarkInjected(const KeyDescriptor& key, int eventCount) {
+    if (eventCount <= 0) {
+        return;
+    }
+
     std::lock_guard lock(mutex_);
-    selfInjected_.insert(EncodeKey(key));
+    auto& state = selfInjected_[EncodeKey(key)];
+    state.count += eventCount;
+    state.lastTick = ::GetTickCount64();
+}
+
+bool DdDriver::ConsumeSelfInjected(const KeyDescriptor& key) {
+    std::lock_guard lock(mutex_);
+    const auto encoded = EncodeKey(key);
+    auto it = selfInjected_.find(encoded);
+    if (it == selfInjected_.end()) {
+        return false;
+    }
+
+    const ULONGLONG now = ::GetTickCount64();
+    if (now - it->second.lastTick > kSelfInjectedTtlMs) {
+        selfInjected_.erase(it);
+        return false;
+    }
+
+    if (--it->second.count <= 0) {
+        selfInjected_.erase(it);
+    }
+    return true;
 }
 
 bool DdDriver::IsSelfInjected(const KeyDescriptor& key) const {
     std::lock_guard lock(mutex_);
-    return selfInjected_.count(EncodeKey(key)) > 0;
+    const auto it = selfInjected_.find(EncodeKey(key));
+    if (it == selfInjected_.end()) {
+        return false;
+    }
+    return ::GetTickCount64() - it->second.lastTick <= kSelfInjectedTtlMs && it->second.count > 0;
 }

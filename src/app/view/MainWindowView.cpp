@@ -465,7 +465,7 @@ void MainWindowView::setup(QMainWindow* window) {
     applyStatusBarTheme(statusBar);
     auto* statusLayout = new QHBoxLayout(statusBar);
     statusLayout->setContentsMargins(12, 0, 12, 0);
-    auto* versionLabel = new QLabel(QString("v") + QString(APP_VERSION), statusBar);
+    auto* versionLabel = new QLabel(QString("V") + QString(APP_VERSION), statusBar);
     versionLabel->setFont(Fluent::Typography::smallText());
     QPalette statusPalette = versionLabel->palette();
     statusPalette.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());

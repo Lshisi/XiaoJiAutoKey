@@ -7,6 +7,7 @@
 #include <Windows.h>
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -27,6 +28,7 @@ public:
     void setDialogOpen(bool open);
     void setRepeatRunning(bool running);
     void setRawKeyboardActive(bool active);
+    void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&)> filter);
 
     [[nodiscard]] bool isDialogOpen() const noexcept;
     [[nodiscard]] bool isRawKeyboardActive() const noexcept;
@@ -58,6 +60,7 @@ private:
 
     mutable std::mutex stateMutex_;
     std::optional<KeyDescriptor> controlHotkey_;
+    std::function<bool(const KeyDescriptor&)> selfInjectedFilter_;
     bool captureActive_ = false;
     ULONGLONG captureStartedTick_ = 0;
 

@@ -14,6 +14,7 @@ public:
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     void ReleaseAll() override;
     void ClearAllStates() override;
+    bool ConsumeSelfInjected(const KeyDescriptor& key) override;
 
 private:
     InputDriver* driver_ = nullptr;

@@ -167,6 +167,13 @@ void MacroCoordinator::onMacroAddStep() {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
+    validation = ActiveConfigValidator::validateMacroStepCandidate(
+        editResult.key,
+        context_.activeProfile ? context_.activeProfile() : nullptr);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
 
     auto result = context_.controller->addStep(editResult.key, editResult.delayAfterMs);
     if (!result.ok) {
@@ -193,6 +200,13 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
         editResult.key,
         context_.activeProfile ? context_.activeProfile() : nullptr,
         macro);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+    validation = ActiveConfigValidator::validateMacroStepCandidate(
+        editResult.key,
+        context_.activeProfile ? context_.activeProfile() : nullptr);
     if (!validation.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
@@ -253,6 +267,13 @@ void MacroCoordinator::onMacroStartStopClicked() {
                 AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
                 return;
             }
+        }
+        auto runtimeValidation = ActiveConfigValidator::validateRuntimeKeyConflicts(
+            context_.activeProfile ? context_.activeProfile() : nullptr,
+            macro);
+        if (!runtimeValidation.ok) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), runtimeValidation.message);
+            return;
         }
         context_.engine->OnTriggerDown(*macro->triggerKey);
         lastMacroRunning_ = true;

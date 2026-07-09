@@ -118,7 +118,11 @@ void MainWindow::setupUi() {
         [this](bool enabled) { config_.statusOverlayShowMacro = enabled; },
         [this]() { return profileController_.activeProfile(); },
         [this]() {
-            return ActiveConfigValidator::validateActiveHotkeys(
+            auto validation = ActiveConfigValidator::validateActiveHotkeys(
+                profileController_.activeProfile(),
+                macroController_.activeMacro());
+            if (!validation.ok) return validation;
+            return ActiveConfigValidator::validateRuntimeKeyConflicts(
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },
@@ -145,8 +149,9 @@ void MainWindow::setupUi() {
         &ddRuntimeService_,
         this,
         [this](DriverMode mode) { return switchDriverMode(mode); },
-        [this]() { prepareHidDriverUninstall(); },
-        [this]() { finalizeHidDriverUninstall(); },
+        [this](DriverMode mode) { prepareDriverUninstall(mode); },
+        [this](DriverMode mode) { finalizeDriverUninstall(mode); },
+        [this]() { updatePicoFirmware(); },
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },

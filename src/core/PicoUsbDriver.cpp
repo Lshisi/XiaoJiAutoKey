@@ -13,6 +13,7 @@
 
 namespace {
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
+constexpr char kUpdateCommand[] = "UPD 714021";
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -190,7 +191,7 @@ bool PicoUsbDriver::AutoConnect() {
     std::wstring errors;
     const std::vector<std::wstring> ports = BuildAutoConnectPortList();
     if (ports.empty()) {
-        lastError_ = L"No XiaoJi Pico USB serial device found";
+        lastError_ = L"No XiaoJi USB device found";
         return false;
     }
 
@@ -208,8 +209,8 @@ bool PicoUsbDriver::AutoConnect() {
     }
 
     lastError_ = errors.empty()
-        ? L"No XiaoJi Pico USB serial device found"
-        : L"No XiaoJi Pico USB serial device accepted handshake:\n" + errors;
+        ? L"No XiaoJi USB device found"
+        : L"No XiaoJi USB device accepted handshake:\n" + errors;
     return false;
 }
 
@@ -269,6 +270,24 @@ bool PicoUsbDriver::SetStatusLed(bool enabled) {
     }
     statusLed_ = enabled;
     return true;
+}
+
+bool PicoUsbDriver::EnterBootloaderForUpdate() {
+    std::lock_guard lock(mutex_);
+    if (handle_ == INVALID_HANDLE_VALUE) return false;
+
+    SendCommandLocked("R");
+    if (statusLedSupported_) {
+        SendCommandLocked("L 0");
+    }
+    bool ok = SendCommandLocked(kUpdateCommand);
+    if (!ok) {
+        ok = SendCommandLocked("B");
+    }
+    if (ok) {
+        ClosePortLocked();
+    }
+    return ok;
 }
 
 bool PicoUsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {
@@ -409,11 +428,13 @@ bool PicoUsbDriver::QueryVersionLocked() {
         return false;
     }
     const std::string response = ReadAvailableLocked(220);
-    if (response.find("OK xiaoji-pico-cpp") == std::string::npos) {
+    if (response.rfind("OK ", 0) != 0 ||
+        (response.find("XiaoJi USB Bridge") == std::string::npos &&
+         response.find("xiaoji-pico-cpp") == std::string::npos)) {
         lastError_ = L"Unexpected handshake response: " + ToWide(response);
         return false;
     }
-    firmwareVersion_ = ToWide(response);
+    firmwareVersion_ = ToWide(response.substr(3));
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\r'), firmwareVersion_.end());
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\n'), firmwareVersion_.end());
     SendCommandLocked("R");

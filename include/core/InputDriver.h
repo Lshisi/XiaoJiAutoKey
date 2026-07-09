@@ -16,4 +16,5 @@ public:
     virtual bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual void ReleaseAll() = 0;
     virtual void ClearAllStates() {}
+    virtual bool ConsumeSelfInjected(const KeyDescriptor&) { return false; }
 };

@@ -40,6 +40,7 @@ public:
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     void ReleaseAll() override;
     void ClearAllStates() override;  // Clear pressedKeys_ and selfInjected_ state.
+    bool ConsumeSelfInjected(const KeyDescriptor& key) override;
     bool IsSelfInjected(const KeyDescriptor& key) const;
 
 private:
@@ -61,7 +62,12 @@ private:
     void CloseInjectedInfHandles();
     void RegisterPress(const KeyDescriptor& key);
     void RegisterRelease(const KeyDescriptor& key);
-    void MarkInjected(const KeyDescriptor& key);
+    void MarkInjected(const KeyDescriptor& key, int eventCount = 1);
+
+    struct InjectedState {
+        int count = 0;
+        ULONGLONG lastTick = 0;
+    };
 
     HMODULE module_ = nullptr;
     DD_btn_t ddBtn_ = nullptr;
@@ -76,7 +82,7 @@ private:
 
     mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
-    std::unordered_set<std::uint64_t> selfInjected_;
+    std::unordered_map<std::uint64_t, InjectedState> selfInjected_;
 
     std::mutex hidMouseMutex_;
     HANDLE hidMouseHandle_ = INVALID_HANDLE_VALUE;

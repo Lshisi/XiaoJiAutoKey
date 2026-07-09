@@ -44,6 +44,8 @@ public:
 private:
     void WorkerLoop();
     void ExecuteStep(MacroRuntime& rt);
+    static void ResetRuntime(MacroRuntime& rt);
+    static void QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDescriptor>& releases);
     static ULONGLONG NowMs();
     bool IsPauseActive() const;
 

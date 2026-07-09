@@ -12,6 +12,8 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QScreen>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QtGlobal>
 
@@ -31,6 +33,33 @@ void playSystemDialogSound(AppMessageDialog::Kind kind) {
 #endif
 }
 
+void moveToBestScreenCenter(QDialog* dialog, QWidget* parent) {
+    if (!dialog) {
+        return;
+    }
+
+    const QRect available = parent && parent->screen()
+        ? parent->screen()->availableGeometry()
+        : dialog->screen()->availableGeometry();
+    dialog->move(available.center() - dialog->rect().center());
+}
+
+void bringDialogToFront(QDialog* dialog) {
+    if (!dialog) {
+        return;
+    }
+
+    dialog->raise();
+    dialog->activateWindow();
+#ifdef Q_OS_WIN
+    if (HWND hwnd = reinterpret_cast<HWND>(dialog->winId())) {
+        ::SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        ::SetForegroundWindow(hwnd);
+    }
+#endif
+}
+
 }  // namespace
 
 AppMessageDialog::AppMessageDialog(Kind kind,
@@ -39,9 +68,13 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     const QString& primaryButtonText,
     const QString& secondaryButtonText,
     QWidget* parent)
-    : QDialog(parent) {
+    : QDialog(nullptr) {
+    Q_UNUSED(parent);
     setWindowTitle(title);
     DialogChrome::apply(this);
+    setWindowFlag(Qt::Dialog, true);
+    setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    setWindowModality(Qt::ApplicationModal);
     setModal(true);
     resize(420, 260);
     setMinimumSize(360, 170);
@@ -84,26 +117,43 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     messageLabel->setPalette(msgPal);
 
     auto* messageContainer = new QWidget(this);
+    messageContainer->setObjectName(QStringLiteral("messageContainer"));
+    messageContainer->setAutoFillBackground(true);
+    QPalette messageContainerPalette = messageContainer->palette();
+    messageContainerPalette.setColor(QPalette::Window, Fluent::Colors::cardBg());
+    messageContainerPalette.setColor(QPalette::Base, Fluent::Colors::cardBg());
+    messageContainer->setPalette(messageContainerPalette);
     auto* messageContainerLayout = new QVBoxLayout(messageContainer);
     messageContainerLayout->setContentsMargins(0, 0, 0, 0);
     messageContainerLayout->addWidget(messageLabel);
 
     auto* scrollArea = new QScrollArea(this);
+    scrollArea->setAutoFillBackground(true);
+    QPalette scrollPalette = scrollArea->palette();
+    scrollPalette.setColor(QPalette::Window, Fluent::Colors::cardBg());
+    scrollPalette.setColor(QPalette::Base, Fluent::Colors::cardBg());
+    scrollArea->setPalette(scrollPalette);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scrollArea->setWidget(messageContainer);
+    if (auto* viewport = scrollArea->viewport()) {
+        viewport->setAutoFillBackground(true);
+        viewport->setPalette(scrollPalette);
+    }
     scrollArea->setMinimumHeight(72);
     scrollArea->setStyleSheet(QString(
-        "QScrollArea { background: transparent; border: none; }"
-        "QScrollArea > QWidget > QWidget { background: transparent; }"
+        "QScrollArea { background: %1; border: none; }"
+        "QScrollArea > QWidget { background: %1; }"
+        "QWidget#messageContainer { background: %1; }"
         "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 22px; }"
-        "QScrollBar::handle:vertical:hover { background: %2; }"
+        "QScrollBar::handle:vertical { background: %2; border-radius: 3px; min-height: 22px; }"
+        "QScrollBar::handle:vertical:hover { background: %3; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
         "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
-        .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.16)"),
+        .arg(Fluent::Colors::cardBg().name(QColor::HexArgb),
+             Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.16)"),
              Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.24)")));
     textLayout->addWidget(scrollArea, 1);
 
@@ -133,12 +183,16 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 void AppMessageDialog::warning(QWidget* parent, const QString& title, const QString& message) {
     playSystemDialogSound(Kind::Warning);
     AppMessageDialog dialog(Kind::Warning, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
+    moveToBestScreenCenter(&dialog, parent);
+    QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     dialog.exec();
 }
 
 void AppMessageDialog::information(QWidget* parent, const QString& title, const QString& message) {
     playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
+    moveToBestScreenCenter(&dialog, parent);
+    QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     dialog.exec();
 }
 
@@ -149,6 +203,8 @@ bool AppMessageDialog::informationWithActions(QWidget* parent,
     const QString& secondaryButtonText) {
     playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, primaryButtonText, secondaryButtonText, parent);
+    moveToBestScreenCenter(&dialog, parent);
+    QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     return dialog.exec() == QDialog::Accepted;
 }
 

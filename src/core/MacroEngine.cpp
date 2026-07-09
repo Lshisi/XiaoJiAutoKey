@@ -47,6 +47,8 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
             rt.loopsCompleted = it->loopsCompleted;
             rt.lastStepTime = it->lastStepTime;
             rt.waitingDelay = it->waitingDelay;
+            rt.keyDown = it->keyDown;
+            rt.keyDownTime = it->keyDownTime;
         }
 
         updated.push_back(std::move(rt));
@@ -57,8 +59,10 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
 }
 
 void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
-    std::lock_guard lock(mutex_);
-    const auto encoded = EncodeKey(key);
+    std::vector<KeyDescriptor> releases;
+    {
+        std::lock_guard lock(mutex_);
+        const auto encoded = EncodeKey(key);
 
     for (auto& rt : macros_) {
         if (std::find(rt.config.pauseKeys.begin(), rt.config.pauseKeys.end(), key) != rt.config.pauseKeys.end()) {
@@ -71,7 +75,8 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
         if (rt.config.triggerMode == MacroTriggerMode::Toggle) {
             // 开关模式：按一次切换
             if (rt.active) {
-                rt.active = false;
+                QueueCurrentRelease(rt, releases);
+                ResetRuntime(rt);
             } else {
                 rt.active = true;
                 rt.currentStep = 0;
@@ -79,6 +84,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.lastStepTime = 0;
                 rt.waitingDelay = false;
                 rt.keyDown = false;
+                rt.keyDownTime = 0;
             }
         } else {
             // 按压模式：按下开始
@@ -89,18 +95,26 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.lastStepTime = 0;
                 rt.waitingDelay = false;
                 rt.keyDown = false;
+                rt.keyDownTime = 0;
             }
         }
 
         triggerHeld_[encoded] = true;
     }
+    }
+
+    for (const auto& release : releases) {
+        driver_.SendUp(release, InputSource::Injected);
+    }
 }
 
 void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
-    std::lock_guard lock(mutex_);
-    const auto encoded = EncodeKey(key);
-    triggerHeld_[encoded] = false;
-    pauseKeysDown_.erase(encoded);
+    std::vector<KeyDescriptor> releases;
+    {
+        std::lock_guard lock(mutex_);
+        const auto encoded = EncodeKey(key);
+        triggerHeld_[encoded] = false;
+        pauseKeysDown_.erase(encoded);
 
     for (auto& rt : macros_) {
         if (!rt.config.enabled) continue;
@@ -109,8 +123,14 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
 
         if (rt.config.triggerMode == MacroTriggerMode::Hold) {
             // 按压模式：松开停止
-            rt.active = false;
+            QueueCurrentRelease(rt, releases);
+            ResetRuntime(rt);
         }
+    }
+    }
+
+    for (const auto& release : releases) {
+        driver_.SendUp(release, InputSource::Injected);
     }
 }
 
@@ -118,13 +138,7 @@ void MacroEngine::StopAll() {
     {
         std::lock_guard lock(mutex_);
         for (auto& rt : macros_) {
-            rt.active = false;
-            rt.currentStep = 0;
-            rt.loopsCompleted = 0;
-            rt.lastStepTime = 0;
-            rt.waitingDelay = false;
-            rt.keyDown = false;
-            rt.keyDownTime = 0;
+            ResetRuntime(rt);
         }
         triggerHeld_.clear();
         pauseKeysDown_.clear();
@@ -148,6 +162,27 @@ bool MacroEngine::IsRunning(std::uint64_t macroId) const {
 
 bool MacroEngine::IsPauseActive() const {
     return !pauseKeysDown_.empty();
+}
+
+void MacroEngine::ResetRuntime(MacroRuntime& rt) {
+    rt.active = false;
+    rt.currentStep = 0;
+    rt.loopsCompleted = 0;
+    rt.lastStepTime = 0;
+    rt.waitingDelay = false;
+    rt.keyDown = false;
+    rt.keyDownTime = 0;
+}
+
+void MacroEngine::QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDescriptor>& releases) {
+    if (!rt.keyDown || rt.currentStep < 0 || rt.currentStep >= static_cast<int>(rt.config.steps.size())) {
+        return;
+    }
+
+    const auto& step = rt.config.steps[rt.currentStep];
+    if (step.key.IsValid()) {
+        releases.push_back(step.key);
+    }
 }
 
 void MacroEngine::WorkerLoop() {
@@ -212,7 +247,7 @@ void MacroEngine::WorkerLoop() {
                         if (rt.config.triggerMode == MacroTriggerMode::Toggle
                             && rt.config.loopCount > 0
                             && rt.loopsCompleted >= rt.config.loopCount) {
-                            rt.active = false;
+                            ResetRuntime(rt);
                             continue;
                         }
                     }

@@ -174,7 +174,6 @@ void MacroCoordinator::onMacroAddStep() {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-
     auto result = context_.controller->addStep(editResult.key, editResult.delayAfterMs);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
@@ -211,7 +210,6 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-
     auto result = context_.controller->updateStep(stepIndex, editResult.key, editResult.delayAfterMs);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);

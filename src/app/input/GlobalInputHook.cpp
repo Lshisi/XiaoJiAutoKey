@@ -211,15 +211,8 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (!IsMouseDownMessage(wParam) && !IsMouseUpMessage(wParam)) return CallNextHookEx(nullptr, code, wParam, lParam);
     const KeyDescriptor key = MouseMessageToDescriptor(wParam, *info);
     if (!key.IsValid()) return CallNextHookEx(nullptr, code, wParam, lParam);
-    if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
-    const ULONGLONG nowTick = GetTickCount64();
-    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
-    if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
-
-    const bool pressed = IsMouseDownMessage(wParam);
-    const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
     std::function<bool(const KeyDescriptor&)> selfInjectedFilter;
     bool captureActive = false;
@@ -235,6 +228,14 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (selfInjectedFilter && selfInjectedFilter(key)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
+    if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
+
+    const ULONGLONG nowTick = GetTickCount64();
+    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
+    if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
+
+    const bool pressed = IsMouseDownMessage(wParam);
+    const bool repeatRunning = hook->repeatRunning_.load();
 
     if (captureActive && pressed) {
         if (GetTickCount64() - captureStartedTick < 150) return CallNextHookEx(nullptr, code, wParam, lParam);

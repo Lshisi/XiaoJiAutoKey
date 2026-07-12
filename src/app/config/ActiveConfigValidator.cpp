@@ -24,63 +24,9 @@ ControllerResult hotkeyConflict(const KeyDescriptor& key, const wchar_t* hotkeyO
         .arg(KeyName(key), QString::fromWCharArray(hotkeyOwner), QString::fromWCharArray(childOwner)));
 }
 
-ControllerResult repeatMacroStepConflict(const KeyDescriptor& key) {
-    return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u540c\u65f6\u7528\u4f5c\u6309\u952e\u8fde\u53d1\u6309\u952e\u548c\u5faa\u73af\u6b65\u9aa4\u6309\u952e\uff0c\u8bf7\u6539\u7528\u4e0d\u540c\u6309\u952e\u3002")
-        .arg(KeyName(key)));
-}
-
 }  // namespace
 
 namespace ActiveConfigValidator {
-
-ControllerResult validateRuntimeKeyConflicts(const ProfileConfig* profile, const MacroConfig* macro) {
-    if (!profile || !macro) {
-        return ControllerResult::success();
-    }
-
-    for (const auto& binding : profile->bindings) {
-        if (!binding.enabled) {
-            continue;
-        }
-        for (const auto& step : macro->steps) {
-            if (binding.key == step.key) {
-                return repeatMacroStepConflict(binding.key);
-            }
-        }
-    }
-
-    return ControllerResult::success();
-}
-
-ControllerResult validateRepeatBindingCandidate(
-    const KeyDescriptor& key,
-    const MacroConfig* macro) {
-    if (!macro) {
-        return ControllerResult::success();
-    }
-
-    for (const auto& step : macro->steps) {
-        if (step.key == key) {
-            return repeatMacroStepConflict(key);
-        }
-    }
-    return ControllerResult::success();
-}
-
-ControllerResult validateMacroStepCandidate(
-    const KeyDescriptor& key,
-    const ProfileConfig* profile) {
-    if (!profile) {
-        return ControllerResult::success();
-    }
-
-    for (const auto& binding : profile->bindings) {
-        if (binding.key == key) {
-            return repeatMacroStepConflict(key);
-        }
-    }
-    return ControllerResult::success();
-}
 
 ControllerResult validateChildKeyCandidate(
     const KeyDescriptor& key,

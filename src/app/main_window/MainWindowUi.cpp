@@ -118,11 +118,7 @@ void MainWindow::setupUi() {
         [this](bool enabled) { config_.statusOverlayShowMacro = enabled; },
         [this]() { return profileController_.activeProfile(); },
         [this]() {
-            auto validation = ActiveConfigValidator::validateActiveHotkeys(
-                profileController_.activeProfile(),
-                macroController_.activeMacro());
-            if (!validation.ok) return validation;
-            return ActiveConfigValidator::validateRuntimeKeyConflicts(
+            return ActiveConfigValidator::validateActiveHotkeys(
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },

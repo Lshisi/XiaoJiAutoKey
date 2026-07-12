@@ -80,6 +80,7 @@ private:
     std::wstring lastError_;
     std::atomic<int> simulateDepth_{0};
 
+    std::mutex ioMutex_;
     mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
     std::unordered_map<std::uint64_t, InjectedState> selfInjected_;

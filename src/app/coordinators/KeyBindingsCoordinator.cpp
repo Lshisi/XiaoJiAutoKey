@@ -63,21 +63,6 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
             if (context_.refreshAll) context_.refreshAll();
             return;
         }
-        auto* profile = context_.controller->activeProfile();
-        if (profile) {
-            auto it = std::find_if(profile->bindings.begin(), profile->bindings.end(),
-                [id](const KeyBinding& binding) { return binding.id == id; });
-            if (it != profile->bindings.end()) {
-                validation = ActiveConfigValidator::validateRepeatBindingCandidate(
-                    it->key,
-                    context_.activeMacro ? context_.activeMacro() : nullptr);
-                if (!validation.ok) {
-                    AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
-                    if (context_.refreshAll) context_.refreshAll();
-                    return;
-                }
-            }
-        }
     }
     auto result = context_.controller->setBindingEnabled(id, enabled);
     if (!result.ok) return;
@@ -94,13 +79,6 @@ void KeyBindingsCoordinator::onStartClicked() {
     }
     if (shouldStart && context_.controller) {
         auto validation = ActiveConfigValidator::validateActiveHotkeys(
-            context_.controller->activeProfile(),
-            context_.activeMacro ? context_.activeMacro() : nullptr);
-        if (!validation.ok) {
-            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
-            return;
-        }
-        validation = ActiveConfigValidator::validateRuntimeKeyConflicts(
             context_.controller->activeProfile(),
             context_.activeMacro ? context_.activeMacro() : nullptr);
         if (!validation.ok) {
@@ -215,13 +193,6 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     auto validation = ActiveConfigValidator::validateChildKeyCandidate(
         editResult.key,
         profile,
-        context_.activeMacro ? context_.activeMacro() : nullptr);
-    if (!validation.ok) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
-        return;
-    }
-    validation = ActiveConfigValidator::validateRepeatBindingCandidate(
-        editResult.key,
         context_.activeMacro ? context_.activeMacro() : nullptr);
     if (!validation.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);

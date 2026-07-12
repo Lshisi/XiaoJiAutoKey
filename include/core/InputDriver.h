@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <string>
+#include <vector>
 
 class InputDriver {
 public:
@@ -14,6 +15,9 @@ public:
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
+    virtual void SetSourceKeys(InputSource, const std::vector<KeyDescriptor>&) {}
+    virtual void SetSourceActive(InputSource, bool) {}
+    virtual void ReleaseSource(InputSource) { ReleaseAll(); }
     virtual void ReleaseAll() = 0;
     virtual void ClearAllStates() {}
     virtual bool ConsumeSelfInjected(const KeyDescriptor&) { return false; }

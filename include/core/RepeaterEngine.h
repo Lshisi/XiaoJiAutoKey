@@ -49,6 +49,7 @@ public:
     void SetMixedMode(bool enabled);
     void SetWasdProtection(bool enabled);
     void SetSelfInjectedKeyboardVisible(bool visible);
+    void SetSelfInjectedMouseVisible(bool visible);
     void SetPauseKeys(const std::vector<KeyDescriptor>& keys);
 
     void OnPhysicalDown(const KeyDescriptor& key);
@@ -79,6 +80,7 @@ private:
     bool mixedMode_ = false;
     bool wasdProtection_ = false;
     bool selfInjectedKeyboardVisible_ = true;
+    bool selfInjectedMouseVisible_ = true;
 
     std::vector<KeyDescriptor> pauseKeys_;
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;

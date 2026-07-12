@@ -68,6 +68,18 @@ void RepeaterEngine::SetSelfInjectedKeyboardVisible(bool visible) {
     independentUpIgnoreCount_.clear();
 }
 
+void RepeaterEngine::SetSelfInjectedMouseVisible(bool visible) {
+    std::lock_guard lock(mutex_);
+    if (selfInjectedMouseVisible_ == visible) {
+        return;
+    }
+    selfInjectedMouseVisible_ = visible;
+    ignoreCount_.clear();
+    holdUpIgnoreCount_.clear();
+    independentDownIgnoreCount_.clear();
+    independentUpIgnoreCount_.clear();
+}
+
 void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
     std::lock_guard lock(mutex_);
     pauseKeys_ = keys;
@@ -80,34 +92,28 @@ bool RepeaterEngine::IsPauseActive() const {
 
 // ── 启停 ─────────────────────────────
 void RepeaterEngine::SetToolRunning(bool running) {
-    {
-        std::lock_guard lock(mutex_);
-        ++runGeneration_;
-        toolRunning_ = running;
-        running_.store(running);
+    std::lock_guard lock(mutex_);
+    ++runGeneration_;
+    toolRunning_ = running;
+    running_.store(running);
 
-        physicalDown_.clear();
-        ignoreCount_.clear();
-        holdPhysicalDown_.clear();
-        holdUpIgnoreCount_.clear();
-        pauseKeysDown_.clear();
-        independentDown_.clear();
-        independentDownIgnoreCount_.clear();
-        independentUpIgnoreCount_.clear();
-        independentActiveKey_.reset();
+    physicalDown_.clear();
+    ignoreCount_.clear();
+    holdPhysicalDown_.clear();
+    holdUpIgnoreCount_.clear();
+    pauseKeysDown_.clear();
+    independentDown_.clear();
+    independentDownIgnoreCount_.clear();
+    independentUpIgnoreCount_.clear();
+    independentActiveKey_.reset();
 
-        for (auto& t : tasks_) {
-            t.lastFire = 0;
-            t.isDown = false;
-            t.downTime = 0;
-        }
+    for (auto& t : tasks_) {
+        t.lastFire = 0;
+        t.isDown = false;
+        t.downTime = 0;
     }
 
-    // ⭐ 关键修复：清空driver层所有状态，防止状态污染
-    if (!running) {
-        driver_.ReleaseAll();
-        driver_.ClearAllStates();
-    }
+    driver_.SetSourceActive(InputSource::Repeater, running);
 }
 
 // ── 物理输入状态追踪 ─────────────
@@ -220,7 +226,8 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
 }
 
 void RepeaterEngine::BeforeSendLocked(const KeyDescriptor& key) {
-    if (key.device == InputDevice::Keyboard && !selfInjectedKeyboardVisible_) {
+    if ((key.device == InputDevice::Keyboard && !selfInjectedKeyboardVisible_) ||
+        (key.device == InputDevice::Mouse && !selfInjectedMouseVisible_)) {
         return;
     }
 
@@ -289,24 +296,21 @@ bool RepeaterEngine::IsWasdProtectionActive() const {
 }
 
 void RepeaterEngine::ReleaseAll() {
-    {
-        std::lock_guard lock(mutex_);
-        ++runGeneration_;
-        running_.store(false);
-        toolRunning_ = false;
-        physicalDown_.clear();
-        ignoreCount_.clear();
-        holdPhysicalDown_.clear();
-        holdUpIgnoreCount_.clear();
-        pauseKeysDown_.clear();
-        independentDown_.clear();
-        independentDownIgnoreCount_.clear();
-        independentUpIgnoreCount_.clear();
-        independentActiveKey_.reset();
-        ResetAllLocked();
-    }
-
-    driver_.ReleaseAll();
+    std::lock_guard lock(mutex_);
+    ++runGeneration_;
+    running_.store(false);
+    toolRunning_ = false;
+    physicalDown_.clear();
+    ignoreCount_.clear();
+    holdPhysicalDown_.clear();
+    holdUpIgnoreCount_.clear();
+    pauseKeysDown_.clear();
+    independentDown_.clear();
+    independentDownIgnoreCount_.clear();
+    independentUpIgnoreCount_.clear();
+    independentActiveKey_.reset();
+    ResetAllLocked();
+    driver_.ReleaseSource(InputSource::Repeater);
 }
 
 bool RepeaterEngine::HasActiveHoldKeys() const {
@@ -319,7 +323,9 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
     std::lock_guard lock(mutex_);
 
     std::vector<TaskRuntime> updated;
+    std::vector<KeyDescriptor> sourceKeys;
     updated.reserve(bindings.size());
+    sourceKeys.reserve(bindings.size());
 
     for (auto& b : bindings) {
         TaskRuntime t;
@@ -340,10 +346,12 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
         }
 
         updated.push_back(t);
+        if (b.enabled && b.key.IsValid()) sourceKeys.push_back(b.key);
     }
 
     tasks_ = std::move(updated);
     NormalizeIndependentSelectionLocked();
+    driver_.SetSourceKeys(InputSource::Repeater, sourceKeys);
 }
 
 
@@ -463,10 +471,10 @@ void RepeaterEngine::WorkerLoop() {
 
             if (batchGeneration == runGeneration_.load()) {
                 for (const auto& key : releases) {
-                    driver_.SendUp(key, InputSource::Injected);
+                    driver_.SendUp(key, InputSource::Repeater);
                 }
                 for (const auto& key : presses) {
-                    driver_.SendDown(key, InputSource::Injected);
+                    driver_.SendDown(key, InputSource::Repeater);
                 }
             }
         }

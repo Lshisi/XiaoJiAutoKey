@@ -19,6 +19,8 @@ enum class RepeatMode {
 enum class InputSource {
     Physical,
     Injected,
+    Repeater,
+    Macro,
     Capture,
 };
 

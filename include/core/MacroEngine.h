@@ -48,6 +48,7 @@ private:
     static void QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDescriptor>& releases);
     static ULONGLONG NowMs();
     bool IsPauseActive() const;
+    void SyncSourceActiveLocked();
 
     InputDriver& driver_;
 
@@ -56,6 +57,7 @@ private:
 
     mutable std::mutex mutex_;
     std::vector<MacroRuntime> macros_;
+    bool sourceActive_ = false;
     std::unordered_map<std::uint64_t, bool> triggerHeld_;
     std::unordered_set<std::uint64_t> pauseKeysDown_;
 };

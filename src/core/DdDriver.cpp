@@ -27,6 +27,12 @@ constexpr std::uint8_t kDdxoftHidMouseCommand = 0x09;
 constexpr std::uint8_t kDdxoftHidRelativeMouseReportId = 0x04;
 constexpr ULONGLONG kSelfInjectedTtlMs = 500;
 
+bool IsInjectedSource(InputSource src) {
+    return src == InputSource::Injected ||
+        src == InputSource::Repeater ||
+        src == InputSource::Macro;
+}
+
 bool IsNearHidInitCorner(const POINT& point) {
     const int virtualLeft = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
     const int virtualTop = ::GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -654,10 +660,11 @@ bool DdDriver::IsKeySimulating(const KeyDescriptor& key) const {
 }
 
 bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
+    std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
 
-    if (src == InputSource::Injected) {
+    if (IsInjectedSource(src)) {
         MarkInjected(key, 2);
     }
 
@@ -665,17 +672,18 @@ bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
 }
 
 bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
+    std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
 
-    if (src == InputSource::Injected) {
+    if (IsInjectedSource(src)) {
         MarkInjected(key);
     }
 
     if (key.device == InputDevice::Mouse) {
         ++simulateDepth_;
-        RegisterPress(key);
         const bool result = SendMouseDown(key.code);
+        if (result) RegisterPress(key);
         --simulateDepth_;
         return result;
     }
@@ -683,24 +691,25 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
     if (ddCode <= 0) return false;
     ++simulateDepth_;
-    RegisterPress(key);
     const int result = ddKey_(ddCode, 1);
+    if (result == 1) RegisterPress(key);
     --simulateDepth_;
     return result == 1;
 }
 
 bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
+    std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
 
-    if (src == InputSource::Injected) {
+    if (IsInjectedSource(src)) {
         MarkInjected(key);
     }
 
     if (key.device == InputDevice::Mouse) {
         ++simulateDepth_;
-        RegisterRelease(key);
         const bool result = SendMouseUp(key.code);
+        if (result) RegisterRelease(key);
         --simulateDepth_;
         return result;
     }
@@ -709,12 +718,13 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
     if (ddCode <= 0) return false;
     ++simulateDepth_;
     const int result = ddKey_(ddCode, 2);
-    RegisterRelease(key);
+    if (result == 1) RegisterRelease(key);
     --simulateDepth_;
     return result == 1;
 }
 
 void DdDriver::ReleaseAll() {
+    std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) {
         return;
     }
@@ -749,6 +759,7 @@ void DdDriver::ReleaseAll() {
 }
 
 void DdDriver::ClearAllStates() {
+    std::lock_guard ioLock(ioMutex_);
     std::lock_guard lock(mutex_);
     pressedKeys_.clear();
     selfInjected_.clear();
@@ -763,10 +774,10 @@ bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
 
     const KeyDescriptor key{InputDevice::Keyboard, vk};
     ++simulateDepth_;
-    RegisterPress(key);
     const int downResult = ddKey_(ddCode, 1);
+    if (downResult == 1) RegisterPress(key);
     const int upResult = ddKey_(ddCode, 2);
-    RegisterRelease(key);
+    if (upResult == 1) RegisterRelease(key);
     --simulateDepth_;
     return downResult == 1 && upResult == 1;
 }
@@ -774,10 +785,10 @@ bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
 bool DdDriver::SendMouseTap(std::uint32_t vk) {
     const KeyDescriptor key{InputDevice::Mouse, vk};
     ++simulateDepth_;
-    RegisterPress(key);
     const bool downResult = SendMouseDown(vk);
+    if (downResult) RegisterPress(key);
     const bool upResult = SendMouseUp(vk);
-    RegisterRelease(key);
+    if (upResult) RegisterRelease(key);
     --simulateDepth_;
     return downResult && upResult;
 }

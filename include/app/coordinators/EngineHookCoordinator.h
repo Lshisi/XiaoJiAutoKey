@@ -33,6 +33,7 @@ public:
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
         std::function<bool()> selfInjectedKeyboardVisible;
+        std::function<bool()> selfInjectedMouseVisible;
         QWidget* parent = nullptr;
     };
 

@@ -57,6 +57,9 @@ void EngineHookCoordinator::syncKeyboardInputMode() {
             !context_.selfInjectedKeyboardVisible ||
             context_.selfInjectedKeyboardVisible();
         context_.repeaterEngine->SetSelfInjectedKeyboardVisible(selfInjectedVisible);
+        const bool selfInjectedMouseVisible = !context_.selfInjectedMouseVisible ||
+            context_.selfInjectedMouseVisible();
+        context_.repeaterEngine->SetSelfInjectedMouseVisible(selfInjectedMouseVisible);
     }
 }
 

@@ -32,6 +32,7 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
     std::lock_guard lock(mutex_);
 
     std::vector<MacroRuntime> updated;
+    std::vector<KeyDescriptor> sourceKeys;
     updated.reserve(macros.size());
 
     for (const auto& cfg : macros) {
@@ -52,10 +53,17 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
         }
 
         updated.push_back(std::move(rt));
+        if (cfg.enabled) {
+            for (const auto& step : cfg.steps) {
+                if (step.key.IsValid()) sourceKeys.push_back(step.key);
+            }
+        }
     }
 
     macros_ = std::move(updated);
     pauseKeysDown_.clear();
+    driver_.SetSourceKeys(InputSource::Macro, sourceKeys);
+    SyncSourceActiveLocked();
 }
 
 void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
@@ -101,10 +109,11 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
 
         triggerHeld_[encoded] = true;
     }
+        SyncSourceActiveLocked();
     }
 
     for (const auto& release : releases) {
-        driver_.SendUp(release, InputSource::Injected);
+        driver_.SendUp(release, InputSource::Macro);
     }
 }
 
@@ -127,10 +136,11 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
             ResetRuntime(rt);
         }
     }
+        SyncSourceActiveLocked();
     }
 
     for (const auto& release : releases) {
-        driver_.SendUp(release, InputSource::Injected);
+        driver_.SendUp(release, InputSource::Macro);
     }
 }
 
@@ -142,9 +152,8 @@ void MacroEngine::StopAll() {
         }
         triggerHeld_.clear();
         pauseKeysDown_.clear();
+        SyncSourceActiveLocked();
     }
-
-    driver_.ReleaseAll();
 }
 
 bool MacroEngine::HasActiveMacro() const {
@@ -162,6 +171,14 @@ bool MacroEngine::IsRunning(std::uint64_t macroId) const {
 
 bool MacroEngine::IsPauseActive() const {
     return !pauseKeysDown_.empty();
+}
+
+void MacroEngine::SyncSourceActiveLocked() {
+    const bool active = std::any_of(macros_.begin(), macros_.end(),
+        [](const MacroRuntime& rt) { return rt.active; });
+    if (sourceActive_ == active) return;
+    sourceActive_ = active;
+    driver_.SetSourceActive(InputSource::Macro, active);
 }
 
 void MacroEngine::ResetRuntime(MacroRuntime& rt) {
@@ -263,14 +280,15 @@ void MacroEngine::WorkerLoop() {
                     rt.keyDownTime = now;
                 }
             }
+            SyncSourceActiveLocked();
         }
 
         // 在锁外发送按键
         for (const auto& [key, down] : toSend) {
             if (down) {
-                driver_.SendDown(key, InputSource::Injected);
+                driver_.SendDown(key, InputSource::Macro);
             } else {
-                driver_.SendUp(key, InputSource::Injected);
+                driver_.SendUp(key, InputSource::Macro);
             }
         }
 

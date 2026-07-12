@@ -26,13 +26,6 @@ void MainWindow::setupHooks() {
                     AppMessageDialog::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
                     return;
                 }
-                validation = ActiveConfigValidator::validateRuntimeKeyConflicts(
-                    profileController_.activeProfile(),
-                    macroController_.activeMacro());
-                if (!validation.ok) {
-                    AppMessageDialog::warning(this, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
-                    return;
-                }
             }
             engineStateCoordinator_.toggleRepeatRunning();
         },
@@ -48,11 +41,7 @@ void MainWindow::setupHooks() {
         [this]() { return engine_.IsToolRunning(); },
         [this](quint64 encodedKey) { captureCoordinator_.handleCapturedKey(encodedKey); },
         [this]() {
-            auto validation = ActiveConfigValidator::validateActiveHotkeys(
-                profileController_.activeProfile(),
-                macroController_.activeMacro());
-            if (!validation.ok) return validation;
-            return ActiveConfigValidator::validateRuntimeKeyConflicts(
+            return ActiveConfigValidator::validateActiveHotkeys(
                 profileController_.activeProfile(),
                 macroController_.activeMacro());
         },
@@ -63,6 +52,7 @@ void MainWindow::setupHooks() {
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
         [this]() { return config_.driverMode == DriverMode::Usb || driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid; },
+        [this]() { return config_.driverMode == DriverMode::Usb; },
         this
     });
 

@@ -97,7 +97,8 @@ void FluentCard::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF r = rect().adjusted(1, 1, -1, -1);
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+    const QRectF r = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::cardRadius, Fluent::Spacing::cardRadius);
 
@@ -106,6 +107,6 @@ void FluentCard::paintEvent(QPaintEvent*) {
     p.drawPath(path);
 
     p.setBrush(Qt::NoBrush);
-    p.setPen(QPen(Fluent::Colors::cardBorder(), 1));
+    p.setPen(QPen(Fluent::Colors::cardBorder(), borderWidth));
     p.drawPath(path);
 }

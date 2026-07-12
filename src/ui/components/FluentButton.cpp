@@ -143,7 +143,8 @@ void FluentButton::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::TextAntialiasing);
     const QFontMetricsF metrics(fontMetrics());
 
-    QRectF r = rect().adjusted(0, 0, -1, -1);
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+    const QRectF r = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::buttonRadius, Fluent::Spacing::buttonRadius);
 
@@ -157,7 +158,7 @@ void FluentButton::paintEvent(QPaintEvent*) {
         p.setBrush(bgColor);
         p.setPen(Qt::NoPen);
         p.drawPath(path);
-        if (borderColor.alpha() > 0) { p.setPen(QPen(borderColor, 1)); p.setBrush(Qt::NoBrush); p.drawPath(path); }
+        if (borderColor.alpha() > 0) { p.setPen(QPen(borderColor, borderWidth)); p.setBrush(Qt::NoBrush); p.drawPath(path); }
         drawButtonContent(p, r, text(), font(), metrics, textColor);
         return;
     }
@@ -209,7 +210,7 @@ void FluentButton::paintEvent(QPaintEvent*) {
 
     // Border
     if (borderColor.alpha() > 0) {
-        p.setPen(QPen(borderColor, 1));
+        p.setPen(QPen(borderColor, borderWidth));
         p.setBrush(Qt::NoBrush);
         p.drawPath(path);
     }

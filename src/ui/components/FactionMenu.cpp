@@ -60,11 +60,12 @@ protected:
         p.setRenderHint(QPainter::TextAntialiasing, true);
 
         const auto palette = FactionTheme::instance().palette();
-        const QRectF panelRect = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+        const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+        const QRectF panelRect = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
         QPainterPath panelPath;
         panelPath.addRoundedRect(panelRect, kMenuRadius, kMenuRadius);
         p.fillPath(panelPath, Fluent::Colors::cardBg());
-        p.setPen(QPen(Fluent::Colors::border(), 1));
+        p.setPen(QPen(Fluent::Colors::border(), borderWidth));
         p.drawPath(panelPath);
 
         p.setClipPath(panelPath);

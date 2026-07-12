@@ -24,6 +24,32 @@ constexpr int kSettingsActionButtonWidth = 120;
 constexpr int kSettingsActionButtonHeight = 28;
 constexpr int kSettingsActionRightInset = 12;
 
+class ElidedPathLabel final : public QLabel {
+public:
+    explicit ElidedPathLabel(QWidget* parent = nullptr)
+        : QLabel(parent) {
+        setMinimumWidth(0);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    }
+
+    QSize minimumSizeHint() const override {
+        return QSize(0, fontMetrics().height());
+    }
+
+    QSize sizeHint() const override {
+        return QSize(0, fontMetrics().height());
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);
+        painter.setFont(font());
+        painter.setPen(palette().color(QPalette::WindowText));
+        const QString elided = fontMetrics().elidedText(text(), Qt::ElideMiddle, width());
+        painter.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter, elided);
+    }
+};
+
 QLabel* makeSectionTitle(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text, parent);
     label->setFont(Fluent::Typography::cardTitle());
@@ -69,11 +95,12 @@ protected:
         const QColor bg = hovered_ ? palette.accentSubtle : Fluent::Colors::cardBg();
         const QColor border = hasFocus() ? palette.accentBorder
             : (hovered_ ? palette.accentBorder : Fluent::Colors::border());
-        QRectF r = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+        const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(hasFocus() ? 2.0 : 1.0, devicePixelRatioF());
+        const QRectF r = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
         QPainterPath path;
         path.addRoundedRect(r, 8, 8);
         p.fillPath(path, bg);
-        p.setPen(QPen(border, hasFocus() ? 1.6 : 1.0));
+        p.setPen(QPen(border, borderWidth));
         p.drawPath(path);
 
         p.setFont(font());
@@ -238,11 +265,10 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     auto* configPathRow = new QHBoxLayout();
     configPathRow->setContentsMargins(0, 0, kSettingsActionRightInset, 0);
     configPathRow->setSpacing(10);
-    configPathLabel_ = new QLabel(panel);
+    configPathLabel_ = new ElidedPathLabel(panel);
     configPathLabel_->setFont(Fluent::Typography::caption());
     configPathLabel_->setPalette(mutedPalette(configPathLabel_));
     configPathLabel_->setWordWrap(false);
-    configPathLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     configPathRow->addWidget(configPathLabel_, 1);
     auto* openBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00\u6587\u4ef6\u5939"), panel);
     openBtn->setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);

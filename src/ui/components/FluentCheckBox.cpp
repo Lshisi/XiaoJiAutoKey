@@ -23,7 +23,9 @@ void FluentCheckBox::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, true);
 
-    const QRectF box(0.75, (height() - 16) / 2.0 + 0.25, 15.5, 15.5);
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+    const QRect boxBounds(0, (height() - 16) / 2, 16, 16);
+    const QRectF box = Fluent::Painting::alignedStrokeRect(boxBounds, borderWidth);
     const auto palette = FactionTheme::instance().palette();
     const bool enabled = isEnabled();
 
@@ -40,7 +42,7 @@ void FluentCheckBox::paintEvent(QPaintEvent*) {
     QPainterPath boxPath;
     boxPath.addRoundedRect(box, 3.0, 3.0);
     p.fillPath(boxPath, fill);
-    p.setPen(QPen(border, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(border, borderWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
     p.drawPath(boxPath);
 

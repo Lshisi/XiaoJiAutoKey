@@ -22,6 +22,9 @@ CloseConfirmDialog::CloseConfirmDialog(QWidget* parent) : QDialog(parent) {
     layout->setSpacing(10);
 
     auto* titleRow = new QHBoxLayout();
+    auto* titleLabel = new QLabel(windowTitle(), this);
+    titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(titleLabel);
     titleRow->addStretch();
     titleRow->addWidget(DialogChrome::createCloseButton(this));
     layout->addLayout(titleRow);

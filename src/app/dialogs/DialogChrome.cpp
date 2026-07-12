@@ -80,10 +80,11 @@ void DialogChrome::paint(QDialog* dialog, QPaintEvent*) {
     QPainter painter(dialog);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, dialog->devicePixelRatioF());
     QPainterPath path;
-    path.addRoundedRect(QRectF(dialog->rect()).adjusted(0.5, 0.5, -0.5, -0.5), kRadius, kRadius);
+    path.addRoundedRect(Fluent::Painting::alignedStrokeRect(dialog->rect(), borderWidth), kRadius, kRadius);
     painter.fillPath(path, Fluent::Colors::cardBg());
-    painter.setPen(QPen(Fluent::Colors::cardBorder(), 1));
+    painter.setPen(QPen(Fluent::Colors::cardBorder(), borderWidth));
     painter.drawPath(path);
 }
 

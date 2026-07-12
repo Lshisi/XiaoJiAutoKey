@@ -76,19 +76,18 @@ protected:
         const auto theme = FactionTheme::instance().palette();
         const QColor bg = Fluent::Colors::cardBg();
         p.fillRect(rect(), bg);
-        const QRectF outerRect = rect().adjusted(0.5, 0.5, -0.5, -0.5);
-        const qreal borderWidth = 1.0;
-        const QRectF innerRect = outerRect.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth);
+        const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+        const QRectF outerRect = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
 
         QPainterPath outerPath;
         outerPath.addRoundedRect(outerRect, kPopupRadius, kPopupRadius);
-        QPainterPath innerPath;
-        innerPath.addRoundedRect(innerRect, qMax<qreal>(0.0, kPopupRadius - borderWidth), qMax<qreal>(0.0, kPopupRadius - borderWidth));
 
-        p.fillPath(outerPath, Fluent::Colors::cardBorder());
-        p.fillPath(innerPath, bg);
+        p.fillPath(outerPath, bg);
+        p.setPen(QPen(Fluent::Colors::cardBorder(), borderWidth));
+        p.setBrush(Qt::NoBrush);
+        p.drawPath(outerPath);
 
-        p.setClipPath(innerPath);
+        p.setClipPath(outerPath);
         const QFontMetrics metrics(font());
         for (int i = 0; i < items_.size(); ++i) {
             const QRect itemRect(
@@ -285,11 +284,9 @@ void FluentComboBox::paintEvent(QPaintEvent* event) {
     const bool hovered = underMouse();
     const bool focused = hasFocus();
 
-    const qreal ratio = qMax<qreal>(1.0, devicePixelRatioF());
     const qreal logicalBorderWidth = focused ? 2.0 : 1.0;
-    const qreal borderWidth = qMax(1, qRound(logicalBorderWidth * ratio)) / ratio;
-    const qreal inset = borderWidth / 2.0;
-    const QRectF r = QRectF(rect()).adjusted(inset, inset, -inset, -inset);
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(logicalBorderWidth, devicePixelRatioF());
+    const QRectF r = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::inputRadius, Fluent::Spacing::inputRadius);
 

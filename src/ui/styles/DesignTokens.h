@@ -4,11 +4,24 @@
 #include <QFont>
 #include <QMargins>
 #include <QPalette>
+#include <QRectF>
 #include <QSettings>
 #include <QString>
 #include <QtGlobal>
 
 namespace Fluent {
+
+namespace Painting {
+    inline qreal alignedStrokeWidth(qreal logicalWidth, qreal devicePixelRatio) {
+        const qreal ratio = qMax<qreal>(1.0, devicePixelRatio);
+        return qMax(1, qRound(logicalWidth * ratio)) / ratio;
+    }
+
+    inline QRectF alignedStrokeRect(const QRect& rect, qreal strokeWidth) {
+        const qreal inset = strokeWidth / 2.0;
+        return QRectF(rect).adjusted(inset, inset, -inset, -inset);
+    }
+}
 
 namespace Theme {
     inline bool readSystemDarkMode() {

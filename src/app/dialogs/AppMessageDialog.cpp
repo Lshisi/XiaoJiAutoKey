@@ -65,7 +65,7 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     setWindowModality(Qt::ApplicationModal);
     setModal(true);
     setStyleSheet(
-        "QLabel#messageIcon { border-radius: 14px; color: white; font-size: 16px; font-weight: 600; }"
+        "QLabel#messageIcon { border-radius: 12px; color: white; font-size: 14px; font-weight: 600; }"
     );
 
     auto* root = new QVBoxLayout(this);
@@ -77,9 +77,9 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 
     auto* icon = new QLabel(kind == Kind::Warning ? QStringLiteral("!") : QStringLiteral("i"), this);
     icon->setObjectName("messageIcon");
-    icon->setFixedSize(28, 28);
+    icon->setFixedSize(24, 24);
     icon->setAlignment(Qt::AlignCenter);
-    icon->setStyleSheet(QString("QLabel#messageIcon { background: %1; border-radius: 14px; color: white; font-size: 16px; font-weight: 600; }")
+    icon->setStyleSheet(QString("QLabel#messageIcon { background: %1; border-radius: 12px; color: white; font-size: 14px; font-weight: 600; }")
         .arg(kind == Kind::Warning ? QStringLiteral("#D83B01") : FactionTheme::instance().palette().accent.name()));
     content->addWidget(icon, 0, Qt::AlignTop);
 
@@ -88,7 +88,7 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 
     auto* titleLabel = new QLabel(title, this);
     titleLabel->setFont(Fluent::Typography::cardTitle());
-    titleLabel->setFixedHeight(28);
+    titleLabel->setFixedHeight(24);
     titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     QPalette titlePal = titleLabel->palette();
     titlePal.setColor(QPalette::WindowText, Fluent::Colors::textPrimary());

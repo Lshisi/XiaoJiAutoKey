@@ -8,24 +8,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
-#include <QPainter>
-#include <QPainterPath>
 #include <QPushButton>
 #include <QShowEvent>
 #include <QVBoxLayout>
-
-namespace {
-constexpr int kDialogRadius = 10;
-
-void drawRoundedDialog(QPainter& painter, const QRect& rect) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    QPainterPath path;
-    path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), kDialogRadius, kDialogRadius);
-    painter.fillPath(path, Fluent::Colors::cardBg());
-    painter.setPen(QPen(Fluent::Colors::cardBorder(), 1));
-    painter.drawPath(path);
-}
-}
 
 ConfigNameDialog::ConfigNameDialog(const QString& title,
     const QString& label,
@@ -101,9 +86,8 @@ bool ConfigNameDialog::getName(QWidget* parent,
     return !name.isEmpty();
 }
 
-void ConfigNameDialog::paintEvent(QPaintEvent*) {
-    QPainter painter(this);
-    drawRoundedDialog(painter, rect());
+void ConfigNameDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
 }
 
 void ConfigNameDialog::showEvent(QShowEvent* event) {

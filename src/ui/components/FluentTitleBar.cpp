@@ -209,8 +209,10 @@ void FluentTitleBar::paintEvent(QPaintEvent*) {
 
     // Bottom divider kept inset and light to avoid a heavy seam.
     p.setRenderHint(QPainter::Antialiasing, false);
-    p.setPen(QPen(titleBarDividerColor(), 1));
-    p.drawLine(10, height() - 1, width() - 10, height() - 1);
+    const qreal dividerWidth = Fluent::Painting::alignedStrokeWidth(1.0, devicePixelRatioF());
+    p.setPen(QPen(titleBarDividerColor(), dividerWidth));
+    const qreal dividerY = height() - dividerWidth / 2.0;
+    p.drawLine(QPointF(10, dividerY), QPointF(width() - 10, dividerY));
 }
 
 void FluentTitleBar::mouseDoubleClickEvent(QMouseEvent* event) {

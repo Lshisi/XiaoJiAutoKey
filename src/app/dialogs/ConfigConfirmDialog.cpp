@@ -7,23 +7,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
-#include <QPainter>
-#include <QPainterPath>
 #include <QPushButton>
 #include <QVBoxLayout>
-
-namespace {
-constexpr int kDialogRadius = 10;
-
-void drawRoundedDialog(QPainter& painter, const QRect& rect) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    QPainterPath path;
-    path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), kDialogRadius, kDialogRadius);
-    painter.fillPath(path, Fluent::Colors::cardBg());
-    painter.setPen(QPen(Fluent::Colors::cardBorder(), 1));
-    painter.drawPath(path);
-}
-}
 
 ConfigConfirmDialog::ConfigConfirmDialog(const QString& title,
     const QString& message,
@@ -73,9 +58,8 @@ bool ConfigConfirmDialog::confirm(QWidget* parent,
     return dialog.exec() == QDialog::Accepted;
 }
 
-void ConfigConfirmDialog::paintEvent(QPaintEvent*) {
-    QPainter painter(this);
-    drawRoundedDialog(painter, rect());
+void ConfigConfirmDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
 }
 
 void ConfigConfirmDialog::mousePressEvent(QMouseEvent* event) {

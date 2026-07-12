@@ -6,15 +6,6 @@
 #include <QPainterPath>
 #include <QMouseEvent>
 
-namespace {
-
-qreal pixelAlignedStrokeWidth(qreal logicalWidth, qreal devicePixelRatio) {
-    const qreal ratio = qMax<qreal>(1.0, devicePixelRatio);
-    return qMax(1, qRound(logicalWidth * ratio)) / ratio;
-}
-
-}
-
 FluentLineEdit::FluentLineEdit(QWidget* parent) : QLineEdit(parent) { init(); }
 FluentLineEdit::FluentLineEdit(const QString& text, QWidget* parent) : QLineEdit(text, parent) { init(); }
 
@@ -82,9 +73,8 @@ void FluentLineEdit::paintEvent(QPaintEvent* event) {
     p.setRenderHint(QPainter::Antialiasing);
 
     const qreal logicalBorderWidth = focusProgress_ > 0.5 ? 2.0 : 1.0;
-    const qreal borderWidth = pixelAlignedStrokeWidth(logicalBorderWidth, devicePixelRatioF());
-    const qreal inset = borderWidth / 2.0;
-    const QRectF r = QRectF(rect()).adjusted(inset, inset, -inset, -inset);
+    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(logicalBorderWidth, devicePixelRatioF());
+    const QRectF r = Fluent::Painting::alignedStrokeRect(rect(), borderWidth);
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::inputRadius, Fluent::Spacing::inputRadius);
 

@@ -1,5 +1,6 @@
 #include "dialogs/ConfigConfirmDialog.h"
 
+#include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/styles/DesignTokens.h"
 
@@ -30,8 +31,7 @@ ConfigConfirmDialog::ConfigConfirmDialog(const QString& title,
     QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(title);
-    setWindowFlags((windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    DialogChrome::apply(this);
     setModal(true);
     setFixedSize(380, 176);
 

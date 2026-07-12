@@ -6,13 +6,13 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <QHBoxLayout>
+#include <QFontMetrics>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QScreen>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtGlobal>
@@ -31,17 +31,6 @@ void playSystemDialogSound(AppMessageDialog::Kind kind) {
 #else
     QApplication::beep();
 #endif
-}
-
-void moveToBestScreenCenter(QDialog* dialog, QWidget* parent) {
-    if (!dialog) {
-        return;
-    }
-
-    const QRect available = parent && parent->screen()
-        ? parent->screen()->availableGeometry()
-        : dialog->screen()->availableGeometry();
-    dialog->move(available.center() - dialog->rect().center());
 }
 
 void bringDialogToFront(QDialog* dialog) {
@@ -68,19 +57,15 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     const QString& primaryButtonText,
     const QString& secondaryButtonText,
     QWidget* parent)
-    : QDialog(nullptr) {
-    Q_UNUSED(parent);
+    : QDialog(parent) {
     setWindowTitle(title);
     DialogChrome::apply(this);
     setWindowFlag(Qt::Dialog, true);
     setWindowFlag(Qt::WindowStaysOnTopHint, true);
     setWindowModality(Qt::ApplicationModal);
     setModal(true);
-    resize(420, 260);
-    setMinimumSize(360, 170);
-    setMaximumSize(520, 420);
     setStyleSheet(
-        "QLabel#messageIcon { border-radius: 18px; color: white; font-size: 20px; font-weight: 600; }"
+        "QLabel#messageIcon { border-radius: 14px; color: white; font-size: 16px; font-weight: 600; }"
     );
 
     auto* root = new QVBoxLayout(this);
@@ -92,9 +77,9 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 
     auto* icon = new QLabel(kind == Kind::Warning ? QStringLiteral("!") : QStringLiteral("i"), this);
     icon->setObjectName("messageIcon");
-    icon->setFixedSize(36, 36);
+    icon->setFixedSize(28, 28);
     icon->setAlignment(Qt::AlignCenter);
-    icon->setStyleSheet(QString("QLabel#messageIcon { background: %1; border-radius: 18px; color: white; font-size: 20px; font-weight: 600; }")
+    icon->setStyleSheet(QString("QLabel#messageIcon { background: %1; border-radius: 14px; color: white; font-size: 16px; font-weight: 600; }")
         .arg(kind == Kind::Warning ? QStringLiteral("#D83B01") : FactionTheme::instance().palette().accent.name()));
     content->addWidget(icon, 0, Qt::AlignTop);
 
@@ -103,6 +88,8 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 
     auto* titleLabel = new QLabel(title, this);
     titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleLabel->setFixedHeight(28);
+    titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     QPalette titlePal = titleLabel->palette();
     titlePal.setColor(QPalette::WindowText, Fluent::Colors::textPrimary());
     titleLabel->setPalette(titlePal);
@@ -142,7 +129,6 @@ AppMessageDialog::AppMessageDialog(Kind kind,
         viewport->setAutoFillBackground(true);
         viewport->setPalette(scrollPalette);
     }
-    scrollArea->setMinimumHeight(72);
     scrollArea->setStyleSheet(QString(
         "QScrollArea { background: %1; border: none; }"
         "QScrollArea > QWidget { background: %1; }"
@@ -155,10 +141,17 @@ AppMessageDialog::AppMessageDialog(Kind kind,
         .arg(Fluent::Colors::cardBg().name(QColor::HexArgb),
              Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.16)"),
              Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.24)")));
-    textLayout->addWidget(scrollArea, 1);
+    constexpr int dialogWidth = 400;
+    constexpr int messageWidth = 300;
+    const int messageHeight = QFontMetrics(messageLabel->font()).boundingRect(
+        QRect(0, 0, messageWidth, 1000),
+        static_cast<int>(Qt::TextWordWrap) | static_cast<int>(Qt::AlignLeft),
+        message).height();
+    scrollArea->setFixedHeight(qBound(44, messageHeight + 4, 170));
+    textLayout->addWidget(scrollArea);
 
     content->addLayout(textLayout, 1);
-    root->addLayout(content, 1);
+    root->addLayout(content);
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
@@ -174,6 +167,14 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     buttons->addWidget(primaryBtn);
     root->addLayout(buttons);
 
+    const int contentHeight = qMax(icon->height(),
+        titleLabel->sizeHint().height() + textLayout->spacing() + scrollArea->height());
+    const int dialogHeight = qBound(176,
+        root->contentsMargins().top() + contentHeight + root->spacing() +
+            Fluent::Spacing::buttonHeight + root->contentsMargins().bottom(),
+        320);
+    setFixedSize(dialogWidth, dialogHeight);
+
     if (secondaryBtn) {
         connect(secondaryBtn, &QPushButton::clicked, this, &QDialog::reject);
     }
@@ -183,7 +184,6 @@ AppMessageDialog::AppMessageDialog(Kind kind,
 void AppMessageDialog::warning(QWidget* parent, const QString& title, const QString& message) {
     playSystemDialogSound(Kind::Warning);
     AppMessageDialog dialog(Kind::Warning, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
-    moveToBestScreenCenter(&dialog, parent);
     QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     dialog.exec();
 }
@@ -191,7 +191,6 @@ void AppMessageDialog::warning(QWidget* parent, const QString& title, const QStr
 void AppMessageDialog::information(QWidget* parent, const QString& title, const QString& message) {
     playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, QString::fromWCharArray(L"确定"), QString(), parent);
-    moveToBestScreenCenter(&dialog, parent);
     QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     dialog.exec();
 }
@@ -203,7 +202,6 @@ bool AppMessageDialog::informationWithActions(QWidget* parent,
     const QString& secondaryButtonText) {
     playSystemDialogSound(Kind::Information);
     AppMessageDialog dialog(Kind::Information, title, message, primaryButtonText, secondaryButtonText, parent);
-    moveToBestScreenCenter(&dialog, parent);
     QTimer::singleShot(0, &dialog, [&dialog]() { bringDialogToFront(&dialog); });
     return dialog.exec() == QDialog::Accepted;
 }

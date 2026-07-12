@@ -9,6 +9,7 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
@@ -21,11 +22,11 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(420, 368);
+    setFixedSize(DialogChrome::bindingEditorWidth, DialogChrome::bindingEditorHeight);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(24, 18, 24, 22);
-    layout->setSpacing(16);
+    layout->setContentsMargins(28, 18, 28, 20);
+    layout->setSpacing(14);
 
     auto* titleRow = new QHBoxLayout();
     titleRow->setSpacing(8);
@@ -36,46 +37,49 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     titleRow->addWidget(DialogChrome::createCloseButton(this));
     layout->addLayout(titleRow);
 
-    auto* keyRow = new QHBoxLayout();
+    auto* formLayout = new QGridLayout();
+    formLayout->setContentsMargins(0, 0, 0, 0);
+    formLayout->setHorizontalSpacing(12);
+    formLayout->setVerticalSpacing(14);
+    formLayout->setColumnStretch(1, 1);
+    formLayout->setColumnStretch(3, 1);
+
     auto* keyLabel = new QLabel(QString::fromWCharArray(L"\u6309\u952e:"), this);
     keyLabel->setFont(Fluent::Typography::body());
-    keyLabel->setFixedWidth(70);
-    keyRow->addWidget(keyLabel);
+    keyLabel->setFixedWidth(62);
     auto* keyEdit = new FluentLineEdit(this);
     keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
-    keyRow->addWidget(keyEdit);
-    layout->addLayout(keyRow);
+    formLayout->addWidget(keyLabel, 0, 0);
+    formLayout->addWidget(keyEdit, 0, 1);
     setCaptureEditor(keyEdit);
 
-    auto* modeRow = new QHBoxLayout();
     auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u6a21\u5f0f:"), this);
     modeLabel->setFont(Fluent::Typography::body());
-    modeLabel->setFixedWidth(70);
-    modeRow->addWidget(modeLabel);
+    modeLabel->setFixedWidth(62);
     modeCombo_ = new FluentComboBox(this);
     modeCombo_->addItem(QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f"));
     modeCombo_->addItem(QString::fromWCharArray(L"\u6309\u538b\u6a21\u5f0f"));
     modeCombo_->addItem(QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f"));
-    modeRow->addWidget(modeCombo_);
-    layout->addLayout(modeRow);
+    formLayout->addWidget(modeLabel, 0, 2);
+    formLayout->addWidget(modeCombo_, 0, 3);
 
-    auto* delayRow = new QHBoxLayout();
     auto* delayLabel = new QLabel(QString::fromWCharArray(L"\u5ef6\u8fdf(ms):"), this);
     delayLabel->setFont(Fluent::Typography::body());
-    delayLabel->setFixedWidth(70);
-    delayRow->addWidget(delayLabel);
+    delayLabel->setFixedWidth(62);
     delayEdit_ = new FluentLineEdit(this);
-    delayRow->addWidget(delayEdit_);
-    layout->addLayout(delayRow);
+    formLayout->addWidget(delayLabel, 1, 0);
+    formLayout->addWidget(delayEdit_, 1, 1, 1, 3);
 
-    auto* enableRow = new QHBoxLayout();
+    auto* enableContainer = new QWidget(this);
+    auto* enableRow = new QHBoxLayout(enableContainer);
+    enableRow->setContentsMargins(0, 0, 0, 0);
     auto* enableLabel = new QLabel(QString::fromWCharArray(L"\u542f\u7528\u6b64\u6309\u952e"), this);
     enableLabel->setFont(Fluent::Typography::body());
     enableRow->addWidget(enableLabel);
     enableRow->addStretch();
     enabledSwitch_ = new FluentSwitch(this);
     enableRow->addWidget(enabledSwitch_);
-    layout->addLayout(enableRow);
+    formLayout->addWidget(enableContainer, 2, 0, 1, 2);
 
     mixedModeSuppressionRow_ = new QWidget(this);
     auto* suppressionRow = new QHBoxLayout(mixedModeSuppressionRow_);
@@ -87,16 +91,17 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     suppressionRow->addStretch();
     mixedModeSuppressionSwitch_ = new FluentSwitch(mixedModeSuppressionRow_);
     suppressionRow->addWidget(mixedModeSuppressionSwitch_);
-    layout->addWidget(mixedModeSuppressionRow_);
+    formLayout->addWidget(mixedModeSuppressionRow_, 2, 2, 1, 2);
+    layout->addLayout(formLayout);
 
     layout->addStretch();
 
     auto* btnRow = new QHBoxLayout();
     btnRow->addStretch();
     auto* cancelBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), this);
-    cancelBtn->setFixedWidth(80);
+    cancelBtn->setFixedWidth(88);
     auto* okBtn = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), this);
-    okBtn->setFixedWidth(80);
+    okBtn->setFixedWidth(88);
     btnRow->addWidget(cancelBtn);
     btnRow->addSpacing(8);
     btnRow->addWidget(okBtn);

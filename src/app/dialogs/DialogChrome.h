@@ -8,6 +8,11 @@ class QPaintEvent;
 class QPushButton;
 
 namespace DialogChrome {
+inline constexpr int bindingEditorWidth = 420;
+inline constexpr int bindingEditorHeight = 250;
+inline constexpr int macroStepEditorWidth = 420;
+inline constexpr int macroStepEditorHeight = 250;
+
 void apply(QDialog* dialog);
 QPushButton* createCloseButton(QDialog* dialog);
 void paint(QDialog* dialog, QPaintEvent* event);

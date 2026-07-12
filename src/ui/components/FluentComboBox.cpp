@@ -285,7 +285,11 @@ void FluentComboBox::paintEvent(QPaintEvent* event) {
     const bool hovered = underMouse();
     const bool focused = hasFocus();
 
-    QRectF r = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+    const qreal ratio = qMax<qreal>(1.0, devicePixelRatioF());
+    const qreal logicalBorderWidth = focused ? 2.0 : 1.0;
+    const qreal borderWidth = qMax(1, qRound(logicalBorderWidth * ratio)) / ratio;
+    const qreal inset = borderWidth / 2.0;
+    const QRectF r = QRectF(rect()).adjusted(inset, inset, -inset, -inset);
     QPainterPath path;
     path.addRoundedRect(r, Fluent::Spacing::inputRadius, Fluent::Spacing::inputRadius);
 
@@ -299,13 +303,10 @@ void FluentComboBox::paintEvent(QPaintEvent* event) {
         bg = Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 16) : QColor(0xF3, 0xF3, 0xF3);
     }
 
-    p.fillRect(rect(), bg);
-    const qreal borderWidth = focused ? 1.5 : 1.0;
-    const QRectF innerRect = r.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth);
-    QPainterPath innerPath;
-    innerPath.addRoundedRect(innerRect, qMax<qreal>(0.0, Fluent::Spacing::inputRadius - borderWidth), qMax<qreal>(0.0, Fluent::Spacing::inputRadius - borderWidth));
-    p.fillPath(path, border);
-    p.fillPath(innerPath, bg);
+    p.fillPath(path, bg);
+    p.setPen(QPen(border, borderWidth));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(path);
 
     const QString text = fontMetrics().elidedText(currentText(), Qt::ElideRight, qMax(0, width() - 44));
     p.setPen(enabled ? Fluent::Colors::textPrimary() : Fluent::Colors::textTertiary());

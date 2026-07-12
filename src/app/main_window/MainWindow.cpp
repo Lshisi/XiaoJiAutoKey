@@ -2,6 +2,7 @@
 
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
+#include "dialogs/DialogChrome.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
@@ -173,6 +174,7 @@ public:
     DriverProgressDialog(const QString& title, const QString& message, QWidget* parent)
         : QDialog(parent) {
         setWindowTitle(title);
+        DialogChrome::apply(this);
         setModal(true);
         setWindowModality(Qt::ApplicationModal);
         setFixedSize(420, 168);
@@ -612,16 +614,6 @@ void MainWindow::refreshDriverStatusUi() {
     page->setDriverMode(config_.driverMode);
     const auto status = ddRuntimeService_.Inspect(driver_);
 
-    QString runtimeText = QString::fromWCharArray(L"\u672a\u52a0\u8f7d");
-    if (config_.driverMode == DriverMode::Usb && picoDriver_.IsReady()) {
-        runtimeText = QStringLiteral("USB");
-    } else if (driver_.IsReady()) {
-        runtimeText = driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid
-            ? QStringLiteral("HID")
-            : QStringLiteral("DD");
-    }
-    page->setCurrentRuntime(runtimeText);
-
     QString summary = activeInputDriverReady()
         ? QString::fromWCharArray(L"\u53ef\u7528")
         : QString::fromWCharArray(L"\u4e0d\u53ef\u7528");
@@ -636,11 +628,7 @@ void MainWindow::refreshDriverStatusUi() {
     if (config_.driverMode == DriverMode::Usb) detail << L"USB";
     else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     detail << L"\n";
-    detail << L"\u5f53\u524d\u8fd0\u884c: ";
-    if (config_.driverMode == DriverMode::Usb && picoDriver_.IsReady()) detail << L"USB";
-    else if (!driver_.IsReady()) detail << L"\u672a\u52a0\u8f7d";
-    else detail << (driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid ? L"HID" : L"DD");
-    detail << L"\n\n";
+    detail << L"\n";
     detail << L"USB \u8bbe\u5907: " << (picoDriver_.IsReady() ? L"\u5df2\u8fde\u63a5" : L"\u672a\u8fde\u63a5") << L"\n";
     if (picoDriver_.IsReady()) {
         detail << L"USB \u7aef\u53e3: " << picoDriver_.PortName() << L"\n";
@@ -719,32 +707,32 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         return DriverCoordinator::SwitchResult::Succeeded;
     }
 
-    DdDriver stagedLegacyDriver;
-    bool hasStagedLegacyDriver = false;
+    const QString targetName = mode == DriverMode::Hid
+        ? QStringLiteral("HID")
+        : (mode == DriverMode::Usb ? QStringLiteral("USB") : QStringLiteral("DD"));
+    inputHook_.setDialogOpen(true);
+    const bool confirmed = ConfigConfirmDialog::confirm(
+        this,
+        QString::fromWCharArray(L"\u9a71\u52a8\u5207\u6362"),
+        QString::fromWCharArray(L"\u5207\u6362\u5230 ") + targetName +
+            QString::fromWCharArray(L" \u9700\u8981\u91cd\u542f\u5c0f\u53fd\uff0c\u70b9\u51fb\u786e\u5b9a\u540e\u5c06\u81ea\u52a8\u91cd\u65b0\u542f\u52a8\u3002"),
+        QString::fromWCharArray(L"\u786e\u5b9a"));
+    inputHook_.setDialogOpen(false);
+    if (!confirmed) {
+        refreshDriverStatusUi();
+        return DriverCoordinator::SwitchResult::Canceled;
+    }
 
-    if (mode == DriverMode::Hid) {
-        inputHook_.setDialogOpen(true);
-        const bool confirmed = ConfigConfirmDialog::confirm(
-            this,
-            QString::fromWCharArray(L"\u9a71\u52a8\u5207\u6362"),
-            QString::fromWCharArray(L"\u5207\u6362\u5230 HID \u9700\u8981\u91cd\u542f\u7a0b\u5e8f\uff0c\u70b9\u51fb\u786e\u5b9a\u540e\u5c06\u81ea\u52a8\u91cd\u65b0\u542f\u52a8\u3002"),
-            QString::fromWCharArray(L"\u786e\u5b9a"));
-        inputHook_.setDialogOpen(false);
-        if (!confirmed) {
-            refreshDriverStatusUi();
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
-        if (!ensureHidDriverInstalledForSwitch()) {
-            refreshDriverStatusUi();
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
+    if (mode == DriverMode::Hid && !ensureHidDriverInstalledForSwitch()) {
+        refreshDriverStatusUi();
+        return DriverCoordinator::SwitchResult::Canceled;
     }
 
     if (mode == DriverMode::Legacy) {
+        DdDriver stagedLegacyDriver;
         std::wstring legacyError;
-        hasStagedLegacyDriver = loadLegacyDriverInto(stagedLegacyDriver, &legacyError);
-        if (!hasStagedLegacyDriver) {
-            driverStatusNote_ = L"\u76ee\u6807 DD \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d HID \u8fd0\u884c\u6001\u3002";
+        if (!loadLegacyDriverInto(stagedLegacyDriver, &legacyError)) {
+            driverStatusNote_ = L"\u76ee\u6807 DD \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d\u914d\u7f6e\u3002";
             if (!legacyError.empty()) {
                 driverStatusNote_ += L" DD \u9519\u8bef: " + legacyError;
             }
@@ -764,42 +752,18 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         }
     }
 
-    engineStateCoordinator_.setRepeatRunning(false);
-    macroEngine_.StopAll();
-    inputDriver_.ReleaseAll();
-    driver_.Unload();
-    picoDriver_.Disconnect();
-    inputDriver_.SetDriver(nullptr);
     driverStatusNote_.clear();
     driverStatusFallback_ = false;
 
     config_.driverMode = mode;
-    bool loaded = false;
-    if (mode == DriverMode::Hid) {
-        loaded = restartForDriverModeChange();
-    } else if (mode == DriverMode::Legacy && hasStagedLegacyDriver) {
-        driver_.SwapWith(stagedLegacyDriver);
-        inputDriver_.SetDriver(&driver_);
-        loaded = true;
-    } else {
-        loaded = loadConfiguredDriver();
-    }
-    if (!loaded) {
+    configCoordinator_.save();
+    if (!restartForDriverModeChange()) {
         config_.driverMode = originalMode;
         configCoordinator_.save();
-        const bool restored = loadConfiguredDriver(false);
-        if (!restored) {
-            driverStatusFallback_ = false;
-            driverStatusNote_ = originalMode == DriverMode::Hid
-                ? L"\u5207\u6362\u5931\u8d25\uff0c\u5c1d\u8bd5\u6062\u590d HID \u4e5f\u5931\u8d25\uff0c\u672a\u81ea\u52a8\u56de\u9000 DD\u3002"
-                : L"\u5207\u6362\u5931\u8d25\uff0c\u5c1d\u8bd5\u6062\u590d DD \u4e5f\u5931\u8d25\u3002";
-        }
-    } else {
-        configCoordinator_.save();
+        refreshDriverStatusUi();
+        return DriverCoordinator::SwitchResult::Failed;
     }
-    engineHookCoordinator_.refreshState();
-    refreshDriverStatusUi();
-    return loaded ? DriverCoordinator::SwitchResult::Succeeded : DriverCoordinator::SwitchResult::Failed;
+    return DriverCoordinator::SwitchResult::Succeeded;
 }
 
 bool MainWindow::restartForDriverModeChange() {
@@ -810,7 +774,7 @@ bool MainWindow::restartForDriverModeChange() {
     const QStringList arguments = { QStringLiteral("--restart-wait") };
     if (!QProcess::startDetached(program, arguments, QCoreApplication::applicationDirPath())) {
         suppressDdUnavailablePrompt_ = false;
-        driverStatusNote_ = L"\u5207\u6362\u5230 HID \u9700\u8981\u91cd\u542f\uff0c\u4f46\u65b0\u8fdb\u7a0b\u542f\u52a8\u5931\u8d25\u3002";
+        driverStatusNote_ = L"\u5207\u6362\u9a71\u52a8\u9700\u8981\u91cd\u542f\uff0c\u4f46\u65b0\u8fdb\u7a0b\u542f\u52a8\u5931\u8d25\u3002";
         return false;
     }
 

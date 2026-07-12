@@ -9,6 +9,7 @@
 #include <Windows.h>
 #include <mmsystem.h>
 #include <utility>
+#include <vector>
 
 #pragma comment(lib, "winmm.lib")
 
@@ -104,23 +105,29 @@ void SoundService::warmUpToggleSounds(
     const std::wstring& repeatOff,
     const std::wstring& macroOn,
     const std::wstring& macroOff) const {
-    const std::array requests{
+    std::array requests{
         PlayRequest{resolveToggleSoundPath(true, false, repeatOn, repeatOff), 0, L"autokey_repeat_on_sound", RequestMode::SilentPrime},
         PlayRequest{resolveToggleSoundPath(false, false, repeatOn, repeatOff), 0, L"autokey_repeat_off_sound", RequestMode::SilentPrime},
         PlayRequest{resolveToggleSoundPath(true, true, macroOn, macroOff), 0, L"autokey_macro_on_sound", RequestMode::SilentPrime},
         PlayRequest{resolveToggleSoundPath(false, true, macroOn, macroOff), 0, L"autokey_macro_off_sound", RequestMode::SilentPrime},
     };
 
+    std::vector<std::future<void>> completions;
     {
         std::lock_guard lock(queueMutex_);
         if (stopping_) return;
-        for (const auto& request : requests) {
+        for (auto& request : requests) {
             if (!request.soundPath.empty()) {
-                queue_.push(request);
+                request.completion = std::make_shared<std::promise<void>>();
+                completions.push_back(request.completion->get_future());
+                queue_.push(std::move(request));
             }
         }
     }
     queueCv_.notify_one();
+    for (auto& completion : completions) {
+        completion.wait();
+    }
 }
 
 std::filesystem::path SoundService::resolveToggleSoundPath(
@@ -180,7 +187,13 @@ void SoundService::workerLoop() {
             request = std::move(queue_.front());
             queue_.pop();
         }
-        playFileSync(request);
+        try {
+            playFileSync(request);
+        } catch (...) {
+        }
+        if (request.completion) {
+            request.completion->set_value();
+        }
     }
 }
 

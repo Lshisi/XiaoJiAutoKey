@@ -33,8 +33,7 @@ ConfigNameDialog::ConfigNameDialog(const QString& title,
     QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(title);
-    setWindowFlags((windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    DialogChrome::apply(this);
     setModal(true);
     setFixedSize(360, 196);
 

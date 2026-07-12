@@ -15,7 +15,6 @@ public:
     explicit DriverPage(QWidget* parent = nullptr);
 
     void setDriverMode(DriverMode mode);
-    void setCurrentRuntime(const QString& runtimeText);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
     void setDriverAction(DriverMode mode, bool picoUpdateAvailable = false);
@@ -32,7 +31,6 @@ private:
     void applyTheme();
 
     FluentComboBox* driverModeCombo_ = nullptr;
-    QLabel* currentRuntimeValue_ = nullptr;
     QLabel* statusSummaryValue_ = nullptr;
     QTextEdit* summaryDetailValue_ = nullptr;
     QWidget* summaryPanel_ = nullptr;

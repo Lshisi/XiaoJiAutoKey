@@ -3,21 +3,64 @@
 #include "ui/components/FluentButton.h"
 #include "ui/styles/DesignTokens.h"
 
+#include <QApplication>
 #include <QDialog>
+#include <QEvent>
 #include <QFont>
 #include <QMouseEvent>
+#include <QObject>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QScreen>
 
 namespace {
 constexpr int kRadius = 10;
+
+void centerDialogOnParent(QDialog* dialog) {
+    if (!dialog) return;
+
+    QWidget* anchor = dialog->parentWidget();
+    anchor = anchor ? anchor->window() : QApplication::activeWindow();
+    if (anchor == dialog) anchor = nullptr;
+
+    QScreen* screen = anchor && anchor->screen() ? anchor->screen() : dialog->screen();
+    if (!screen) screen = QApplication::primaryScreen();
+    if (!screen) return;
+
+    const QRect available = screen->availableGeometry();
+    const QRect anchorRect = anchor && anchor->isVisible() ? anchor->frameGeometry() : available;
+    QPoint topLeft = anchorRect.center() - QPoint(dialog->width() / 2, dialog->height() / 2);
+    topLeft.setX(qBound(available.left(), topLeft.x(), available.right() - dialog->width() + 1));
+    topLeft.setY(qBound(available.top(), topLeft.y(), available.bottom() - dialog->height() + 1));
+    dialog->move(topLeft);
+}
+
+class DialogPositioner final : public QObject {
+public:
+    explicit DialogPositioner(QDialog* dialog)
+        : QObject(dialog), dialog_(dialog) {}
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (!centered_ && watched == dialog_ && event->type() == QEvent::Show) {
+            centered_ = true;
+            centerDialogOnParent(dialog_);
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QDialog* dialog_ = nullptr;
+    bool centered_ = false;
+};
 }
 
 void DialogChrome::apply(QDialog* dialog) {
     if (!dialog) return;
     dialog->setWindowFlags((dialog->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dialog->setAttribute(Qt::WA_TranslucentBackground, true);
+    dialog->installEventFilter(new DialogPositioner(dialog));
 }
 
 QPushButton* DialogChrome::createCloseButton(QDialog* dialog) {

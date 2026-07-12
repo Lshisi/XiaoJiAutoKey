@@ -37,7 +37,6 @@ QPalette mutedPalette(QWidget* widget) {
 }
 
 QString compactDriverDetails(const QString& details) {
-    QString running;
     QString dd32;
     QString dd64;
     QString infKeyboardService;
@@ -55,8 +54,7 @@ QString compactDriverDetails(const QString& details) {
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QString::fromWCharArray(L"\u5f53\u524d\u8fd0\u884c:"))) running = trimmed;
-        else if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QStringLiteral("DD64.dll:"))) dd64 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u952e\u76d8\u670d\u52a1:"))) infKeyboardService = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u9f20\u6807\u670d\u52a1:"))) infMouseService = trimmed.section(QLatin1Char(':'), 1).trimmed();
@@ -74,8 +72,6 @@ QString compactDriverDetails(const QString& details) {
     }
 
     QStringList sections;
-    if (!running.isEmpty()) sections.push_back(running);
-
     const auto pairOk = [](const QString& a, const QString& b, const QString& okText) {
         return !a.isEmpty() && !b.isEmpty() && a == okText && b == okText;
     };
@@ -228,22 +224,11 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     statusTitleRow->setSpacing(8);
     statusTitleRow->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5f53\u524d\u72b6\u6001"), panel));
     statusTitleRow->addStretch();
-    driverActionButton_ = new FluentButton(FluentButton::Danger, QString::fromWCharArray(L"\u5378\u8f7d DD"), panel);
+    driverActionButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u5378\u8f7d DD"), panel);
     driverActionButton_->setFixedWidth(128);
     driverActionButton_->hide();
     statusTitleRow->addWidget(driverActionButton_);
     panelLayout->addLayout(statusTitleRow);
-
-    auto* runtimeRow = new QHBoxLayout();
-    runtimeRow->setContentsMargins(0, 0, 0, 0);
-    auto* runtimeLabel = new QLabel(QString::fromWCharArray(L"\u5f53\u524d\u8fd0\u884c"), panel);
-    runtimeLabel->setFont(Fluent::Typography::body());
-    runtimeRow->addWidget(runtimeLabel);
-    runtimeRow->addStretch();
-    currentRuntimeValue_ = new QLabel(QString::fromWCharArray(L"\u672a\u52a0\u8f7d"), panel);
-    currentRuntimeValue_->setFont(Fluent::Typography::bodyStrong());
-    runtimeRow->addWidget(currentRuntimeValue_);
-    panelLayout->addLayout(runtimeRow);
 
     auto* summaryRow = new QHBoxLayout();
     summaryRow->setContentsMargins(0, 0, 0, 0);
@@ -261,6 +246,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     summaryPanel_ = new QWidget(panel);
     summaryPanel_->setObjectName(QStringLiteral("driverSummaryPanel"));
     summaryPanel_->setAttribute(Qt::WA_StyledBackground, true);
+    summaryPanel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto* summaryPanelLayout = new QVBoxLayout(summaryPanel_);
     summaryPanelLayout->setContentsMargins(10, 8, 10, 8);
     summaryPanelLayout->setSpacing(0);
@@ -269,14 +255,13 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     summaryDetailValue_->setFrameShape(QFrame::NoFrame);
     summaryDetailValue_->document()->setDocumentMargin(0);
     summaryDetailValue_->setMinimumHeight(194);
-    summaryDetailValue_->setMaximumHeight(194);
+    summaryDetailValue_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     summaryDetailValue_->setFont(Fluent::Typography::caption());
     summaryDetailValue_->setPlainText(QString::fromWCharArray(L"\u6682\u65e0\u8be6\u7ec6\u72b6\u6001"));
     summaryDetailValue_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     summaryDetailValue_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     summaryPanelLayout->addWidget(summaryDetailValue_);
-    panelLayout->addWidget(summaryPanel_);
-    panelLayout->addStretch(1);
+    panelLayout->addWidget(summaryPanel_, 1);
 
     outerLayout->addWidget(panel, 1);
     scrollArea->setWidget(scrollContent);
@@ -322,10 +307,6 @@ void DriverPage::setDriverMode(DriverMode mode) {
             break;
         }
     }
-}
-
-void DriverPage::setCurrentRuntime(const QString& runtimeText) {
-    if (currentRuntimeValue_) currentRuntimeValue_->setText(runtimeText);
 }
 
 void DriverPage::setStatusSummary(const QString& summary) {

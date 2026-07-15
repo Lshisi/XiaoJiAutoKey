@@ -79,6 +79,7 @@ set(CORE_SOURCES
     src/core/InputDriverRouter.cpp
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
+    src/core/Ch552UsbDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
 )
@@ -168,6 +169,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/core/MacroEngine.h
     include/core/InputDriver.h
     include/core/InputDriverRouter.h
+    include/core/Ch552UsbDriver.h
     include/core/PicoUsbDriver.h
     src/app/input/GlobalInputHook.cpp
     src/app/input/RawInputManager.cpp

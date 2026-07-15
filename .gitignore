@@ -2,6 +2,7 @@
 build/
 dist/
 firmware/pico/build/
+firmware/ch552/build/
 
 # IDE files
 .vs/

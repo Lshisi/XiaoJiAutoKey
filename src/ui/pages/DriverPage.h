@@ -17,7 +17,7 @@ public:
     void setDriverMode(DriverMode mode);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
-    void setDriverAction(DriverMode mode, bool picoUpdateAvailable = false);
+    void setDriverAction(DriverMode mode, bool usbUpdateAvailable = false);
     void setBusy(bool busy);
     void updateThemeColors();
 
@@ -25,7 +25,7 @@ signals:
     void driverModeChanged(DriverMode mode);
     void refreshRequested();
     void uninstallDriverRequested(DriverMode mode);
-    void updatePicoFirmwareRequested();
+    void updateUsbDriverRequested();
 
 private:
     void applyTheme();

@@ -27,7 +27,7 @@ public:
         std::function<SwitchResult(DriverMode)> switchDriverMode;
         std::function<void(DriverMode)> prepareDriverUninstall;
         std::function<void(DriverMode)> finalizeDriverUninstall;
-        std::function<void()> updatePicoFirmware;
+        std::function<void()> updateUsbDriver;
         std::function<bool()> rebootComputer;
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;

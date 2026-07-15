@@ -154,13 +154,13 @@ void DriverCoordinator::bind(Context context) {
         if (context_.refreshStatus) context_.refreshStatus();
     });
 
-    connect(context_.page, &DriverPage::updatePicoFirmwareRequested, this, [this]() {
-        if (context_.updatePicoFirmware) context_.updatePicoFirmware();
+    connect(context_.page, &DriverPage::updateUsbDriverRequested, this, [this]() {
+        if (context_.updateUsbDriver) context_.updateUsbDriver();
     });
 
     connect(context_.page, &DriverPage::uninstallDriverRequested, this, [this](DriverMode mode) {
         if (mode == DriverMode::Usb) {
-            if (context_.updatePicoFirmware) context_.updatePicoFirmware();
+            if (context_.updateUsbDriver) context_.updateUsbDriver();
             return;
         }
         if (!context_.runtimeService) return;

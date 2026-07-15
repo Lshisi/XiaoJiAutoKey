@@ -19,16 +19,19 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QLabel>
+#include <QMouseEvent>
+#include <QPaintEvent>
 #include <QProcess>
 #include <QProgressBar>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QString>
-#include <QStorageInfo>
+#include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 #include <QtGlobal>
 #include <QVBoxLayout>
+#include <QVersionNumber>
 #include <QWindow>
 #include <Windows.h>
 #include <Dbt.h>
@@ -41,8 +44,9 @@ constexpr int kBaseWindowWidth = 780;
 constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
-constexpr auto kEmbeddedPicoUf2Resource = ":/firmware/xiaoji_pico.uf2";
-constexpr wchar_t kBundledPicoFirmwareVersion[] = L"XiaoJi USB Bridge V1.0";
+constexpr auto kEmbeddedUsbFirmwareResource = ":/firmware/xiaoji_usb.hex";
+constexpr auto kEmbeddedUsbUpdaterResource = ":/firmware/updater/usb-updater.exe";
+constexpr wchar_t kBundledUsbDriverVersion[] = L"XiaoJi USB V1.1.0";
 const UINT kQueryCancelAutoPlayMessage = ::RegisterWindowMessageW(L"QueryCancelAutoPlay");
 constexpr GUID kGuidDevInterfaceUsbDevice = {
     0xA5DCBF10,
@@ -185,11 +189,13 @@ public:
 
         auto* titleLabel = new QLabel(title, this);
         titleLabel->setFont(Fluent::Typography::cardTitle());
+        titleLabel->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
         root->addWidget(titleLabel);
 
         messageLabel_ = new QLabel(message, this);
         messageLabel_->setFont(Fluent::Typography::body());
         messageLabel_->setWordWrap(true);
+        messageLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textSecondary().name()));
         root->addWidget(messageLabel_);
 
         progressBar_ = new QProgressBar(this);
@@ -197,6 +203,13 @@ public:
         progressBar_->setValue(8);
         progressBar_->setTextVisible(true);
         progressBar_->setFixedHeight(22);
+        progressBar_->setStyleSheet(QString(
+            "QProgressBar { border: 1px solid %1; border-radius: 6px; background: %2; color: %3; text-align: center; }"
+            "QProgressBar::chunk { border-radius: 5px; background: %4; }")
+            .arg(Fluent::Colors::border().name(QColor::HexArgb),
+                 Fluent::Colors::sidebarBg().name(),
+                 Fluent::Colors::textPrimary().name(),
+                 Fluent::Colors::primary().name()));
         root->addWidget(progressBar_);
 
         connect(&timer_, &QTimer::timeout, this, [this]() {
@@ -213,6 +226,10 @@ public:
         if (messageLabel_) messageLabel_->setText(message);
     }
 
+    void setMessage(const QString& message) {
+        if (messageLabel_) messageLabel_->setText(message);
+    }
+
 protected:
     void closeEvent(QCloseEvent* event) override {
         if (event) event->ignore();
@@ -220,11 +237,58 @@ protected:
 
     void reject() override {}
 
+    void paintEvent(QPaintEvent* event) override {
+        DialogChrome::paint(this, event);
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+        QDialog::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
+        QDialog::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (DialogChrome::mouseRelease(event, dragging_)) return;
+        QDialog::mouseReleaseEvent(event);
+    }
+
 private:
     QLabel* messageLabel_ = nullptr;
     QProgressBar* progressBar_ = nullptr;
     QTimer timer_;
+    bool dragging_ = false;
+    QPoint dragStartGlobal_;
+    QPoint dragStartFrame_;
 };
+
+bool extractResource(const QString& resourcePath, const QString& targetPath, QString* errorMessage) {
+    QFile source(resourcePath);
+    if (!source.open(QIODevice::ReadOnly)) {
+        if (errorMessage) {
+            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u8bfb\u53d6\u5185\u7f6e\u66f4\u65b0\u6587\u4ef6\uff1a") + resourcePath;
+        }
+        return false;
+    }
+
+    QFile target(targetPath);
+    if (!target.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (errorMessage) {
+            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u521b\u5efa\u4e34\u65f6\u66f4\u65b0\u6587\u4ef6\uff1a") + target.errorString();
+        }
+        return false;
+    }
+    if (target.write(source.readAll()) < 0) {
+        if (errorMessage) {
+            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u5199\u5165\u4e34\u65f6\u66f4\u65b0\u6587\u4ef6\uff1a") + target.errorString();
+        }
+        return false;
+    }
+    return true;
+}
 
 }
 
@@ -251,66 +315,9 @@ MainWindow::MainWindow(QWidget* parent)
     });
 }
 
-QString findRpiRp2DriveRoot() {
-    const auto volumes = QStorageInfo::mountedVolumes();
-    for (const auto& volume : volumes) {
-        if (!volume.isValid() || !volume.isReady()) {
-            continue;
-        }
-        if (volume.displayName().compare(QStringLiteral("RPI-RP2"), Qt::CaseInsensitive) == 0 ||
-            volume.name().compare(QStringLiteral("RPI-RP2"), Qt::CaseInsensitive) == 0) {
-            return volume.rootPath();
-        }
-    }
-    return {};
-}
-
-void closeRpiRp2ExplorerWindows() {
-#ifdef Q_OS_WIN
-    ::EnumWindows([](HWND hwnd, LPARAM) -> BOOL {
-        if (!::IsWindowVisible(hwnd)) {
-            return TRUE;
-        }
-
-        wchar_t className[64] = {};
-        ::GetClassNameW(hwnd, className, static_cast<int>(std::size(className)));
-        if (_wcsicmp(className, L"CabinetWClass") != 0 &&
-            _wcsicmp(className, L"ExploreWClass") != 0) {
-            return TRUE;
-        }
-
-        wchar_t title[256] = {};
-        ::GetWindowTextW(hwnd, title, static_cast<int>(std::size(title)));
-        if (wcsstr(title, L"RPI-RP2") != nullptr) {
-            ::PostMessageW(hwnd, WM_CLOSE, 0, 0);
-        }
-        return TRUE;
-    }, 0);
-#endif
-}
-
-QString waitForRpiRp2Drive(int timeoutMs) {
-    QElapsedTimer timer;
-    timer.start();
-    while (timer.elapsed() < timeoutMs) {
-        closeRpiRp2ExplorerWindows();
-        const QString root = findRpiRp2DriveRoot();
-        if (!root.isEmpty()) {
-            closeRpiRp2ExplorerWindows();
-            return root;
-        }
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        QThread::msleep(120);
-    }
-    return {};
-}
-
 MainWindow::~MainWindow() {
     unregisterUsbDeviceNotifications();
     engineStateCoordinator_.stopThreads();
-    if (config_.driverMode == DriverMode::Usb) {
-        picoDriver_.SetStatusLed(false);
-    }
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
 }
@@ -346,7 +353,7 @@ bool MainWindow::Initialize() {
         view_.initializeTray(this);
     });
     QTimer::singleShot(800, this, [this]() {
-        checkPicoFirmwareUpdateOnStartup();
+        checkUsbDriverUpdateOnStartup();
     });
     return true;
 }
@@ -355,7 +362,7 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
     driverStatusNote_.clear();
     driverStatusFallback_ = false;
     if (config_.driverMode == DriverMode::Usb) {
-        if (loadPicoUsbDriver()) {
+        if (loadCh552UsbDriver()) {
             driverUnavailableLogged_ = false;
             return true;
         }
@@ -388,7 +395,7 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
 }
 
 bool MainWindow::loadHidDriver() {
-    picoDriver_.Disconnect();
+    ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
 
@@ -422,7 +429,7 @@ bool MainWindow::loadHidDriver() {
 }
 
 bool MainWindow::loadLegacyDriver() {
-    picoDriver_.Disconnect();
+    ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
     ensureLegacyDdInfInstalled();
@@ -433,13 +440,13 @@ bool MainWindow::loadLegacyDriver() {
     return loaded;
 }
 
-bool MainWindow::loadPicoUsbDriver() {
+bool MainWindow::loadCh552UsbDriver() {
     driver_.ReleaseAll();
     driver_.Unload();
-    picoDriver_.Disconnect();
-    const bool loaded = picoDriver_.AutoConnect();
+    ch552Driver_.Disconnect();
+    const bool loaded = ch552Driver_.AutoConnect();
     if (loaded) {
-        inputDriver_.SetDriver(&picoDriver_);
+        inputDriver_.SetDriver(&ch552Driver_);
     } else {
         inputDriver_.SetDriver(nullptr);
     }
@@ -480,9 +487,12 @@ void MainWindow::refreshUsbDriverAfterDeviceChange() {
     driverStatusNote_.clear();
     driverStatusFallback_ = false;
 
-    const bool loaded = loadPicoUsbDriver();
+    const bool loaded = loadCh552UsbDriver();
     if (loaded) {
         driverUnavailableLogged_ = false;
+        QTimer::singleShot(0, this, [this]() {
+            checkUsbDriverUpdateOnStartup();
+        });
     }
     engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
@@ -519,8 +529,8 @@ bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* erro
     return true;
 }
 
-bool MainWindow::canLoadPicoUsbDriver(std::wstring* errorMessage) {
-    PicoUsbDriver probeDriver;
+bool MainWindow::canLoadCh552UsbDriver(std::wstring* errorMessage) {
+    Ch552UsbDriver probeDriver;
     const bool loaded = probeDriver.AutoConnect();
     if (!loaded && errorMessage) {
         *errorMessage = probeDriver.GetLastError();
@@ -621,7 +631,7 @@ void MainWindow::refreshDriverStatusUi() {
         summary += QString::fromWCharArray(L" / \u5df2\u56de\u9000");
     }
     page->setStatusSummary(summary);
-    page->setDriverAction(config_.driverMode, isPicoFirmwareUpdateAvailable());
+    page->setDriverAction(config_.driverMode, isUsbDriverUpdateAvailable());
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: ";
@@ -629,12 +639,12 @@ void MainWindow::refreshDriverStatusUi() {
     else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     detail << L"\n";
     detail << L"\n";
-    detail << L"USB \u8bbe\u5907: " << (picoDriver_.IsReady() ? L"\u5df2\u8fde\u63a5" : L"\u672a\u8fde\u63a5") << L"\n";
-    if (picoDriver_.IsReady()) {
-        detail << L"USB \u7aef\u53e3: " << picoDriver_.PortName() << L"\n";
-        detail << L"USB \u56fa\u4ef6: " << picoDriver_.FirmwareVersion() << L"\n";
-    } else if (config_.driverMode == DriverMode::Usb && !picoDriver_.GetLastError().empty()) {
-        detail << L"USB \u9519\u8bef: " << picoDriver_.GetLastError() << L"\n";
+    detail << L"USB \u8bbe\u5907: " << (ch552Driver_.IsReady() ? L"\u5df2\u8fde\u63a5" : L"\u672a\u8fde\u63a5") << L"\n";
+    if (ch552Driver_.IsReady()) {
+        detail << L"USB \u7aef\u53e3: " << ch552Driver_.PortName() << L"\n";
+        detail << L"USB \u56fa\u4ef6: " << ch552Driver_.FirmwareVersion() << L"\n";
+    } else if (config_.driverMode == DriverMode::Usb && !ch552Driver_.GetLastError().empty()) {
+        detail << L"USB \u9519\u8bef: " << ch552Driver_.GetLastError() << L"\n";
     }
     detail << L"\n";
     detail << L"HID DLL: " << (status.hidRuntimeExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
@@ -669,34 +679,43 @@ void MainWindow::refreshDriverStatusUi() {
     page->setDetailText(QString::fromStdWString(detail.str()));
 }
 
-bool MainWindow::isPicoFirmwareUpdateAvailable() const {
-    if (config_.driverMode != DriverMode::Usb || !picoDriver_.IsReady()) {
+bool MainWindow::isUsbDriverUpdateAvailable() const {
+    if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) {
         return false;
     }
-    const QString current = QString::fromStdWString(picoDriver_.FirmwareVersion()).trimmed();
+    const QString current = QString::fromStdWString(ch552Driver_.FirmwareVersion()).trimmed();
     if (current.isEmpty()) {
         return false;
     }
-    return current.compare(QString::fromWCharArray(kBundledPicoFirmwareVersion), Qt::CaseInsensitive) != 0;
+    if (current.contains(QStringLiteral("XiaoJi USB Bridge"), Qt::CaseInsensitive)) {
+        return true;
+    }
+    const QString bundled = QString::fromWCharArray(kBundledUsbDriverVersion);
+    const QVersionNumber currentVersion = QVersionNumber::fromString(current.mid(current.lastIndexOf(QLatin1Char('V')) + 1));
+    const QVersionNumber bundledVersion = QVersionNumber::fromString(bundled.mid(bundled.lastIndexOf(QLatin1Char('V')) + 1));
+    if (currentVersion.isNull() || bundledVersion.isNull()) {
+        return false;
+    }
+    return QVersionNumber::compare(bundledVersion, currentVersion) > 0;
 }
 
-void MainWindow::checkPicoFirmwareUpdateOnStartup() {
-    if (startupPicoUpdatePromptShown_) {
+void MainWindow::checkUsbDriverUpdateOnStartup() {
+    if (startupUsbUpdatePromptShown_) {
         return;
     }
-    startupPicoUpdatePromptShown_ = true;
     refreshDriverStatusUi();
-    if (!isPicoFirmwareUpdateAvailable()) {
+    if (!isUsbDriverUpdateAvailable()) {
         return;
     }
+    startupUsbUpdatePromptShown_ = true;
 
     const bool confirmed = ConfigConfirmDialog::confirm(
         this,
-        QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0"),
-        QString::fromWCharArray(L"\u68c0\u6d4b\u5230 USB \u8bbe\u5907\u56fa\u4ef6\u6709\u65b0\u7248\u672c\uff0c\u662f\u5426\u73b0\u5728\u66f4\u65b0\uff1f"),
+        QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0"),
+        QString::fromWCharArray(L"\u68c0\u6d4b\u5230 USB \u9a71\u52a8\u6709\u65b0\u7248\u672c\uff0c\u662f\u5426\u73b0\u5728\u66f4\u65b0\uff1f"),
         QString::fromWCharArray(L"\u66f4\u65b0"));
     if (confirmed) {
-        updatePicoFirmware(false);
+        updateUsbDriver(false);
     }
 }
 
@@ -742,8 +761,8 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     }
     if (mode == DriverMode::Usb) {
         std::wstring usbError;
-        if (!canLoadPicoUsbDriver(&usbError)) {
-            driverStatusNote_ = L"\u76ee\u6807 USB \u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d\u8fd0\u884c\u6001\u3002";
+        if (!canLoadCh552UsbDriver(&usbError)) {
+            driverStatusNote_ = L"\u76ee\u6807 USB \u8bbe\u5907\u4e0d\u53ef\u7528\uff0c\u5df2\u4fdd\u7559\u5f53\u524d\u8fd0\u884c\u6001\u3002";
             if (!usbError.empty()) {
                 driverStatusNote_ += L" USB \u9519\u8bef: " + usbError;
             }
@@ -812,21 +831,22 @@ void MainWindow::finalizeDriverUninstall(DriverMode mode) {
     refreshDriverStatusUi();
 }
 
-void MainWindow::updatePicoFirmware(bool requireConfirmation) {
-    QFile uf2(kEmbeddedPicoUf2Resource);
-    if (!uf2.exists()) {
+void MainWindow::updateUsbDriver(bool requireConfirmation) {
+    QFile firmware(kEmbeddedUsbFirmwareResource);
+    QFile updater(kEmbeddedUsbUpdaterResource);
+    if (!firmware.exists() || !updater.exists()) {
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u7a0b\u5e8f\u5185\u7f6e\u7684\u56fa\u4ef6\u4e0d\u5b58\u5728\u3002"));
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u7a0b\u5e8f\u5185\u7f6e\u7684 USB \u9a71\u52a8\u66f4\u65b0\u6587\u4ef6\u4e0d\u5b58\u5728\u3002"));
         return;
     }
 
     if (requireConfirmation) {
         const bool confirmed = ConfigConfirmDialog::confirm(
             this,
-            QString::fromWCharArray(L"\u66f4\u65b0\u56fa\u4ef6"),
-            QString::fromWCharArray(L"\u5c06\u66f4\u65b0 USB \u8bbe\u5907\u56fa\u4ef6\u3002\u66f4\u65b0\u8fc7\u7a0b\u4e2d\u8bf7\u4e0d\u8981\u62d4\u51fa USB\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
+            QString::fromWCharArray(L"\u66f4\u65b0 USB \u9a71\u52a8"),
+            QString::fromWCharArray(L"\u5c06\u81ea\u52a8\u66f4\u65b0 USB \u9a71\u52a8\u3002\u66f4\u65b0\u8fc7\u7a0b\u4e2d\u8bf7\u4e0d\u8981\u62d4\u51fa USB\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
             QString::fromWCharArray(L"\u66f4\u65b0"));
         if (!confirmed) {
             return;
@@ -836,8 +856,8 @@ void MainWindow::updatePicoFirmware(bool requireConfirmation) {
     inputHook_.setDialogOpen(true);
     suppressAutoPlay_ = true;
     auto* progressDialog = new DriverProgressDialog(
-        QString::fromWCharArray(L"\u66f4\u65b0\u56fa\u4ef6"),
-        QString::fromWCharArray(L"\u6b63\u5728\u51c6\u5907 USB \u8bbe\u5907\u8fdb\u5165\u56fa\u4ef6\u66f4\u65b0\u6a21\u5f0f..."),
+        QString::fromWCharArray(L"\u66f4\u65b0 USB \u9a71\u52a8"),
+        QString::fromWCharArray(L"\u6b63\u5728\u51c6\u5907 USB \u8bbe\u5907..."),
         this);
     progressDialog->show();
     QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
@@ -847,76 +867,120 @@ void MainWindow::updatePicoFirmware(bool requireConfirmation) {
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
 
-    if (!picoDriver_.IsReady() && !loadPicoUsbDriver()) {
+    if (!ch552Driver_.IsReady() && !loadCh552UsbDriver()) {
         progressDialog->accept();
         progressDialog->deleteLater();
         inputHook_.setDialogOpen(false);
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u7684 XiaoJi USB \u8bbe\u5907\u3002"));
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u7684 USB \u8bbe\u5907\u3002"));
         refreshDriverStatusUi();
         return;
     }
 
-    if (!picoDriver_.EnterBootloaderForUpdate()) {
-        const QString error = QString::fromStdWString(picoDriver_.GetLastError());
+    QTemporaryDir updateDirectory(QDir::tempPath() + QStringLiteral("/XiaoJiUsbUpdate-XXXXXX"));
+    QString preparationError;
+    const QString firmwarePath = updateDirectory.filePath(QStringLiteral("xiaoji_usb.hex"));
+    const QString updaterPath = updateDirectory.filePath(QStringLiteral("usb-updater.exe"));
+    const bool updateFilesReady = updateDirectory.isValid() &&
+        extractResource(QStringLiteral(":/firmware/xiaoji_usb.hex"), firmwarePath, &preparationError) &&
+        extractResource(QStringLiteral(":/firmware/updater/usb-updater.exe"), updaterPath, &preparationError) &&
+        extractResource(QStringLiteral(":/firmware/updater/CH375DLL.dll"), updateDirectory.filePath(QStringLiteral("CH375DLL.dll")), &preparationError) &&
+        extractResource(QStringLiteral(":/firmware/updater/libusb-1.0.dll"), updateDirectory.filePath(QStringLiteral("libusb-1.0.dll")), &preparationError) &&
+        extractResource(QStringLiteral(":/firmware/updater/libgcc_s_sjlj-1.dll"), updateDirectory.filePath(QStringLiteral("libgcc_s_sjlj-1.dll")), &preparationError);
+    if (!updateFilesReady) {
         progressDialog->accept();
         progressDialog->deleteLater();
         inputHook_.setDialogOpen(false);
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"USB \u8bbe\u5907\u62d2\u7edd\u8fdb\u5165\u6388\u6743\u66f4\u65b0\u6a21\u5f0f\u3002\n\n") + error);
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            preparationError.isEmpty()
+                ? QString::fromWCharArray(L"\u65e0\u6cd5\u51c6\u5907 USB \u9a71\u52a8\u66f4\u65b0\u6587\u4ef6\u3002")
+                : preparationError);
+        refreshDriverStatusUi();
+        return;
+    }
+
+    if (!ch552Driver_.EnterBootloaderForUpdate()) {
+        const QString error = QString::fromStdWString(ch552Driver_.GetLastError());
+        progressDialog->accept();
+        progressDialog->deleteLater();
+        inputHook_.setDialogOpen(false);
+        suppressAutoPlay_ = false;
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"USB \u8bbe\u5907\u672a\u54cd\u5e94\u66f4\u65b0\u8bf7\u6c42\u3002\n\n") + error);
         refreshDriverStatusUi();
         return;
     }
 
     inputDriver_.SetDriver(nullptr);
-    progressDialog->markFinished(QString::fromWCharArray(L"\u6b63\u5728\u7b49\u5f85\u8bbe\u5907\u8fdb\u5165\u56fa\u4ef6\u66f4\u65b0\u6a21\u5f0f..."));
-    const QString driveRoot = waitForRpiRp2Drive(12000);
-    if (driveRoot.isEmpty()) {
+    progressDialog->setMessage(QString::fromWCharArray(L"\u6b63\u5728\u66f4\u65b0 USB \u9a71\u52a8\uff0c\u8bf7\u52ff\u62d4\u51fa\u8bbe\u5907..."));
+    QThread::msleep(250);
+
+    QProcess updateProcess;
+    updateProcess.setWorkingDirectory(updateDirectory.path());
+    updateProcess.setProcessChannelMode(QProcess::MergedChannels);
+#ifdef Q_OS_WIN
+    updateProcess.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* arguments) {
+        arguments->flags |= CREATE_NO_WINDOW;
+    });
+#endif
+    updateProcess.setProgram(updaterPath);
+    updateProcess.setArguments({
+        QStringLiteral("-r"), QStringLiteral("2"),
+        QStringLiteral("-t"), QStringLiteral("CH552"),
+        QStringLiteral("-c"), QStringLiteral("3"),
+        firmwarePath
+    });
+    updateProcess.start();
+    const bool updaterStarted = updateProcess.waitForStarted(3000);
+    QElapsedTimer updateTimer;
+    updateTimer.start();
+    while (updaterStarted && updateProcess.state() != QProcess::NotRunning && updateTimer.elapsed() < 20000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        updateProcess.waitForFinished(100);
+    }
+    if (updateProcess.state() != QProcess::NotRunning) {
+        updateProcess.kill();
+        updateProcess.waitForFinished(1000);
+    }
+    const QString updateOutput = QString::fromLocal8Bit(updateProcess.readAll()).trimmed();
+    const bool updateSucceeded = updaterStarted &&
+        updateProcess.exitStatus() == QProcess::NormalExit &&
+        updateProcess.exitCode() == 0;
+    if (!updateSucceeded) {
+        ddRuntimeService_.LogRuntimeError(
+            L"usb-update.log",
+            L"USB updater failed. started=" + std::to_wstring(updaterStarted) +
+                L", exit_code=" + std::to_wstring(updateProcess.exitCode()) + L"\n" +
+                (updateOutput.isEmpty() ? std::wstring(L"(no output)") : updateOutput.toStdWString()));
         progressDialog->accept();
         progressDialog->deleteLater();
         inputHook_.setDialogOpen(false);
         suppressAutoPlay_ = false;
+        engineHookCoordinator_.refreshState();
+        refreshDriverStatusUi();
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u672a\u7b49\u5230 USB \u8bbe\u5907\u8fdb\u5165\u66f4\u65b0\u6a21\u5f0f\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u540e\u518d\u8bd5\u3002"));
-        refreshDriverStatusUi();
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u672a\u80fd\u5b8c\u6210 USB \u9a71\u52a8\u5199\u5165\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u540e\u91cd\u8bd5\u3002\n\n\u8be6\u7ec6\u4fe1\u606f\u5df2\u5199\u5165 logs \u76ee\u5f55\u3002"));
         return;
     }
 
-    closeRpiRp2ExplorerWindows();
-    const QString targetPath = QDir(driveRoot).filePath(QStringLiteral("xiaoji_usb_bridge.uf2"));
-    if (QFile::exists(targetPath)) {
-        QFile::remove(targetPath);
-    }
-    if (!uf2.copy(targetPath)) {
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u65e0\u6cd5\u5199\u5165\u56fa\u4ef6\u3002"));
-        refreshDriverStatusUi();
-        return;
-    }
-    closeRpiRp2ExplorerWindows();
-
-    progressDialog->markFinished(QString::fromWCharArray(L"\u56fa\u4ef6\u5df2\u5199\u5165\uff0c\u6b63\u5728\u7b49\u5f85 USB \u8bbe\u5907\u91cd\u542f..."));
+    progressDialog->markFinished(QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u5199\u5165\uff0c\u6b63\u5728\u7b49\u5f85\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5..."));
     QElapsedTimer reconnectTimer;
     reconnectTimer.start();
     bool reconnected = false;
     while (reconnectTimer.elapsed() < 12000) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
         QThread::msleep(250);
-        if (loadPicoUsbDriver()) {
+        if (loadCh552UsbDriver()) {
             reconnected = true;
             break;
         }
@@ -930,16 +994,19 @@ void MainWindow::updatePicoFirmware(bool requireConfirmation) {
     refreshDriverStatusUi();
     refreshStatusOverlay();
 
-    if (reconnected) {
+    const bool versionVerified = reconnected && !isUsbDriverUpdateAvailable();
+    if (versionVerified) {
         AppMessageDialog::information(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u5b8c\u6210"),
-            QString::fromWCharArray(L"USB \u8bbe\u5907\u56fa\u4ef6\u5df2\u66f4\u65b0\u5e76\u91cd\u65b0\u8fde\u63a5\u3002"));
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5b8c\u6210"),
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u66f4\u65b0\u5e76\u91cd\u65b0\u8fde\u63a5\u3002"));
     } else {
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"\u56fa\u4ef6\u5df2\u5199\u5165"),
-            QString::fromWCharArray(L"\u56fa\u4ef6\u5df2\u5199\u5165 USB \u8bbe\u5907\uff0c\u4f46\u6682\u672a\u7b49\u5230 USB \u91cd\u65b0\u8fde\u63a5\u3002\u8bf7\u7a0d\u540e\u624b\u52a8\u5237\u65b0\u9a71\u52a8\u72b6\u6001\u6216\u91cd\u63d2\u8bbe\u5907\u3002"));
+            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5f85\u786e\u8ba4"),
+            reconnected
+                ? QString::fromWCharArray(L"USB \u8bbe\u5907\u5df2\u91cd\u65b0\u8fde\u63a5\uff0c\u4f46\u7248\u672c\u6821\u9a8c\u672a\u901a\u8fc7\u3002\u8bf7\u91cd\u8bd5\u66f4\u65b0\u3002")
+                : QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u5199\u5165\uff0c\u4f46\u6682\u672a\u7b49\u5230\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u3002"));
     }
 }
 
@@ -1009,7 +1076,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         }
         switch (msg->message) {
         case WM_DEVICECHANGE:
-            if (config_.driverMode == DriverMode::Usb &&
+            if (!suppressAutoPlay_ && config_.driverMode == DriverMode::Usb &&
                 isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
                 usbDeviceRefreshTimer_.start(650);
             }
@@ -1334,14 +1401,6 @@ void MainWindow::refreshStatusOverlay() {
     const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
     statusOverlay_.updateStatus(config_, profile, macro, repeatRunning, macroRunning);
     view_.updateActivityIcons(this, repeatRunning, macroRunning);
-    syncPicoStatusLed(repeatRunning, macroRunning);
-}
-
-void MainWindow::syncPicoStatusLed(bool repeatRunning, bool macroRunning) {
-    if (config_.driverMode != DriverMode::Usb) {
-        return;
-    }
-    picoDriver_.SetStatusLed(repeatRunning || macroRunning);
 }
 
 void MainWindow::showDdUnavailableMessage() {

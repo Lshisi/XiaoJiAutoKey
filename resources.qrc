@@ -3,7 +3,11 @@
 <qresource>
     <file>assets/icon.png</file>
     <file>assets/icon-active.png</file>
-    <file alias="firmware/xiaoji_pico.uf2">assets/firmware/xiaoji_pico.uf2</file>
+    <file alias="firmware/xiaoji_usb.hex">firmware/ch552/build/xiaoji_ch552.hex</file>
+    <file alias="firmware/updater/usb-updater.exe">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/vnproch55x.exe</file>
+    <file alias="firmware/updater/CH375DLL.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/CH375DLL.dll</file>
+    <file alias="firmware/updater/libusb-1.0.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/libusb-1.0.dll</file>
+    <file alias="firmware/updater/libgcc_s_sjlj-1.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/libgcc_s_sjlj-1.dll</file>
     <file>assets/factions/shaolin.svg</file>
     <file>assets/factions/wanhua.svg</file>
     <file>assets/factions/qixiu.svg</file>

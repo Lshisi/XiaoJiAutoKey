@@ -48,7 +48,7 @@ QString compactDriverDetails(const QString& details) {
     QString hidSys;
     QString hidRootDevice;
     QString hidChildDevice;
-    QString usbPico;
+    QString ch552Device;
     QString usbPort;
     QString usbFirmware;
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
@@ -65,8 +65,7 @@ QString compactDriverDetails(const QString& details) {
         else if (trimmed.startsWith(QStringLiteral("HID SYS:"))) hidSys = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Root \u8bbe\u5907:"))) hidRootDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"HID Child \u8bbe\u5907:"))) hidChildDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
-        else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u8bbe\u5907:")) ||
-                 trimmed.startsWith(QStringLiteral("USB Pico:"))) usbPico = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u8bbe\u5907:"))) ch552Device = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u7aef\u53e3:"))) usbPort = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u56fa\u4ef6:"))) usbFirmware = trimmed.section(QLatin1Char(':'), 1).trimmed();
     }
@@ -129,7 +128,7 @@ QString compactDriverDetails(const QString& details) {
         sections.append(hid);
     }
     QStringList usb;
-    if (!usbPico.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") + usbPico);
+    if (!ch552Device.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") + ch552Device);
     if (!usbPort.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u7aef\u53e3: ") + usbPort);
     if (!usbFirmware.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u56fa\u4ef6: ") + usbFirmware);
     if (!usb.isEmpty()) {
@@ -276,7 +275,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     });
     connect(driverActionButton_, &QPushButton::clicked, this, [this]() {
         if (driverActionMode_ == DriverMode::Usb) {
-            emit updatePicoFirmwareRequested();
+            emit updateUsbDriverRequested();
         } else {
             emit uninstallDriverRequested(driverActionMode_);
         }
@@ -317,15 +316,15 @@ void DriverPage::setDetailText(const QString& details) {
     if (summaryDetailValue_) summaryDetailValue_->setPlainText(compactDriverDetails(details));
 }
 
-void DriverPage::setDriverAction(DriverMode mode, bool picoUpdateAvailable) {
+void DriverPage::setDriverAction(DriverMode mode, bool usbUpdateAvailable) {
     driverActionMode_ = mode;
     if (!driverActionButton_) {
         return;
     }
 
     if (mode == DriverMode::Usb) {
-        driverActionButton_->setText(QString::fromWCharArray(L"\u66f4\u65b0\u56fa\u4ef6"));
-        driverActionButton_->setVisible(picoUpdateAvailable);
+        driverActionButton_->setText(QString::fromWCharArray(L"\u66f4\u65b0\u9a71\u52a8"));
+        driverActionButton_->setVisible(usbUpdateAvailable);
     } else if (mode == DriverMode::Hid) {
         driverActionButton_->setText(QString::fromWCharArray(L"\u5378\u8f7d HID"));
         driverActionButton_->setVisible(true);

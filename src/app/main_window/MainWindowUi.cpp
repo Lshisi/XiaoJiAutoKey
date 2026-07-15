@@ -147,7 +147,7 @@ void MainWindow::setupUi() {
         [this](DriverMode mode) { return switchDriverMode(mode); },
         [this](DriverMode mode) { prepareDriverUninstall(mode); },
         [this](DriverMode mode) { finalizeDriverUninstall(mode); },
-        [this]() { updatePicoFirmware(); },
+        [this]() { updateUsbDriver(); },
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },

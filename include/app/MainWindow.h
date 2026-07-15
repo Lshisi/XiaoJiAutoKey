@@ -6,7 +6,7 @@
 #include "input/GlobalInputHook.h"
 #include "input/RawInputManager.h"
 #include "MacroEngine.h"
-#include "PicoUsbDriver.h"
+#include "Ch552UsbDriver.h"
 #include "controllers/MacroController.h"
 #include "view/MainWindowView.h"
 #include "controllers/ProfileController.h"
@@ -51,25 +51,24 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    void syncPicoStatusLed(bool repeatRunning, bool macroRunning);
     bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();
-    bool loadPicoUsbDriver();
+    bool loadCh552UsbDriver();
     bool activeInputDriverReady() const;
     std::wstring activeInputDriverError() const;
     bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
-    bool canLoadPicoUsbDriver(std::wstring* errorMessage = nullptr);
+    bool canLoadCh552UsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
-    bool isPicoFirmwareUpdateAvailable() const;
-    void checkPicoFirmwareUpdateOnStartup();
+    bool isUsbDriverUpdateAvailable() const;
+    void checkUsbDriverUpdateOnStartup();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     void prepareDriverUninstall(DriverMode mode);
     void finalizeDriverUninstall(DriverMode mode);
-    void updatePicoFirmware(bool requireConfirmation = true);
+    void updateUsbDriver(bool requireConfirmation = true);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
     bool rebootComputer();
@@ -96,7 +95,7 @@ private:
     MacroController macroController_;
 
     DdDriver driver_;
-    PicoUsbDriver picoDriver_;
+    Ch552UsbDriver ch552Driver_;
     InputDriverRouter inputDriver_;
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
@@ -134,6 +133,6 @@ private:
     bool driverStatusFallback_ = false;
     std::wstring driverStatusNote_;
     bool suppressAutoPlay_ = false;
-    bool startupPicoUpdatePromptShown_ = false;
+    bool startupUsbUpdatePromptShown_ = false;
 
 };

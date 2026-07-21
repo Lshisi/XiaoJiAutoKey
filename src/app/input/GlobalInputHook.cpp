@@ -83,7 +83,6 @@ void GlobalInputHook::setDialogOpen(bool open) {
 
 void GlobalInputHook::setRepeatRunning(bool running) {
     repeatRunning_ = running;
-    if (!running) controlHotkeyPressed_ = false;
 }
 
 void GlobalInputHook::setRawKeyboardActive(bool active) {
@@ -169,11 +168,11 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         captureActive = hook->captureActive_;
     }
 
-    if (selfInjectedFilter && selfInjectedFilter(key)) {
+    if (!captureActive && hook->rawKeyboardActive_.load()) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
-    if (!captureActive && hook->rawKeyboardActive_.load()) {
+    if (selfInjectedFilter && selfInjectedFilter(key)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
@@ -192,6 +191,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         } else if (released) {
             hook->controlHotkeyPressed_ = false;
         }
+        return CallNextHookEx(nullptr, code, wParam, lParam);
     }
     if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
@@ -253,6 +253,7 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         } else if (!pressed) {
             hook->controlHotkeyPressed_ = false;
         }
+        return CallNextHookEx(nullptr, code, wParam, lParam);
     }
     if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {

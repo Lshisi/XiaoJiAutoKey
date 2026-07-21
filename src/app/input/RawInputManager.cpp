@@ -20,6 +20,7 @@ bool ContainsAnyVirtualToken(const std::wstring& lowerName) {
         L"dd.key",
         L"ddxoft",
         L"root#ddhid",
+        L"vid_1209&pid_584a",
     };
     for (const auto* token : tokens) {
         if (lowerName.find(token) != std::wstring::npos) {

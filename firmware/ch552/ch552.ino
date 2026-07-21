@@ -343,7 +343,7 @@ static void handle_command(__xdata char *line) {
     return;
   }
   if (token_is(command, "VER")) {
-    cdc_write_line("OK XiaoJi USB V1.1.0");
+    cdc_write_line("OK XiaoJi USB V1.1.2");
     return;
   }
   if (token_is(command, "R")) {

@@ -82,6 +82,7 @@ void EngineHookCoordinator::handleRawKeyboardChanged(const KeyDescriptor& key, b
         } else if (!pressed) {
             rawControlHotkeyPressed_ = false;
         }
+        return;
     }
 
     handlePhysicalChanged(key, pressed);

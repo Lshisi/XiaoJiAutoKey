@@ -46,7 +46,7 @@ constexpr int kBaseDpi = 96;
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
 constexpr auto kEmbeddedUsbFirmwareResource = ":/firmware/xiaoji_usb.hex";
 constexpr auto kEmbeddedUsbUpdaterResource = ":/firmware/updater/usb-updater.exe";
-constexpr wchar_t kBundledUsbDriverVersion[] = L"XiaoJi USB V1.1.0";
+constexpr wchar_t kBundledUsbDriverVersion[] = L"XiaoJi USB V1.1.2";
 const UINT kQueryCancelAutoPlayMessage = ::RegisterWindowMessageW(L"QueryCancelAutoPlay");
 constexpr GUID kGuidDevInterfaceUsbDevice = {
     0xA5DCBF10,

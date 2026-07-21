@@ -51,7 +51,10 @@ void MainWindow::setupHooks() {
         },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { return config_.driverMode == DriverMode::Usb || driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid; },
+        [this]() {
+            return config_.driverMode != DriverMode::Usb &&
+                driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Hid;
+        },
         [this]() { return config_.driverMode == DriverMode::Usb; },
         this
     });

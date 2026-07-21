@@ -28,6 +28,7 @@ void EngineStateCoordinator::toggleRepeatRunning() {
 }
 
 void EngineStateCoordinator::setRepeatRunning(bool running) {
+    if (!context_.repeaterEngine || context_.repeaterEngine->IsToolRunning() == running) return;
     if (!setRepeatRunningFast(running)) return;
     handleRepeatStateChanged(running);
 }

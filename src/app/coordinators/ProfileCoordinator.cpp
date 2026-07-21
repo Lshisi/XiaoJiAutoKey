@@ -21,6 +21,7 @@ void ProfileCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::profileAddRequested, this, &ProfileCoordinator::onProfileAdd);
     connect(context_.page, &KeyPage::profileRenameRequested, this, &ProfileCoordinator::onProfileRename);
     connect(context_.page, &KeyPage::profileDeleteRequested, this, &ProfileCoordinator::onProfileDelete);
+    connect(context_.page, &KeyPage::profileEnabledToggled, this, &ProfileCoordinator::onProfileEnabledToggled);
 }
 
 void ProfileCoordinator::switchToProfile(std::uint64_t profileId) {
@@ -136,6 +137,40 @@ void ProfileCoordinator::onProfileDelete() {
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();
+}
+
+void ProfileCoordinator::onProfileEnabledToggled(bool enabled) {
+    if (!context_.profileController) return;
+    auto* profile = context_.profileController->activeProfile();
+    if (!profile || profile->enabled == enabled) return;
+
+    auto result = context_.profileController->setActiveProfileEnabled(enabled);
+    if (!result.ok) {
+        context_.page->setProfileEnabled(profile->enabled);
+        if (context_.refreshProfileCombo) context_.refreshProfileCombo();
+        return;
+    }
+
+    if (enabled) {
+        auto validation = ActiveConfigValidator::validateActiveHotkeys(
+            profile,
+            context_.macroController ? context_.macroController->activeMacro() : nullptr);
+        if (!validation.ok) {
+            context_.profileController->setActiveProfileEnabled(false);
+            context_.page->setProfileEnabled(false);
+            if (context_.refreshProfileCombo) context_.refreshProfileCombo();
+            AppMessageDialog::warning(context_.parent,
+                QString::fromWCharArray(L"\u65e0\u6cd5\u542f\u7528\u914d\u7f6e"), validation.message);
+            return;
+        }
+    } else if (context_.repeaterEngine && context_.repeaterEngine->IsToolRunning() && context_.setRepeatRunning) {
+        context_.setRepeatRunning(false);
+    }
+
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setProfileEnabled(enabled);
+    if (context_.refreshProfileCombo) context_.refreshProfileCombo();
 }
 
 void ProfileCoordinator::stopEnginesForProfileChange() {

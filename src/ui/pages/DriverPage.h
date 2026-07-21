@@ -17,7 +17,7 @@ public:
     void setDriverMode(DriverMode mode);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
-    void setDriverAction(DriverMode mode, bool usbUpdateAvailable = false);
+    void setDriverActions(bool ddInstalled, bool hidInstalled, bool usbUpdateAvailable = false);
     void setBusy(bool busy);
     void updateThemeColors();
 
@@ -34,6 +34,7 @@ private:
     QLabel* statusSummaryValue_ = nullptr;
     QTextEdit* summaryDetailValue_ = nullptr;
     QWidget* summaryPanel_ = nullptr;
-    FluentButton* driverActionButton_ = nullptr;
-    DriverMode driverActionMode_ = DriverMode::Legacy;
+    FluentButton* uninstallDdButton_ = nullptr;
+    FluentButton* uninstallHidButton_ = nullptr;
+    FluentButton* updateUsbButton_ = nullptr;
 };

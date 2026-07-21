@@ -55,9 +55,20 @@ void KeyBindingsCoordinator::onDeleteBinding(std::uint64_t id) {
 void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
     if (!context_.controller) return;
     if (enabled) {
+        auto* profile = context_.controller->activeProfile();
+        const auto index = findBindingIndex(id);
+        if (!profile || !index.has_value()) return;
+
         auto validation = ActiveConfigValidator::validateActiveHotkeys(
-            context_.controller->activeProfile(),
+            profile,
             context_.activeMacro ? context_.activeMacro() : nullptr);
+        if (validation.ok) {
+            validation = ActiveConfigValidator::validateRepeatBindingCandidate(
+                profile->bindings[*index].key,
+                true,
+                profile,
+                context_.activeMacro ? context_.activeMacro() : nullptr);
+        }
         if (!validation.ok) {
             AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
             if (context_.refreshAll) context_.refreshAll();
@@ -65,7 +76,11 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
         }
     }
     auto result = context_.controller->setBindingEnabled(id, enabled);
-    if (!result.ok) return;
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        if (context_.refreshAll) context_.refreshAll();
+        return;
+    }
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
 }
@@ -73,6 +88,10 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
 void KeyBindingsCoordinator::onStartClicked() {
     if (!context_.engine || !context_.setRepeatRunning) return;
     const bool shouldStart = !context_.engine->IsToolRunning();
+    if (shouldStart && context_.controller) {
+        const auto* profile = context_.controller->activeProfile();
+        if (!profile || !profile->enabled) return;
+    }
     if (shouldStart && context_.canUseDdDriver && !context_.canUseDdDriver()) {
         if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
         return;
@@ -190,8 +209,9 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
-    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+    auto validation = ActiveConfigValidator::validateRepeatBindingCandidate(
         editResult.key,
+        editResult.enabled,
         profile,
         context_.activeMacro ? context_.activeMacro() : nullptr);
     if (!validation.ok) {

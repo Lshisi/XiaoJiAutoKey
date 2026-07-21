@@ -23,6 +23,7 @@ public:
     ControllerResult addProfile(const QString& name, std::uint64_t& createdProfileId);
     ControllerResult renameActiveProfile(const QString& name);
     ControllerResult deleteActiveProfile(std::uint64_t& newActiveProfileId);
+    ControllerResult setActiveProfileEnabled(bool enabled);
 
     ControllerResult setControlHotkey(const KeyDescriptor& key);
     ControllerResult clearControlHotkey();

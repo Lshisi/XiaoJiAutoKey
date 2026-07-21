@@ -28,6 +28,7 @@ public:
         std::function<void()> applyMacros;
         std::function<void()> saveConfig;
         std::function<void()> refreshMacroPage;
+        std::function<void()> refreshMacroProfileCombo;
         std::function<void()> refreshStatusIndicators;
         std::function<void(bool)> setRepeatRunning;
         std::function<void(bool)> playToggleSound;
@@ -49,6 +50,7 @@ private:
     void onMacroAdd();
     void onMacroRename();
     void onMacroDelete();
+    void onMacroEnabledToggled(bool enabled);
     void onMacroAddStep();
     void onMacroEditStep(int stepIndex);
     void onMacroDeleteStep(int stepIndex);

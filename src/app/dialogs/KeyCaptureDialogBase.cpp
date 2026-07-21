@@ -22,7 +22,7 @@ void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
         if (keyEdit_ && capturedKey_.has_value()) {
             keyEdit_->setText(QString::fromStdWString(GetKeyDisplayName(*capturedKey_)));
         } else if (keyEdit_) {
-            keyEdit_->setText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+            keyEdit_->setText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
         }
         return;
     }

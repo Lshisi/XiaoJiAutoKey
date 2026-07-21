@@ -115,6 +115,14 @@ ControllerResult MacroController::deleteActiveMacro(std::uint64_t& newActiveMacr
     return ControllerResult::success();
 }
 
+ControllerResult MacroController::setActiveMacroEnabled(bool enabled) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    macro->enabled = enabled;
+    return ControllerResult::success();
+}
+
 ControllerResult MacroController::validateStepKey(const MacroConfig& macro, const KeyDescriptor& key) const {
     if (macro.triggerKey.has_value() && *macro.triggerKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));

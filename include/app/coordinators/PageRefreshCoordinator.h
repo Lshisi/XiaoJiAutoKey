@@ -32,6 +32,7 @@ public:
     void bind(Context context);
     void refreshAll();
     void refreshProfiles();
+    void refreshMacroProfiles();
     void refreshMacro();
 
 private:

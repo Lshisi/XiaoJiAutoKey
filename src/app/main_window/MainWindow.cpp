@@ -477,6 +477,7 @@ void MainWindow::unregisterUsbDeviceNotifications() {
 
 void MainWindow::refreshUsbDriverAfterDeviceChange() {
     if (config_.driverMode != DriverMode::Usb) {
+        refreshDriverStatusUi();
         return;
     }
 
@@ -631,7 +632,15 @@ void MainWindow::refreshDriverStatusUi() {
         summary += QString::fromWCharArray(L" / \u5df2\u56de\u9000");
     }
     page->setStatusSummary(summary);
-    page->setDriverAction(config_.driverMode, isUsbDriverUpdateAvailable());
+    const bool ddUninstallAvailable = status.infKeyboardServiceInstalled ||
+        status.infMouseServiceInstalled || status.infKeyboardSysInstalled ||
+        status.infMouseSysInstalled || status.infKeyboardDeviceStarted ||
+        status.infMouseDeviceStarted || status.infKeyboardDeviceBound ||
+        status.infMouseDeviceBound;
+    const bool hidUninstallAvailable = status.hidServiceInstalled || status.hidServicePendingDelete ||
+        status.hidSysInstalled || status.hidDriverStorePresent ||
+        status.hidRootDeviceOk || status.hidChildDeviceOk;
+    page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable, isUsbDriverUpdateAvailable());
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: ";
@@ -639,9 +648,22 @@ void MainWindow::refreshDriverStatusUi() {
     else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     detail << L"\n";
     detail << L"\n";
-    detail << L"USB \u8bbe\u5907: " << (ch552Driver_.IsReady() ? L"\u5df2\u8fde\u63a5" : L"\u672a\u8fde\u63a5") << L"\n";
-    if (ch552Driver_.IsReady()) {
-        detail << L"USB \u7aef\u53e3: " << ch552Driver_.PortName() << L"\n";
+    const bool usbCommunicationReady = ch552Driver_.IsReady();
+    const std::wstring usbPortName = usbCommunicationReady
+        ? ch552Driver_.PortName()
+        : Ch552UsbDriver::DetectPortName();
+    detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
+    detail << L"USB \u901a\u4fe1: ";
+    if (usbCommunicationReady) {
+        detail << L"\u5df2\u8fde\u63a5";
+    } else if (config_.driverMode == DriverMode::Usb) {
+        detail << L"\u8fde\u63a5\u5931\u8d25";
+    } else {
+        detail << L"\u672a\u542f\u7528\uff08\u5f53\u524d\u4f7f\u7528 "
+               << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\uff09";
+    }
+    detail << L"\n";
+    if (usbCommunicationReady) {
         detail << L"USB \u56fa\u4ef6: " << ch552Driver_.FirmwareVersion() << L"\n";
     } else if (config_.driverMode == DriverMode::Usb && !ch552Driver_.GetLastError().empty()) {
         detail << L"USB \u9519\u8bef: " << ch552Driver_.GetLastError() << L"\n";
@@ -1076,7 +1098,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
         }
         switch (msg->message) {
         case WM_DEVICECHANGE:
-            if (!suppressAutoPlay_ && config_.driverMode == DriverMode::Usb &&
+            if (!suppressAutoPlay_ &&
                 isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
                 usbDeviceRefreshTimer_.start(650);
             }

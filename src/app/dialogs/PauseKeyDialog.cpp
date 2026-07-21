@@ -34,7 +34,7 @@ PauseKeyDialog::PauseKeyDialog(QWidget* parent) : KeyCaptureDialogBase(parent) {
     keyLabel->setFixedWidth(50);
     keyRow->addWidget(keyLabel);
     auto* keyEdit = new FluentLineEdit(this);
-    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     keyRow->addWidget(keyEdit);
     layout->addLayout(keyRow);
     setCaptureEditor(keyEdit);

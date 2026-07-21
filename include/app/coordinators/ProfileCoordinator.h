@@ -45,6 +45,7 @@ private:
     void onProfileAdd();
     void onProfileRename();
     void onProfileDelete();
+    void onProfileEnabledToggled(bool enabled);
     void stopEnginesForProfileChange();
 
     Context context_;

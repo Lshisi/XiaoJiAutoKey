@@ -32,6 +32,8 @@ ControllerResult validateChildKeyCandidate(
     const KeyDescriptor& key,
     const ProfileConfig* profile,
     const MacroConfig* macro) {
+    if (profile && !profile->enabled) profile = nullptr;
+    if (macro && !macro->enabled) macro = nullptr;
     if (profile && SameKey(profile->controlHotkey, key)) {
         return childConflict(key, L"\u6309\u952e\u8fde\u53d1");
     }
@@ -41,10 +43,23 @@ ControllerResult validateChildKeyCandidate(
     return ControllerResult::success();
 }
 
+ControllerResult validateRepeatBindingCandidate(
+    const KeyDescriptor& key,
+    bool enabled,
+    const ProfileConfig* profile,
+    const MacroConfig* macro) {
+    if (!enabled) {
+        return ControllerResult::success();
+    }
+    return validateChildKeyCandidate(key, profile, macro);
+}
+
 ControllerResult validateHotkeyCandidate(
     const KeyDescriptor& key,
     const ProfileConfig* profile,
     const MacroConfig* macro) {
+    if (profile && !profile->enabled) profile = nullptr;
+    if (macro && !macro->enabled) macro = nullptr;
     const bool isRepeatHotkey = profile && SameKey(profile->controlHotkey, key);
     const bool isMacroHotkey = macro && SameKey(macro->triggerKey, key);
     const wchar_t* hotkeyOwner = isRepeatHotkey
@@ -53,7 +68,7 @@ ControllerResult validateHotkeyCandidate(
 
     if (profile) {
         for (const auto& binding : profile->bindings) {
-            if (binding.key == key) {
+            if (binding.enabled && binding.key == key) {
                 return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e");
             }
         }
@@ -80,6 +95,8 @@ ControllerResult validateHotkeyCandidate(
 }
 
 ControllerResult validateActiveHotkeys(const ProfileConfig* profile, const MacroConfig* macro) {
+    if (profile && !profile->enabled) profile = nullptr;
+    if (macro && !macro->enabled) macro = nullptr;
     if (profile && profile->controlHotkey.has_value()) {
         auto validation = validateHotkeyCandidate(*profile->controlHotkey, profile, macro);
         if (!validation.ok) return validation;

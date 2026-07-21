@@ -14,5 +14,10 @@ namespace ActiveConfigValidator {
     const KeyDescriptor& key,
     const ProfileConfig* profile,
     const MacroConfig* macro);
+[[nodiscard]] ControllerResult validateRepeatBindingCandidate(
+    const KeyDescriptor& key,
+    bool enabled,
+    const ProfileConfig* profile,
+    const MacroConfig* macro);
 
 }  // namespace ActiveConfigValidator

@@ -29,6 +29,8 @@ void EngineStateCoordinator::toggleRepeatRunning() {
 
 void EngineStateCoordinator::setRepeatRunning(bool running) {
     if (!context_.repeaterEngine || context_.repeaterEngine->IsToolRunning() == running) return;
+    const auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
+    if (running && (!profile || !profile->enabled)) return;
     if (!setRepeatRunningFast(running)) return;
     handleRepeatStateChanged(running);
 }
@@ -48,10 +50,10 @@ void EngineStateCoordinator::applyBindings() {
     auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
     if (!profile) return;
 
-    context_.repeaterEngine->UpdateBindings(profile->bindings);
-    context_.repeaterEngine->SetMixedMode(profile->mixedMode);
-    context_.repeaterEngine->SetWasdProtection(profile->wasdProtection);
-    context_.repeaterEngine->SetPauseKeys(profile->pauseKeys);
+    context_.repeaterEngine->UpdateBindings(profile->enabled ? profile->bindings : std::vector<KeyBinding>{});
+    context_.repeaterEngine->SetMixedMode(profile->enabled && profile->mixedMode);
+    context_.repeaterEngine->SetWasdProtection(profile->enabled && profile->wasdProtection);
+    context_.repeaterEngine->SetPauseKeys(profile->enabled ? profile->pauseKeys : std::vector<KeyDescriptor>{});
 
     if (context_.refreshHookState) context_.refreshHookState();
     updateRepeatStatus();
@@ -61,7 +63,7 @@ void EngineStateCoordinator::applyMacros() {
     if (!context_.macroEngine) return;
 
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
-    if (macro) {
+    if (macro && macro->enabled) {
         context_.macroEngine->UpdateMacros({*macro});
     } else {
         context_.macroEngine->UpdateMacros({});

@@ -276,6 +276,7 @@ AppConfig ConfigStore::Load() const {
                 ProfileConfig profile;
                 profile.id = GetUInt64Field(*pObj, "id").value_or(0);
                 if (auto name = GetStringField(*pObj, "name")) profile.name = ToWide(*name);
+                profile.enabled = GetBoolField(*pObj, "enabled").value_or(true);
                 if (auto hotkeyText = GetStringField(*pObj, "controlHotkey"))
                     profile.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
                 if (auto delay = GetIntField(*pObj, "defaultDelayMs"); delay.has_value() && *delay > 0)
@@ -386,6 +387,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
         jsonlite::Object pObj;
         pObj.emplace("id", static_cast<double>(profile.id));
         pObj.emplace("name", ToUtf8(profile.name));
+        pObj.emplace("enabled", profile.enabled);
         pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
         pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
         pObj.emplace("mixedMode", profile.mixedMode);

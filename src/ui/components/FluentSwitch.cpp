@@ -6,11 +6,27 @@
 #include <QPainterPath>
 #include <QMouseEvent>
 
+#include <algorithm>
+
+namespace {
+
+QColor blendColor(const QColor& from, const QColor& to, qreal progress) {
+    const qreal t = std::clamp(progress, 0.0, 1.0);
+    return QColor::fromRgbF(
+        from.redF() + (to.redF() - from.redF()) * t,
+        from.greenF() + (to.greenF() - from.greenF()) * t,
+        from.blueF() + (to.blueF() - from.blueF()) * t,
+        from.alphaF() + (to.alphaF() - from.alphaF()) * t);
+}
+
+}  // namespace
+
 FluentSwitch::FluentSwitch(QWidget* parent) : QWidget(parent) {
     setFixedSize(44, 22);
     setCursor(Qt::PointingHandCursor);
     anim_ = new QPropertyAnimation(this, "position", this);
     anim_->setDuration(Fluent::Animation::hoverDuration);
+    anim_->setEasingCurve(QEasingCurve::OutCubic);
 }
 
 void FluentSwitch::setChecked(bool checked) {
@@ -50,15 +66,12 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
     qreal radius = r.height() / 2;
 
     // Track
-    QColor trackColor;
-    if (position_ > 0.5) {
-        const auto palette = FactionTheme::instance().palette();
-        trackColor = palette.accent;
-        if (hovered_) trackColor = palette.accentHover;
-    } else {
-        trackColor = Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 42) : QColor(0, 0, 0, 40);
-        if (hovered_) trackColor = Fluent::Theme::isDarkMode() ? QColor(255, 255, 255, 58) : QColor(0, 0, 0, 55);
-    }
+    const auto palette = FactionTheme::instance().palette();
+    const QColor offTrack = Fluent::Theme::isDarkMode()
+        ? QColor(255, 255, 255, hovered_ ? 58 : 42)
+        : QColor(0, 0, 0, hovered_ ? 55 : 40);
+    const QColor onTrack = hovered_ ? palette.accentHover : palette.accent;
+    const QColor trackColor = blendColor(offTrack, onTrack, position_);
 
     QPainterPath track;
     track.addRoundedRect(r, radius, radius);
@@ -73,6 +86,7 @@ void FluentSwitch::paintEvent(QPaintEvent*) {
     qreal xEnd = r.right() - margin - thumbDiameter - 1;
     qreal x = xStart + (xEnd - xStart) * position_;
 
-    p.setBrush(Fluent::Theme::isDarkMode() && position_ <= 0.5 ? QColor(0xD8, 0xD8, 0xD8) : Qt::white);
+    const QColor offThumb = Fluent::Theme::isDarkMode() ? QColor(0xD8, 0xD8, 0xD8) : QColor(Qt::white);
+    p.setBrush(blendColor(offThumb, QColor(Qt::white), position_));
     p.drawEllipse(QRectF(x, r.top() + margin, thumbDiameter, thumbDiameter));
 }

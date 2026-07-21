@@ -22,6 +22,7 @@ public:
     ControllerResult addMacro(const QString& name, std::uint64_t& createdMacroId);
     ControllerResult renameActiveMacro(const QString& name);
     ControllerResult deleteActiveMacro(std::uint64_t& newActiveMacroId);
+    ControllerResult setActiveMacroEnabled(bool enabled);
 
     ControllerResult addStep(const KeyDescriptor& key, int delayAfterMs);
     ControllerResult updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs);

@@ -83,6 +83,7 @@ struct MacroConfig {
 struct ProfileConfig {
     std::uint64_t id = 0;
     std::wstring name;
+    bool enabled = true;
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = kDefaultDelayMs;
     bool mixedMode = false;

@@ -22,6 +22,7 @@ public:
     void setMacros(const std::vector<MacroConfig>& macros);
     void setActiveMacro(std::uint64_t macroId);
     void setSteps(const std::vector<MacroStep>& steps);
+    void setMacroEnabled(bool enabled);
     void setRunning(bool running);
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
@@ -46,6 +47,7 @@ signals:
     void macroAddRequested();
     void macroRenameRequested();
     void macroDeleteRequested();
+    void macroEnabledToggled(bool enabled);
 
     // Control
     void startStopClicked();
@@ -89,8 +91,11 @@ private:
     FluentButton* macroAddBtn_;
     FluentButton* macroRenameBtn_;
     FluentButton* macroDeleteBtn_;
+    QLabel* macroEnabledLabel_ = nullptr;
+    FluentSwitch* macroEnabledSwitch_ = nullptr;
 
     std::vector<MacroStep> steps_;
     bool running_ = false;
+    bool macroEnabled_ = true;
     QString hotkeyName_;
 };

@@ -223,12 +223,18 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     repeatBlock_->setVisible(showRepeat);
     macroBlock_->setVisible(showMacro);
     if (showRepeat) {
-        repeatTitleLabel_->setText(QString::fromWCharArray(repeatRunning ? L"\u8fde\u53d1\uff1a\u5df2\u5f00\u542f" : L"\u8fde\u53d1\uff1a\u5df2\u5173\u95ed"));
-        repeatHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") + TextOrDash(profile ? profile->controlHotkey : std::nullopt));
+        repeatTitleLabel_->setText(profile && !profile->enabled
+            ? QString::fromWCharArray(L"\u8fde\u53d1\uff1a\u914d\u7f6e\u5df2\u505c\u7528")
+            : QString::fromWCharArray(repeatRunning ? L"\u8fde\u53d1\uff1a\u5df2\u5f00\u542f" : L"\u8fde\u53d1\uff1a\u5df2\u5173\u95ed"));
+        repeatHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") +
+            TextOrDash(profile && profile->enabled ? profile->controlHotkey : std::nullopt));
     }
     if (showMacro) {
-        macroTitleLabel_->setText(QString::fromWCharArray(macroRunning ? L"\u5faa\u73af\uff1a\u5df2\u5f00\u542f" : L"\u5faa\u73af\uff1a\u5df2\u5173\u95ed"));
-        macroHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") + TextOrDash(macro ? macro->triggerKey : std::nullopt) +
+        macroTitleLabel_->setText(macro && !macro->enabled
+            ? QString::fromWCharArray(L"\u5faa\u73af\uff1a\u914d\u7f6e\u5df2\u505c\u7528")
+            : QString::fromWCharArray(macroRunning ? L"\u5faa\u73af\uff1a\u5df2\u5f00\u542f" : L"\u5faa\u73af\uff1a\u5df2\u5173\u95ed"));
+        macroHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") +
+            TextOrDash(macro && macro->enabled ? macro->triggerKey : std::nullopt) +
             QString::fromWCharArray(L"  ") + LoopText(macro));
     }
 

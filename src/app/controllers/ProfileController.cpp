@@ -100,6 +100,14 @@ ControllerResult ProfileController::deleteActiveProfile(std::uint64_t& newActive
     return ControllerResult::success();
 }
 
+ControllerResult ProfileController::setActiveProfileEnabled(bool enabled) {
+    auto* profile = activeProfile();
+    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+
+    profile->enabled = enabled;
+    return ControllerResult::success();
+}
+
 ControllerResult ProfileController::setControlHotkey(const KeyDescriptor& key) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
@@ -109,7 +117,7 @@ ControllerResult ProfileController::setControlHotkey(const KeyDescriptor& key) {
     }
 
     const bool conflict = std::any_of(profile->bindings.begin(), profile->bindings.end(),
-        [&](const KeyBinding& binding) { return binding.key == key; });
+        [&](const KeyBinding& binding) { return binding.enabled && binding.key == key; });
     if (conflict) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e\u3002"));
     }
@@ -160,6 +168,21 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
 
     for (auto& binding : profile->bindings) {
         if (binding.id == id) {
+            if (enabled) {
+                if (profile->controlHotkey.has_value() && *profile->controlHotkey == binding.key) {
+                    return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
+                }
+                for (const auto& pauseKey : profile->pauseKeys) {
+                    if (pauseKey == binding.key) {
+                        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002"));
+                    }
+                }
+                for (const auto& other : profile->bindings) {
+                    if (other.id != id && other.enabled && other.key == binding.key) {
+                        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
+                    }
+                }
+            }
             binding.enabled = enabled;
             return ControllerResult::success();
         }
@@ -175,20 +198,22 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
 
-    if (profile->controlHotkey.has_value() && *profile->controlHotkey == key) {
-        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
-    }
-
-    for (const auto& pauseKey : profile->pauseKeys) {
-        if (pauseKey == key) {
-            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002"));
+    if (enabled) {
+        if (profile->controlHotkey.has_value() && *profile->controlHotkey == key) {
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
         }
-    }
 
-    for (const auto& binding : profile->bindings) {
-        if (binding.key != key) continue;
-        if (bindingId.has_value() && binding.id == *bindingId) continue;
-        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
+        for (const auto& pauseKey : profile->pauseKeys) {
+            if (pauseKey == key) {
+                return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002"));
+            }
+        }
+
+        for (const auto& binding : profile->bindings) {
+            if (!binding.enabled || binding.key != key) continue;
+            if (bindingId.has_value() && binding.id == *bindingId) continue;
+            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
+        }
     }
 
     if (bindingId.has_value()) {
@@ -229,7 +254,7 @@ ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
         }
     }
     for (const auto& binding : profile->bindings) {
-        if (binding.key == key) {
+        if (binding.enabled && binding.key == key) {
             return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u4e3a\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e\u3002"));
         }
     }

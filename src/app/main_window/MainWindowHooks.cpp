@@ -31,11 +31,11 @@ void MainWindow::setupHooks() {
         },
         [this]() {
             auto* profile = profileController_.activeProfile();
-            return profile ? profile->controlHotkey : std::nullopt;
+            return profile && profile->enabled ? profile->controlHotkey : std::nullopt;
         },
         [this]() {
             auto* macro = macroController_.activeMacro();
-            return macro ? macro->triggerKey : std::nullopt;
+            return macro && macro->enabled ? macro->triggerKey : std::nullopt;
         },
         [this]() { return captureCoordinator_.captureActive(); },
         [this]() { return engine_.IsToolRunning(); },

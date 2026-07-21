@@ -183,6 +183,11 @@ Ch552UsbDriver::~Ch552UsbDriver() {
     Disconnect();
 }
 
+std::wstring Ch552UsbDriver::DetectPortName() {
+    const auto ports = BuildAutoConnectPortList();
+    return ports.empty() ? std::wstring{} : ports.front();
+}
+
 bool Ch552UsbDriver::AutoConnect() {
     std::lock_guard lock(mutex_);
     ClosePortLocked();

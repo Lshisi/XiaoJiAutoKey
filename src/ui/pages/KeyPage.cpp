@@ -87,6 +87,15 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     profileCombo_->setMinimumWidth(120);
     profileCombo_->setFixedHeight(28);
     profileRow->addWidget(profileCombo_, 1);
+    profileEnabledLabel_ = new QLabel(QString::fromWCharArray(L"\u542f\u7528\u914d\u7f6e"), this);
+    profileEnabledLabel_->setFont(Fluent::Typography::caption());
+    QPalette enabledLabelPal = profileEnabledLabel_->palette();
+    enabledLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    profileEnabledLabel_->setPalette(enabledLabelPal);
+    profileRow->addWidget(profileEnabledLabel_);
+    profileEnabledSwitch_ = new FluentSwitch(this);
+    profileEnabledSwitch_->setToolTip(QString::fromWCharArray(L"\u505c\u7528\u540e\u4fdd\u7559\u914d\u7f6e\u5185\u5bb9\uff0c\u4f46\u4e0d\u54cd\u5e94\u5feb\u6377\u952e\u4e5f\u4e0d\u6267\u884c\u8fde\u53d1"));
+    profileRow->addWidget(profileEnabledSwitch_);
     profileAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);  // + icon
     profileAddBtn_->setFixedSize(28, 28);
     profileAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
@@ -202,7 +211,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(hotkeyLabel);
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
-    hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     auto* hotkeyRow = new QHBoxLayout();
     hotkeyRow->setSpacing(6);
     hotkeyRow->addWidget(hotkeyEdit_, 1);
@@ -290,6 +299,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(profileAddBtn_, &QPushButton::clicked, this, &KeyPage::profileAddRequested);
     connect(profileRenameBtn_, &QPushButton::clicked, this, &KeyPage::profileRenameRequested);
     connect(profileDeleteBtn_, &QPushButton::clicked, this, &KeyPage::profileDeleteRequested);
+    connect(profileEnabledSwitch_, &FluentSwitch::toggled, this, &KeyPage::profileEnabledToggled);
 
     connect(table_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
         if (item->column() == 0) {
@@ -307,15 +317,30 @@ void KeyPage::setBindings(const std::vector<KeyBinding>& bindings) {
     refreshTable();
 }
 
+void KeyPage::setProfileEnabled(bool enabled) {
+    profileEnabled_ = enabled;
+    profileEnabledSwitch_->blockSignals(true);
+    profileEnabledSwitch_->setChecked(enabled);
+    profileEnabledSwitch_->blockSignals(false);
+    startBtn_->setEnabled(running_ || profileEnabled_);
+    if (!running_) {
+        statusLabel_->setText(profileEnabled_
+            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
+            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528"));
+    }
+}
+
 void KeyPage::setRunning(bool running) {
     running_ = running;
     // Enable/disable buttons based on state
-    startBtn_->setEnabled(true);
+    startBtn_->setEnabled(running || profileEnabled_);
     startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
     updateStartBtnText();
     statusLabel_->setText(running
         ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
-        : QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"));
+        : (profileEnabled_
+            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
+            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528")));
 
     // Disable editing controls while running
     addBtn_->setEnabled(!running);
@@ -378,6 +403,12 @@ void KeyPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
     profileCombo_->refreshThemeStyle();
+    if (profileEnabledLabel_) {
+        QPalette labelPalette = profileEnabledLabel_->palette();
+        labelPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+        profileEnabledLabel_->setPalette(labelPalette);
+    }
+    if (profileEnabledSwitch_) profileEnabledSwitch_->update();
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();
     mixedModeCheck_->update();

@@ -16,6 +16,7 @@ public:
     bool AutoConnect();
     bool Connect(const std::wstring& portName);
     void Disconnect();
+    [[nodiscard]] static std::wstring DetectPortName();
 
     [[nodiscard]] bool IsReady() const noexcept override;
     [[nodiscard]] std::wstring GetLastError() const override;

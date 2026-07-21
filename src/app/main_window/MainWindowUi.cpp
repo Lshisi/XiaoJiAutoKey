@@ -108,6 +108,10 @@ void MainWindow::setupUi() {
             pageRefreshCoordinator_.refreshMacro();
             refreshStatusOverlay();
         },
+        [this]() {
+            pageRefreshCoordinator_.refreshMacroProfiles();
+            refreshStatusOverlay();
+        },
         [this]() { refreshStatusOverlay(); },
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this](bool running) { soundCoordinator_.playToggleSound(running, true); },

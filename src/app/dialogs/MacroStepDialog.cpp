@@ -44,7 +44,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     keyLabel->setFont(Fluent::Typography::body());
     keyLabel->setFixedWidth(62);
     auto* keyEdit = new FluentLineEdit(this);
-    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    keyEdit->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     formLayout->addWidget(keyLabel, 0, 0);
     formLayout->addWidget(keyEdit, 0, 1);
     setCaptureEditor(keyEdit);

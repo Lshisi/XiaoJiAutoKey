@@ -6,6 +6,7 @@
 #include "../components/FluentComboBox.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentCheckBox.h"
+#include "../components/FluentSwitch.h"
 #include "FactionTheme.h"
 
 #include <QVBoxLayout>
@@ -46,6 +47,15 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     macroCombo_->setMinimumWidth(120);
     macroCombo_->setFixedHeight(28);
     profileRow->addWidget(macroCombo_, 1);
+    macroEnabledLabel_ = new QLabel(QString::fromWCharArray(L"\u542f\u7528\u914d\u7f6e"), this);
+    macroEnabledLabel_->setFont(Fluent::Typography::caption());
+    QPalette enabledLabelPal = macroEnabledLabel_->palette();
+    enabledLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    macroEnabledLabel_->setPalette(enabledLabelPal);
+    profileRow->addWidget(macroEnabledLabel_);
+    macroEnabledSwitch_ = new FluentSwitch(this);
+    macroEnabledSwitch_->setToolTip(QString::fromWCharArray(L"\u505c\u7528\u540e\u4fdd\u7559\u914d\u7f6e\u5185\u5bb9\uff0c\u4f46\u4e0d\u54cd\u5e94\u5feb\u6377\u952e\u4e5f\u4e0d\u6267\u884c\u5faa\u73af"));
+    profileRow->addWidget(macroEnabledSwitch_);
     macroAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     macroAddBtn_->setFixedSize(28, 28);
     macroAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
@@ -158,7 +168,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(hotkeyLabel);
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
-    hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236\u6309\u952e..."));
+    hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     auto* hotkeyRow = new QHBoxLayout();
     hotkeyRow->setSpacing(6);
     hotkeyRow->addWidget(hotkeyEdit_, 1);
@@ -237,6 +247,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(macroAddBtn_, &QPushButton::clicked, this, &MacroPage::macroAddRequested);
     connect(macroRenameBtn_, &QPushButton::clicked, this, &MacroPage::macroRenameRequested);
     connect(macroDeleteBtn_, &QPushButton::clicked, this, &MacroPage::macroDeleteRequested);
+    connect(macroEnabledSwitch_, &FluentSwitch::toggled, this, &MacroPage::macroEnabledToggled);
 
     connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         // Hide loop count for Hold mode (按压模式)
@@ -290,13 +301,15 @@ void MacroPage::setLoopCount(int count) {
 
 void MacroPage::setRunning(bool running) {
     running_ = running;
-    startBtn_->setEnabled(true);
+    startBtn_->setEnabled(running || macroEnabled_);
     startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
     updateStartBtnText();
     if (statusLabel_) {
         statusLabel_->setText(running
             ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
-            : QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"));
+            : (macroEnabled_
+                ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
+                : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528")));
     }
     addBtn_->setEnabled(!running);
     table_->setEnabled(!running);
@@ -314,6 +327,19 @@ void MacroPage::setRunning(bool running) {
         hotkeyClearBtn_->setEnabled(!running && !hotkeyName_.isEmpty()
             && hotkeyName_ != QString::fromWCharArray(L"\u672a\u8bbe\u7f6e")
             && hotkeyName_ != QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+    }
+}
+
+void MacroPage::setMacroEnabled(bool enabled) {
+    macroEnabled_ = enabled;
+    macroEnabledSwitch_->blockSignals(true);
+    macroEnabledSwitch_->setChecked(enabled);
+    macroEnabledSwitch_->blockSignals(false);
+    startBtn_->setEnabled(running_ || macroEnabled_);
+    if (!running_ && statusLabel_) {
+        statusLabel_->setText(macroEnabled_
+            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
+            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528"));
     }
 }
 
@@ -353,6 +379,12 @@ void MacroPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
     macroCombo_->refreshThemeStyle();
+    if (macroEnabledLabel_) {
+        QPalette labelPalette = macroEnabledLabel_->palette();
+        labelPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+        macroEnabledLabel_->setPalette(labelPalette);
+    }
+    if (macroEnabledSwitch_) macroEnabledSwitch_->update();
     modeCombo_->refreshThemeStyle();
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();

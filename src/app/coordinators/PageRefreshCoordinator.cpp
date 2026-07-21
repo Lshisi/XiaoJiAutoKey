@@ -30,6 +30,7 @@ void PageRefreshCoordinator::refreshAll() {
     const QString hotkeyText = hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey;
 
     context_.view->keyPage()->setBindings(profile->bindings);
+    context_.view->keyPage()->setProfileEnabled(profile->enabled);
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
     context_.view->keyPage()->setHotkeyText(hotkeyText);
     context_.view->keyPage()->setBeepEnabled(context_.config->beepEnabled);
@@ -60,7 +61,9 @@ void PageRefreshCoordinator::refreshProfiles() {
 
     std::vector<std::pair<std::uint64_t, QString>> profiles;
     for (const auto& profile : context_.config->profiles) {
-        profiles.emplace_back(profile.id, QString::fromStdWString(profile.name));
+        QString name = QString::fromStdWString(profile.name);
+        if (!profile.enabled) name += QString::fromWCharArray(L"\uff08\u5df2\u505c\u7528\uff09");
+        profiles.emplace_back(profile.id, std::move(name));
     }
     context_.view->keyPage()->setProfiles(profiles, context_.config->activeProfileId);
 }
@@ -68,14 +71,11 @@ void PageRefreshCoordinator::refreshProfiles() {
 void PageRefreshCoordinator::refreshMacro() {
     if (!context_.view || !context_.config || !context_.macroEngine) return;
 
-    std::vector<std::pair<std::uint64_t, QString>> macroList;
-    for (const auto& macro : context_.config->macros) {
-        macroList.emplace_back(macro.id, QString::fromStdWString(macro.name));
-    }
-    context_.view->macroPage()->setMacroProfiles(macroList, context_.config->activeMacroId);
+    refreshMacroProfiles();
 
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
     if (macro) {
+        context_.view->macroPage()->setMacroEnabled(macro->enabled);
         context_.view->macroPage()->setSteps(macro->steps);
         context_.view->macroPage()->setPauseKeys(macro->pauseKeys);
         context_.view->macroPage()->setMode(macro->triggerMode);
@@ -85,10 +85,23 @@ void PageRefreshCoordinator::refreshMacro() {
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e");
         context_.view->macroPage()->setHotkeyText(hotkeyText);
     } else {
+        context_.view->macroPage()->setMacroEnabled(false);
         context_.view->macroPage()->setSteps({});
         context_.view->macroPage()->setPauseKeys({});
         context_.view->macroPage()->setMode(MacroTriggerMode::Toggle);
         context_.view->macroPage()->setLoopCount(0);
         context_.view->macroPage()->setHotkeyText(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
     }
+}
+
+void PageRefreshCoordinator::refreshMacroProfiles() {
+    if (!context_.view || !context_.config) return;
+
+    std::vector<std::pair<std::uint64_t, QString>> macroList;
+    for (const auto& macro : context_.config->macros) {
+        QString name = QString::fromStdWString(macro.name);
+        if (!macro.enabled) name += QString::fromWCharArray(L"\uff08\u5df2\u505c\u7528\uff09");
+        macroList.emplace_back(macro.id, std::move(name));
+    }
+    context_.view->macroPage()->setMacroProfiles(macroList, context_.config->activeMacroId);
 }

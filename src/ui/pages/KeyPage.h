@@ -20,6 +20,7 @@ public:
     explicit KeyPage(QWidget* parent = nullptr);
 
     void setBindings(const std::vector<KeyBinding>& bindings);
+    void setProfileEnabled(bool enabled);
     void setRunning(bool running);
     void setHotkeyText(const QString& text);
     void setBeepEnabled(bool enabled);
@@ -54,6 +55,7 @@ signals:
     void profileAddRequested();
     void profileRenameRequested();
     void profileDeleteRequested();
+    void profileEnabledToggled(bool enabled);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -89,4 +91,7 @@ private:
     FluentButton* profileAddBtn_;
     FluentButton* profileRenameBtn_;
     FluentButton* profileDeleteBtn_;
+    QLabel* profileEnabledLabel_ = nullptr;
+    FluentSwitch* profileEnabledSwitch_ = nullptr;
+    bool profileEnabled_ = true;
 };

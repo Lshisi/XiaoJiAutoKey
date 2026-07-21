@@ -23,6 +23,7 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPage::macroAddRequested, this, &MacroCoordinator::onMacroAdd);
     connect(context_.page, &MacroPage::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
     connect(context_.page, &MacroPage::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
+    connect(context_.page, &MacroPage::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
     connect(context_.page, &MacroPage::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
     connect(context_.page, &MacroPage::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
     connect(context_.page, &MacroPage::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
@@ -151,6 +152,41 @@ void MacroCoordinator::onMacroDelete() {
     if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
+void MacroCoordinator::onMacroEnabledToggled(bool enabled) {
+    if (!context_.controller || !context_.engine) return;
+    auto* macro = context_.controller->activeMacro();
+    if (!macro || macro->enabled == enabled) return;
+
+    auto result = context_.controller->setActiveMacroEnabled(enabled);
+    if (!result.ok) {
+        context_.page->setMacroEnabled(macro->enabled);
+        if (context_.refreshMacroProfileCombo) context_.refreshMacroProfileCombo();
+        return;
+    }
+
+    if (enabled && context_.validateActiveConfig) {
+        auto validation = context_.validateActiveConfig();
+        if (!validation.ok) {
+            context_.controller->setActiveMacroEnabled(false);
+            context_.page->setMacroEnabled(false);
+            if (context_.refreshMacroProfileCombo) context_.refreshMacroProfileCombo();
+            AppMessageDialog::warning(context_.parent,
+                QString::fromWCharArray(L"\u65e0\u6cd5\u542f\u7528\u914d\u7f6e"), validation.message);
+            return;
+        }
+    } else if (!enabled) {
+        context_.engine->StopAll();
+        lastMacroRunning_ = false;
+        context_.page->setRunning(false);
+    }
+
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setMacroEnabled(enabled);
+    if (context_.refreshMacroProfileCombo) context_.refreshMacroProfileCombo();
+    else if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
+}
+
 void MacroCoordinator::onMacroAddStep() {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
 
@@ -228,6 +264,7 @@ void MacroCoordinator::onMacroStartStopClicked() {
     if (!context_.controller || !context_.engine || !context_.page) return;
     auto* macro = context_.controller->activeMacro();
     if (!macro) return;
+    if (!macro->enabled) return;
 
     const bool running = context_.engine->IsRunning(macro->id);
     if (running) {

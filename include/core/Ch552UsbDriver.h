@@ -35,8 +35,10 @@ private:
     void ClosePortLocked();
     bool WriteLineLocked(const std::string& line);
     std::string ReadAvailableLocked(DWORD waitMs);
+    void DrainFastResponsesLocked();
     bool QueryVersionLocked();
     bool SendCommandLocked(const std::string& line);
+    bool SendFastCommandLocked(const std::string& line);
     static std::wstring FormatWin32Error(DWORD errorCode);
     static std::wstring NormalizePortName(const std::wstring& portName);
 
@@ -45,5 +47,7 @@ private:
     std::wstring portName_;
     std::wstring firmwareVersion_;
     std::wstring lastError_;
+    std::string fastResponseBuffer_;
+    bool fastInputSupported_ = false;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
 };

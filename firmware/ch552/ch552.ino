@@ -326,6 +326,7 @@ static void handle_command(__xdata char *line) {
   __xdata char *command = next_token(&cursor);
   __data uint8_t i;
   __data uint8_t down;
+  __data uint8_t fast;
   __data uint32_t device;
   __data uint32_t code;
 
@@ -343,7 +344,7 @@ static void handle_command(__xdata char *line) {
     return;
   }
   if (token_is(command, "VER")) {
-    cdc_write_line("OK XiaoJi USB V1.1.2");
+    cdc_write_line("OK XiaoJi USB V1.1.3");
     return;
   }
   if (token_is(command, "R")) {
@@ -364,8 +365,9 @@ static void handle_command(__xdata char *line) {
     return;
   }
 
-  down = token_is(command, "D");
-  if (!down && !token_is(command, "U")) {
+  fast = token_is(command, "FD") || token_is(command, "FU");
+  down = token_is(command, "D") || token_is(command, "FD");
+  if (!down && !token_is(command, "U") && !token_is(command, "FU")) {
     cdc_write_line("ERR UNKNOWN_COMMAND");
     return;
   }
@@ -377,7 +379,9 @@ static void handle_command(__xdata char *line) {
 
   if ((device == 0 && apply_keyboard(code, down)) ||
       (device == 1 && apply_mouse(code, down))) {
-    cdc_write_line("OK");
+    if (!fast) {
+      cdc_write_line("OK");
+    }
   } else {
     cdc_write_line("ERR UNSUPPORTED_KEY");
   }

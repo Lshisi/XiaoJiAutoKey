@@ -14,15 +14,21 @@
 namespace {
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
 constexpr char kUpdateCommand[] = "UPD 714021";
+constexpr char kFastInputFirmwareVersion[] = "XiaoJi USB V1.1.3";
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
 }
 
-std::string BuildCommand(char op, const KeyDescriptor& key) {
+std::string BuildCommand(char op, const KeyDescriptor& key, bool fast = false) {
     std::ostringstream stream;
+    if (fast) stream << 'F';
     stream << op << ' ' << (key.device == InputDevice::Mouse ? 1 : 0) << ' ' << key.code;
     return stream.str();
+}
+
+bool IsLatencySensitiveSource(InputSource src) {
+    return src == InputSource::Repeater || src == InputSource::Macro;
 }
 
 std::wstring ToLower(std::wstring value) {
@@ -295,20 +301,28 @@ bool Ch552UsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {
     return SendUp(key, src);
 }
 
-bool Ch552UsbDriver::SendDown(const KeyDescriptor& key, InputSource) {
+bool Ch552UsbDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     if (!key.IsValid()) return false;
     std::lock_guard lock(mutex_);
     if (handle_ == INVALID_HANDLE_VALUE) return false;
-    if (!SendCommandLocked(BuildCommand('D', key))) return false;
+    const bool fast = fastInputSupported_ && IsLatencySensitiveSource(src);
+    const bool sent = fast
+        ? SendFastCommandLocked(BuildCommand('D', key, true))
+        : SendCommandLocked(BuildCommand('D', key));
+    if (!sent) return false;
     ++pressedKeys_[EncodeKey(key)];
     return true;
 }
 
-bool Ch552UsbDriver::SendUp(const KeyDescriptor& key, InputSource) {
+bool Ch552UsbDriver::SendUp(const KeyDescriptor& key, InputSource src) {
     if (!key.IsValid()) return false;
     std::lock_guard lock(mutex_);
     if (handle_ == INVALID_HANDLE_VALUE) return false;
-    if (!SendCommandLocked(BuildCommand('U', key))) return false;
+    const bool fast = fastInputSupported_ && IsLatencySensitiveSource(src);
+    const bool sent = fast
+        ? SendFastCommandLocked(BuildCommand('U', key, true))
+        : SendCommandLocked(BuildCommand('U', key));
+    if (!sent) return false;
     const auto encoded = EncodeKey(key);
     auto it = pressedKeys_.find(encoded);
     if (it != pressedKeys_.end() && --it->second <= 0) {
@@ -364,9 +378,11 @@ bool Ch552UsbDriver::OpenPortLocked(const std::wstring& portName) {
     }
 
     COMMTIMEOUTS timeouts{};
-    timeouts.ReadIntervalTimeout = 10;
-    timeouts.ReadTotalTimeoutConstant = 60;
-    timeouts.ReadTotalTimeoutMultiplier = 1;
+    // Poll reads without the old per-command inter-character timeout. The
+    // caller owns the overall response deadline.
+    timeouts.ReadIntervalTimeout = MAXDWORD;
+    timeouts.ReadTotalTimeoutConstant = 0;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
     timeouts.WriteTotalTimeoutConstant = 80;
     timeouts.WriteTotalTimeoutMultiplier = 1;
     ::SetCommTimeouts(handle_, &timeouts);
@@ -382,6 +398,8 @@ void Ch552UsbDriver::ClosePortLocked() {
     }
     portName_.clear();
     firmwareVersion_.clear();
+    fastResponseBuffer_.clear();
+    fastInputSupported_ = false;
     pressedKeys_.clear();
 }
 
@@ -412,10 +430,32 @@ std::string Ch552UsbDriver::ReadAvailableLocked(DWORD waitMs) {
                 break;
             }
         } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(8));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     return result;
+}
+
+void Ch552UsbDriver::DrainFastResponsesLocked() {
+    std::array<char, 128> buffer{};
+    while (handle_ != INVALID_HANDLE_VALUE) {
+        DWORD bytesRead = 0;
+        if (!::ReadFile(handle_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr) ||
+            bytesRead == 0) {
+            break;
+        }
+        fastResponseBuffer_.append(buffer.data(), buffer.data() + bytesRead);
+    }
+
+    std::size_t newline = 0;
+    while ((newline = fastResponseBuffer_.find('\n')) != std::string::npos) {
+        std::string response = fastResponseBuffer_.substr(0, newline);
+        fastResponseBuffer_.erase(0, newline + 1);
+        response.erase(std::remove(response.begin(), response.end(), '\r'), response.end());
+        if (response.rfind("ERR", 0) == 0) {
+            lastError_ = L"USB fast input failed: " + ToWide(response);
+        }
+    }
 }
 
 bool Ch552UsbDriver::QueryVersionLocked() {
@@ -434,24 +474,41 @@ bool Ch552UsbDriver::QueryVersionLocked() {
     firmwareVersion_ = ToWide(response.substr(3));
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\r'), firmwareVersion_.end());
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\n'), firmwareVersion_.end());
+    fastInputSupported_ = response.find(kFastInputFirmwareVersion) != std::string::npos;
     SendCommandLocked("R");
     return true;
 }
 
 bool Ch552UsbDriver::SendCommandLocked(const std::string& line) {
+    DrainFastResponsesLocked();
     if (!WriteLineLocked(line)) {
         return false;
     }
-    const std::string response = ReadAvailableLocked(120);
-    if (response.find("OK") != std::string::npos) {
-        return true;
+
+    const DWORD started = ::GetTickCount();
+    std::string rejectedResponse;
+    while (::GetTickCount() - started < 120) {
+        const DWORD elapsed = ::GetTickCount() - started;
+        const std::string response = ReadAvailableLocked(std::max<DWORD>(1, 120 - elapsed));
+        if (response.find("OK") != std::string::npos) {
+            return true;
+        }
+        if (!response.empty()) {
+            rejectedResponse += response;
+        }
     }
-    if (!response.empty()) {
-        lastError_ = L"Device rejected command '" + ToWide(line) + L"': " + ToWide(response);
+
+    if (!rejectedResponse.empty()) {
+        lastError_ = L"Device rejected command '" + ToWide(line) + L"': " + ToWide(rejectedResponse);
     } else {
         lastError_ = L"No response for command '" + ToWide(line) + L"'";
     }
     return false;
+}
+
+bool Ch552UsbDriver::SendFastCommandLocked(const std::string& line) {
+    DrainFastResponsesLocked();
+    return WriteLineLocked(line);
 }
 
 std::wstring Ch552UsbDriver::FormatWin32Error(DWORD errorCode) {

@@ -27,6 +27,8 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
     connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
     connect(context_.page, &KeyPage::wasdProtectionToggled, this, &KeyBindingsCoordinator::onWasdProtectionToggled);
+    connect(context_.page, &KeyPage::sequenceSwitchKeyAddClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyAdd);
+    connect(context_.page, &KeyPage::sequenceSwitchKeyDeleteClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyDelete);
     connect(context_.page, &KeyPage::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
     connect(context_.page, &KeyPage::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
 }
@@ -150,6 +152,19 @@ void KeyBindingsCoordinator::onWasdProtectionToggled(bool enabled) {
     if (!result.ok) return;
     context_.engine->SetWasdProtection(enabled);
     if (context_.saveConfig) context_.saveConfig();
+}
+
+void KeyBindingsCoordinator::onSequenceSwitchKeyAdd() {
+    if (context_.startSequenceSwitchKeyCapture) context_.startSequenceSwitchKeyCapture();
+}
+
+void KeyBindingsCoordinator::onSequenceSwitchKeyDelete() {
+    if (!context_.controller) return;
+    auto result = context_.controller->clearSequenceSwitchKey();
+    if (!result.ok) return;
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
 }
 
 void KeyBindingsCoordinator::onPauseKeyAdd() {

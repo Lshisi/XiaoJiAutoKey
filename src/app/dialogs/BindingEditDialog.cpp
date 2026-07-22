@@ -60,6 +60,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     modeCombo_->addItem(QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f"));
     modeCombo_->addItem(QString::fromWCharArray(L"\u6309\u538b\u6a21\u5f0f"));
     modeCombo_->addItem(QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f"));
+    modeCombo_->addItem(QString::fromWCharArray(L"\u5207\u6362\u6a21\u5f0f"));
     formLayout->addWidget(modeLabel, 0, 2);
     formLayout->addWidget(modeCombo_, 0, 3);
 
@@ -113,6 +114,8 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
             modeCombo_->setCurrentIndex(1);
         } else if (existing->mode == RepeatMode::Independent) {
             modeCombo_->setCurrentIndex(2);
+        } else if (existing->mode == RepeatMode::Sequence) {
+            modeCombo_->setCurrentIndex(3);
         } else {
             modeCombo_->setCurrentIndex(0);
         }
@@ -157,6 +160,9 @@ BindingEditResult BindingEditDialog::editResult() const {
         break;
     case 2:
         value.mode = RepeatMode::Independent;
+        break;
+    case 3:
+        value.mode = RepeatMode::Sequence;
         break;
     default:
         value.mode = RepeatMode::Toggle;

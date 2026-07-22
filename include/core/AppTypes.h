@@ -14,6 +14,7 @@ enum class RepeatMode {
     Toggle,
     Hold,
     Independent,
+    Sequence,
 };
 
 enum class InputSource {
@@ -26,7 +27,7 @@ enum class InputSource {
 
 constexpr int kMinDelayMs = 1;
 constexpr int kDefaultDelayMs = 30;
-constexpr int kInputPulseWidthMs = 2;
+constexpr int kInputPulseWidthMs = 5;
 
 struct KeyDescriptor {
     InputDevice device = InputDevice::Keyboard;
@@ -89,6 +90,7 @@ struct ProfileConfig {
     int defaultDelayMs = kDefaultDelayMs;
     bool mixedMode = false;
     bool wasdProtection = false;
+    std::optional<KeyDescriptor> sequenceSwitchKey;
     std::vector<KeyDescriptor> pauseKeys;
     std::vector<KeyBinding> bindings;
 };

@@ -7,6 +7,7 @@
 #include "../components/FluentCard.h"
 #include "../components/FluentComboBox.h"
 #include "../components/FluentCheckBox.h"
+#include "../components/FluentPopupMenu.h"
 #include "FactionTheme.h"
 
 #include <QVBoxLayout>
@@ -15,11 +16,20 @@
 #include <QLabel>
 #include <QEvent>
 #include <QCheckBox>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QPainterPath>
+#include <QResizeEvent>
+#include <QTimer>
 
 namespace {
 constexpr int kTriggerCardHeight = 162;
+constexpr int kSequenceKeyLabelMaxWidth = 64;
+constexpr int kMaxVisiblePauseKeys = 3;
+constexpr int kPauseKeyLabelMaxWidth = 72;
+constexpr int kPauseTagChromeWidth = 28;
+constexpr int kPauseListSpacing = 4;
+constexpr int kPauseMoreButtonWidth = 42;
 
 class PriorityIconWidget : public QWidget {
 public:
@@ -153,28 +163,62 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     tableCard->contentLayout()->addWidget(pauseSeparator);
     tableCard->contentLayout()->addSpacing(8);
 
-    auto* pauseRow = new QHBoxLayout();
-    pauseRow->setSpacing(6);
-    auto* pauseLabel = new QLabel(QString::fromWCharArray(L"\u6682\u505c\u952e:"), this);
-    pauseLabel->setFont(Fluent::Typography::caption());
-    QPalette pauseLabelPal = pauseLabel->palette();
+    auto* keyToolsRow = new QHBoxLayout();
+    keyToolsRow->setContentsMargins(0, 0, 0, 0);
+    keyToolsRow->setSpacing(6);
+
+    sequenceSwitchLabel_ = new QLabel(QString::fromWCharArray(L"\u5207\u6362\u952e:"), this);
+    sequenceSwitchLabel_->setFont(Fluent::Typography::caption());
+    QPalette sequenceSwitchPalette = sequenceSwitchLabel_->palette();
+    sequenceSwitchPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    sequenceSwitchLabel_->setPalette(sequenceSwitchPalette);
+    sequenceSwitchLabel_->setToolTip(QString::fromWCharArray(L"\u6bcf\u6309\u4e00\u6b21\uff0c\u5207\u6362\u6a21\u5f0f\u6309\u952e\u6309\u5217\u8868\u987a\u5e8f\u5207\u6362\u5230\u4e0b\u4e00\u4e2a"));
+    keyToolsRow->addWidget(sequenceSwitchLabel_);
+
+    sequenceSwitchKeyWidget_ = new QWidget(this);
+    sequenceSwitchKeyWidget_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
+    sequenceSwitchKeyLayout_ = new QHBoxLayout(sequenceSwitchKeyWidget_);
+    sequenceSwitchKeyLayout_->setContentsMargins(0, 0, 0, 0);
+    sequenceSwitchKeyLayout_->setSpacing(4);
+    keyToolsRow->addWidget(sequenceSwitchKeyWidget_);
+
+    sequenceSwitchAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
+    sequenceSwitchAddBtn_->setFixedSize(24, 24);
+    sequenceSwitchAddBtn_->setFont(QFont("Segoe MDL2 Assets", 9));
+    sequenceSwitchAddBtn_->setToolTip(QString::fromWCharArray(L"\u5f55\u5236\u5207\u6362\u952e"));
+    keyToolsRow->addWidget(sequenceSwitchAddBtn_);
+
+    keyToolsDivider_ = new QWidget(this);
+    keyToolsDivider_->setFixedSize(1, 18);
+    keyToolsDivider_->setStyleSheet(QString("background: %1;")
+        .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+    keyToolsRow->addSpacing(4);
+    keyToolsRow->addWidget(keyToolsDivider_);
+    keyToolsRow->addSpacing(4);
+
+    pauseKeyLabel_ = new QLabel(QString::fromWCharArray(L"\u6682\u505c\u952e:"), this);
+    pauseKeyLabel_->setFont(Fluent::Typography::caption());
+    QPalette pauseLabelPal = pauseKeyLabel_->palette();
     pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    pauseLabel->setPalette(pauseLabelPal);
-    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
-    pauseRow->addWidget(pauseLabel);
+    pauseKeyLabel_->setPalette(pauseLabelPal);
+    pauseKeyLabel_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
+    keyToolsRow->addWidget(pauseKeyLabel_);
 
     pauseKeyListWidget_ = new QWidget(this);
+    pauseKeyListWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    pauseKeyListWidget_->setMinimumWidth(kPauseMoreButtonWidth);
     pauseKeyListLayout_ = new QHBoxLayout(pauseKeyListWidget_);
     pauseKeyListLayout_->setContentsMargins(0, 0, 0, 0);
     pauseKeyListLayout_->setSpacing(4);
-    pauseRow->addWidget(pauseKeyListWidget_, 1);
+    pauseKeyListWidget_->installEventFilter(this);
+    keyToolsRow->addWidget(pauseKeyListWidget_, 1);
 
     auto* pauseAddBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     pauseAddBtn->setFixedSize(24, 24);
     pauseAddBtn->setFont(QFont("Segoe MDL2 Assets", 9));
-    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u952e"));
-    pauseRow->addWidget(pauseAddBtn);
-    tableCard->contentLayout()->addLayout(pauseRow);
+    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u5f55\u5236\u6682\u505c\u952e"));
+    keyToolsRow->addWidget(pauseAddBtn);
+    tableCard->contentLayout()->addLayout(keyToolsRow);
 
     layout->addWidget(tableCard, 5);
 
@@ -242,7 +286,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
     mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
+    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
     mixedCard->contentLayout()->addSpacing(2);
     auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\uff0c\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
@@ -260,7 +304,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mixedCard->contentLayout()->addSpacing(8);
     wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361"), this);
     wasdProtectionCheck_->setFont(Fluent::Typography::body());
-    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173/\u72ec\u7acb\u6309\u952e\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
+    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
     mixedCard->contentLayout()->addSpacing(2);
     auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
@@ -285,6 +329,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &KeyPage::statusOverlayToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     connect(wasdProtectionCheck_, &QCheckBox::toggled, this, &KeyPage::wasdProtectionToggled);
+    connect(sequenceSwitchAddBtn_, &QPushButton::clicked, this, &KeyPage::sequenceSwitchKeyAddClicked);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
     connect(hotkeyClearBtn_, &QPushButton::clicked, this, &KeyPage::hotkeyClearClicked);
@@ -310,6 +355,8 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(table_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
         if (row >= 0 && row < (int)bindings_.size()) emit editRequested(bindings_[row].id);
     });
+
+    refreshSequenceSwitchKey();
 }
 
 void KeyPage::setBindings(const std::vector<KeyBinding>& bindings) {
@@ -350,6 +397,8 @@ void KeyPage::setRunning(bool running) {
     profileRenameBtn_->setEnabled(!running);
     profileDeleteBtn_->setEnabled(!running);
     table_->setEnabled(!running);
+    if (sequenceSwitchAddBtn_) sequenceSwitchAddBtn_->setEnabled(!running && !sequenceSwitchRecording_);
+    if (sequenceSwitchClearBtn_) sequenceSwitchClearBtn_->setEnabled(!running);
     beepCheck_->setEnabled(!running);
     if (statusOverlayCheck_) statusOverlayCheck_->setEnabled(!running);
     if (soundSettingsBtn_) soundSettingsBtn_->setEnabled(!running);
@@ -399,6 +448,12 @@ void KeyPage::setWasdProtection(bool enabled) {
     wasdProtectionCheck_->blockSignals(false);
 }
 
+void KeyPage::setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording) {
+    sequenceSwitchKey_ = key;
+    sequenceSwitchRecording_ = recording;
+    refreshSequenceSwitchKey();
+}
+
 void KeyPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
@@ -409,12 +464,28 @@ void KeyPage::updateThemeColors() {
         profileEnabledLabel_->setPalette(labelPalette);
     }
     if (profileEnabledSwitch_) profileEnabledSwitch_->update();
+    if (sequenceSwitchLabel_) {
+        QPalette palette = sequenceSwitchLabel_->palette();
+        palette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+        sequenceSwitchLabel_->setPalette(palette);
+    }
+    if (pauseKeyLabel_) {
+        QPalette palette = pauseKeyLabel_->palette();
+        palette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+        pauseKeyLabel_->setPalette(palette);
+    }
+    if (keyToolsDivider_) {
+        keyToolsDivider_->setStyleSheet(QString("background: %1;")
+            .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+    }
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();
     mixedModeCheck_->update();
     if (wasdProtectionCheck_) wasdProtectionCheck_->update();
     // Table checkboxes will be updated on next refreshTable()
     refreshTable();
+    refreshSequenceSwitchKey();
+    refreshPauseKeyList();
 }
 
 void KeyPage::applyPageTheme() {
@@ -427,9 +498,65 @@ void KeyPage::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
     refreshPauseKeyList();
 }
 
+void KeyPage::refreshSequenceSwitchKey() {
+    if (!sequenceSwitchKeyLayout_ || !sequenceSwitchKeyWidget_) return;
+
+    sequenceSwitchClearBtn_ = nullptr;
+    QLayoutItem* item = nullptr;
+    while ((item = sequenceSwitchKeyLayout_->takeAt(0)) != nullptr) {
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+
+    if (sequenceSwitchRecording_) {
+        auto* recordingLabel = new QLabel(QString::fromWCharArray(L"\u5f55\u5236\u4e2d"), sequenceSwitchKeyWidget_);
+        recordingLabel->setFont(Fluent::Typography::caption());
+        QPalette palette = recordingLabel->palette();
+        palette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+        recordingLabel->setPalette(palette);
+        sequenceSwitchKeyLayout_->addWidget(recordingLabel);
+    } else if (!sequenceSwitchKey_.has_value()) {
+        auto* emptyLabel = new QLabel(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"), sequenceSwitchKeyWidget_);
+        emptyLabel->setFont(Fluent::Typography::caption());
+        QPalette palette = emptyLabel->palette();
+        palette.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());
+        emptyLabel->setPalette(palette);
+        sequenceSwitchKeyLayout_->addWidget(emptyLabel);
+    } else {
+        auto* tag = new QWidget(sequenceSwitchKeyWidget_);
+        tag->setStyleSheet(QString("background: %1; border-radius: 4px;")
+            .arg(Fluent::Colors::hoverBg().name(QColor::HexArgb)));
+        auto* tagLayout = new QHBoxLayout(tag);
+        tagLayout->setContentsMargins(6, 2, 2, 2);
+        tagLayout->setSpacing(2);
+
+        const QString fullKeyName = QString::fromStdWString(GetKeyDisplayName(*sequenceSwitchKey_));
+        const QFontMetrics metrics(Fluent::Typography::caption());
+        const QString shownKeyName = metrics.elidedText(fullKeyName, Qt::ElideRight, kSequenceKeyLabelMaxWidth);
+        auto* keyLabel = new QLabel(shownKeyName, tag);
+        keyLabel->setFont(Fluent::Typography::caption());
+        keyLabel->setMaximumWidth(kSequenceKeyLabelMaxWidth);
+        if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
+        tagLayout->addWidget(keyLabel);
+
+        sequenceSwitchClearBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);
+        sequenceSwitchClearBtn_->setFixedSize(18, 18);
+        sequenceSwitchClearBtn_->setFont(QFont("Segoe MDL2 Assets", 7));
+        sequenceSwitchClearBtn_->setToolTip(QString::fromWCharArray(L"\u6e05\u9664\u5207\u6362\u952e"));
+        sequenceSwitchClearBtn_->setEnabled(!running_);
+        tagLayout->addWidget(sequenceSwitchClearBtn_);
+        sequenceSwitchKeyLayout_->addWidget(tag);
+
+        connect(sequenceSwitchClearBtn_, &QPushButton::clicked, this, &KeyPage::sequenceSwitchKeyDeleteClicked);
+    }
+    if (sequenceSwitchAddBtn_) sequenceSwitchAddBtn_->setEnabled(!running_ && !sequenceSwitchRecording_);
+}
+
 void KeyPage::refreshPauseKeyList() {
+    if (!pauseKeyListLayout_ || !pauseKeyListWidget_) return;
+
     // Clear existing items
-    QLayoutItem* item;
+    QLayoutItem* item = nullptr;
     while ((item = pauseKeyListLayout_->takeAt(0)) != nullptr) {
         if (item->widget()) {
             item->widget()->deleteLater();
@@ -445,7 +572,33 @@ void KeyPage::refreshPauseKeyList() {
         emptyLabel->setPalette(ePal);
         pauseKeyListLayout_->addWidget(emptyLabel);
     } else {
-        for (int i = 0; i < static_cast<int>(pauseKeys_.size()); ++i) {
+        const QFont captionFont = Fluent::Typography::caption();
+        const QFontMetrics metrics(captionFont);
+        const int totalCount = static_cast<int>(pauseKeys_.size());
+        const int availableWidth = pauseKeyListWidget_->width() > 0
+            ? pauseKeyListWidget_->width()
+            : 320;
+
+        auto tagWidth = [this, &metrics](int index) {
+            const QString keyName = QString::fromStdWString(GetKeyDisplayName(pauseKeys_[index]));
+            return qMin(metrics.horizontalAdvance(keyName), kPauseKeyLabelMaxWidth) + kPauseTagChromeWidth;
+        };
+        auto requiredWidth = [&tagWidth, totalCount](int visibleCount) {
+            int width = 0;
+            for (int i = 0; i < visibleCount; ++i) width += tagWidth(i);
+            const bool hasMore = visibleCount < totalCount;
+            const int widgetCount = visibleCount + (hasMore ? 1 : 0);
+            if (hasMore) width += kPauseMoreButtonWidth;
+            if (widgetCount > 1) width += (widgetCount - 1) * kPauseListSpacing;
+            return width;
+        };
+
+        int visibleCount = qMin(totalCount, kMaxVisiblePauseKeys);
+        while (visibleCount > 0 && requiredWidth(visibleCount) > availableWidth) {
+            --visibleCount;
+        }
+
+        for (int i = 0; i < visibleCount; ++i) {
             auto* tag = new QWidget(pauseKeyListWidget_);
             tag->setStyleSheet(QString("background: %1; border-radius: 4px;")
                 .arg(Fluent::Colors::hoverBg().name(QColor::HexArgb)));
@@ -453,13 +606,18 @@ void KeyPage::refreshPauseKeyList() {
             tagLayout->setContentsMargins(6, 2, 2, 2);
             tagLayout->setSpacing(2);
 
-            auto* keyLabel = new QLabel(QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i])), tag);
-            keyLabel->setFont(Fluent::Typography::caption());
+            const QString fullKeyName = QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i]));
+            const QString shownKeyName = metrics.elidedText(fullKeyName, Qt::ElideRight, kPauseKeyLabelMaxWidth);
+            auto* keyLabel = new QLabel(shownKeyName, tag);
+            keyLabel->setFont(captionFont);
+            keyLabel->setMaximumWidth(kPauseKeyLabelMaxWidth);
+            if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
             tagLayout->addWidget(keyLabel);
 
             auto* delBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);  // X icon
             delBtn->setFixedSize(18, 18);
             delBtn->setFont(QFont("Segoe MDL2 Assets", 7));
+            delBtn->setToolTip(QString::fromWCharArray(L"\u79fb\u9664\u6682\u505c\u952e %1").arg(fullKeyName));
             tagLayout->addWidget(delBtn);
 
             pauseKeyListLayout_->addWidget(tag);
@@ -467,6 +625,34 @@ void KeyPage::refreshPauseKeyList() {
             connect(delBtn, &QPushButton::clicked, this, [this, i]() {
                 emit pauseKeyDeleteClicked(i);
             });
+        }
+
+        const int hiddenCount = totalCount - visibleCount;
+        if (hiddenCount > 0) {
+            auto* moreBtn = new FluentButton(
+                FluentButton::Secondary, QString("+%1").arg(hiddenCount), pauseKeyListWidget_);
+            moreBtn->setFixedSize(kPauseMoreButtonWidth, 24);
+            moreBtn->setToolTip(QString::fromWCharArray(L"\u67e5\u770b\u5176\u4f59 %1 \u4e2a\u6682\u505c\u952e").arg(hiddenCount));
+
+            connect(moreBtn, &QPushButton::clicked, this, [this, moreBtn, visibleCount, totalCount]() {
+                QStringList hiddenKeyNames;
+                hiddenKeyNames.reserve(totalCount - visibleCount);
+                for (int i = visibleCount; i < totalCount; ++i) {
+                    hiddenKeyNames.push_back(QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i])));
+                }
+
+                FluentPopupMenu::Options options;
+                options.minWidth = 112;
+                options.maxWidth = 180;
+                options.itemHeight = 28;
+                options.maxVisibleItems = 8;
+                options.preferAbove = true;
+                options.trailingText = QString(QChar(0x00D7));
+                const QRect anchorRect(moreBtn->mapToGlobal(QPoint(0, 0)), moreBtn->size());
+                const int selected = FluentPopupMenu::exec(this, anchorRect, hiddenKeyNames, options);
+                if (selected >= 0) emit pauseKeyDeleteClicked(visibleCount + selected);
+            });
+            pauseKeyListLayout_->addWidget(moreBtn);
         }
     }
     pauseKeyListLayout_->addStretch();
@@ -520,6 +706,8 @@ void KeyPage::refreshTable() {
                 : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
         } else if (b.mode == RepeatMode::Independent) {
             mixedTip = QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f\u4e5f\u4f1a\u53d7\u8fde\u53d1\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u4f4d\u5f71\u54cd");
+        } else if (b.mode == RepeatMode::Sequence) {
+            mixedTip = QString::fromWCharArray(L"\u5207\u6362\u6a21\u5f0f\u4f1a\u53d7\u8fde\u53d1\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u5f71\u54cd");
         }
         auto* mixedWidget = new PriorityIconWidget(mixedKind);
         mixedWidget->setToolTip(mixedTip);
@@ -557,6 +745,19 @@ bool KeyPage::eventFilter(QObject* watched, QEvent* event) {
         if (running_) return true;  // Ignore clicks while running
         emit hotkeyEditClicked();
         return true;
+    }
+    if (watched == pauseKeyListWidget_ && event->type() == QEvent::Resize) {
+        const int width = static_cast<QResizeEvent*>(event)->size().width();
+        if (width != pauseListWidth_) {
+            pauseListWidth_ = width;
+            if (!pauseRefreshQueued_) {
+                pauseRefreshQueued_ = true;
+                QTimer::singleShot(0, this, [this]() {
+                    pauseRefreshQueued_ = false;
+                    refreshPauseKeyList();
+                });
+            }
+        }
     }
     return QWidget::eventFilter(watched, event);
 }

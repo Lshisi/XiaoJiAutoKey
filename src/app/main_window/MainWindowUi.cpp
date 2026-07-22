@@ -55,6 +55,7 @@ void MainWindow::setupUi() {
         &engine_,
         [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
         [this]() { captureCoordinator_.startMainHotkeyCapture(); },
+        [this]() { captureCoordinator_.startSequenceSwitchKeyCapture(); },
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this]() { engineStateCoordinator_.applyBindings(); },
         [this]() { configCoordinator_.save(); },
@@ -188,6 +189,7 @@ void MainWindow::setupUi() {
         &macroController_,
         &inputHook_,
         &rawInput_,
+        [this]() { engineStateCoordinator_.applyBindings(); },
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
         [this]() {

@@ -148,13 +148,17 @@ std::wstring RepeatModeToText(RepeatMode mode) {
         return L"\u6309\u538b";
     case RepeatMode::Independent:
         return L"\u72ec\u7acb";
+    case RepeatMode::Sequence:
+        return L"\u5207\u6362";
     default:
         return L"\u672a\u77e5";
     }
 }
 
 bool IsToggleLikeRepeatMode(RepeatMode mode) noexcept {
-    return mode == RepeatMode::Toggle || mode == RepeatMode::Independent;
+    return mode == RepeatMode::Toggle
+        || mode == RepeatMode::Independent
+        || mode == RepeatMode::Sequence;
 }
 
 std::wstring DeviceToText(InputDevice device) {

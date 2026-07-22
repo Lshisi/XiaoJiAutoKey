@@ -60,6 +60,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         const auto mode = GetStringField(*entry, "mode").value_or("toggle");
         if (mode == "hold") binding.mode = RepeatMode::Hold;
         else if (mode == "independent") binding.mode = RepeatMode::Independent;
+        else if (mode == "sequence") binding.mode = RepeatMode::Sequence;
         else binding.mode = RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
         result.push_back(binding);
@@ -133,6 +134,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         const char* mode = "toggle";
         if (b.mode == RepeatMode::Hold) mode = "hold";
         else if (b.mode == RepeatMode::Independent) mode = "independent";
+        else if (b.mode == RepeatMode::Sequence) mode = "sequence";
         entry.emplace("mode", std::string(mode));
         entry.emplace("delayMs", b.delayMs);
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
@@ -279,6 +281,8 @@ AppConfig ConfigStore::Load() const {
                 profile.enabled = GetBoolField(*pObj, "enabled").value_or(true);
                 if (auto hotkeyText = GetStringField(*pObj, "controlHotkey"))
                     profile.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
+                if (auto switchKeyText = GetStringField(*pObj, "sequenceSwitchKey"))
+                    profile.sequenceSwitchKey = StorageToKeyDescriptor(ToWide(*switchKeyText));
                 if (auto delay = GetIntField(*pObj, "defaultDelayMs"); delay.has_value() && *delay > 0)
                     profile.defaultDelayMs = std::max(*delay, kMinDelayMs);
                 if (auto mixed = GetBoolField(*pObj, "mixedMode"); mixed.has_value())
@@ -389,6 +393,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
         pObj.emplace("name", ToUtf8(profile.name));
         pObj.emplace("enabled", profile.enabled);
         pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
+        pObj.emplace("sequenceSwitchKey", ToUtf8(KeyDescriptorToStorage(profile.sequenceSwitchKey)));
         pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
         pObj.emplace("mixedMode", profile.mixedMode);
         pObj.emplace("wasdProtection", profile.wasdProtection);

@@ -27,6 +27,8 @@ public:
 
     ControllerResult setControlHotkey(const KeyDescriptor& key);
     ControllerResult clearControlHotkey();
+    ControllerResult setSequenceSwitchKey(const KeyDescriptor& key);
+    ControllerResult clearSequenceSwitchKey();
     ControllerResult setMixedMode(bool enabled);
     ControllerResult setWasdProtection(bool enabled);
 

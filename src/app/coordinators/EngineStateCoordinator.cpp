@@ -53,6 +53,8 @@ void EngineStateCoordinator::applyBindings() {
     context_.repeaterEngine->UpdateBindings(profile->enabled ? profile->bindings : std::vector<KeyBinding>{});
     context_.repeaterEngine->SetMixedMode(profile->enabled && profile->mixedMode);
     context_.repeaterEngine->SetWasdProtection(profile->enabled && profile->wasdProtection);
+    context_.repeaterEngine->SetSequenceSwitchKey(
+        profile->enabled ? profile->sequenceSwitchKey : std::nullopt);
     context_.repeaterEngine->SetPauseKeys(profile->enabled ? profile->pauseKeys : std::vector<KeyDescriptor>{});
 
     if (context_.refreshHookState) context_.refreshHookState();

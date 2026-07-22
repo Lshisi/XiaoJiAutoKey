@@ -87,6 +87,7 @@ set(CORE_SOURCES
 set(UI_COMPONENT_SOURCES
     src/ui/components/FactionMenu.cpp
     src/ui/components/FactionIcon.cpp
+    src/ui/components/FluentPopupMenu.cpp
     src/ui/components/FluentTitleBar.cpp
     src/ui/components/FluentSidebar.cpp
     src/ui/components/FluentButton.cpp
@@ -110,6 +111,7 @@ set(UI_PAGE_SOURCES
 set(UI_COMPONENT_HEADERS
     src/ui/components/FactionMenu.h
     src/ui/components/FactionIcon.h
+    src/ui/components/FluentPopupMenu.h
     src/ui/components/FluentTitleBar.h
     src/ui/components/FluentSidebar.h
     src/ui/components/FluentButton.h

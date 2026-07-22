@@ -3,7 +3,7 @@
 #include <algorithm>
 
 namespace {
-constexpr int kWasdProtectionMinIntervalMs = 50;
+constexpr int kWasdProtectionMinIntervalMs = 35;
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -56,6 +56,12 @@ void RepeaterEngine::SetWasdProtection(bool enabled) {
     wasdProtection_ = enabled;
 }
 
+void RepeaterEngine::SetSequenceSwitchKey(std::optional<KeyDescriptor> key) {
+    std::lock_guard lock(mutex_);
+    sequenceSwitchKey_ = key;
+    sequenceSwitchDown_ = false;
+}
+
 void RepeaterEngine::SetSelfInjectedKeyboardVisible(bool visible) {
     std::lock_guard lock(mutex_);
     if (selfInjectedKeyboardVisible_ == visible) {
@@ -106,11 +112,17 @@ void RepeaterEngine::SetToolRunning(bool running) {
     independentDownIgnoreCount_.clear();
     independentUpIgnoreCount_.clear();
     independentActiveKey_.reset();
+    sequenceSwitchDown_ = false;
+    sequenceActiveTaskId_.reset();
 
     for (auto& t : tasks_) {
-        t.lastDownTime = {};
+        t.lastUpTime = {};
         t.isDown = false;
         t.downTime = {};
+    }
+
+    if (running) {
+        NormalizeSequenceSelectionLocked();
     }
 
     driver_.SetSourceActive(InputSource::Repeater, running);
@@ -121,6 +133,14 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
+
+    if (sequenceSwitchKey_.has_value() && *sequenceSwitchKey_ == key) {
+        if (!sequenceSwitchDown_) {
+            sequenceSwitchDown_ = true;
+            AdvanceSequenceSelectionLocked();
+        }
+        return;
+    }
 
     // 暂停键追踪
     for (const auto& pk : pauseKeys_) {
@@ -189,6 +209,11 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
+
+    if (sequenceSwitchKey_.has_value() && *sequenceSwitchKey_ == key) {
+        sequenceSwitchDown_ = false;
+        return;
+    }
 
     // 暂停键追踪
     pauseKeysDown_.erase(key);
@@ -286,9 +311,73 @@ void RepeaterEngine::NormalizeIndependentSelectionLocked() {
 void RepeaterEngine::ResetIndependentTaskTimingLocked(const KeyDescriptor& key) {
     for (auto& t : tasks_) {
         if (t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key) {
-            t.lastDownTime = {};
+            t.lastUpTime = {};
         }
     }
+}
+
+void RepeaterEngine::NormalizeSequenceSelectionLocked() {
+    if (sequenceActiveTaskId_.has_value()) {
+        const bool stillValid = std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+            return t.config.enabled
+                && t.config.mode == RepeatMode::Sequence
+                && t.config.id == *sequenceActiveTaskId_;
+        });
+        if (stillValid) {
+            return;
+        }
+    }
+
+    sequenceActiveTaskId_.reset();
+    if (!toolRunning_) {
+        return;
+    }
+
+    const auto first = std::find_if(tasks_.begin(), tasks_.end(), [](const TaskRuntime& t) {
+        return t.config.enabled && t.config.mode == RepeatMode::Sequence;
+    });
+    if (first != tasks_.end()) {
+        sequenceActiveTaskId_ = first->config.id;
+    }
+}
+
+void RepeaterEngine::AdvanceSequenceSelectionLocked() {
+    if (!toolRunning_) {
+        return;
+    }
+
+    std::vector<std::size_t> sequenceIndexes;
+    sequenceIndexes.reserve(tasks_.size());
+    for (std::size_t i = 0; i < tasks_.size(); ++i) {
+        if (tasks_[i].config.enabled && tasks_[i].config.mode == RepeatMode::Sequence) {
+            sequenceIndexes.push_back(i);
+        }
+    }
+    if (sequenceIndexes.empty()) {
+        sequenceActiveTaskId_.reset();
+        return;
+    }
+
+    std::size_t nextPosition = 0;
+    if (sequenceActiveTaskId_.has_value()) {
+        const auto current = std::find_if(sequenceIndexes.begin(), sequenceIndexes.end(), [&](std::size_t index) {
+            return tasks_[index].config.id == *sequenceActiveTaskId_;
+        });
+        if (current != sequenceIndexes.end()) {
+            auto& currentTask = tasks_[*current];
+            if (currentTask.isDown) {
+                driver_.SendUp(currentTask.config.key, InputSource::Repeater);
+                currentTask.isDown = false;
+                currentTask.lastUpTime = Now();
+            }
+            nextPosition = (static_cast<std::size_t>(std::distance(sequenceIndexes.begin(), current)) + 1)
+                % sequenceIndexes.size();
+        }
+    }
+
+    auto& nextTask = tasks_[sequenceIndexes[nextPosition]];
+    sequenceActiveTaskId_ = nextTask.config.id;
+    nextTask.lastUpTime = {};
 }
 
 bool RepeaterEngine::IsWasdProtectionActive() const {
@@ -309,6 +398,8 @@ void RepeaterEngine::ReleaseAll() {
     independentDownIgnoreCount_.clear();
     independentUpIgnoreCount_.clear();
     independentActiveKey_.reset();
+    sequenceSwitchDown_ = false;
+    sequenceActiveTaskId_.reset();
     ResetAllLocked();
     driver_.ReleaseSource(InputSource::Repeater);
 }
@@ -342,7 +433,7 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
             [&](auto& x) { return x.config.id == b.id; });
 
         if (it != tasks_.end()) {
-            t.lastDownTime = it->lastDownTime;
+            t.lastUpTime = it->lastUpTime;
         }
 
         updated.push_back(t);
@@ -351,6 +442,7 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
 
     tasks_ = std::move(updated);
     NormalizeIndependentSelectionLocked();
+    NormalizeSequenceSelectionLocked();
     driver_.SetSourceKeys(InputSource::Repeater, sourceKeys);
 }
 
@@ -367,17 +459,25 @@ void RepeaterEngine::WorkerLoop() {
             batchGeneration = runGeneration_.load();
 
             NormalizeIndependentSelectionLocked();
+            NormalizeSequenceSelectionLocked();
 
             const bool holdActive = IsHoldActive();
             const bool pauseActive = IsPauseActive();
             const bool wasdProtectionActive = IsWasdProtectionActive();
             const std::optional<KeyDescriptor> selectedIndependentKey = independentActiveKey_;
+            const std::optional<std::uint64_t> selectedSequenceTaskId = sequenceActiveTaskId_;
+            const auto queueRelease = [&](TaskRuntime& task) {
+                releases.push_back(task.config.key);
+                task.isDown = false;
+                task.lastUpTime = Now();
+            };
 
             for (auto& t : tasks_) {
                 if (!t.config.enabled) continue;
 
                 const bool isHoldMode = t.config.mode == RepeatMode::Hold;
                 const bool isIndependentMode = t.config.mode == RepeatMode::Independent;
+                const bool isSequenceMode = t.config.mode == RepeatMode::Sequence;
                 const bool isToggleLikeMode = IsToggleLikeRepeatMode(t.config.mode);
 
                 int interval = std::max(kMinDelayMs, t.config.intervalMs);
@@ -389,8 +489,7 @@ void RepeaterEngine::WorkerLoop() {
                     const bool isDown = holdPhysicalDown_.count(t.config.key) > 0;
                     if (!isDown) {
                         if (t.isDown) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
+                            queueRelease(t);
                         }
                         continue;
                     }
@@ -398,30 +497,41 @@ void RepeaterEngine::WorkerLoop() {
                     const bool selected = selectedIndependentKey.has_value() && *selectedIndependentKey == t.config.key;
                     if (!toolRunning_ || !selected) {
                         if (t.isDown) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
+                            queueRelease(t);
                         }
                         continue;
                     }
                     if ((mixedMode_ && holdActive) || pauseActive) {
                         if (t.isDown) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
+                            queueRelease(t);
+                        }
+                        continue;
+                    }
+                } else if (isSequenceMode) {
+                    const bool selected = selectedSequenceTaskId.has_value()
+                        && *selectedSequenceTaskId == t.config.id;
+                    if (!toolRunning_ || !selected) {
+                        if (t.isDown) {
+                            queueRelease(t);
+                        }
+                        continue;
+                    }
+                    if ((mixedMode_ && holdActive) || pauseActive) {
+                        if (t.isDown) {
+                            queueRelease(t);
                         }
                         continue;
                     }
                 } else {
                     if (!toolRunning_) {
                         if (t.isDown) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
+                            queueRelease(t);
                         }
                         continue;
                     }
                     if ((mixedMode_ && holdActive) || pauseActive) {
                         if (t.isDown) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
+                            queueRelease(t);
                         }
                         continue;
                     }
@@ -431,18 +541,16 @@ void RepeaterEngine::WorkerLoop() {
 
                 if (t.isDown) {
                     if (now - t.downTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
-                        releases.push_back(t.config.key);
-                        t.isDown = false;
+                        queueRelease(t);
                     }
                     continue;
                 }
 
-                if (t.lastDownTime == std::chrono::steady_clock::time_point{}
-                    || now - t.lastDownTime >= std::chrono::milliseconds(interval)) {
+                if (t.lastUpTime == std::chrono::steady_clock::time_point{}
+                    || now - t.lastUpTime >= std::chrono::milliseconds(interval)) {
                     presses.push_back(t.config.key);
                     t.isDown = true;
                     t.downTime = now;
-                    t.lastDownTime = now;
                 }
             }
 
@@ -465,7 +573,7 @@ void RepeaterEngine::WorkerLoop() {
 }
 void RepeaterEngine::ResetAllLocked() {
     for (auto& t : tasks_) {
-        t.lastDownTime = {};
+        t.lastUpTime = {};
         t.isDown = false;
         t.downTime = {};
     }

@@ -46,7 +46,7 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
             rt.active = it->active;
             rt.currentStep = it->currentStep;
             rt.loopsCompleted = it->loopsCompleted;
-            rt.lastDownTime = it->lastDownTime;
+            rt.lastUpTime = it->lastUpTime;
             rt.waitingDelay = it->waitingDelay;
             rt.keyDown = it->keyDown;
             rt.keyDownTime = it->keyDownTime;
@@ -89,7 +89,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.active = true;
                 rt.currentStep = 0;
                 rt.loopsCompleted = 0;
-                rt.lastDownTime = {};
+                rt.lastUpTime = {};
                 rt.waitingDelay = false;
                 rt.keyDown = false;
                 rt.keyDownTime = {};
@@ -100,7 +100,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.active = true;
                 rt.currentStep = 0;
                 rt.loopsCompleted = 0;
-                rt.lastDownTime = {};
+                rt.lastUpTime = {};
                 rt.waitingDelay = false;
                 rt.keyDown = false;
                 rt.keyDownTime = {};
@@ -185,7 +185,7 @@ void MacroEngine::ResetRuntime(MacroRuntime& rt) {
     rt.active = false;
     rt.currentStep = 0;
     rt.loopsCompleted = 0;
-    rt.lastDownTime = {};
+    rt.lastUpTime = {};
     rt.waitingDelay = false;
     rt.keyDown = false;
     rt.keyDownTime = {};
@@ -219,11 +219,14 @@ void MacroEngine::WorkerLoop() {
 
                 if (pauseActive) {
                     if (rt.keyDown && rt.currentStep >= 0 && rt.currentStep < static_cast<int>(rt.config.steps.size())) {
+                        const auto now = Now();
                         const auto& step = rt.config.steps[rt.currentStep];
                         if (step.key.IsValid()) {
                             toSend.push_back({step.key, false});
                         }
                         rt.keyDown = false;
+                        rt.lastUpTime = now;
+                        rt.waitingDelay = true;
                     }
                     continue;
                 }
@@ -238,6 +241,7 @@ void MacroEngine::WorkerLoop() {
                             toSend.push_back({step.key, false});  // up
                         }
                         rt.keyDown = false;
+                        rt.lastUpTime = now;
                         rt.waitingDelay = true;
                     }
                     continue;
@@ -247,7 +251,7 @@ void MacroEngine::WorkerLoop() {
                 if (rt.waitingDelay) {
                     const auto& step = rt.config.steps[rt.currentStep];
                     const int delay = std::max(kMinDelayMs, step.delayAfterMs);
-                    if (now - rt.lastDownTime < std::chrono::milliseconds(delay)) {
+                    if (now - rt.lastUpTime < std::chrono::milliseconds(delay)) {
                         continue;
                     }
                     // 间隔结束，前进到下一步
@@ -277,7 +281,6 @@ void MacroEngine::WorkerLoop() {
                     }
                     rt.keyDown = true;
                     rt.keyDownTime = now;
-                    rt.lastDownTime = now;
                 }
             }
             SyncSourceActiveLocked();

@@ -27,6 +27,7 @@ public:
     void setStatusOverlayEnabled(bool enabled);
     void setMixedMode(bool enabled);
     void setWasdProtection(bool enabled);
+    void setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording = false);
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void updateThemeColors();
     FluentLineEdit* hotkeyEditWidget() const { return hotkeyEdit_; }
@@ -46,6 +47,8 @@ signals:
     void statusOverlayToggled(bool enabled);
     void mixedModeToggled(bool enabled);
     void wasdProtectionToggled(bool enabled);
+    void sequenceSwitchKeyAddClicked();
+    void sequenceSwitchKeyDeleteClicked();
     void pauseKeyAddClicked();
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
@@ -63,6 +66,7 @@ protected:
 private:
     void refreshTable();
     void updateStartBtnText();
+    void refreshSequenceSwitchKey();
     void refreshPauseKeyList();
     void applyPageTheme();
 
@@ -78,13 +82,24 @@ private:
     QCheckBox* wasdProtectionCheck_ = nullptr;
     QLabel* statusLabel_;
     std::vector<KeyBinding> bindings_;
+    std::optional<KeyDescriptor> sequenceSwitchKey_;
     std::vector<KeyDescriptor> pauseKeys_;
+    bool sequenceSwitchRecording_ = false;
     QString hotkeyName_;
     bool running_ = false;
 
-    // Pause key UI
+    // Sequence switch and pause key UI
+    QWidget* sequenceSwitchKeyWidget_ = nullptr;
+    QHBoxLayout* sequenceSwitchKeyLayout_ = nullptr;
+    QLabel* sequenceSwitchLabel_ = nullptr;
+    FluentButton* sequenceSwitchAddBtn_ = nullptr;
+    FluentButton* sequenceSwitchClearBtn_ = nullptr;
+    QLabel* pauseKeyLabel_ = nullptr;
+    QWidget* keyToolsDivider_ = nullptr;
     QWidget* pauseKeyListWidget_ = nullptr;
     QHBoxLayout* pauseKeyListLayout_ = nullptr;
+    int pauseListWidth_ = -1;
+    bool pauseRefreshQueued_ = false;
 
     // Profile UI
     FluentComboBox* profileCombo_;

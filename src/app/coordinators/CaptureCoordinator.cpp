@@ -1,5 +1,6 @@
 #include "coordinators/CaptureCoordinator.h"
 
+#include "config/ActiveConfigValidator.h"
 #include "controllers/MacroController.h"
 #include "controllers/ProfileController.h"
 #include "dialogs/AppMessageDialog.h"
@@ -50,6 +51,13 @@ bool CaptureCoordinator::captureActive() const {
 
 void CaptureCoordinator::startMainHotkeyCapture() {
     target_ = Target::MainHotkey;
+    if (context_.refreshHookState) context_.refreshHookState();
+    if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
+    updateHotkeyText();
+}
+
+void CaptureCoordinator::startSequenceSwitchKeyCapture() {
+    target_ = Target::SequenceSwitchKey;
     if (context_.refreshHookState) context_.refreshHookState();
     if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
     updateHotkeyText();
@@ -160,6 +168,33 @@ void CaptureCoordinator::handleDecodedKey(const KeyDescriptor& key) {
         return;
     }
 
+    if (*target_ == Target::SequenceSwitchKey) {
+        target_.reset();
+        if (context_.refreshHookState) context_.refreshHookState();
+        if (!context_.profileController) return;
+
+        auto* profile = context_.profileController->activeProfile();
+        auto* macro = context_.macroController ? context_.macroController->activeMacro() : nullptr;
+        auto validation = ActiveConfigValidator::validateSequenceSwitchKeyCandidate(key, profile, macro);
+        if (!validation.ok) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+            updateHotkeyText();
+            if (context_.refreshAll) context_.refreshAll();
+            return;
+        }
+
+        auto result = context_.profileController->setSequenceSwitchKey(key);
+        if (!result.ok) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        } else {
+            if (context_.applyBindings) context_.applyBindings();
+            if (context_.saveConfig) context_.saveConfig();
+        }
+        updateHotkeyText();
+        if (context_.refreshAll) context_.refreshAll();
+        return;
+    }
+
     if (*target_ == Target::DialogKey && activeDialog_) return;
     target_.reset();
     if (context_.refreshHookState) context_.refreshHookState();
@@ -168,11 +203,15 @@ void CaptureCoordinator::handleDecodedKey(const KeyDescriptor& key) {
 void CaptureCoordinator::updateHotkeyText() {
     if (!context_.keyPage || !context_.settingsPage || !context_.profileController) return;
     auto* profile = context_.profileController->activeProfile();
+    const bool recordingSequenceSwitch = target_.has_value() && *target_ == Target::SequenceSwitchKey;
     const QString text = target_.has_value() && *target_ == Target::MainHotkey
         ? QString::fromWCharArray(L"\u5f55\u5236\u4e2d")
         : (profile && profile->controlHotkey.has_value()
             ? QString::fromStdWString(GetKeyDisplayName(*profile->controlHotkey))
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
     context_.keyPage->setHotkeyText(text);
+    context_.keyPage->setSequenceSwitchKey(
+        profile ? profile->sequenceSwitchKey : std::nullopt,
+        recordingSequenceSwitch);
     context_.settingsPage->setHotkeyText(text);
 }

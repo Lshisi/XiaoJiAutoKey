@@ -29,7 +29,7 @@ struct TaskConfig {
 
 struct TaskRuntime {
     TaskConfig config;
-    std::chrono::steady_clock::time_point lastDownTime{};
+    std::chrono::steady_clock::time_point lastUpTime{};
     bool isDown = false;
     std::chrono::steady_clock::time_point downTime{};
 };
@@ -47,6 +47,7 @@ public:
     bool IsToolRunning() const noexcept;
     void SetMixedMode(bool enabled);
     void SetWasdProtection(bool enabled);
+    void SetSequenceSwitchKey(std::optional<KeyDescriptor> key);
     void SetSelfInjectedKeyboardVisible(bool visible);
     void SetSelfInjectedMouseVisible(bool visible);
     void SetPauseKeys(const std::vector<KeyDescriptor>& keys);
@@ -62,6 +63,8 @@ private:
     void ResetAllLocked();
     void NormalizeIndependentSelectionLocked();
     void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
+    void NormalizeSequenceSelectionLocked();
+    void AdvanceSequenceSelectionLocked();
     static std::chrono::steady_clock::time_point Now();
 
     InputDriver& driver_;
@@ -100,4 +103,8 @@ private:
     std::unordered_map<std::uint64_t, int> independentDownIgnoreCount_;
     std::unordered_map<std::uint64_t, int> independentUpIgnoreCount_;
     std::optional<KeyDescriptor> independentActiveKey_;
+
+    std::optional<KeyDescriptor> sequenceSwitchKey_;
+    bool sequenceSwitchDown_ = false;
+    std::optional<std::uint64_t> sequenceActiveTaskId_;
 };

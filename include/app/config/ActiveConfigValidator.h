@@ -19,5 +19,9 @@ namespace ActiveConfigValidator {
     bool enabled,
     const ProfileConfig* profile,
     const MacroConfig* macro);
+[[nodiscard]] ControllerResult validateSequenceSwitchKeyCandidate(
+    const KeyDescriptor& key,
+    const ProfileConfig* profile,
+    const MacroConfig* macro);
 
 }  // namespace ActiveConfigValidator

@@ -16,7 +16,7 @@ struct MacroRuntime {
     bool active = false;
     int currentStep = 0;
     int loopsCompleted = 0;
-    std::chrono::steady_clock::time_point lastDownTime{};
+    std::chrono::steady_clock::time_point lastUpTime{};
     bool waitingDelay = false;
     bool keyDown = false;
     std::chrono::steady_clock::time_point keyDownTime{};

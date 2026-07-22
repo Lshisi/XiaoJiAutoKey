@@ -24,6 +24,11 @@ ControllerResult hotkeyConflict(const KeyDescriptor& key, const wchar_t* hotkeyO
         .arg(KeyName(key), QString::fromWCharArray(hotkeyOwner), QString::fromWCharArray(childOwner)));
 }
 
+ControllerResult sequenceSwitchConflict(const KeyDescriptor& key) {
+    return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6309\u952e\u8fde\u53d1\u7684\u5207\u6362\u952e\uff0c\u4e0d\u80fd\u518d\u7528\u4e8e\u5176\u4ed6\u6309\u952e\u529f\u80fd\u3002")
+        .arg(KeyName(key)));
+}
+
 }  // namespace
 
 namespace ActiveConfigValidator {
@@ -36,6 +41,9 @@ ControllerResult validateChildKeyCandidate(
     if (macro && !macro->enabled) macro = nullptr;
     if (profile && SameKey(profile->controlHotkey, key)) {
         return childConflict(key, L"\u6309\u952e\u8fde\u53d1");
+    }
+    if (profile && SameKey(profile->sequenceSwitchKey, key)) {
+        return sequenceSwitchConflict(key);
     }
     if (macro && SameKey(macro->triggerKey, key)) {
         return childConflict(key, L"\u5b8f\u5faa\u73af");
@@ -66,10 +74,14 @@ ControllerResult validateHotkeyCandidate(
         ? L"\u6309\u952e\u8fde\u53d1"
         : (isMacroHotkey ? L"\u5b8f\u5faa\u73af" : L"\u542f\u505c");
 
+    if (profile && SameKey(profile->sequenceSwitchKey, key)) {
+        return sequenceSwitchConflict(key);
+    }
+
     if (profile) {
         for (const auto& binding : profile->bindings) {
             if (binding.enabled && binding.key == key) {
-                return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb\u6309\u952e");
+                return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb/\u5207\u6362\u6309\u952e");
             }
         }
         for (const auto& pauseKey : profile->pauseKeys) {
@@ -94,6 +106,54 @@ ControllerResult validateHotkeyCandidate(
     return ControllerResult::success();
 }
 
+ControllerResult validateSequenceSwitchKeyCandidate(
+    const KeyDescriptor& key,
+    const ProfileConfig* profile,
+    const MacroConfig* macro) {
+    if (profile && !profile->enabled) profile = nullptr;
+    if (macro && !macro->enabled) macro = nullptr;
+
+    if (profile) {
+        if (SameKey(profile->controlHotkey, key)) {
+            return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6309\u952e\u8fde\u53d1\u7684\u542f\u505c\u5feb\u6377\u952e\u3002")
+                .arg(KeyName(key)));
+        }
+        for (const auto& binding : profile->bindings) {
+            if (binding.enabled && binding.key == key) {
+                return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u5728\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u6309\u952e\u5217\u8868\u4e2d\u4f7f\u7528\u3002")
+                    .arg(KeyName(key)));
+            }
+        }
+        for (const auto& pauseKey : profile->pauseKeys) {
+            if (pauseKey == key) {
+                return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u6682\u505c\u952e\u3002")
+                    .arg(KeyName(key)));
+            }
+        }
+    }
+
+    if (macro) {
+        if (SameKey(macro->triggerKey, key)) {
+            return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5faa\u73af\u8fde\u53d1\u7684\u542f\u505c\u5feb\u6377\u952e\u3002")
+                .arg(KeyName(key)));
+        }
+        for (const auto& pauseKey : macro->pauseKeys) {
+            if (pauseKey == key) {
+                return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5faa\u73af\u8fde\u53d1\u7684\u6682\u505c\u952e\u3002")
+                    .arg(KeyName(key)));
+            }
+        }
+        for (const auto& step : macro->steps) {
+            if (step.key == key) {
+                return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u5728\u5f53\u524d\u5faa\u73af\u8fde\u53d1\u7684\u6b65\u9aa4\u4e2d\u4f7f\u7528\u3002")
+                    .arg(KeyName(key)));
+            }
+        }
+    }
+
+    return ControllerResult::success();
+}
+
 ControllerResult validateActiveHotkeys(const ProfileConfig* profile, const MacroConfig* macro) {
     if (profile && !profile->enabled) profile = nullptr;
     if (macro && !macro->enabled) macro = nullptr;
@@ -104,6 +164,11 @@ ControllerResult validateActiveHotkeys(const ProfileConfig* profile, const Macro
 
     if (macro && macro->triggerKey.has_value()) {
         auto validation = validateHotkeyCandidate(*macro->triggerKey, profile, macro);
+        if (!validation.ok) return validation;
+    }
+
+    if (profile && profile->sequenceSwitchKey.has_value()) {
+        auto validation = validateSequenceSwitchKeyCandidate(*profile->sequenceSwitchKey, profile, macro);
         if (!validation.ok) return validation;
     }
 

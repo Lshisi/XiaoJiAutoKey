@@ -88,7 +88,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
         int delay = delayEdit_->text().toInt(&ok);
         if (!ok || delay < kMinDelayMs) {
             AppMessageDialog::warning(this, QString::fromWCharArray(L"\u53c2\u6570\u65e0\u6548"),
-                QString::fromWCharArray(L"\u95f4\u9694\u5fc5\u987b\u662f\u4e0d\u5c0f\u4e8e 10 \u7684\u6574\u6570\u3002"));
+                QString::fromWCharArray(L"\u95f4\u9694\u5fc5\u987b\u662f\u4e0d\u5c0f\u4e8e 1 \u7684\u6574\u6570\u3002"));
             return;
         }
         accept();

@@ -198,6 +198,12 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
 
+    for (const auto& binding : profile->bindings) {
+        if (binding.key != key || binding.mode != mode) continue;
+        if (bindingId.has_value() && binding.id == *bindingId) continue;
+        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5728\u5f53\u524d\u6a21\u5f0f\u4e0b\u5df2\u88ab\u914d\u7f6e\u3002"));
+    }
+
     if (enabled) {
         if (profile->controlHotkey.has_value() && *profile->controlHotkey == key) {
             return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));

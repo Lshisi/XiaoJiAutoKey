@@ -108,9 +108,9 @@ void RepeaterEngine::SetToolRunning(bool running) {
     independentActiveKey_.reset();
 
     for (auto& t : tasks_) {
-        t.lastFire = 0;
+        t.lastDownTime = {};
         t.isDown = false;
-        t.downTime = 0;
+        t.downTime = {};
     }
 
     driver_.SetSourceActive(InputSource::Repeater, running);
@@ -286,7 +286,7 @@ void RepeaterEngine::NormalizeIndependentSelectionLocked() {
 void RepeaterEngine::ResetIndependentTaskTimingLocked(const KeyDescriptor& key) {
     for (auto& t : tasks_) {
         if (t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key) {
-            t.lastFire = 0;
+            t.lastDownTime = {};
         }
     }
 }
@@ -342,7 +342,7 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
             [&](auto& x) { return x.config.id == b.id; });
 
         if (it != tasks_.end()) {
-            t.lastFire = it->lastFire;
+            t.lastDownTime = it->lastDownTime;
         }
 
         updated.push_back(t);
@@ -380,7 +380,7 @@ void RepeaterEngine::WorkerLoop() {
                 const bool isIndependentMode = t.config.mode == RepeatMode::Independent;
                 const bool isToggleLikeMode = IsToggleLikeRepeatMode(t.config.mode);
 
-                int interval = std::max(1, t.config.intervalMs);
+                int interval = std::max(kMinDelayMs, t.config.intervalMs);
                 if (wasdProtectionActive && isToggleLikeMode) {
                     interval = std::max(interval, kWasdProtectionMinIntervalMs);
                 }
@@ -427,41 +427,22 @@ void RepeaterEngine::WorkerLoop() {
                     }
                 }
 
-                const auto now = NowMs();
-
-                if (isIndependentMode) {
-                    if (t.isDown) {
-                        const int holdMs = std::max(2, std::min(interval / 8, 6));
-                        if (now - t.downTime >= static_cast<ULONGLONG>(holdMs)) {
-                            releases.push_back(t.config.key);
-                            t.isDown = false;
-                            t.lastFire = now;
-                        }
-                        continue;
-                    }
-
-                    if (t.lastFire == 0 || now - t.lastFire >= static_cast<ULONGLONG>(interval)) {
-                        presses.push_back(t.config.key);
-                        t.isDown = true;
-                        t.downTime = now;
-                    }
-                    continue;
-                }
+                const auto now = Now();
 
                 if (t.isDown) {
-                    const int holdMs = std::max(2, std::min(interval / 3, 30));
-                    if (now - t.downTime >= static_cast<ULONGLONG>(holdMs)) {
+                    if (now - t.downTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
                         releases.push_back(t.config.key);
                         t.isDown = false;
-                        t.lastFire = now;
                     }
                     continue;
                 }
 
-                if (t.lastFire == 0 || now - t.lastFire >= static_cast<ULONGLONG>(interval)) {
+                if (t.lastDownTime == std::chrono::steady_clock::time_point{}
+                    || now - t.lastDownTime >= std::chrono::milliseconds(interval)) {
                     presses.push_back(t.config.key);
                     t.isDown = true;
                     t.downTime = now;
+                    t.lastDownTime = now;
                 }
             }
 
@@ -484,14 +465,14 @@ void RepeaterEngine::WorkerLoop() {
 }
 void RepeaterEngine::ResetAllLocked() {
     for (auto& t : tasks_) {
-        t.lastFire = 0;
+        t.lastDownTime = {};
         t.isDown = false;
-        t.downTime = 0;
+        t.downTime = {};
     }
 }
 
 // ── time ─────────────────────────────
-ULONGLONG RepeaterEngine::NowMs() {
-    return ::GetTickCount64();
+std::chrono::steady_clock::time_point RepeaterEngine::Now() {
+    return std::chrono::steady_clock::now();
 }
 

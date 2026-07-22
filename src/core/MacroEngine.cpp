@@ -46,7 +46,7 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
             rt.active = it->active;
             rt.currentStep = it->currentStep;
             rt.loopsCompleted = it->loopsCompleted;
-            rt.lastStepTime = it->lastStepTime;
+            rt.lastDownTime = it->lastDownTime;
             rt.waitingDelay = it->waitingDelay;
             rt.keyDown = it->keyDown;
             rt.keyDownTime = it->keyDownTime;
@@ -89,10 +89,10 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.active = true;
                 rt.currentStep = 0;
                 rt.loopsCompleted = 0;
-                rt.lastStepTime = 0;
+                rt.lastDownTime = {};
                 rt.waitingDelay = false;
                 rt.keyDown = false;
-                rt.keyDownTime = 0;
+                rt.keyDownTime = {};
             }
         } else {
             // 按压模式：按下开始
@@ -100,10 +100,10 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.active = true;
                 rt.currentStep = 0;
                 rt.loopsCompleted = 0;
-                rt.lastStepTime = 0;
+                rt.lastDownTime = {};
                 rt.waitingDelay = false;
                 rt.keyDown = false;
-                rt.keyDownTime = 0;
+                rt.keyDownTime = {};
             }
         }
 
@@ -185,10 +185,10 @@ void MacroEngine::ResetRuntime(MacroRuntime& rt) {
     rt.active = false;
     rt.currentStep = 0;
     rt.loopsCompleted = 0;
-    rt.lastStepTime = 0;
+    rt.lastDownTime = {};
     rt.waitingDelay = false;
     rt.keyDown = false;
-    rt.keyDownTime = 0;
+    rt.keyDownTime = {};
 }
 
 void MacroEngine::QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDescriptor>& releases) {
@@ -228,17 +228,16 @@ void MacroEngine::WorkerLoop() {
                     continue;
                 }
 
-                const auto now = NowMs();
+                const auto now = Now();
 
-                // 如果当前步骤已按下，等待10ms后抬起
+                // 如果当前步骤已按下，等待统一的脉冲宽度后抬起
                 if (rt.keyDown) {
-                    if (now - rt.keyDownTime >= 10) {
+                    if (now - rt.keyDownTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
                         const auto& step = rt.config.steps[rt.currentStep];
                         if (step.key.IsValid()) {
                             toSend.push_back({step.key, false});  // up
                         }
                         rt.keyDown = false;
-                        rt.lastStepTime = now;
                         rt.waitingDelay = true;
                     }
                     continue;
@@ -247,8 +246,8 @@ void MacroEngine::WorkerLoop() {
                 // 等待步骤间隔
                 if (rt.waitingDelay) {
                     const auto& step = rt.config.steps[rt.currentStep];
-                    const int delay = std::max(1, step.delayAfterMs);
-                    if (now - rt.lastStepTime < static_cast<ULONGLONG>(delay)) {
+                    const int delay = std::max(kMinDelayMs, step.delayAfterMs);
+                    if (now - rt.lastDownTime < std::chrono::milliseconds(delay)) {
                         continue;
                     }
                     // 间隔结束，前进到下一步
@@ -278,6 +277,7 @@ void MacroEngine::WorkerLoop() {
                     }
                     rt.keyDown = true;
                     rt.keyDownTime = now;
+                    rt.lastDownTime = now;
                 }
             }
             SyncSourceActiveLocked();
@@ -296,6 +296,6 @@ void MacroEngine::WorkerLoop() {
     }
 }
 
-ULONGLONG MacroEngine::NowMs() {
-    return ::GetTickCount64();
+std::chrono::steady_clock::time_point MacroEngine::Now() {
+    return std::chrono::steady_clock::now();
 }

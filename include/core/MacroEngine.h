@@ -3,9 +3,8 @@
 #include "AppTypes.h"
 #include "InputDriver.h"
 
-#include <Windows.h>
-
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -17,10 +16,10 @@ struct MacroRuntime {
     bool active = false;
     int currentStep = 0;
     int loopsCompleted = 0;
-    ULONGLONG lastStepTime = 0;
+    std::chrono::steady_clock::time_point lastDownTime{};
     bool waitingDelay = false;
     bool keyDown = false;
-    ULONGLONG keyDownTime = 0;
+    std::chrono::steady_clock::time_point keyDownTime{};
 };
 
 class MacroEngine {
@@ -46,7 +45,7 @@ private:
     void ExecuteStep(MacroRuntime& rt);
     static void ResetRuntime(MacroRuntime& rt);
     static void QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDescriptor>& releases);
-    static ULONGLONG NowMs();
+    static std::chrono::steady_clock::time_point Now();
     bool IsPauseActive() const;
     void SyncSourceActiveLocked();
 

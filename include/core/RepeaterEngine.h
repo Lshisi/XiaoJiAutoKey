@@ -3,9 +3,8 @@
 #include "AppTypes.h"
 #include "InputDriver.h"
 
-#include <Windows.h>
-
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <thread>
@@ -30,9 +29,9 @@ struct TaskConfig {
 
 struct TaskRuntime {
     TaskConfig config;
-    ULONGLONG lastFire = 0;
+    std::chrono::steady_clock::time_point lastDownTime{};
     bool isDown = false;
-    ULONGLONG downTime = 0;
+    std::chrono::steady_clock::time_point downTime{};
 };
 
 class RepeaterEngine {
@@ -63,7 +62,7 @@ private:
     void ResetAllLocked();
     void NormalizeIndependentSelectionLocked();
     void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
-    static ULONGLONG NowMs();
+    static std::chrono::steady_clock::time_point Now();
 
     InputDriver& driver_;
 

@@ -24,8 +24,9 @@ enum class InputSource {
     Capture,
 };
 
-constexpr int kMinDelayMs = 10;
+constexpr int kMinDelayMs = 1;
 constexpr int kDefaultDelayMs = 30;
+constexpr int kInputPulseWidthMs = 2;
 
 struct KeyDescriptor {
     InputDevice device = InputDevice::Keyboard;

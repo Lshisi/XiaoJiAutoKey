@@ -60,7 +60,7 @@ void CaptureCoordinator::startMacroHotkeyCapture() {
     if (context_.refreshHookState) context_.refreshHookState();
     if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
     if (context_.macroPage) {
-        context_.macroPage->setHotkeyText(QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e..."));
+        context_.macroPage->setHotkeyText(QString::fromWCharArray(L"\u5f55\u5236\u4e2d"));
     }
 }
 
@@ -169,7 +169,7 @@ void CaptureCoordinator::updateHotkeyText() {
     if (!context_.keyPage || !context_.settingsPage || !context_.profileController) return;
     auto* profile = context_.profileController->activeProfile();
     const QString text = target_.has_value() && *target_ == Target::MainHotkey
-        ? QString::fromWCharArray(L"\u8bf7\u6309\u4e0b\u4e00\u4e2a\u952e...")
+        ? QString::fromWCharArray(L"\u5f55\u5236\u4e2d")
         : (profile && profile->controlHotkey.has_value()
             ? QString::fromStdWString(GetKeyDisplayName(*profile->controlHotkey))
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));

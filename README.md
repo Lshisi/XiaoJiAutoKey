@@ -148,7 +148,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
 ```
 XiaoJiAutoKey/
 ├── XiaoJiAutoKey.exe   # 主程序（静态链接 Qt，无需额外 DLL）
-├── 使用说明.url        # 使用说明入口链接
+├── 使用说明.mhtml      # 离线使用说明
 ├── audio/              # 启停提示音（按键开启/关闭、宏开启/关闭）
 └── driver/             # DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll）
 ```

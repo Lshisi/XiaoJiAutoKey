@@ -77,6 +77,13 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
         delayEdit_->setText(QString::number(kDefaultDelayMs));
     }
 
+    bool delayClearedOnClick = false;
+    connect(delayEdit_, &FluentLineEdit::clicked, this, [this, delayClearedOnClick]() mutable {
+        if (delayClearedOnClick) return;
+        delayEdit_->clear();
+        delayClearedOnClick = true;
+    });
+
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {

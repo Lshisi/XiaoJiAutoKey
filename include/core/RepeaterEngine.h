@@ -2,6 +2,7 @@
 
 #include "AppTypes.h"
 #include "InputDriver.h"
+#include "PrecisionWaiter.h"
 
 #include <atomic>
 #include <chrono>
@@ -22,7 +23,7 @@ struct TaskConfig {
     std::uint64_t id = 0;
     KeyDescriptor key;
     RepeatMode mode = RepeatMode::Toggle;
-    int intervalMs = 100;
+    int intervalMs = kDefaultDelayMs;
     bool enabled = true;
     bool suppressMixedMode = false;
 };
@@ -73,6 +74,7 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<std::uint64_t> runGeneration_{0};
     std::thread worker_;
+    PrecisionWaiter waiter_;
 
     mutable std::mutex mutex_;
     std::vector<TaskRuntime> tasks_;

@@ -26,7 +26,7 @@ enum class InputSource {
 };
 
 constexpr int kMinDelayMs = 1;
-constexpr int kDefaultDelayMs = 30;
+constexpr int kDefaultDelayMs = 10;
 constexpr int kInputPulseWidthMs = 5;
 
 struct KeyDescriptor {

@@ -11,7 +11,7 @@
 发布包只应包含：
 
 - `XiaoJiAutoKey.exe` -- 主程序
-- `使用说明.url` -- 使用说明入口链接
+- `使用说明.mhtml` -- 离线使用说明
 - `audio/` -- 内置提示音文件
 - `driver/` -- DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll）
 

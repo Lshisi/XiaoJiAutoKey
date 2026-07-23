@@ -30,6 +30,18 @@ Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 
 namespace {
 
+void PreserveTimerResolution() {
+    PROCESS_POWER_THROTTLING_STATE state{};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;
+    state.StateMask = 0;
+    ::SetProcessInformation(
+        ::GetCurrentProcess(),
+        ProcessPowerThrottling,
+        &state,
+        static_cast<DWORD>(sizeof(state)));
+}
+
 const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
     switch (kind) {
     case DdDriver::RuntimeKind::Hid:
@@ -174,6 +186,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    PreserveTimerResolution();
     timeBeginPeriod(1);
 
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);

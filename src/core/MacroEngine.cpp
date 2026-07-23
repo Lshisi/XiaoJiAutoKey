@@ -24,11 +24,13 @@ void MacroEngine::StartThread() {
 
 void MacroEngine::StopThread() {
     exit_ = true;
+    waiter_.Wake();
     if (worker_.joinable()) worker_.join();
     StopAll();
 }
 
 void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
 
     std::vector<MacroRuntime> updated;
@@ -67,6 +69,7 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
 }
 
 void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
+    waiter_.Wake();
     std::vector<KeyDescriptor> releases;
     {
         std::lock_guard lock(mutex_);
@@ -118,6 +121,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
 }
 
 void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
+    waiter_.Wake();
     std::vector<KeyDescriptor> releases;
     {
         std::lock_guard lock(mutex_);
@@ -145,6 +149,7 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
 }
 
 void MacroEngine::StopAll() {
+    waiter_.Wake();
     {
         std::lock_guard lock(mutex_);
         for (auto& rt : macros_) {
@@ -205,6 +210,7 @@ void MacroEngine::QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDes
 void MacroEngine::WorkerLoop() {
     while (!exit_.load()) {
         std::vector<std::pair<KeyDescriptor, bool>> toSend;  // key, isDown
+        std::optional<std::chrono::steady_clock::time_point> nextWake;
 
         {
             std::lock_guard lock(mutex_);
@@ -284,6 +290,22 @@ void MacroEngine::WorkerLoop() {
                 }
             }
             SyncSourceActiveLocked();
+
+            for (const auto& runtime : macros_) {
+                if (!runtime.active || !runtime.config.enabled || runtime.config.steps.empty()) continue;
+
+                std::chrono::steady_clock::time_point deadline{};
+                if (runtime.keyDown) {
+                    deadline = runtime.keyDownTime + std::chrono::milliseconds(kInputPulseWidthMs);
+                } else if (runtime.waitingDelay && runtime.currentStep >= 0
+                    && runtime.currentStep < static_cast<int>(runtime.config.steps.size())) {
+                    const int delay = std::max(kMinDelayMs, runtime.config.steps[runtime.currentStep].delayAfterMs);
+                    deadline = runtime.lastUpTime + std::chrono::milliseconds(delay);
+                }
+                if (deadline != std::chrono::steady_clock::time_point{}) {
+                    nextWake = !nextWake || deadline < *nextWake ? deadline : nextWake;
+                }
+            }
         }
 
         // 在锁外发送按键
@@ -295,7 +317,7 @@ void MacroEngine::WorkerLoop() {
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        waiter_.WaitUntil(nextWake);
     }
 }
 

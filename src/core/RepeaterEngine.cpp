@@ -38,6 +38,7 @@ void RepeaterEngine::StartThread() {
 
 void RepeaterEngine::StopThread() {
     exit_ = true;
+    waiter_.Wake();
     if (worker_.joinable()) worker_.join();
     ReleaseAll();
 }
@@ -47,16 +48,19 @@ bool RepeaterEngine::IsToolRunning() const noexcept {
 }
 
 void RepeaterEngine::SetMixedMode(bool enabled) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     mixedMode_ = enabled;
 }
 
 void RepeaterEngine::SetWasdProtection(bool enabled) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     wasdProtection_ = enabled;
 }
 
 void RepeaterEngine::SetSequenceSwitchKey(std::optional<KeyDescriptor> key) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     sequenceSwitchKey_ = key;
     sequenceSwitchDown_ = false;
@@ -87,6 +91,7 @@ void RepeaterEngine::SetSelfInjectedMouseVisible(bool visible) {
 }
 
 void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     pauseKeys_ = keys;
     pauseKeysDown_.clear();
@@ -98,6 +103,7 @@ bool RepeaterEngine::IsPauseActive() const {
 
 // ── 启停 ─────────────────────────────
 void RepeaterEngine::SetToolRunning(bool running) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     ++runGeneration_;
     toolRunning_ = running;
@@ -130,6 +136,7 @@ void RepeaterEngine::SetToolRunning(bool running) {
 
 // ── 物理输入状态追踪 ─────────────
 void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
@@ -206,6 +213,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
 }
 
 void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
@@ -411,6 +419,7 @@ bool RepeaterEngine::HasActiveHoldKeys() const {
 
 // ── bindings ─────────────────────────────
 void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
+    waiter_.Wake();
     std::lock_guard lock(mutex_);
 
     std::vector<TaskRuntime> updated;
@@ -454,6 +463,7 @@ void RepeaterEngine::WorkerLoop() {
         std::vector<KeyDescriptor> releases;
         std::vector<KeyDescriptor> presses;
         std::uint64_t batchGeneration = 0;
+        std::optional<std::chrono::steady_clock::time_point> nextWake;
         {
             std::lock_guard lock(mutex_);
             batchGeneration = runGeneration_.load();
@@ -566,9 +576,35 @@ void RepeaterEngine::WorkerLoop() {
                     driver_.SendDown(key, InputSource::Repeater);
                 }
             }
-        }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            for (const auto& task : tasks_) {
+                if (!task.config.enabled) continue;
+
+                if (task.isDown) {
+                    const auto deadline = task.downTime + std::chrono::milliseconds(kInputPulseWidthMs);
+                    nextWake = !nextWake || deadline < *nextWake ? deadline : nextWake;
+                    continue;
+                }
+
+                const bool independentSelected = task.config.mode != RepeatMode::Independent
+                    || (independentActiveKey_.has_value() && *independentActiveKey_ == task.config.key);
+                const bool sequenceSelected = task.config.mode != RepeatMode::Sequence
+                    || (sequenceActiveTaskId_.has_value() && *sequenceActiveTaskId_ == task.config.id);
+                const bool canRun = task.config.mode == RepeatMode::Hold
+                    ? holdPhysicalDown_.count(task.config.key) > 0
+                    : toolRunning_ && independentSelected && sequenceSelected
+                        && !(mixedMode_ && IsHoldActive()) && !IsPauseActive();
+                if (!canRun || task.lastUpTime == std::chrono::steady_clock::time_point{}) continue;
+
+                int interval = std::max(kMinDelayMs, task.config.intervalMs);
+                if (IsWasdProtectionActive() && IsToggleLikeRepeatMode(task.config.mode)) {
+                    interval = std::max(interval, kWasdProtectionMinIntervalMs);
+                }
+                const auto deadline = task.lastUpTime + std::chrono::milliseconds(interval);
+                nextWake = !nextWake || deadline < *nextWake ? deadline : nextWake;
+            }
+        }
+        waiter_.WaitUntil(nextWake);
     }
 }
 void RepeaterEngine::ResetAllLocked() {

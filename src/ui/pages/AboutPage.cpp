@@ -3,14 +3,19 @@
 #include "../components/FluentCard.h"
 #include "../components/FluentButton.h"
 #include "FactionTheme.h"
+#include "dialogs/AppMessageDialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QApplication>
 #include <QClipboard>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
 #include <QSizePolicy>
 #include <QTimer>
+#include <QUrl>
 
 namespace {
 
@@ -74,28 +79,6 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
 
     // ── Inner card 2: Contact ──
     auto* contactCard = new FluentCard(QString::fromWCharArray(L"\u8054\u7cfb\u4f5c\u8005"), outerCard);
-    auto* qqRow = new QHBoxLayout();
-    auto* qqPrefix = new QLabel("QQ: ", contactCard);
-    qqPrefix->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-    qqRow->addWidget(qqPrefix);
-    auto* qqLabel = new QLabel("2033653725", contactCard);
-    qqLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    qqRow->addWidget(qqLabel, 1);
-    auto* copyQqBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyQqBtn->setFixedSize(64, 24);
-    qqRow->addWidget(copyQqBtn);
-    contactCard->contentLayout()->addLayout(qqRow);
-    auto* emailRow = new QHBoxLayout();
-    auto* emailPrefix = new QLabel(QString::fromWCharArray(L"\u90ae\u7bb1: "), contactCard);
-    emailPrefix->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-    emailRow->addWidget(emailPrefix);
-    auto* emailLabel = new QLabel("2033653725@qq.com", contactCard);
-    emailLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    emailRow->addWidget(emailLabel, 1);
-    auto* copyEmailBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyEmailBtn->setFixedSize(64, 24);
-    emailRow->addWidget(copyEmailBtn);
-    contactCard->contentLayout()->addLayout(emailRow);
     auto* groupRow = new QHBoxLayout();
     auto* groupPrefix = new QLabel(QString::fromWCharArray(L"QQ\u7fa4: "), contactCard);
     groupPrefix->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
@@ -109,7 +92,20 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     contactCard->contentLayout()->addLayout(groupRow);
     outerCard->contentLayout()->addWidget(contactCard);
 
-    // ── Inner card 3: Disclaimer ──
+    // Offline usage guide
+    auto* usageCard = new FluentCard(QString::fromWCharArray(L"\u4f7f\u7528\u8bf4\u660e"), outerCard);
+    auto* usageRow = new QHBoxLayout();
+    auto* usageLabel = new QLabel(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e\u4f7f\u7528\u8bf4\u660e"), usageCard);
+    usageLabel->setWordWrap(true);
+    usageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    usageRow->addWidget(usageLabel, 1);
+    auto* openUsageBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00"), usageCard);
+    openUsageBtn->setFixedSize(64, 24);
+    usageRow->addWidget(openUsageBtn);
+    usageCard->contentLayout()->addLayout(usageRow);
+    outerCard->contentLayout()->addWidget(usageCard);
+
+    // Disclaimer
     auto* disclaimerCard = new FluentCard(QString::fromWCharArray(L"\u514d\u8d23\u58f0\u660e"), outerCard);
     auto* disclaimerLabel = new QLabel(
         QString::fromWCharArray(
@@ -127,7 +123,20 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
 
     pageLayout->addWidget(outerCard);
 
-    connect(copyQqBtn, &QPushButton::clicked, [copyQqBtn, qqLabel]() { copyWithFeedback(copyQqBtn, qqLabel->text()); });
-    connect(copyEmailBtn, &QPushButton::clicked, [copyEmailBtn, emailLabel]() { copyWithFeedback(copyEmailBtn, emailLabel->text()); });
     connect(copyGroupBtn, &QPushButton::clicked, [copyGroupBtn, groupLabel]() { copyWithFeedback(copyGroupBtn, groupLabel->text()); });
+    connect(openUsageBtn, &QPushButton::clicked, this, [this]() {
+        const QString guidePath = QDir(QApplication::applicationDirPath()).filePath(
+            QString::fromWCharArray(L"\u4f7f\u7528\u8bf4\u660e.mhtml"));
+        if (!QFileInfo::exists(guidePath)) {
+            AppMessageDialog::warning(this,
+                QString::fromWCharArray(L"\u65e0\u6cd5\u6253\u5f00\u4f7f\u7528\u8bf4\u660e"),
+                QString::fromWCharArray(L"\u672a\u627e\u5230\u4f7f\u7528\u8bf4\u660e\u6587\u4ef6\uff0c\u8bf7\u91cd\u65b0\u89e3\u538b\u5b8c\u6574\u53d1\u5e03\u5305\u3002"));
+            return;
+        }
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(guidePath))) {
+            AppMessageDialog::warning(this,
+                QString::fromWCharArray(L"\u65e0\u6cd5\u6253\u5f00\u4f7f\u7528\u8bf4\u660e"),
+                QString::fromWCharArray(L"\u8bf7\u786e\u8ba4\u7cfb\u7edf\u5df2\u4e3a MHTML \u6587\u4ef6\u914d\u7f6e\u53ef\u7528\u7684\u6d4f\u89c8\u5668\u3002"));
+        }
+    });
 }

@@ -444,6 +444,7 @@ void MacroPage::refreshPauseKeyList() {
 
             auto* keyLabel = new QLabel(QString::fromStdWString(GetKeyDisplayName(pauseKeys_[i])), tag);
             keyLabel->setFont(Fluent::Typography::caption());
+            keyLabel->setStyleSheet("background: transparent;");
             tagLayout->addWidget(keyLabel);
 
             auto* delBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);

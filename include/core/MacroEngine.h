@@ -2,6 +2,7 @@
 
 #include "AppTypes.h"
 #include "InputDriver.h"
+#include "PrecisionWaiter.h"
 
 #include <atomic>
 #include <chrono>
@@ -53,6 +54,7 @@ private:
 
     std::atomic<bool> exit_{false};
     std::thread worker_;
+    PrecisionWaiter waiter_;
 
     mutable std::mutex mutex_;
     std::vector<MacroRuntime> macros_;

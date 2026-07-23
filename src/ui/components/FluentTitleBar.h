@@ -28,7 +28,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
-    QPushButton* createCaptionButton(const QString& icon, const QString& tooltip);
+    QPushButton* createCaptionButton(const QString& icon);
     void applyTitlePalette();
 
     QLabel* iconLabel_;

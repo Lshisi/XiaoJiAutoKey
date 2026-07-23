@@ -45,8 +45,8 @@ $hidDriverSrcDir = Join-Path $driverSrcDir "hid"
 $hidDriverDstDir = Join-Path $driverDstDir "hid"
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
-$usageShortcutName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).url"
-$usageShortcutSrc = Join-Path $repoRoot (Join-Path "assets" $usageShortcutName)
+$usageGuideName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).mhtml"
+$usageGuideSrc = Join-Path $repoRoot (Join-Path "assets" $usageGuideName)
 # Auto update version
 $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # Auto update version (disabled - manual version control)
@@ -82,10 +82,10 @@ if (Test-Path $packageDir) {
 }
 New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
 Copy-Item $exePath (Join-Path $packageDir "XiaoJiAutoKey.exe") -Force
-if (Test-Path $usageShortcutSrc) {
-    Copy-Item $usageShortcutSrc (Join-Path $packageDir $usageShortcutName) -Force
+if (Test-Path $usageGuideSrc) {
+    Copy-Item $usageGuideSrc (Join-Path $packageDir $usageGuideName) -Force
 } else {
-    Write-Warning "usage shortcut not found: $usageShortcutSrc"
+    Write-Warning "usage guide not found: $usageGuideSrc"
 }
 
 # Check if this is a static Qt build by looking for Qt DLL dependencies

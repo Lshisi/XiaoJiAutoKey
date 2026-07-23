@@ -219,7 +219,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         }
     }
 
-    BindingEditDialog dialog(existing, profile->defaultDelayMs, context_.parent);
+    BindingEditDialog dialog(existing, kDefaultDelayMs, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 

@@ -535,6 +535,7 @@ void KeyPage::refreshSequenceSwitchKey() {
         const QString shownKeyName = metrics.elidedText(fullKeyName, Qt::ElideRight, kSequenceKeyLabelMaxWidth);
         auto* keyLabel = new QLabel(shownKeyName, tag);
         keyLabel->setFont(Fluent::Typography::caption());
+        keyLabel->setStyleSheet("background: transparent;");
         keyLabel->setMaximumWidth(kSequenceKeyLabelMaxWidth);
         if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
         tagLayout->addWidget(keyLabel);
@@ -542,7 +543,6 @@ void KeyPage::refreshSequenceSwitchKey() {
         sequenceSwitchClearBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);
         sequenceSwitchClearBtn_->setFixedSize(18, 18);
         sequenceSwitchClearBtn_->setFont(QFont("Segoe MDL2 Assets", 7));
-        sequenceSwitchClearBtn_->setToolTip(QString::fromWCharArray(L"\u6e05\u9664\u5207\u6362\u952e"));
         sequenceSwitchClearBtn_->setEnabled(!running_);
         tagLayout->addWidget(sequenceSwitchClearBtn_);
         sequenceSwitchKeyLayout_->addWidget(tag);
@@ -610,6 +610,7 @@ void KeyPage::refreshPauseKeyList() {
             const QString shownKeyName = metrics.elidedText(fullKeyName, Qt::ElideRight, kPauseKeyLabelMaxWidth);
             auto* keyLabel = new QLabel(shownKeyName, tag);
             keyLabel->setFont(captionFont);
+            keyLabel->setStyleSheet("background: transparent;");
             keyLabel->setMaximumWidth(kPauseKeyLabelMaxWidth);
             if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
             tagLayout->addWidget(keyLabel);

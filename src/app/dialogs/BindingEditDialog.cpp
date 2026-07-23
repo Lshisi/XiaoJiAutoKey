@@ -130,6 +130,13 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     }
     updateMixedModeSuppressionVisible();
 
+    bool delayClearedOnClick = false;
+    connect(delayEdit_, &FluentLineEdit::clicked, this, [this, delayClearedOnClick]() mutable {
+        if (delayClearedOnClick) return;
+        delayEdit_->clear();
+        delayClearedOnClick = true;
+    });
+
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
         updateMixedModeSuppressionVisible();

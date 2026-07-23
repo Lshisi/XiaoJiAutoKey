@@ -70,6 +70,7 @@ set(AUTOKEY_DD_HID_DDC "${AUTOKEY_DD_HID_DRV_DIR}/ddc.exe")
 set(AUTOKEY_DD_HID_CAT "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.cat")
 set(AUTOKEY_DD_HID_INF "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.inf")
 set(AUTOKEY_DD_HID_SYS "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.sys")
+set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
 
 set(CORE_SOURCES
     src/core/AppTypes.cpp
@@ -332,6 +333,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/assets/audio")
             "${CMAKE_SOURCE_DIR}/assets/audio"
             "$<TARGET_FILE_DIR:XiaoJiAutoKey>/audio"
         COMMENT "Copying built-in audio files to the target audio directory"
+    )
+endif()
+
+if(EXISTS "${AUTOKEY_USAGE_GUIDE}")
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${AUTOKEY_USAGE_GUIDE}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/使用说明.mhtml"
+        COMMENT "Copying offline usage guide to the target directory"
     )
 endif()
 

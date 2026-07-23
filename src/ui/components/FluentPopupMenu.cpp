@@ -88,14 +88,15 @@ protected:
                 kMenuPadding + i * itemHeight_ - scrollOffset_,
                 width() - kMenuPadding * 2,
                 itemHeight_);
-            const bool hovered = i == hoveredIndex_;
-            if (hovered) {
+            const bool rowHovered = options_.trailingText.isEmpty() && i == hoveredIndex_;
+            const bool trailingHovered = !options_.trailingText.isEmpty() && i == hoveredIndex_;
+            if (rowHovered) {
                 QPainterPath hoverPath;
                 hoverPath.addRoundedRect(itemRect.adjusted(1, 1, -1, -1), kItemRadius, kItemRadius);
                 painter.fillPath(hoverPath, factionPalette.accentSoft);
             }
 
-            const QColor foreground = hovered ? factionPalette.accent : Fluent::Colors::textPrimary();
+            const QColor foreground = rowHovered ? factionPalette.accent : Fluent::Colors::textPrimary();
             painter.setFont(font());
             painter.setPen(foreground);
             const int trailingSpace = options_.trailingText.isEmpty() ? 10 : 32;
@@ -104,9 +105,14 @@ protected:
             painter.drawText(itemRect.adjusted(10, 0, -trailingSpace, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
 
             if (!options_.trailingText.isEmpty()) {
-                painter.setPen(hovered ? factionPalette.accent : Fluent::Colors::textSecondary());
-                painter.drawText(itemRect.adjusted(itemRect.width() - 30, 0, -8, 0),
-                    Qt::AlignVCenter | Qt::AlignRight, options_.trailingText);
+                const QRectF actionRect = trailingActionRect(itemRect);
+                if (trailingHovered) {
+                    QPainterPath actionPath;
+                    actionPath.addRoundedRect(actionRect, kItemRadius - 1, kItemRadius - 1);
+                    painter.fillPath(actionPath, factionPalette.accentSubtle);
+                }
+                painter.setPen(trailingHovered ? factionPalette.accent : Fluent::Colors::textSecondary());
+                painter.drawText(actionRect, Qt::AlignCenter, options_.trailingText);
             }
         }
         painter.restore();
@@ -131,22 +137,24 @@ protected:
     }
 
     void mouseMoveEvent(QMouseEvent* event) override {
-        const int index = itemIndexAt(event->pos());
-        if (index == hoveredIndex_) return;
-        hoveredIndex_ = index;
-        update();
+        updateHoveredIndex(event->pos());
     }
 
     void leaveEvent(QEvent*) override {
         if (hoveredIndex_ < 0) return;
         hoveredIndex_ = -1;
+        setCursor(Qt::ArrowCursor);
         update();
     }
 
     void mouseReleaseEvent(QMouseEvent* event) override {
         if (event->button() != Qt::LeftButton) return;
         const int index = itemIndexAt(event->pos());
-        if (index >= 0 && index < items_.size()) selectedIndex_ = index;
+        if (index < 0 || index >= items_.size()) return;
+        if (!options_.trailingText.isEmpty() && !trailingActionRect(itemRectAt(index)).contains(event->pos())) {
+            return;
+        }
+        selectedIndex_ = index;
         close();
     }
 
@@ -172,7 +180,7 @@ protected:
             0,
             scrollOffset_ - (delta > 0 ? steps : -steps) * itemHeight_,
             maxScroll);
-        hoveredIndex_ = itemIndexAt(mapFromGlobal(QCursor::pos()));
+        updateHoveredIndex(mapFromGlobal(QCursor::pos()));
         update();
         event->accept();
     }
@@ -183,6 +191,29 @@ protected:
     }
 
 private:
+    QRectF itemRectAt(int index) const {
+        return QRectF(
+            kMenuPadding,
+            kMenuPadding + index * itemHeight_ - scrollOffset_,
+            width() - kMenuPadding * 2,
+            itemHeight_);
+    }
+
+    QRectF trailingActionRect(const QRectF& itemRect) const {
+        return itemRect.adjusted(itemRect.width() - 34, 2, -4, -2);
+    }
+
+    void updateHoveredIndex(const QPoint& pos) {
+        const int index = itemIndexAt(pos);
+        const bool actionable = index >= 0 && (options_.trailingText.isEmpty()
+            || trailingActionRect(itemRectAt(index)).contains(pos));
+        const int nextIndex = actionable ? index : -1;
+        setCursor(actionable ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        if (nextIndex == hoveredIndex_) return;
+        hoveredIndex_ = nextIndex;
+        update();
+    }
+
     int itemIndexAt(const QPoint& pos) const {
         if (pos.x() < kMenuPadding || pos.x() >= width() - kMenuPadding) return -1;
         const int y = pos.y() - kMenuPadding;

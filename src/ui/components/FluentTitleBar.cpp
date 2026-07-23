@@ -75,8 +75,8 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     layout->addStretch();
 
     // Caption buttons
-    minBtn_ = createCaptionButton(QStringLiteral("\u2500"), tr("Minimize"));
-    closeBtn_ = createCaptionButton(QStringLiteral("\u2715"), tr("Close"));
+    minBtn_ = createCaptionButton(QStringLiteral("\u2500"));
+    closeBtn_ = createCaptionButton(QStringLiteral("\u2715"));
 
     layout->addWidget(minBtn_);
     layout->addWidget(closeBtn_);
@@ -173,10 +173,9 @@ void FluentTitleBar::applyTitlePalette() {
     titleLabel_->setPalette(pal);
 }
 
-QPushButton* FluentTitleBar::createCaptionButton(const QString& icon, const QString& tooltip) {
+QPushButton* FluentTitleBar::createCaptionButton(const QString& icon) {
     auto* btn = new QPushButton(icon, this);
     btn->setFixedSize(40, 28);
-    btn->setToolTip(tooltip);
     btn->setFlat(true);
     btn->setCursor(Qt::ArrowCursor);
     btn->setFont(QFont("Segoe UI", 9));

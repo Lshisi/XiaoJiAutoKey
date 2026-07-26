@@ -38,11 +38,13 @@ void MainWindow::setupUi() {
         configCoordinator_.configPath(),
         [this]() { return profileController_.activeProfile(); },
         [this]() { return macroController_.activeMacro(); },
-        [this]() { view_.updateFactionVisuals(this); },
-        [this]() { refreshDriverStatusUi(); }
+        [this]() { view_.updateFactionVisuals(this); }
     });
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
+        if (pageId == QStringLiteral("driver")) {
+            QTimer::singleShot(0, this, [this]() { refreshDriverStatusUi(); });
+        }
     });
     connect(view_.sidebar(), &FluentSidebar::factionSelected, this, [this](const QString& factionId) {
         settingsCoordinator_.setFaction(factionId);

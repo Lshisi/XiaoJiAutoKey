@@ -24,7 +24,6 @@ public:
         std::function<ProfileConfig*()> activeProfile;
         std::function<MacroConfig*()> activeMacro;
         std::function<void()> refreshFactionVisuals;
-        std::function<void()> refreshDriverPage;
     };
 
     explicit PageRefreshCoordinator(QObject* parent = nullptr);

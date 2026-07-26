@@ -2,9 +2,7 @@
 
 #include <condition_variable>
 #include <filesystem>
-#include <future>
 #include <map>
-#include <memory>
 #include <mutex>
 #include <queue>
 #include <QString>
@@ -46,7 +44,6 @@ private:
         int volume = 80;
         std::wstring alias;
         RequestMode mode = RequestMode::Play;
-        std::shared_ptr<std::promise<void>> completion;
     };
 
     [[nodiscard]] std::filesystem::path resolveAudioPath(const wchar_t* fileName) const;

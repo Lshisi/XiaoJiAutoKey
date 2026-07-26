@@ -240,10 +240,6 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
             QString::fromWCharArray(L"  ") + LoopText(macro));
     }
 
-    if (layout()) {
-        layout()->invalidate();
-        layout()->activate();
-    }
     adjustSize();
     moveToConfiguredPosition(config);
     setOverlayEnabled(true);

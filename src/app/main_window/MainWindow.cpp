@@ -345,7 +345,6 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
     pageRefreshCoordinator_.refreshAll();
-    refreshDriverStatusUi();
     refreshStatusOverlay();
     bindDpiRefreshSignals();
     observedScreenDpi_ = currentScreenDpi();
@@ -725,7 +724,6 @@ void MainWindow::checkUsbDriverUpdateOnStartup() {
     if (startupUsbUpdatePromptShown_) {
         return;
     }
-    refreshDriverStatusUi();
     if (!isUsbDriverUpdateAvailable()) {
         return;
     }

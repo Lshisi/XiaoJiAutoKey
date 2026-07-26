@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
+#include <cwctype>
 #include <queue>
 #include <Windows.h>
 #include <mmsystem.h>
@@ -21,10 +22,10 @@ const QStringList kSupportedAudioExtensions = {
 
 std::wstring defaultAliasForPath(const std::filesystem::path& soundPath) {
     const auto fileName = soundPath.filename().wstring();
-    if (fileName == L"\u6309\u952e\u5f00\u542f.wma") return L"autokey_repeat_on_sound";
-    if (fileName == L"\u6309\u952e\u5173\u95ed.wma") return L"autokey_repeat_off_sound";
-    if (fileName == L"\u5faa\u73af\u5f00\u542f.wma") return L"autokey_macro_on_sound";
-    if (fileName == L"\u5faa\u73af\u5173\u95ed.wma") return L"autokey_macro_off_sound";
+    if (fileName == L"\u6309\u952e\u5f00\u542f.wav") return L"autokey_repeat_on_sound";
+    if (fileName == L"\u6309\u952e\u5173\u95ed.wav") return L"autokey_repeat_off_sound";
+    if (fileName == L"\u5faa\u73af\u5f00\u542f.wav") return L"autokey_macro_on_sound";
+    if (fileName == L"\u5faa\u73af\u5173\u95ed.wav") return L"autokey_macro_off_sound";
     return {};
 }
 
@@ -146,9 +147,9 @@ std::filesystem::path SoundService::resolveToggleSoundPath(
 
     if (soundPath.empty()) {
         if (macroMode) {
-            soundPath = resolveAudioPath(running ? L"\u5faa\u73af\u5f00\u542f.wma" : L"\u5faa\u73af\u5173\u95ed.wma");
+            soundPath = resolveAudioPath(running ? L"\u5faa\u73af\u5f00\u542f.wav" : L"\u5faa\u73af\u5173\u95ed.wav");
         } else {
-            soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.wma" : L"\u6309\u952e\u5173\u95ed.wma");
+            soundPath = resolveAudioPath(running ? L"\u6309\u952e\u5f00\u542f.wav" : L"\u6309\u952e\u5173\u95ed.wav");
         }
     }
     return soundPath;
@@ -226,7 +227,12 @@ bool SoundService::ensureAliasOpen(const PlayRequest& request) const {
     }
 
     closeAliasSync(request.alias);
-    const std::wstring openCommand = L"open \"" + request.soundPath.wstring() + L"\" type mpegvideo alias " + request.alias;
+    auto extension = request.soundPath.extension().wstring();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
+        return static_cast<wchar_t>(std::towlower(ch));
+    });
+    const wchar_t* deviceType = extension == L".wav" ? L"waveaudio" : L"mpegvideo";
+    const std::wstring openCommand = L"open \"" + request.soundPath.wstring() + L"\" type " + deviceType + L" alias " + request.alias;
     if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) {
         return false;
     }

@@ -36,8 +36,10 @@ bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
     if (!IsArbitratedSource(src)) return driver_->SendDown(key, src);
 
     const auto encoded = EncodeKey(key);
+    const auto& state = StateFor(src);
     const auto owner = owners_.find(encoded);
-    if (!StateFor(src).active || (owner != owners_.end() && owner->second != src)) {
+    if (state.activeKeys.count(encoded) == 0
+        || (owner != owners_.end() && owner->second != src)) {
         return true;
     }
 
@@ -65,35 +67,37 @@ bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
     return ReleaseForwardedKeyLocked(encoded);
 }
 
-void InputDriverRouter::SetSourceKeys(InputSource src, const std::vector<KeyDescriptor>& keys) {
+void InputDriverRouter::SetSourceActiveKeys(InputSource src, const std::vector<KeyDescriptor>& keys) {
     if (!IsArbitratedSource(src)) return;
 
     std::lock_guard lock(mutex_);
     auto& state = StateFor(src);
-    state.keys.clear();
+
+    std::unordered_set<std::uint64_t> desiredKeys;
     for (const auto& key : keys) {
-        if (key.IsValid()) state.keys.insert(EncodeKey(key));
+        if (key.IsValid()) desiredKeys.insert(EncodeKey(key));
     }
-    RecomputeOwnersLocked();
-}
 
-void InputDriverRouter::SetSourceActive(InputSource src, bool active) {
-    if (!IsArbitratedSource(src)) return;
-
-    std::lock_guard lock(mutex_);
-    auto& state = StateFor(src);
-    if (state.active == active) {
-        RecomputeOwnersLocked();
-        return;
+    for (auto it = state.activeKeys.begin(); it != state.activeKeys.end();) {
+        if (desiredKeys.count(it->first) == 0) {
+            it = state.activeKeys.erase(it);
+        } else {
+            ++it;
+        }
     }
-    state.active = active;
-    state.activationOrder = active ? nextActivationOrder_++ : 0;
+
+    for (const auto encoded : desiredKeys) {
+        if (state.activeKeys.count(encoded) == 0) {
+            state.activeKeys.emplace(encoded, nextActivationOrder_++);
+        }
+    }
+
     RecomputeOwnersLocked();
 }
 
 void InputDriverRouter::ReleaseSource(InputSource src) {
     if (!IsArbitratedSource(src)) return;
-    SetSourceActive(src, false);
+    SetSourceActiveKeys(src, {});
 }
 
 void InputDriverRouter::ReleaseAll() {
@@ -101,10 +105,8 @@ void InputDriverRouter::ReleaseAll() {
     if (driver_) driver_->ReleaseAll();
     forwardedDown_.clear();
     owners_.clear();
-    repeaterState_.active = false;
-    repeaterState_.activationOrder = 0;
-    macroState_.active = false;
-    macroState_.activationOrder = 0;
+    repeaterState_.activeKeys.clear();
+    macroState_.activeKeys.clear();
 }
 
 void InputDriverRouter::ClearAllStates() {
@@ -143,23 +145,22 @@ const InputDriverRouter::SourceState& InputDriverRouter::StateFor(InputSource sr
 
 void InputDriverRouter::RecomputeOwnersLocked() {
     std::unordered_map<std::uint64_t, InputSource> updatedOwners;
-    if (repeaterState_.active && macroState_.active) {
-        const InputSource preferred = repeaterState_.activationOrder < macroState_.activationOrder
-            ? InputSource::Repeater
-            : InputSource::Macro;
-        for (const auto encoded : repeaterState_.keys) {
-            if (macroState_.keys.count(encoded) > 0) updatedOwners.emplace(encoded, preferred);
-        }
+    for (const auto& [encoded, repeaterOrder] : repeaterState_.activeKeys) {
+        const auto macro = macroState_.activeKeys.find(encoded);
+        if (macro == macroState_.activeKeys.end()) continue;
+
+        updatedOwners.emplace(
+            encoded,
+            repeaterOrder < macro->second ? InputSource::Repeater : InputSource::Macro);
     }
 
     for (auto it = forwardedDown_.begin(); it != forwardedDown_.end();) {
         const auto encoded = it->first;
         const auto source = it->second;
         const auto owner = updatedOwners.find(encoded);
-        const bool sourceStillActive = StateFor(source).active;
-        const bool sourceStillOwnsKey = StateFor(source).keys.count(encoded) > 0;
+        const bool sourceStillOwnsKey = StateFor(source).activeKeys.count(encoded) > 0;
         const bool ownershipChanged = owner != updatedOwners.end() && owner->second != source;
-        if (!sourceStillActive || !sourceStillOwnsKey || ownershipChanged) {
+        if (!sourceStillOwnsKey || ownershipChanged) {
             const auto current = it++;
             if (driver_ && driver_->SendUp(DecodeKey(encoded), source)) {
                 forwardedDown_.erase(current);

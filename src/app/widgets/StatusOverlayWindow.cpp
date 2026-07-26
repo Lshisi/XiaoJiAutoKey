@@ -63,7 +63,7 @@ const QScreen* nearestScreenForPoint(const QPoint& point) {
     const QScreen* nearest = nullptr;
     qint64 nearestDistance = std::numeric_limits<qint64>::max();
     for (const auto* screen : screens) {
-        const QRect area = screen->availableGeometry();
+        const QRect area = screen->geometry();
         const int dx = point.x() < area.left()
             ? area.left() - point.x()
             : (point.x() > area.right() ? point.x() - area.right() : 0);
@@ -208,12 +208,14 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     bool macroRunning) {
     const bool showRepeat = config.statusOverlayShowRepeat;
     const bool showMacro = config.statusOverlayShowMacro;
-    setOverlayEnabled(showRepeat || showMacro);
-    if (!overlayEnabled_) return;
+    const bool shouldShow = showRepeat || showMacro;
+    if (!shouldShow) {
+        setOverlayEnabled(false);
+        return;
+    }
 
     setLocked(config.statusOverlayLocked);
     setOverlayOpacity(config.statusOverlayOpacity);
-    moveToConfiguredPosition(config);
 
     refreshThemeStyle(repeatRunning, macroRunning);
 
@@ -238,7 +240,13 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
             QString::fromWCharArray(L"  ") + LoopText(macro));
     }
 
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
     adjustSize();
+    moveToConfiguredPosition(config);
+    setOverlayEnabled(true);
     move(boundedPosition(pos()));
     syncLockButton();
 }
@@ -487,7 +495,7 @@ QPoint StatusOverlayWindow::boundedPosition(const QPoint& position) const {
     const auto* screen = nearestScreenForPoint(anchor);
     if (!screen) return position;
 
-    const QRect area = screen->availableGeometry();
+    const QRect area = screen->geometry();
     const int x = std::clamp(position.x(), area.left(), std::max(area.left(), area.right() - width() + 1));
     const int y = std::clamp(position.y(), area.top(), std::max(area.top(), area.bottom() - height() + 1));
     return QPoint(x, y);

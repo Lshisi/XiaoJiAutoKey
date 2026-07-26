@@ -282,9 +282,9 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
     rightLayout->addWidget(triggerCard);
 
-    // -- Card 3: 连发优先 --
+    // -- Card 3: 按压优先 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
-    mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u8fde\u53d1\u4f18\u5148"), this);
+    mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u6309\u538b\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
     mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
@@ -697,7 +697,7 @@ void KeyPage::refreshTable() {
         modeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         table_->setItem(i, 2, modeItem);
         auto mixedKind = PriorityIconWidget::Kind::None;
-        QString mixedTip = QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f\u4e0d\u53c2\u4e0e\u8fde\u53d1\u4f18\u5148");
+        QString mixedTip = QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f\u4e0d\u53c2\u4e0e\u6309\u538b\u4f18\u5148");
         if (b.mode == RepeatMode::Hold) {
             mixedKind = b.suppressMixedMode
                 ? PriorityIconWidget::Kind::Disabled
@@ -706,9 +706,9 @@ void KeyPage::refreshTable() {
                 ? QString::fromWCharArray(L"\u4e0d\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4e0d\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1")
                 : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
         } else if (b.mode == RepeatMode::Independent) {
-            mixedTip = QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f\u4e5f\u4f1a\u53d7\u8fde\u53d1\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u4f4d\u5f71\u54cd");
+            mixedTip = QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f\u4e5f\u4f1a\u53d7\u6309\u538b\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u4f4d\u5f71\u54cd");
         } else if (b.mode == RepeatMode::Sequence) {
-            mixedTip = QString::fromWCharArray(L"\u5207\u6362\u6a21\u5f0f\u4f1a\u53d7\u8fde\u53d1\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u5f71\u54cd");
+            mixedTip = QString::fromWCharArray(L"\u5207\u6362\u6a21\u5f0f\u4f1a\u53d7\u6309\u538b\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u5f71\u54cd");
         }
         auto* mixedWidget = new PriorityIconWidget(mixedKind);
         mixedWidget->setToolTip(mixedTip);

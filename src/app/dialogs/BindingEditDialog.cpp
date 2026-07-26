@@ -85,9 +85,9 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     mixedModeSuppressionRow_ = new QWidget(this);
     auto* suppressionRow = new QHBoxLayout(mixedModeSuppressionRow_);
     suppressionRow->setContentsMargins(0, 0, 0, 0);
-    auto* suppressionLabel = new QLabel(QString::fromWCharArray(L"\u53c2\u4e0e\u8fde\u53d1\u4f18\u5148"), mixedModeSuppressionRow_);
+    auto* suppressionLabel = new QLabel(QString::fromWCharArray(L"\u53c2\u4e0e\u6309\u538b\u4f18\u5148"), mixedModeSuppressionRow_);
     suppressionLabel->setFont(Fluent::Typography::body());
-    suppressionLabel->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u8be5\u6309\u538b\u952e\u65f6\u4f1a\u6309\u8fde\u53d1\u4f18\u5148\u6682\u505c\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\u3002"));
+    suppressionLabel->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u8be5\u6309\u538b\u952e\u65f6\u4f1a\u6309\u7167\u6309\u538b\u4f18\u5148\u89c4\u5219\u6682\u505c\u5f00\u5173\u6a21\u5f0f\u8fde\u53d1\u3002"));
     suppressionRow->addWidget(suppressionLabel);
     suppressionRow->addStretch();
     mixedModeSuppressionSwitch_ = new FluentSwitch(mixedModeSuppressionRow_);

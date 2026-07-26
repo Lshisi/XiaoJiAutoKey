@@ -34,7 +34,6 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
     std::lock_guard lock(mutex_);
 
     std::vector<MacroRuntime> updated;
-    std::vector<KeyDescriptor> sourceKeys;
     updated.reserve(macros.size());
 
     for (const auto& cfg : macros) {
@@ -55,17 +54,11 @@ void MacroEngine::UpdateMacros(const std::vector<MacroConfig>& macros) {
         }
 
         updated.push_back(std::move(rt));
-        if (cfg.enabled) {
-            for (const auto& step : cfg.steps) {
-                if (step.key.IsValid()) sourceKeys.push_back(step.key);
-            }
-        }
     }
 
     macros_ = std::move(updated);
     pauseKeysDown_.clear();
-    driver_.SetSourceKeys(InputSource::Macro, sourceKeys);
-    SyncSourceActiveLocked();
+    SyncSourceActiveKeysLocked();
 }
 
 void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
@@ -112,7 +105,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
 
         triggerHeld_[encoded] = true;
     }
-        SyncSourceActiveLocked();
+        SyncSourceActiveKeysLocked();
     }
 
     for (const auto& release : releases) {
@@ -140,7 +133,7 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
             ResetRuntime(rt);
         }
     }
-        SyncSourceActiveLocked();
+        SyncSourceActiveKeysLocked();
     }
 
     for (const auto& release : releases) {
@@ -157,7 +150,7 @@ void MacroEngine::StopAll() {
         }
         triggerHeld_.clear();
         pauseKeysDown_.clear();
-        SyncSourceActiveLocked();
+        SyncSourceActiveKeysLocked();
     }
 }
 
@@ -178,12 +171,24 @@ bool MacroEngine::IsPauseActive() const {
     return !pauseKeysDown_.empty();
 }
 
-void MacroEngine::SyncSourceActiveLocked() {
-    const bool active = std::any_of(macros_.begin(), macros_.end(),
-        [](const MacroRuntime& rt) { return rt.active; });
-    if (sourceActive_ == active) return;
-    sourceActive_ = active;
-    driver_.SetSourceActive(InputSource::Macro, active);
+void MacroEngine::SyncSourceActiveKeysLocked() {
+    std::vector<KeyDescriptor> activeKeys;
+    std::unordered_set<std::uint64_t> activeEncoded;
+
+    for (const auto& runtime : macros_) {
+        if (!runtime.active || !runtime.config.enabled) continue;
+        for (const auto& step : runtime.config.steps) {
+            if (!step.key.IsValid()) continue;
+            const auto encoded = EncodeKey(step.key);
+            if (activeEncoded.insert(encoded).second) {
+                activeKeys.push_back(step.key);
+            }
+        }
+    }
+
+    if (activeEncoded == sourceActiveKeys_) return;
+    sourceActiveKeys_ = std::move(activeEncoded);
+    driver_.SetSourceActiveKeys(InputSource::Macro, activeKeys);
 }
 
 void MacroEngine::ResetRuntime(MacroRuntime& rt) {
@@ -289,7 +294,7 @@ void MacroEngine::WorkerLoop() {
                     rt.keyDownTime = now;
                 }
             }
-            SyncSourceActiveLocked();
+            SyncSourceActiveKeysLocked();
 
             for (const auto& runtime : macros_) {
                 if (!runtime.active || !runtime.config.enabled || runtime.config.steps.empty()) continue;

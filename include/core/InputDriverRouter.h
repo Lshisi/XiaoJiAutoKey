@@ -17,8 +17,7 @@ public:
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
-    void SetSourceKeys(InputSource src, const std::vector<KeyDescriptor>& keys) override;
-    void SetSourceActive(InputSource src, bool active) override;
+    void SetSourceActiveKeys(InputSource src, const std::vector<KeyDescriptor>& keys) override;
     void ReleaseSource(InputSource src) override;
     void ReleaseAll() override;
     void ClearAllStates() override;
@@ -26,9 +25,7 @@ public:
 
 private:
     struct SourceState {
-        bool active = false;
-        std::uint64_t activationOrder = 0;
-        std::unordered_set<std::uint64_t> keys;
+        std::unordered_map<std::uint64_t, std::uint64_t> activeKeys;
     };
 
     static bool IsArbitratedSource(InputSource src) noexcept;

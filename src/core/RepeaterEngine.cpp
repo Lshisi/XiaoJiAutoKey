@@ -131,7 +131,7 @@ void RepeaterEngine::SetToolRunning(bool running) {
         NormalizeSequenceSelectionLocked();
     }
 
-    driver_.SetSourceActive(InputSource::Repeater, running);
+    SyncSourceActiveKeysLocked();
 }
 
 // ── 物理输入状态追踪 ─────────────
@@ -145,6 +145,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
         if (!sequenceSwitchDown_) {
             sequenceSwitchDown_ = true;
             AdvanceSequenceSelectionLocked();
+            SyncSourceActiveKeysLocked();
         }
         return;
     }
@@ -176,6 +177,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
             independentActiveKey_ = key;
             ResetIndependentTaskTimingLocked(key);
         }
+        SyncSourceActiveKeysLocked();
         return;
     }
 
@@ -201,15 +203,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
         return;
     }
     physicalDown_.insert(key);
-
-    if (independentBinding) {
-        if (independentActiveKey_.has_value() && *independentActiveKey_ == key) {
-            independentActiveKey_.reset();
-        } else {
-            independentActiveKey_ = key;
-        }
-        ResetIndependentTaskTimingLocked(key);
-    }
+    SyncSourceActiveKeysLocked();
 }
 
 void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
@@ -256,6 +250,7 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
         return;
     }
     physicalDown_.erase(key);
+    SyncSourceActiveKeysLocked();
 }
 
 void RepeaterEngine::BeforeSendLocked(const KeyDescriptor& key) {
@@ -392,6 +387,45 @@ bool RepeaterEngine::IsWasdProtectionActive() const {
     return wasdProtection_ && std::any_of(physicalDown_.begin(), physicalDown_.end(), IsWasdKey);
 }
 
+void RepeaterEngine::SyncSourceActiveKeysLocked() {
+    std::vector<KeyDescriptor> activeKeys;
+    std::unordered_set<std::uint64_t> activeEncoded;
+    activeKeys.reserve(tasks_.size());
+
+    for (const auto& task : tasks_) {
+        if (!task.config.enabled || !task.config.key.IsValid()) continue;
+
+        bool active = false;
+        switch (task.config.mode) {
+        case RepeatMode::Hold:
+            active = toolRunning_ && holdPhysicalDown_.count(task.config.key) > 0;
+            break;
+        case RepeatMode::Independent:
+            active = toolRunning_
+                && independentActiveKey_.has_value()
+                && *independentActiveKey_ == task.config.key;
+            break;
+        case RepeatMode::Sequence:
+            active = toolRunning_
+                && sequenceActiveTaskId_.has_value()
+                && *sequenceActiveTaskId_ == task.config.id;
+            break;
+        case RepeatMode::Toggle:
+            active = toolRunning_;
+            break;
+        }
+
+        const auto encoded = EncodeKey(task.config.key);
+        if (active && activeEncoded.insert(encoded).second) {
+            activeKeys.push_back(task.config.key);
+        }
+    }
+
+    if (activeEncoded == sourceActiveKeys_) return;
+    sourceActiveKeys_ = std::move(activeEncoded);
+    driver_.SetSourceActiveKeys(InputSource::Repeater, activeKeys);
+}
+
 void RepeaterEngine::ReleaseAll() {
     std::lock_guard lock(mutex_);
     ++runGeneration_;
@@ -409,6 +443,7 @@ void RepeaterEngine::ReleaseAll() {
     sequenceSwitchDown_ = false;
     sequenceActiveTaskId_.reset();
     ResetAllLocked();
+    sourceActiveKeys_.clear();
     driver_.ReleaseSource(InputSource::Repeater);
 }
 
@@ -423,9 +458,7 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
     std::lock_guard lock(mutex_);
 
     std::vector<TaskRuntime> updated;
-    std::vector<KeyDescriptor> sourceKeys;
     updated.reserve(bindings.size());
-    sourceKeys.reserve(bindings.size());
 
     for (auto& b : bindings) {
         TaskRuntime t;
@@ -446,13 +479,12 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
         }
 
         updated.push_back(t);
-        if (b.enabled && b.key.IsValid()) sourceKeys.push_back(b.key);
     }
 
     tasks_ = std::move(updated);
     NormalizeIndependentSelectionLocked();
     NormalizeSequenceSelectionLocked();
-    driver_.SetSourceKeys(InputSource::Repeater, sourceKeys);
+    SyncSourceActiveKeysLocked();
 }
 
 

@@ -66,6 +66,7 @@ private:
     void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
     void NormalizeSequenceSelectionLocked();
     void AdvanceSequenceSelectionLocked();
+    void SyncSourceActiveKeysLocked();
     static std::chrono::steady_clock::time_point Now();
 
     InputDriver& driver_;
@@ -109,4 +110,5 @@ private:
     std::optional<KeyDescriptor> sequenceSwitchKey_;
     bool sequenceSwitchDown_ = false;
     std::optional<std::uint64_t> sequenceActiveTaskId_;
+    std::unordered_set<std::uint64_t> sourceActiveKeys_;
 };

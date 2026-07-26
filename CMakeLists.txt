@@ -329,6 +329,8 @@ endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/assets/audio")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/audio"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/assets/audio"
             "$<TARGET_FILE_DIR:XiaoJiAutoKey>/audio"

@@ -45,6 +45,12 @@ $hidDriverSrcDir = Join-Path $driverSrcDir "hid"
 $hidDriverDstDir = Join-Path $driverDstDir "hid"
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
+$audioFileNames = @(
+    "$([char]0x6309)$([char]0x952E)$([char]0x5F00)$([char]0x542F).wav",
+    "$([char]0x6309)$([char]0x952E)$([char]0x5173)$([char]0x95ED).wav",
+    "$([char]0x5FAA)$([char]0x73AF)$([char]0x5F00)$([char]0x542F).wav",
+    "$([char]0x5FAA)$([char]0x73AF)$([char]0x5173)$([char]0x95ED).wav"
+)
 $usageGuideName = "$([char]0x4F7F)$([char]0x7528)$([char]0x8BF4)$([char]0x660E).mhtml"
 $usageGuideSrc = Join-Path $repoRoot (Join-Path "assets" $usageGuideName)
 # Auto update version
@@ -146,10 +152,17 @@ if (-not $isStatic) {
     Write-Host "Static Qt build detected - no Qt DLLs needed!"
 }
 
-# Audio files
-if (Test-Path $audioSrcDir) {
-    New-Item -ItemType Directory -Path $audioDstDir -Force | Out-Null
-    Copy-Item (Join-Path $audioSrcDir "*") $audioDstDir -Recurse -Force
+# Built-in audio files (WAV only)
+if (-not (Test-Path $audioSrcDir)) {
+    throw "audio source directory not found: $audioSrcDir"
+}
+New-Item -ItemType Directory -Path $audioDstDir -Force | Out-Null
+foreach ($audioFileName in $audioFileNames) {
+    $audioSourcePath = Join-Path $audioSrcDir $audioFileName
+    if (-not (Test-Path $audioSourcePath -PathType Leaf)) {
+        throw "built-in WAV audio file not found: $audioSourcePath"
+    }
+    Copy-Item $audioSourcePath (Join-Path $audioDstDir $audioFileName) -Force
 }
 
 # Driver files

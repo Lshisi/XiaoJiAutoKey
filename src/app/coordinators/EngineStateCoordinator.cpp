@@ -50,7 +50,9 @@ void EngineStateCoordinator::applyBindings() {
     auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;
     if (!profile) return;
 
-    context_.repeaterEngine->UpdateBindings(profile->enabled ? profile->bindings : std::vector<KeyBinding>{});
+    context_.repeaterEngine->UpdateBindings(
+        profile->id,
+        profile->enabled ? profile->bindings : std::vector<KeyBinding>{});
     context_.repeaterEngine->SetMixedMode(profile->enabled && profile->mixedMode);
     context_.repeaterEngine->SetWasdProtection(profile->enabled && profile->wasdProtection);
     context_.repeaterEngine->SetSequenceSwitchKey(

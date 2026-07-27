@@ -43,7 +43,8 @@ public:
     void StartThread();
     void StopThread();
 
-    void UpdateBindings(const std::vector<KeyBinding>& bindings);
+    void UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings);
+    void ForgetProfileRuntimeState(std::uint64_t profileId);
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
     void SetMixedMode(bool enabled);
@@ -66,6 +67,8 @@ private:
     void ResetIndependentTaskTimingLocked(const KeyDescriptor& key);
     void NormalizeSequenceSelectionLocked();
     void AdvanceSequenceSelectionLocked();
+    void RememberSequenceSelectionLocked();
+    void ClearRememberedSequenceSelectionLocked();
     void SyncSourceActiveKeysLocked();
     static std::chrono::steady_clock::time_point Now();
 
@@ -109,6 +112,8 @@ private:
 
     std::optional<KeyDescriptor> sequenceSwitchKey_;
     bool sequenceSwitchDown_ = false;
+    std::optional<std::uint64_t> activeProfileId_;
     std::optional<std::uint64_t> sequenceActiveTaskId_;
+    std::unordered_map<std::uint64_t, std::uint64_t> sequenceSelectionByProfile_;
     std::unordered_set<std::uint64_t> sourceActiveKeys_;
 };

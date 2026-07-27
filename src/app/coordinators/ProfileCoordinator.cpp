@@ -116,6 +116,7 @@ void ProfileCoordinator::onProfileDelete() {
 
     auto* profile = context_.profileController->activeProfile();
     if (!profile) return;
+    const std::uint64_t deletedProfileId = profile->id;
 
     context_.inputHook->setDialogOpen(true);
     const bool confirmed = ConfigConfirmDialog::confirm(context_.parent,
@@ -134,6 +135,9 @@ void ProfileCoordinator::onProfileDelete() {
         return;
     }
 
+    if (context_.repeaterEngine) {
+        context_.repeaterEngine->ForgetProfileRuntimeState(deletedProfileId);
+    }
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();

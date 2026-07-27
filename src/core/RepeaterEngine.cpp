@@ -327,11 +327,29 @@ void RepeaterEngine::NormalizeSequenceSelectionLocked() {
                 && t.config.id == *sequenceActiveTaskId_;
         });
         if (stillValid) {
+            RememberSequenceSelectionLocked();
             return;
         }
     }
 
     sequenceActiveTaskId_.reset();
+
+    if (activeProfileId_.has_value()) {
+        const auto remembered = sequenceSelectionByProfile_.find(*activeProfileId_);
+        if (remembered != sequenceSelectionByProfile_.end()) {
+            const bool stillValid = std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
+                return t.config.enabled
+                    && t.config.mode == RepeatMode::Sequence
+                    && t.config.id == remembered->second;
+            });
+            if (stillValid) {
+                sequenceActiveTaskId_ = remembered->second;
+                return;
+            }
+            sequenceSelectionByProfile_.erase(remembered);
+        }
+    }
+
     if (!toolRunning_) {
         return;
     }
@@ -341,6 +359,7 @@ void RepeaterEngine::NormalizeSequenceSelectionLocked() {
     });
     if (first != tasks_.end()) {
         sequenceActiveTaskId_ = first->config.id;
+        RememberSequenceSelectionLocked();
     }
 }
 
@@ -358,6 +377,7 @@ void RepeaterEngine::AdvanceSequenceSelectionLocked() {
     }
     if (sequenceIndexes.empty()) {
         sequenceActiveTaskId_.reset();
+        ClearRememberedSequenceSelectionLocked();
         return;
     }
 
@@ -380,7 +400,22 @@ void RepeaterEngine::AdvanceSequenceSelectionLocked() {
 
     auto& nextTask = tasks_[sequenceIndexes[nextPosition]];
     sequenceActiveTaskId_ = nextTask.config.id;
+    RememberSequenceSelectionLocked();
     nextTask.lastUpTime = {};
+}
+
+void RepeaterEngine::RememberSequenceSelectionLocked() {
+    if (!activeProfileId_.has_value() || !sequenceActiveTaskId_.has_value()) {
+        return;
+    }
+    sequenceSelectionByProfile_[*activeProfileId_] = *sequenceActiveTaskId_;
+}
+
+void RepeaterEngine::ClearRememberedSequenceSelectionLocked() {
+    if (!activeProfileId_.has_value()) {
+        return;
+    }
+    sequenceSelectionByProfile_.erase(*activeProfileId_);
 }
 
 bool RepeaterEngine::IsWasdProtectionActive() const {
@@ -453,9 +488,14 @@ bool RepeaterEngine::HasActiveHoldKeys() const {
 }
 
 // ── bindings ─────────────────────────────
-void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
+void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings) {
     waiter_.Wake();
     std::lock_guard lock(mutex_);
+
+    if (!activeProfileId_.has_value() || *activeProfileId_ != profileId) {
+        activeProfileId_ = profileId;
+        sequenceActiveTaskId_.reset();
+    }
 
     std::vector<TaskRuntime> updated;
     updated.reserve(bindings.size());
@@ -485,6 +525,18 @@ void RepeaterEngine::UpdateBindings(const std::vector<KeyBinding>& bindings) {
     NormalizeIndependentSelectionLocked();
     NormalizeSequenceSelectionLocked();
     SyncSourceActiveKeysLocked();
+}
+
+void RepeaterEngine::ForgetProfileRuntimeState(std::uint64_t profileId) {
+    waiter_.Wake();
+    std::lock_guard lock(mutex_);
+
+    sequenceSelectionByProfile_.erase(profileId);
+    if (activeProfileId_.has_value() && *activeProfileId_ == profileId) {
+        activeProfileId_.reset();
+        sequenceActiveTaskId_.reset();
+        SyncSourceActiveKeysLocked();
+    }
 }
 
 

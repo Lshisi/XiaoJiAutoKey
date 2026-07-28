@@ -58,10 +58,7 @@ void EngineHookCoordinator::syncInputModes() {
     context_.hook->setRawKeyboardActive(rawKeyboardActive);
     context_.hook->setRawMouseActive(rawMouseActive);
     if (context_.repeaterEngine) {
-        const bool selfInjectedVisible = !rawKeyboardActive ||
-            !context_.selfInjectedKeyboardVisible ||
-            context_.selfInjectedKeyboardVisible();
-        context_.repeaterEngine->SetSelfInjectedKeyboardVisible(selfInjectedVisible);
+        context_.repeaterEngine->SetSelfInjectedKeyboardVisible(false);
         const bool selfInjectedMouseVisible = !rawMouseActive &&
             (!context_.selfInjectedMouseVisible || context_.selfInjectedMouseVisible());
         context_.repeaterEngine->SetSelfInjectedMouseVisible(selfInjectedMouseVisible);

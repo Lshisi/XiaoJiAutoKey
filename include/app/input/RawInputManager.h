@@ -20,10 +20,12 @@ public:
     void unregisterWindow();
 
     [[nodiscard]] bool isActive() const noexcept;
+    [[nodiscard]] bool isMouseActive() const noexcept;
     bool handleNativeMessage(MSG* message, long* result);
 
 signals:
     void keyboardChanged(KeyDescriptor key, bool pressed);
+    void mouseChanged(KeyDescriptor key, bool pressed);
 
 private:
     struct DeviceInfo {
@@ -34,8 +36,10 @@ private:
     std::optional<DeviceInfo> queryDeviceInfo(HANDLE device);
     bool shouldAcceptDevice(HANDLE device);
     KeyDescriptor rawKeyboardKeyDescriptor(const RAWKEYBOARD& keyboard) const;
+    void emitRawMouseChanges(const RAWMOUSE& mouse);
 
     HWND hwnd_ = nullptr;
-    bool active_ = false;
+    bool keyboardActive_ = false;
+    bool mouseActive_ = false;
     std::unordered_map<HANDLE, DeviceInfo> deviceCache_;
 };

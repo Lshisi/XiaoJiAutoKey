@@ -40,7 +40,7 @@ public:
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     void ReleaseAll() override;
     void ClearAllStates() override;  // Clear pressedKeys_ and selfInjected_ state.
-    bool ConsumeSelfInjected(const KeyDescriptor& key) override;
+    bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
     bool IsSelfInjected(const KeyDescriptor& key) const;
 
 private:
@@ -62,11 +62,14 @@ private:
     void CloseInjectedInfHandles();
     void RegisterPress(const KeyDescriptor& key);
     void RegisterRelease(const KeyDescriptor& key);
-    void MarkInjected(const KeyDescriptor& key, int eventCount = 1);
+    void MarkInjected(const KeyDescriptor& key, bool pressed, int eventCount = 1);
+    void RollbackInjected(const KeyDescriptor& key, bool pressed, int eventCount = 1);
 
     struct InjectedState {
-        int count = 0;
-        ULONGLONG lastTick = 0;
+        int downCount = 0;
+        int upCount = 0;
+        ULONGLONG lastDownTick = 0;
+        ULONGLONG lastUpTick = 0;
     };
 
     HMODULE module_ = nullptr;

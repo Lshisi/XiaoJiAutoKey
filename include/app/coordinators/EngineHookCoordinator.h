@@ -44,8 +44,8 @@ public:
     void refreshState();
 
 private:
-    void syncKeyboardInputMode();
-    void handleRawKeyboardChanged(const KeyDescriptor& key, bool pressed);
+    void syncInputModes();
+    void handleRawInputChanged(const KeyDescriptor& key, bool pressed);
     void handlePhysicalChanged(const KeyDescriptor& key, bool pressed);
     void handleControlHotkeyPressed();
     void handleMacroTriggerChanged(const KeyDescriptor& key, bool pressed);

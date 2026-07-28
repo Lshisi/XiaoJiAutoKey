@@ -19,5 +19,5 @@ public:
     virtual void ReleaseSource(InputSource) { ReleaseAll(); }
     virtual void ReleaseAll() = 0;
     virtual void ClearAllStates() {}
-    virtual bool ConsumeSelfInjected(const KeyDescriptor&) { return false; }
+    virtual bool ConsumeSelfInjected(const KeyDescriptor&, bool) { return false; }
 };

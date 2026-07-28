@@ -28,10 +28,12 @@ public:
     void setDialogOpen(bool open);
     void setRepeatRunning(bool running);
     void setRawKeyboardActive(bool active);
-    void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&)> filter);
+    void setRawMouseActive(bool active);
+    void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter);
 
     [[nodiscard]] bool isDialogOpen() const noexcept;
     [[nodiscard]] bool isRawKeyboardActive() const noexcept;
+    [[nodiscard]] bool isRawMouseActive() const noexcept;
 
 signals:
     void capturedKey(quint64 encodedKey);
@@ -60,13 +62,14 @@ private:
 
     mutable std::mutex stateMutex_;
     std::optional<KeyDescriptor> controlHotkey_;
-    std::function<bool(const KeyDescriptor&)> selfInjectedFilter_;
+    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
     bool captureActive_ = false;
     ULONGLONG captureStartedTick_ = 0;
 
     std::atomic<bool> dialogOpen_{false};
     std::atomic<bool> repeatRunning_{false};
     std::atomic<bool> rawKeyboardActive_{false};
+    std::atomic<bool> rawMouseActive_{false};
     std::atomic<bool> controlHotkeyPressed_{false};
     std::atomic<ULONGLONG> startupIgnoreUntilTick_{0};
 };

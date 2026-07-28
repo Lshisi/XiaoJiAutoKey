@@ -115,9 +115,9 @@ void InputDriverRouter::ClearAllStates() {
     forwardedDown_.clear();
 }
 
-bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key) {
+bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) {
     std::lock_guard lock(mutex_);
-    return driver_ && driver_->ConsumeSelfInjected(key);
+    return driver_ && driver_->ConsumeSelfInjected(key, pressed);
 }
 
 bool InputDriverRouter::IsArbitratedSource(InputSource src) noexcept {

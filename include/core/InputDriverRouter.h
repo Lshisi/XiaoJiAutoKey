@@ -21,7 +21,7 @@ public:
     void ReleaseSource(InputSource src) override;
     void ReleaseAll() override;
     void ClearAllStates() override;
-    bool ConsumeSelfInjected(const KeyDescriptor& key) override;
+    bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
 
 private:
     struct SourceState {

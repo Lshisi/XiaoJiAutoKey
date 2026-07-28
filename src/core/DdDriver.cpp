@@ -25,7 +25,8 @@ constexpr DWORD kDdxoftHidMouseOutputReportBytes = 65;
 constexpr std::uint8_t kDdxoftHidOutputReportId = 0x40;
 constexpr std::uint8_t kDdxoftHidMouseCommand = 0x09;
 constexpr std::uint8_t kDdxoftHidRelativeMouseReportId = 0x04;
-constexpr ULONGLONG kSelfInjectedTtlMs = 500;
+constexpr ULONGLONG kSelfInjectedTtlMs = 80;
+constexpr int kMaxPendingInjectedEvents = 8;
 
 bool IsInjectedSource(InputSource src) {
     return src == InputSource::Injected ||
@@ -660,15 +661,9 @@ bool DdDriver::IsKeySimulating(const KeyDescriptor& key) const {
 }
 
 bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
-    std::lock_guard ioLock(ioMutex_);
-    if (!IsReady()) return false;
-    if (simulateDepth_.load() > 3) return false;
-
-    if (IsInjectedSource(src)) {
-        MarkInjected(key, 2);
-    }
-
-    return key.device == InputDevice::Mouse ? SendMouseTap(key.code) : SendKeyboardTap(key.code);
+    if (!SendDown(key, src)) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    return SendUp(key, src);
 }
 
 bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
@@ -676,24 +671,28 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
 
-    if (IsInjectedSource(src)) {
-        MarkInjected(key);
-    }
+    const bool trackInjected = IsInjectedSource(src);
+    if (trackInjected) MarkInjected(key, true);
 
     if (key.device == InputDevice::Mouse) {
         ++simulateDepth_;
         const bool result = SendMouseDown(key.code);
         if (result) RegisterPress(key);
         --simulateDepth_;
+        if (!result && trackInjected) RollbackInjected(key, true);
         return result;
     }
 
     const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
-    if (ddCode <= 0) return false;
+    if (ddCode <= 0) {
+        if (trackInjected) RollbackInjected(key, true);
+        return false;
+    }
     ++simulateDepth_;
     const int result = ddKey_(ddCode, 1);
     if (result == 1) RegisterPress(key);
     --simulateDepth_;
+    if (result != 1 && trackInjected) RollbackInjected(key, true);
     return result == 1;
 }
 
@@ -702,24 +701,28 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
 
-    if (IsInjectedSource(src)) {
-        MarkInjected(key);
-    }
+    const bool trackInjected = IsInjectedSource(src);
+    if (trackInjected) MarkInjected(key, false);
 
     if (key.device == InputDevice::Mouse) {
         ++simulateDepth_;
         const bool result = SendMouseUp(key.code);
         if (result) RegisterRelease(key);
         --simulateDepth_;
+        if (!result && trackInjected) RollbackInjected(key, false);
         return result;
     }
 
     const int ddCode = ResolveKeyboardDdCode(ddToDc_, key.code);
-    if (ddCode <= 0) return false;
+    if (ddCode <= 0) {
+        if (trackInjected) RollbackInjected(key, false);
+        return false;
+    }
     ++simulateDepth_;
     const int result = ddKey_(ddCode, 2);
     if (result == 1) RegisterRelease(key);
     --simulateDepth_;
+    if (result != 1 && trackInjected) RollbackInjected(key, false);
     return result == 1;
 }
 
@@ -987,18 +990,39 @@ void DdDriver::RegisterRelease(const KeyDescriptor& key) {
     }
 }
 
-void DdDriver::MarkInjected(const KeyDescriptor& key, int eventCount) {
+void DdDriver::MarkInjected(const KeyDescriptor& key, bool pressed, int eventCount) {
     if (eventCount <= 0) {
         return;
     }
 
     std::lock_guard lock(mutex_);
     auto& state = selfInjected_[EncodeKey(key)];
-    state.count += eventCount;
-    state.lastTick = ::GetTickCount64();
+    int& count = pressed ? state.downCount : state.upCount;
+    ULONGLONG& lastTick = pressed ? state.lastDownTick : state.lastUpTick;
+    count = std::min(kMaxPendingInjectedEvents, count + eventCount);
+    lastTick = ::GetTickCount64();
 }
 
-bool DdDriver::ConsumeSelfInjected(const KeyDescriptor& key) {
+void DdDriver::RollbackInjected(const KeyDescriptor& key, bool pressed, int eventCount) {
+    if (eventCount <= 0) {
+        return;
+    }
+
+    std::lock_guard lock(mutex_);
+    const auto encoded = EncodeKey(key);
+    auto it = selfInjected_.find(encoded);
+    if (it == selfInjected_.end()) {
+        return;
+    }
+
+    int& count = pressed ? it->second.downCount : it->second.upCount;
+    count = std::max(0, count - eventCount);
+    if (it->second.downCount == 0 && it->second.upCount == 0) {
+        selfInjected_.erase(it);
+    }
+}
+
+bool DdDriver::ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) {
     std::lock_guard lock(mutex_);
     const auto encoded = EncodeKey(key);
     auto it = selfInjected_.find(encoded);
@@ -1007,12 +1031,23 @@ bool DdDriver::ConsumeSelfInjected(const KeyDescriptor& key) {
     }
 
     const ULONGLONG now = ::GetTickCount64();
-    if (now - it->second.lastTick > kSelfInjectedTtlMs) {
-        selfInjected_.erase(it);
+    if (it->second.downCount > 0 && now - it->second.lastDownTick > kSelfInjectedTtlMs) {
+        it->second.downCount = 0;
+    }
+    if (it->second.upCount > 0 && now - it->second.lastUpTick > kSelfInjectedTtlMs) {
+        it->second.upCount = 0;
+    }
+
+    int& count = pressed ? it->second.downCount : it->second.upCount;
+    if (count <= 0) {
+        if (it->second.downCount == 0 && it->second.upCount == 0) {
+            selfInjected_.erase(it);
+        }
         return false;
     }
 
-    if (--it->second.count <= 0) {
+    --count;
+    if (it->second.downCount == 0 && it->second.upCount == 0) {
         selfInjected_.erase(it);
     }
     return true;
@@ -1024,5 +1059,7 @@ bool DdDriver::IsSelfInjected(const KeyDescriptor& key) const {
     if (it == selfInjected_.end()) {
         return false;
     }
-    return ::GetTickCount64() - it->second.lastTick <= kSelfInjectedTtlMs && it->second.count > 0;
+    const ULONGLONG now = ::GetTickCount64();
+    return (it->second.downCount > 0 && now - it->second.lastDownTick <= kSelfInjectedTtlMs) ||
+        (it->second.upCount > 0 && now - it->second.lastUpTick <= kSelfInjectedTtlMs);
 }

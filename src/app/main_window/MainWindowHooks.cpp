@@ -7,8 +7,8 @@
 
 void MainWindow::setupHooks() {
     rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
-    inputHook_.setSelfInjectedFilter([this](const KeyDescriptor& key) {
-        return inputDriver_.ConsumeSelfInjected(key);
+    inputHook_.setSelfInjectedFilter([this](const KeyDescriptor& key, bool pressed) {
+        return inputDriver_.ConsumeSelfInjected(key, pressed);
     });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{

@@ -90,7 +90,12 @@ void GlobalInputHook::setRawKeyboardActive(bool active) {
     if (active) controlHotkeyPressed_ = false;
 }
 
-void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescriptor&)> filter) {
+void GlobalInputHook::setRawMouseActive(bool active) {
+    rawMouseActive_ = active;
+    if (active) controlHotkeyPressed_ = false;
+}
+
+void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter) {
     std::lock_guard lock(stateMutex_);
     selfInjectedFilter_ = std::move(filter);
 }
@@ -101,6 +106,10 @@ bool GlobalInputHook::isDialogOpen() const noexcept {
 
 bool GlobalInputHook::isRawKeyboardActive() const noexcept {
     return rawKeyboardActive_.load();
+}
+
+bool GlobalInputHook::isRawMouseActive() const noexcept {
+    return rawMouseActive_.load();
 }
 
 bool GlobalInputHook::event(QEvent* event) {
@@ -159,7 +168,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
-    std::function<bool(const KeyDescriptor&)> selfInjectedFilter;
+    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
     bool captureActive = false;
     {
         std::lock_guard lock(hook->stateMutex_);
@@ -172,7 +181,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
-    if (selfInjectedFilter && selfInjectedFilter(key)) {
+    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
@@ -211,10 +220,11 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (!IsMouseDownMessage(wParam) && !IsMouseUpMessage(wParam)) return CallNextHookEx(nullptr, code, wParam, lParam);
     const KeyDescriptor key = MouseMessageToDescriptor(wParam, *info);
     if (!key.IsValid()) return CallNextHookEx(nullptr, code, wParam, lParam);
+    const bool pressed = IsMouseDownMessage(wParam);
 
     auto* hook = g_hookInstance;
     std::optional<KeyDescriptor> controlHotkey;
-    std::function<bool(const KeyDescriptor&)> selfInjectedFilter;
+    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
     {
@@ -225,7 +235,10 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         captureStartedTick = hook->captureStartedTick_;
     }
 
-    if (selfInjectedFilter && selfInjectedFilter(key)) {
+    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+    if (!captureActive && hook->rawMouseActive_.load()) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
     if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
@@ -234,7 +247,6 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
     if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    const bool pressed = IsMouseDownMessage(wParam);
     const bool repeatRunning = hook->repeatRunning_.load();
 
     if (captureActive && pressed) {

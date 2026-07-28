@@ -27,14 +27,17 @@ void EngineHookCoordinator::bind(Context context) {
 
     if (context_.rawInput) {
         connect(context_.rawInput, &RawInputManager::keyboardChanged, this, [this](const KeyDescriptor& key, bool pressed) {
-            handleRawKeyboardChanged(key, pressed);
+            handleRawInputChanged(key, pressed);
+        });
+        connect(context_.rawInput, &RawInputManager::mouseChanged, this, [this](const KeyDescriptor& key, bool pressed) {
+            handleRawInputChanged(key, pressed);
         });
     }
 }
 
 bool EngineHookCoordinator::start() {
     if (!context_.hook) return false;
-    syncKeyboardInputMode();
+    syncInputModes();
     return context_.hook->start();
 }
 
@@ -43,30 +46,29 @@ void EngineHookCoordinator::refreshState() {
     context_.hook->setControlHotkey(context_.controlHotkey ? context_.controlHotkey() : std::nullopt);
     context_.hook->setCaptureActive(context_.captureActive ? context_.captureActive() : false);
     context_.hook->setRepeatRunning(context_.repeatRunning ? context_.repeatRunning() : false);
-    syncKeyboardInputMode();
+    syncInputModes();
     rawControlHotkeyPressed_ = false;
 }
 
-void EngineHookCoordinator::syncKeyboardInputMode() {
+void EngineHookCoordinator::syncInputModes() {
     if (!context_.hook) return;
 
     const bool rawKeyboardActive = context_.rawInput && context_.rawInput->isActive();
+    const bool rawMouseActive = context_.rawInput && context_.rawInput->isMouseActive();
     context_.hook->setRawKeyboardActive(rawKeyboardActive);
+    context_.hook->setRawMouseActive(rawMouseActive);
     if (context_.repeaterEngine) {
         const bool selfInjectedVisible = !rawKeyboardActive ||
             !context_.selfInjectedKeyboardVisible ||
             context_.selfInjectedKeyboardVisible();
         context_.repeaterEngine->SetSelfInjectedKeyboardVisible(selfInjectedVisible);
-        const bool selfInjectedMouseVisible = !context_.selfInjectedMouseVisible ||
-            context_.selfInjectedMouseVisible();
+        const bool selfInjectedMouseVisible = !rawMouseActive &&
+            (!context_.selfInjectedMouseVisible || context_.selfInjectedMouseVisible());
         context_.repeaterEngine->SetSelfInjectedMouseVisible(selfInjectedMouseVisible);
     }
 }
 
-void EngineHookCoordinator::handleRawKeyboardChanged(const KeyDescriptor& key, bool pressed) {
-    if (key.device != InputDevice::Keyboard) {
-        return;
-    }
+void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool pressed) {
     if (context_.captureActive && context_.captureActive()) {
         return;
     }

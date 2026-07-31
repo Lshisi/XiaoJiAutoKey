@@ -263,6 +263,7 @@ AppConfig ConfigStore::Load() const {
     if (const auto driverMode = GetStringField(*object, "driverMode"); driverMode.has_value()) {
         if (*driverMode == "hid") config.driverMode = DriverMode::Hid;
         else if (*driverMode == "usb" || *driverMode == "pico") config.driverMode = DriverMode::Usb;
+        else if (*driverMode == "native" || *driverMode == "xiaoji") config.driverMode = DriverMode::Native;
         else config.driverMode = DriverMode::Legacy;
     }
 
@@ -388,6 +389,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     const char* driverMode = "legacy";
     if (config.driverMode == DriverMode::Hid) driverMode = "hid";
     else if (config.driverMode == DriverMode::Usb) driverMode = "usb";
+    else if (config.driverMode == DriverMode::Native) driverMode = "native";
     root.emplace("driverMode", std::string(driverMode));
 
     if (!config.faction.empty())

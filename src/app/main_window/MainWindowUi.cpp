@@ -151,6 +151,7 @@ void MainWindow::setupUi() {
         view_.driverPage(),
         &config_,
         &ddRuntimeService_,
+        &nativeHidRuntimeService_,
         this,
         [this](DriverMode mode) { return switchDriverMode(mode); },
         [this](DriverMode mode) { prepareDriverUninstall(mode); },

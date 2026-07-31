@@ -51,6 +51,12 @@ QString compactDriverDetails(const QString& details) {
     QString ch552Device;
     QString usbConnection;
     QString usbFirmware;
+    QString nativePackage;
+    QString nativeService;
+    QString nativeSys;
+    QString nativeDevice;
+    QString nativeConnection;
+    QString nativeVersion;
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
@@ -68,6 +74,12 @@ QString compactDriverDetails(const QString& details) {
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u8bbe\u5907:"))) ch552Device = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u901a\u4fe1:"))) usbConnection = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"USB \u56fa\u4ef6:"))) usbFirmware = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID \u53d1\u5e03\u5305:"))) nativePackage = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID \u670d\u52a1:"))) nativeService = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID SYS:"))) nativeSys = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID \u8bbe\u5907:"))) nativeDevice = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID \u901a\u4fe1:"))) nativeConnection = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5c0f\u53fd HID \u7248\u672c:"))) nativeVersion = trimmed.section(QLatin1Char(':'), 1).trimmed();
     }
 
     QStringList sections;
@@ -126,6 +138,19 @@ QString compactDriverDetails(const QString& details) {
         if (!sections.isEmpty()) sections.push_back(QString());
         sections.push_back(QStringLiteral("HID"));
         sections.append(hid);
+    }
+    QStringList native;
+    if (!nativePackage.isEmpty()) native.push_back(QString::fromWCharArray(L"\u53d1\u5e03\u5305: ") + nativePackage);
+    if (!nativeService.isEmpty() || !nativeSys.isEmpty()) {
+        native.push_back(QString::fromWCharArray(L"\u670d\u52a1/SYS: ") + nativeService + QStringLiteral(" / ") + nativeSys);
+    }
+    if (!nativeDevice.isEmpty()) native.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") + nativeDevice);
+    if (!nativeConnection.isEmpty()) native.push_back(QString::fromWCharArray(L"\u901a\u4fe1: ") + nativeConnection);
+    if (!nativeVersion.isEmpty()) native.push_back(QString::fromWCharArray(L"\u7248\u672c: ") + nativeVersion);
+    if (!native.isEmpty()) {
+        if (!sections.isEmpty()) sections.push_back(QString());
+        sections.push_back(QString::fromWCharArray(L"\u5c0f\u53fd HID"));
+        sections.append(native);
     }
     QStringList usb;
     if (!ch552Device.isEmpty()) usb.push_back(QString::fromWCharArray(L"\u8bbe\u5907: ") + ch552Device);
@@ -196,7 +221,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     pageTitle->setFont(Fluent::Typography::pageTitle());
     panelLayout->addWidget(pageTitle);
 
-    auto* pageDesc = new QLabel(QString::fromWCharArray(L"\u7ba1\u7406 DD\u3001HID \u548c USB \u5c0f\u53fd\u786c\u4ef6\u9a71\u52a8\uff0c\u67e5\u770b\u5f53\u524d\u72b6\u6001\u3001\u5207\u6362\u9a71\u52a8\u3001\u5b89\u88c5\u6216\u5378\u8f7d\u9a71\u52a8\u3002"), panel);
+    auto* pageDesc = new QLabel(QString::fromWCharArray(L"\u7ba1\u7406 DD\u3001HID\u3001\u5c0f\u53fd HID \u548c USB \u786c\u4ef6\u8f93\u5165\uff0c\u67e5\u770b\u72b6\u6001\u5e76\u5207\u6362\u8fd0\u884c\u6a21\u5f0f\u3002"), panel);
     pageDesc->setFont(Fluent::Typography::body());
     pageDesc->setWordWrap(true);
     pageDesc->setPalette(mutedPalette(pageDesc));
@@ -213,6 +238,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     driverModeCombo_->addItem(QStringLiteral("DD"), static_cast<int>(DriverMode::Legacy));
     driverModeCombo_->addItem(QStringLiteral("HID"), static_cast<int>(DriverMode::Hid));
     driverModeCombo_->addItem(QStringLiteral("USB"), static_cast<int>(DriverMode::Usb));
+    driverModeCombo_->addItem(QString::fromWCharArray(L"\u5c0f\u53fd HID"), static_cast<int>(DriverMode::Native));
     driverModeCombo_->setFixedSize(190, 28);
     modeRow->addWidget(driverModeCombo_);
     panelLayout->addLayout(modeRow);
@@ -248,6 +274,11 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     uninstallHidButton_->setFixedWidth(91);
     uninstallHidButton_->hide();
     statusTitleRow->addWidget(uninstallHidButton_);
+    uninstallNativeButton_ = new FluentButton(
+        FluentButton::Primary, QString::fromWCharArray(L"\u5378\u8f7d\u5c0f\u53fd"), panel);
+    uninstallNativeButton_->setFixedWidth(91);
+    uninstallNativeButton_->hide();
+    statusTitleRow->addWidget(uninstallNativeButton_);
     updateUsbButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u66f4\u65b0\u9a71\u52a8"), panel);
     updateUsbButton_->setFixedWidth(91);
     updateUsbButton_->hide();
@@ -304,6 +335,9 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     connect(uninstallHidButton_, &QPushButton::clicked, this, [this]() {
         emit uninstallDriverRequested(DriverMode::Hid);
     });
+    connect(uninstallNativeButton_, &QPushButton::clicked, this, [this]() {
+        emit uninstallDriverRequested(DriverMode::Native);
+    });
     connect(updateUsbButton_, &QPushButton::clicked, this, [this]() {
         emit updateUsbDriverRequested();
     });
@@ -319,6 +353,7 @@ void DriverPage::updateThemeColors() {
     }
     if (uninstallDdButton_) uninstallDdButton_->refreshMetrics();
     if (uninstallHidButton_) uninstallHidButton_->refreshMetrics();
+    if (uninstallNativeButton_) uninstallNativeButton_->refreshMetrics();
     if (updateUsbButton_) updateUsbButton_->refreshMetrics();
     if (repairAgentButton_) repairAgentButton_->refreshMetrics();
     update();
@@ -345,9 +380,11 @@ void DriverPage::setDetailText(const QString& details) {
     if (summaryDetailValue_) summaryDetailValue_->setPlainText(compactDriverDetails(details));
 }
 
-void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled, bool usbUpdateAvailable) {
+void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstalled,
+                                  bool usbUpdateAvailable) {
     if (uninstallDdButton_) uninstallDdButton_->setVisible(ddInstalled);
     if (uninstallHidButton_) uninstallHidButton_->setVisible(hidInstalled);
+    if (uninstallNativeButton_) uninstallNativeButton_->setVisible(nativeInstalled);
     if (updateUsbButton_) updateUsbButton_->setVisible(usbUpdateAvailable);
 }
 
@@ -355,6 +392,7 @@ void DriverPage::setBusy(bool busy) {
     if (driverModeCombo_) driverModeCombo_->setEnabled(!busy);
     if (uninstallDdButton_) uninstallDdButton_->setEnabled(!busy);
     if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
+    if (uninstallNativeButton_) uninstallNativeButton_->setEnabled(!busy);
     if (updateUsbButton_) updateUsbButton_->setEnabled(!busy);
     if (repairAgentButton_) repairAgentButton_->setEnabled(!busy);
 }

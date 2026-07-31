@@ -17,7 +17,8 @@ public:
     void setDriverMode(DriverMode mode);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
-    void setDriverActions(bool ddInstalled, bool hidInstalled, bool usbUpdateAvailable = false);
+    void setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstalled,
+                          bool usbUpdateAvailable = false);
     void setBusy(bool busy);
     void setAgentState(const QString& status, bool repairAvailable);
     void updateThemeColors();
@@ -38,6 +39,7 @@ private:
     QWidget* summaryPanel_ = nullptr;
     FluentButton* uninstallDdButton_ = nullptr;
     FluentButton* uninstallHidButton_ = nullptr;
+    FluentButton* uninstallNativeButton_ = nullptr;
     FluentButton* updateUsbButton_ = nullptr;
     FluentButton* repairAgentButton_ = nullptr;
     QLabel* agentStatusValue_ = nullptr;

@@ -59,6 +59,7 @@ enum class DriverMode {
     Legacy,
     Hid,
     Usb,
+    Native,
 };
 
 enum class MacroTriggerMode {

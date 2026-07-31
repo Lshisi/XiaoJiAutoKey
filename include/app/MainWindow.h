@@ -7,11 +7,13 @@
 #include "input/RawInputManager.h"
 #include "MacroEngine.h"
 #include "Ch552UsbDriver.h"
+#include "NativeHidDriver.h"
 #include "controllers/MacroController.h"
 #include "view/MainWindowView.h"
 #include "controllers/ProfileController.h"
 #include "RepeaterEngine.h"
 #include "services/DdRuntimeService.h"
+#include "services/NativeHidRuntimeService.h"
 #include "services/SoundService.h"
 #include "coordinators/DriverCoordinator.h"
 #include "coordinators/SettingsCoordinator.h"
@@ -56,12 +58,14 @@ private:
     bool loadHidDriver();
     bool loadLegacyDriver();
     bool loadCh552UsbDriver();
+    bool loadNativeHidDriver();
     bool activeInputDriverReady() const;
     std::wstring activeInputDriverError() const;
     bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
     bool canLoadCh552UsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
+    bool ensureNativeHidInstalledForSwitch();
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
     bool isUsbDriverUpdateAvailable() const;
@@ -101,12 +105,14 @@ private:
 
     DdDriver driver_;
     Ch552UsbDriver ch552Driver_;
+    NativeHidDriver nativeHidDriver_;
     InputDriverRouter inputDriver_;
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;
     RawInputManager rawInput_;
     DdRuntimeService ddRuntimeService_;
+    NativeHidRuntimeService nativeHidRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;
     DriverCoordinator driverCoordinator_;

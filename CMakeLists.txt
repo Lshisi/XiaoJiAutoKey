@@ -82,6 +82,7 @@ set(CORE_SOURCES
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
     src/core/Ch552UsbDriver.cpp
+    src/core/NativeHidDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
 )
@@ -160,6 +161,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/controllers/ProfileController.h
     include/app/services/AppPaths.h
     include/app/services/DdRuntimeService.h
+    include/app/services/NativeHidRuntimeService.h
     include/app/services/SoundService.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
@@ -174,6 +176,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/core/InputDriver.h
     include/core/InputDriverRouter.h
     include/core/Ch552UsbDriver.h
+    include/core/NativeHidDriver.h
     include/core/PicoUsbDriver.h
     src/app/input/GlobalInputHook.cpp
     src/app/input/RawInputManager.cpp
@@ -202,6 +205,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
     src/app/services/DdRuntimeService.cpp
+    src/app/services/NativeHidRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
@@ -242,6 +246,7 @@ target_include_directories(XiaoJiAutoKey PRIVATE
     src/ui/styles
     src/ui/components
     src/ui/pages
+    driver/shared
 )
 
 target_compile_definitions(XiaoJiAutoKey PRIVATE
@@ -262,6 +267,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     setupapi
     cfgmgr32
     advapi32
+    newdev
 )
 
 if(MSVC)
@@ -274,6 +280,14 @@ if(MSVC)
 endif()
 
 set_target_properties(XiaoJiAutoKey PROPERTIES OUTPUT_NAME "XiaoJiAutoKey")
+
+add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}/driver/xiaoji-vhid/package/$<CONFIG>"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/native"
+        -P "${CMAKE_SOURCE_DIR}/scripts/copy-native-driver.cmake"
+    COMMENT "Copying XiaoJiVhid package when available"
+)
 
 if(EXISTS "${AUTOKEY_DD_DLL32}")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD

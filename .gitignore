@@ -3,6 +3,8 @@ build/
 dist/
 firmware/pico/build/
 firmware/ch552/build/
+driver/xiaoji-vhid/obj/
+driver/xiaoji-vhid/package/
 
 # IDE files
 .vs/

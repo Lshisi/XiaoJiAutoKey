@@ -65,6 +65,8 @@ const char* DriverModeText(DriverMode mode) {
         return "hid";
     case DriverMode::Usb:
         return "usb";
+    case DriverMode::Native:
+        return "native";
     default:
         return "legacy";
     }
@@ -101,6 +103,12 @@ std::string DetectDriverModeFromRawConfig(const std::string& text) {
         text.find("\"driverMode\": \"pico\"") != std::string::npos ||
         text.find("\"driverMode\":\"pico\"") != std::string::npos) {
         return "usb";
+    }
+    if (text.find("\"driverMode\": \"native\"") != std::string::npos ||
+        text.find("\"driverMode\":\"native\"") != std::string::npos ||
+        text.find("\"driverMode\": \"xiaoji\"") != std::string::npos ||
+        text.find("\"driverMode\":\"xiaoji\"") != std::string::npos) {
+        return "native";
     }
     return "unknown";
 }
@@ -149,7 +157,7 @@ int main(int argc, char *argv[]) {
 
         bool loadOk = false;
         bool loadedAsConfigured = false;
-        if (config.driverMode == DriverMode::Usb) {
+        if (config.driverMode == DriverMode::Usb || config.driverMode == DriverMode::Native) {
             loadOk = false;
             loadedAsConfigured = false;
         } else if (config.driverMode == DriverMode::Hid) {

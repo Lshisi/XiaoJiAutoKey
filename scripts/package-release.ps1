@@ -1,5 +1,7 @@
 param(
-    [string]$Configuration = "Release"
+    [ValidateSet("Debug", "Release")]
+    [string]$Configuration = "Release",
+    [switch]$AllowTestSignedNativeDriver
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +45,10 @@ $driverSrcDir = Join-Path $repoRoot "third_party\dd"
 $driverDstDir = Join-Path $packageDir "driver"
 $hidDriverSrcDir = Join-Path $driverSrcDir "hid"
 $hidDriverDstDir = Join-Path $driverDstDir "hid"
+$nativeDriverBuildScript = Join-Path $repoRoot "scripts\build-native-driver.ps1"
+$nativeDriverSrcDir = Join-Path $repoRoot "driver\xiaoji-vhid\package\$Configuration"
+$nativeDriverDstDir = Join-Path $driverDstDir "native"
+$nativeDriverFiles = @("XiaoJiVhid.sys", "XiaoJiVhid.inf", "XiaoJiVhid.cat")
 $audioSrcDir = Join-Path $repoRoot "assets\audio"
 $audioDstDir = Join-Path $packageDir "audio"
 $audioFileNames = @(
@@ -68,6 +74,46 @@ $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # } else {
 #     Write-Warning "Could not find version string in CMakeLists.txt"
 # }
+if ($AllowTestSignedNativeDriver) {
+    & $nativeDriverBuildScript -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) {
+        throw "native driver build failed"
+    }
+} else {
+    foreach ($fileName in $nativeDriverFiles) {
+        $sourcePath = Join-Path $nativeDriverSrcDir $fileName
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "production-signed native driver package file not found: $sourcePath"
+        }
+    }
+
+    $catalogPath = Join-Path $nativeDriverSrcDir "XiaoJiVhid.cat"
+    $sysPath = Join-Path $nativeDriverSrcDir "XiaoJiVhid.sys"
+    $catalogSignature = Get-AuthenticodeSignature -LiteralPath $catalogPath
+    $signerSubject = if ($catalogSignature.SignerCertificate) {
+        $catalogSignature.SignerCertificate.Subject
+    } else {
+        ""
+    }
+    if ($catalogSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+        $signerSubject -match "WDKTestCert") {
+        throw "XiaoJiVhid.cat is not production-signed. Complete Microsoft attestation/WHQL signing, or use -AllowTestSignedNativeDriver only for an internal development package."
+    }
+
+    $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "x64\signtool.exe" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+    if (-not $signtool) {
+        throw "signtool.exe was not found; the production kernel signature cannot be verified."
+    }
+    & $signtool verify /kp /c $catalogPath $sysPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "XiaoJiVhid failed kernel-mode production signature verification."
+    }
+}
+
 & $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath"
 if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed"
@@ -190,6 +236,16 @@ if (Test-Path $driverSrcDir) {
     }
 } else {
     Write-Warning "third_party\dd directory not found."
+}
+
+# XiaoJi native virtual HID driver package
+New-Item -ItemType Directory -Path $nativeDriverDstDir -Force | Out-Null
+foreach ($fileName in $nativeDriverFiles) {
+    $sourcePath = Join-Path $nativeDriverSrcDir $fileName
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+        throw "native driver package file not found: $sourcePath"
+    }
+    Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $nativeDriverDstDir $fileName) -Force
 }
 
 # Create zip

@@ -10,6 +10,26 @@
 
 namespace {
 
+class ConfigWriteLock {
+public:
+    ConfigWriteLock() : mutex_(CreateMutexW(nullptr, FALSE, L"XiaoJiAutoKey_ConfigWrite_Mutex")) {
+        if (!mutex_) return;
+        const DWORD result = WaitForSingleObject(mutex_, 30000);
+        locked_ = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;
+    }
+
+    ~ConfigWriteLock() {
+        if (locked_) ReleaseMutex(mutex_);
+        if (mutex_) CloseHandle(mutex_);
+    }
+
+    [[nodiscard]] bool locked() const noexcept { return locked_; }
+
+private:
+    HANDLE mutex_ = nullptr;
+    bool locked_ = false;
+};
+
 std::optional<std::string> GetStringField(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
     if (it == object.end()) return std::nullopt;
@@ -421,14 +441,6 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     return WriteAtomically(content, error);
 }
 
-bool ConfigStore::SaveRawValidated(const std::string& content, std::wstring& error) const {
-    if (!IsValidConfigText(content)) {
-        error = L"\u914d\u7f6e\u5185\u5bb9\u683c\u5f0f\u65e0\u6548";
-        return false;
-    }
-    return WriteAtomically(!content.empty() && content.back() == '\n' ? content : content + "\n", error);
-}
-
 bool ConfigStore::IsValidConfigText(const std::string& content) {
     jsonlite::Value root;
     std::string parseError;
@@ -444,6 +456,12 @@ bool ConfigStore::IsValidConfigFile(const std::filesystem::path& path) {
 }
 
 bool ConfigStore::WriteAtomically(const std::string& content, std::wstring& error) const {
+    ConfigWriteLock writeLock;
+    if (!writeLock.locked()) {
+        error = L"\u65e0\u6cd5\u83b7\u53d6\u914d\u7f6e\u5199\u5165\u9501";
+        return false;
+    }
+
     std::error_code ec;
     const auto parent = configPath_.parent_path();
     if (!parent.empty()) {

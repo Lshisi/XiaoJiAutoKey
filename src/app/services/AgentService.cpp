@@ -10,11 +10,11 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
-#include <sstream>
 #include <vector>
 
 namespace {
 constexpr DWORD kMaxPayload = 1024 * 1024;
+constexpr wchar_t kConfigRegistryValue[] = L"ConfigPath";
 
 std::wstring EnvironmentPath(const wchar_t* name) {
     DWORD size = GetEnvironmentVariableW(name, nullptr, 0);
@@ -51,13 +51,13 @@ std::wstring TaskName() {
     return L"XiaoJiAutoKeyAgent-" + CurrentUserSid();
 }
 
-bool ReadTextFile(const std::filesystem::path& path, std::string* content) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file) return false;
-    std::ostringstream stream;
-    stream << file.rdbuf();
-    *content = stream.str();
-    return true;
+const std::wstring& ConfigRegistryKey() {
+    static const std::wstring key = []() {
+        const auto sid = CurrentUserSid();
+        return sid.empty() || sid == L"unknown"
+            ? std::wstring{} : L"Software\\XiaoJiAutoKey\\Users\\" + sid;
+    }();
+    return key;
 }
 
 bool CopyTree(const std::filesystem::path& source, const std::filesystem::path& target) {
@@ -203,8 +203,52 @@ std::filesystem::path AgentService::DataDirectory() {
     return std::filesystem::path(EnvironmentPath(L"LOCALAPPDATA")) / L"XiaoJiAutoKey";
 }
 
-std::filesystem::path AgentService::ConfigPath() {
+std::filesystem::path AgentService::LegacyConfigPath() {
     return DataDirectory() / L"agent-config.json";
+}
+
+std::filesystem::path AgentService::FrontendConfigPath() {
+    const auto& registryKey = ConfigRegistryKey();
+    if (registryKey.empty()) return {};
+    DWORD size = 0;
+    constexpr DWORD flags = RRF_RT_REG_SZ;
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, registryKey.c_str(), kConfigRegistryValue,
+            flags, nullptr, nullptr, &size) != ERROR_SUCCESS || size < sizeof(wchar_t)) {
+        return {};
+    }
+    std::wstring value(size / sizeof(wchar_t), L'\0');
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, registryKey.c_str(), kConfigRegistryValue,
+            flags, nullptr, value.data(), &size) != ERROR_SUCCESS) {
+        return {};
+    }
+    if (!value.empty() && value.back() == L'\0') value.pop_back();
+    return value.empty() ? std::filesystem::path{} : std::filesystem::path(value);
+}
+
+bool AgentService::PublishFrontendConfigPath(
+    const std::filesystem::path& configPath, std::wstring* error) {
+    const auto& registryKey = ConfigRegistryKey();
+    if (registryKey.empty() || configPath.empty() || !configPath.is_absolute()) {
+        if (error) *error = L"Frontend configuration path is invalid";
+        return false;
+    }
+    HKEY key = nullptr;
+    const auto openResult = RegCreateKeyExW(HKEY_LOCAL_MACHINE, registryKey.c_str(), 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, nullptr, &key, nullptr);
+    if (openResult != ERROR_SUCCESS) {
+        if (error) *error = L"Unable to register the frontend configuration path";
+        return false;
+    }
+    const std::wstring value = configPath.wstring();
+    const auto setResult = RegSetValueExW(key, kConfigRegistryValue, 0, REG_SZ,
+        reinterpret_cast<const BYTE*>(value.c_str()),
+        static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+    RegCloseKey(key);
+    if (setResult != ERROR_SUCCESS) {
+        if (error) *error = L"Unable to register the frontend configuration path";
+        return false;
+    }
+    return true;
 }
 
 std::filesystem::path AgentService::InstallDirectory() {
@@ -222,53 +266,49 @@ std::wstring AgentService::PipeName() {
 }
 
 bool AgentService::RecoverFrontendConfig(const std::filesystem::path& frontendConfig) {
-    if (ConfigStore::IsValidConfigFile(frontendConfig)) return true;
+    const auto legacyConfig = LegacyConfigPath();
+    auto legacyBackup = legacyConfig;
+    legacyBackup += L".bak";
+    const auto removeLegacyFiles = [legacyConfig, legacyBackup]() {
+        std::error_code ec;
+        std::filesystem::remove(legacyConfig, ec);
+        std::filesystem::remove(legacyBackup, ec);
+        auto legacyTemp = legacyConfig;
+        legacyTemp += L".tmp";
+        std::filesystem::remove(legacyTemp, ec);
+    };
+    const auto migrateLegacyRuntimeState = [&]() {
+        const auto source = ConfigStore::IsValidConfigFile(legacyConfig)
+            ? legacyConfig : legacyBackup;
+        if (ConfigStore::IsValidConfigFile(source)) {
+            ConfigStore frontendStore(frontendConfig);
+            ConfigStore legacyStore(source);
+            AppConfig frontend = frontendStore.Load();
+            const AppConfig legacy = legacyStore.Load();
+            frontend.statusOverlayLocked = legacy.statusOverlayLocked;
+            frontend.statusOverlayPositionSaved = legacy.statusOverlayPositionSaved;
+            frontend.statusOverlayX = legacy.statusOverlayX;
+            frontend.statusOverlayY = legacy.statusOverlayY;
+            std::wstring error;
+            if (!frontendStore.Save(frontend, error)) return false;
+        }
+        removeLegacyFiles();
+        return true;
+    };
+    if (ConfigStore::IsValidConfigFile(frontendConfig)) {
+        return migrateLegacyRuntimeState();
+    }
     auto frontendBackup = frontendConfig;
     frontendBackup += L".bak";
-    auto agentBackup = ConfigPath();
-    agentBackup += L".bak";
-    for (const auto& candidate : {frontendBackup, ConfigPath(), agentBackup}) {
+    for (const auto& candidate : {frontendBackup, legacyConfig, legacyBackup}) {
         if (!ConfigStore::IsValidConfigFile(candidate)) continue;
         std::error_code ec;
         std::filesystem::copy_file(candidate, frontendConfig,
             std::filesystem::copy_options::overwrite_existing, ec);
-        if (!ec) return true;
+        if (!ec) return migrateLegacyRuntimeState();
     }
+    removeLegacyFiles();
     return false;
-}
-
-bool AgentService::SyncRuntimeStateToFrontend(
-    const std::filesystem::path& frontendConfig, std::wstring* error) {
-    if (!ConfigStore::IsValidConfigFile(frontendConfig) ||
-        !ConfigStore::IsValidConfigFile(ConfigPath())) {
-        return false;
-    }
-
-    ConfigStore frontendStore(frontendConfig);
-    ConfigStore agentStore(ConfigPath());
-    AppConfig frontend = frontendStore.Load();
-    const AppConfig agent = agentStore.Load();
-
-    // The agent is allowed to update only overlay runtime state while the UI
-    // is closed. Keep the rest of the frontend configuration authoritative.
-    frontend.statusOverlayLocked = agent.statusOverlayLocked;
-    frontend.statusOverlayPositionSaved = agent.statusOverlayPositionSaved;
-    frontend.statusOverlayX = agent.statusOverlayX;
-    frontend.statusOverlayY = agent.statusOverlayY;
-    std::wstring ignoredError;
-    return frontendStore.Save(frontend, error ? *error : ignoredError);
-}
-
-bool AgentService::StageConfigFile(
-    const std::filesystem::path& frontendConfig, std::wstring* error) {
-    std::string content;
-    if (!ReadTextFile(frontendConfig, &content)) {
-        if (error) *error = L"Unable to read the frontend configuration";
-        return false;
-    }
-    ConfigStore agentStore(ConfigPath());
-    std::wstring ignoredError;
-    return agentStore.SaveRawValidated(content, error ? *error : ignoredError);
 }
 
 bool AgentService::EnsureInstalled(const std::filesystem::path& sourceExe, std::wstring* error) {
@@ -342,12 +382,12 @@ bool AgentService::Uninstall(std::wstring* error) {
         if (error) *error = L"Unable to remove the installed Agent files";
         return false;
     }
-    auto backupPath = ConfigPath();
+    auto backupPath = LegacyConfigPath();
     backupPath += L".bak";
-    auto tempPath = ConfigPath();
+    auto tempPath = LegacyConfigPath();
     tempPath += L".tmp";
     const std::array<std::filesystem::path, 4> dataFiles = {
-        ConfigPath(), backupPath, tempPath, DataDirectory() / L"agent.log"};
+        LegacyConfigPath(), backupPath, tempPath, DataDirectory() / L"agent.log"};
     for (const auto& path : dataFiles) {
         std::filesystem::remove(path, ec);
         if (ec) {
@@ -378,6 +418,11 @@ bool AgentService::Start(std::wstring* error) {
     return false;
 }
 
+bool AgentService::IsRunning() {
+    jsonlite::Object response;
+    return SendRequest(Command("STATUS"), &response, nullptr, 100);
+}
+
 AgentStatus AgentService::QueryStatus() {
     AgentStatus status;
     status.installed = std::filesystem::exists(ExecutablePath());
@@ -406,19 +451,6 @@ bool AgentService::PauseForUi(std::uint32_t processId, bool* repeatRunning, std:
         *repeatRunning = it != response.end() && it->second.AsBool() && *it->second.AsBool();
     }
     return true;
-}
-
-bool AgentService::SyncConfigFile(const std::filesystem::path& configPath, bool repeatRunning, std::wstring* error) {
-    std::string content;
-    if (!ReadTextFile(configPath, &content) || !ConfigStore::IsValidConfigText(content)) {
-        if (error) *error = L"Frontend configuration is invalid";
-        return false;
-    }
-    auto request = Command("SYNC_CONFIG");
-    request.emplace("config", std::move(content));
-    request.emplace("repeatRunning", repeatRunning);
-    jsonlite::Object response;
-    return SendRequest(request, &response, error);
 }
 
 bool AgentService::Resume(bool repeatRunning, std::wstring* error) {

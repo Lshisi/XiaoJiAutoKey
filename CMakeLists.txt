@@ -261,6 +261,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     hid
     setupapi
     cfgmgr32
+    advapi32
 )
 
 if(MSVC)

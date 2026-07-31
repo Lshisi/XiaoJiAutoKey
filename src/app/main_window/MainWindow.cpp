@@ -343,7 +343,6 @@ MainWindow::~MainWindow() {
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
     if (config_.backgroundAutoRun && agentPausedForUi_) {
-        AgentService::SyncConfigFile(configCoordinator_.configPath(), repeatRunning, nullptr);
         AgentService::Resume(repeatRunning, nullptr);
         agentPausedForUi_ = false;
     }
@@ -520,8 +519,12 @@ bool installWinUsbBootloaderDriver(const QString& installerPath, const QString& 
 bool MainWindow::Initialize() {
     setupUi();
     registerUsbDeviceNotifications();
+    if (AgentService::IsRunning()) {
+        agentPausedForUi_ = AgentService::PauseForUi(
+            GetCurrentProcessId(), &agentRepeatRunningOnHandoff_, nullptr);
+    }
     AgentService::RecoverFrontendConfig(appPaths_.configPath());
-    AgentService::SyncRuntimeStateToFrontend(appPaths_.configPath());
+    AgentService::PublishFrontendConfigPath(appPaths_.configPath(), nullptr);
     configCoordinator_.load();
     const bool agentHandoffReady = initializeAgentHandoff();
     soundService_.warmUpToggleSounds(
@@ -671,6 +674,8 @@ bool MainWindow::loadCh552UsbDriver() {
 bool MainWindow::initializeAgentHandoff() {
     if (!config_.backgroundAutoRun) {
         AgentService::Uninstall(nullptr);
+        agentPausedForUi_ = false;
+        agentRepeatRunningOnHandoff_ = false;
         return true;
     }
     wchar_t executable[MAX_PATH] = {};
@@ -684,24 +689,19 @@ bool MainWindow::initializeAgentHandoff() {
         return false;
     };
     configCoordinator_.save();
-    if (!AgentService::StageConfigFile(configCoordinator_.configPath(), &error)) {
+    if (!AgentService::PublishFrontendConfigPath(configCoordinator_.configPath(), &error)) {
         return failHandoff();
     }
     if (!AgentService::EnsureInstalled(std::filesystem::path(executable), &error)) {
         return failHandoff();
     }
-    if (!AgentService::PauseForUi(
-            GetCurrentProcessId(), &agentRepeatRunningOnHandoff_, &error)) {
+    bool repeatRunning = false;
+    if (!AgentService::PauseForUi(GetCurrentProcessId(), &repeatRunning, &error)) {
         return failHandoff();
     }
+    agentRepeatRunningOnHandoff_ = agentRepeatRunningOnHandoff_ || repeatRunning;
     agentPausedForUi_ = true;
-    syncAgentConfig();
     return true;
-}
-
-void MainWindow::syncAgentConfig() {
-    if (!agentPausedForUi_) return;
-    AgentService::SyncConfigFile(configCoordinator_.configPath(), engine_.IsToolRunning(), nullptr);
 }
 
 void MainWindow::resumeAgent() {

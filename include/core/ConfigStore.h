@@ -10,7 +10,6 @@ public:
 
     [[nodiscard]] AppConfig Load() const;
     bool Save(const AppConfig& config, std::wstring& error) const;
-    bool SaveRawValidated(const std::string& content, std::wstring& error) const;
     [[nodiscard]] static bool IsValidConfigText(const std::string& content);
     [[nodiscard]] static bool IsValidConfigFile(const std::filesystem::path& path);
 

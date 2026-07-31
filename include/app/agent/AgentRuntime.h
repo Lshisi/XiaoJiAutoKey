@@ -36,6 +36,7 @@ private:
     void pipeLoop();
     std::string handleRequest(const std::string& request);
     void ensureRuntimeState();
+    bool refreshConfigPath();
     bool connectUsb();
     void activateRuntime();
     void deactivateRuntime(bool disconnectUsb, bool preserveRepeatState = true);
@@ -70,5 +71,6 @@ private:
     bool desiredRepeatRunning_ = false;
     bool controlHotkeyDown_ = false;
     bool firmwareUpdateRequired_ = false;
+    bool configPathReady_ = false;
     DWORD frontendPid_ = 0;
 };

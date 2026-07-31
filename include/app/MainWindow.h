@@ -86,7 +86,6 @@ private:
     void registerUsbDeviceNotifications();
     void unregisterUsbDeviceNotifications();
     bool initializeAgentHandoff();
-    void syncAgentConfig();
     void resumeAgent();
     void setBackgroundAutoRun(bool enabled);
     void repairAgent();

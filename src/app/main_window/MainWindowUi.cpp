@@ -27,8 +27,7 @@ void MainWindow::setupUi() {
     configCoordinator_.bind(ConfigCoordinator::Context{
         this,
         &config_,
-        [this]() { engineHookCoordinator_.refreshState(); },
-        [this]() { syncAgentConfig(); }
+        [this]() { engineHookCoordinator_.refreshState(); }
     });
 
     pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{

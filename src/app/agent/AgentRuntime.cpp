@@ -101,7 +101,7 @@ bool WriteExact(HANDLE pipe, const void* data, DWORD size) {
 
 AgentRuntime::AgentRuntime(QWidget* parent)
     : QWidget(parent),
-      store_(AgentService::ConfigPath()),
+      store_(std::filesystem::path{}),
       repeater_(inputDriver_),
       macro_(inputDriver_),
       hook_(this),
@@ -153,8 +153,7 @@ AgentRuntime::~AgentRuntime() {
 
 bool AgentRuntime::initialize() {
     createWinId();
-    config_ = store_.Load();
-    ConfigNormalizer::normalize(config_);
+    refreshConfigPath();
     desiredRepeatRunning_ = false;
     WriteAgentLog("agent started");
     pipeThread_ = std::thread(&AgentRuntime::pipeLoop, this);
@@ -186,6 +185,11 @@ void AgentRuntime::ensureRuntimeState() {
         deactivateRuntime(true);
         return;
     }
+    if (!refreshConfigPath()) {
+        desiredRepeatRunning_ = false;
+        deactivateRuntime(true, false);
+        return;
+    }
     if (config_.driverMode != DriverMode::Usb || !config_.backgroundAutoRun) {
         desiredRepeatRunning_ = false;
         deactivateRuntime(true, false);
@@ -200,6 +204,28 @@ void AgentRuntime::ensureRuntimeState() {
         return;
     }
     if (connectUsb()) activateRuntime();
+}
+
+bool AgentRuntime::refreshConfigPath() {
+    const auto configPath = AgentService::FrontendConfigPath();
+    std::error_code ec;
+    if (configPath.empty() || !std::filesystem::exists(configPath, ec) || ec) {
+        configPathReady_ = false;
+        return false;
+    }
+    if (configPathReady_ && store_.GetPath() == configPath) return true;
+    if (!ConfigStore::IsValidConfigFile(configPath)) {
+        configPathReady_ = false;
+        return false;
+    }
+    if (!configPathReady_ || store_.GetPath() != configPath) {
+        store_.SetPath(configPath);
+        config_ = store_.Load();
+        ConfigNormalizer::normalize(config_);
+        configPathReady_ = true;
+        WriteAgentLog("frontend configuration path refreshed");
+    }
+    return true;
 }
 
 bool AgentRuntime::connectUsb() {
@@ -285,6 +311,10 @@ void AgentRuntime::applyConfig() {
 
 void AgentRuntime::reloadConfig(bool repeatRunning) {
     desiredRepeatRunning_ = repeatRunning;
+    if (!refreshConfigPath()) {
+        deactivateRuntime(true, false);
+        return;
+    }
     config_ = store_.Load();
     ConfigNormalizer::normalize(config_);
     if (runtimeActive_) {
@@ -454,30 +484,14 @@ std::string AgentRuntime::handleRequest(const std::string& requestText) {
             WriteAgentLog("paused for frontend");
             response = Reply(true);
             response.emplace("repeatRunning", desiredRepeatRunning_);
-        } else if (command == "SYNC_CONFIG") {
-            const auto config = request.find("config");
-            const auto repeatRunning = request.find("repeatRunning");
-            if (config == request.end() || !config->second.AsString() ||
-                repeatRunning == request.end() || !repeatRunning->second.AsBool()) {
-                response = Reply(false, "invalid config payload");
-                return;
-            }
-            std::wstring error;
-            if (!store_.SaveRawValidated(*config->second.AsString(), error)) {
-                response = Reply(false, ToUtf8(error));
-                return;
-            }
-            reloadConfig(*repeatRunning->second.AsBool());
-            WriteAgentLog("configuration synchronized");
-            response = Reply(true);
         } else if (command == "RESUME") {
             const auto repeatRunning = request.find("repeatRunning");
-            desiredRepeatRunning_ = repeatRunning != request.end() && repeatRunning->second.AsBool()
+            const bool shouldRepeat = repeatRunning != request.end() && repeatRunning->second.AsBool()
                 ? *repeatRunning->second.AsBool() : false;
             frontendPid_ = 0;
             pausedForUi_ = false;
             WriteAgentLog("resumed after frontend exit");
-            ensureRuntimeState();
+            reloadConfig(shouldRepeat);
             response = Reply(true);
         } else if (command == "SHUTDOWN") {
             response = Reply(true);

@@ -21,6 +21,16 @@ firmware/ch552/build/
 *.pdb
 *.ilk
 
+# Bundled WinUSB installer is embedded into the main executable.
+!firmware/updater/
+!firmware/updater/xiaoji-winusb-installer.exe
+
+# libwdi sources are kept locally for provenance; the shipped installer is
+# already built and embedded, so only the license texts are tracked.
+third_party/libwdi/*
+!third_party/libwdi/COPYING
+!third_party/libwdi/COPYING-LGPL
+
 # Keep bundled DD runtime DLLs in version control
 !third_party/dd/DD32.dll
 !third_party/dd/DD64.dll

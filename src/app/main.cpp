@@ -2,7 +2,9 @@
 #include "ConfigStore.h"
 #include "DdDriver.h"
 #include "services/AppPaths.h"
+#include "services/AgentService.h"
 #include "services/DdRuntimeService.h"
+#include "agent/AgentRuntime.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QApplication>
@@ -115,6 +117,13 @@ void WriteText(std::ostringstream& out, const char* key, const std::string& valu
 
 int main(int argc, char *argv[]) {
     const QStringList args(argv, argv + argc);
+    if (args.contains(QStringLiteral("--install-agent"))) {
+        wchar_t executable[MAX_PATH] = {};
+        const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
+        return length > 0
+            ? AgentService::InstallElevated(std::filesystem::path(executable))
+            : 2;
+    }
     if (args.contains(QStringLiteral("--probe-dd-hid"))) {
         const int index = args.indexOf(QStringLiteral("--probe-dd-hid"));
         if (index < 0 || index + 1 >= args.size()) {
@@ -181,6 +190,35 @@ int main(int argc, char *argv[]) {
 
     if (args.contains(QStringLiteral("--restart-wait"))) {
         Sleep(1500);
+    }
+
+    if (args.contains(QStringLiteral("--agent"))) {
+        HANDLE agentMutex = CreateMutexW(nullptr, TRUE, L"XiaoJiAutoKey_Agent_Mutex");
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            if (agentMutex) CloseHandle(agentMutex);
+            return 0;
+        }
+        PreserveTimerResolution();
+        timeBeginPeriod(1);
+        QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+        QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+        QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+            Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+        QApplication app(argc, argv);
+        app.setQuitOnLastWindowClosed(false);
+        app.setStyle(QStyleFactory::create("Fusion"));
+        app.setPalette(Fluent::Theme::applicationPalette());
+        app.setFont(Fluent::Typography::body());
+        AgentRuntime runtime;
+        if (!runtime.initialize()) {
+            timeEndPeriod(1);
+            if (agentMutex) CloseHandle(agentMutex);
+            return 2;
+        }
+        const int result = app.exec();
+        timeEndPeriod(1);
+        if (agentMutex) CloseHandle(agentMutex);
+        return result;
     }
 
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, L"XiaoJiAutoKey_SingleInstance_Mutex");

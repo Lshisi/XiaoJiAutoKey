@@ -19,6 +19,7 @@ public:
     void setDetailText(const QString& details);
     void setDriverActions(bool ddInstalled, bool hidInstalled, bool usbUpdateAvailable = false);
     void setBusy(bool busy);
+    void setAgentState(const QString& status, bool repairAvailable);
     void updateThemeColors();
 
 signals:
@@ -26,6 +27,7 @@ signals:
     void refreshRequested();
     void uninstallDriverRequested(DriverMode mode);
     void updateUsbDriverRequested();
+    void repairAgentRequested();
 
 private:
     void applyTheme();
@@ -37,4 +39,6 @@ private:
     FluentButton* uninstallDdButton_ = nullptr;
     FluentButton* uninstallHidButton_ = nullptr;
     FluentButton* updateUsbButton_ = nullptr;
+    FluentButton* repairAgentButton_ = nullptr;
+    QLabel* agentStatusValue_ = nullptr;
 };

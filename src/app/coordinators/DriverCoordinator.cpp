@@ -157,6 +157,9 @@ void DriverCoordinator::bind(Context context) {
     connect(context_.page, &DriverPage::updateUsbDriverRequested, this, [this]() {
         if (context_.updateUsbDriver) context_.updateUsbDriver();
     });
+    connect(context_.page, &DriverPage::repairAgentRequested, this, [this]() {
+        if (context_.repairAgent) context_.repairAgent();
+    });
 
     connect(context_.page, &DriverPage::uninstallDriverRequested, this, [this](DriverMode mode) {
         if (mode == DriverMode::Usb) {

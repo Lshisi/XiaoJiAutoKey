@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.1.3 LANGUAGES CXX)
+project(XiaoJiAutoKey VERSION 1.1.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,7 @@ find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 
 set(MOC_HEADERS
     include/app/MainWindow.h
+    include/app/agent/AgentRuntime.h
     include/app/input/GlobalInputHook.h
     include/app/input/RawInputManager.h
     include/app/coordinators/SettingsCoordinator.h
@@ -193,6 +194,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
     src/app/main.cpp
+    src/app/agent/AgentRuntime.cpp
     src/app/main_window/MainWindow.cpp
     src/app/main_window/MainWindowHooks.cpp
     src/app/main_window/MainWindowUi.cpp
@@ -201,6 +203,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/services/AppPaths.cpp
     src/app/services/DdRuntimeService.cpp
     src/app/services/SoundService.cpp
+    src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
     src/app/dialogs/ConfigNameDialog.cpp

@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <system_error>
+#include <Windows.h>
 
 namespace {
 
@@ -213,6 +215,8 @@ AppConfig ConfigStore::Load() const {
     if (!object) return config;
 
     // Global settings
+    if (const auto backgroundAutoRun = GetBoolField(*object, "backgroundAutoRun"); backgroundAutoRun.has_value())
+        config.backgroundAutoRun = *backgroundAutoRun;
     if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
         config.beepEnabled = *beep;
     if (const auto showRepeat = GetBoolField(*object, "statusOverlayShowRepeat"); showRepeat.has_value())
@@ -347,6 +351,7 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
     jsonlite::Object root;
 
     // Global settings
+    root.emplace("backgroundAutoRun", config.backgroundAutoRun);
     root.emplace("beepEnabled", config.beepEnabled);
     root.emplace("statusOverlayShowRepeat", config.statusOverlayShowRepeat);
     root.emplace("statusOverlayShowMacro", config.statusOverlayShowMacro);
@@ -413,15 +418,73 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
 
     const std::string content = jsonlite::Stringify(root) + "\n";
 
-    std::ofstream file(configPath_, std::ios::binary | std::ios::trunc);
-    if (!file) {
-        error = L"\u65e0\u6cd5\u5199\u5165\u914d\u7f6e\u6587\u4ef6";
+    return WriteAtomically(content, error);
+}
+
+bool ConfigStore::SaveRawValidated(const std::string& content, std::wstring& error) const {
+    if (!IsValidConfigText(content)) {
+        error = L"\u914d\u7f6e\u5185\u5bb9\u683c\u5f0f\u65e0\u6548";
         return false;
     }
+    return WriteAtomically(!content.empty() && content.back() == '\n' ? content : content + "\n", error);
+}
 
+bool ConfigStore::IsValidConfigText(const std::string& content) {
+    jsonlite::Value root;
+    std::string parseError;
+    return jsonlite::Parse(content, root, parseError) && root.AsObject() != nullptr;
+}
+
+bool ConfigStore::IsValidConfigFile(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+    std::ostringstream content;
+    content << file.rdbuf();
+    return IsValidConfigText(content.str());
+}
+
+bool ConfigStore::WriteAtomically(const std::string& content, std::wstring& error) const {
+    std::error_code ec;
+    const auto parent = configPath_.parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
+            error = L"\u65e0\u6cd5\u521b\u5efa\u914d\u7f6e\u76ee\u5f55";
+            return false;
+        }
+    }
+
+    auto tempPath = configPath_;
+    tempPath += L".tmp";
+    auto backupPath = configPath_;
+    backupPath += L".bak";
+
+    std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        error = L"\u65e0\u6cd5\u5199\u5165\u914d\u7f6e\u4e34\u65f6\u6587\u4ef6";
+        return false;
+    }
     file.write(content.data(), static_cast<std::streamsize>(content.size()));
+    file.flush();
     if (!file.good()) {
         error = L"\u5199\u5165\u914d\u7f6e\u6587\u4ef6\u5931\u8d25";
+        file.close();
+        std::filesystem::remove(tempPath, ec);
+        return false;
+    }
+    file.close();
+
+    if (std::filesystem::exists(configPath_)) {
+        std::filesystem::copy_file(
+            configPath_, backupPath, std::filesystem::copy_options::overwrite_existing, ec);
+        ec.clear();
+    }
+
+    if (!::MoveFileExW(
+            tempPath.c_str(), configPath_.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        error = L"\u65e0\u6cd5\u539f\u5b50\u66ff\u6362\u914d\u7f6e\u6587\u4ef6";
+        std::filesystem::remove(tempPath, ec);
         return false;
     }
     return true;

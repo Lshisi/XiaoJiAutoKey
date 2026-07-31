@@ -8,6 +8,9 @@
     <file alias="firmware/updater/CH375DLL.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/CH375DLL.dll</file>
     <file alias="firmware/updater/libusb-1.0.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/libusb-1.0.dll</file>
     <file alias="firmware/updater/libgcc_s_sjlj-1.dll">tools/ch552-arduino-data/packages/CH55xDuino/tools/MCS51Tools/2026.07.10/win/libgcc_s_sjlj-1.dll</file>
+    <file alias="firmware/updater/xiaoji-winusb-installer.exe">firmware/updater/xiaoji-winusb-installer.exe</file>
+    <file alias="licenses/libwdi-COPYING">third_party/libwdi/COPYING</file>
+    <file alias="licenses/libwdi-COPYING-LGPL">third_party/libwdi/COPYING-LGPL</file>
     <file>assets/factions/shaolin.svg</file>
     <file>assets/factions/wanhua.svg</file>
     <file>assets/factions/qixiu.svg</file>

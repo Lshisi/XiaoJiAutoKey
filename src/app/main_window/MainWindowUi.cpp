@@ -27,7 +27,8 @@ void MainWindow::setupUi() {
     configCoordinator_.bind(ConfigCoordinator::Context{
         this,
         &config_,
-        [this]() { engineHookCoordinator_.refreshState(); }
+        [this]() { engineHookCoordinator_.refreshState(); },
+        [this]() { syncAgentConfig(); }
     });
 
     pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{
@@ -144,7 +145,8 @@ void MainWindow::setupUi() {
             refreshStatusOverlay();
         },
         [this]() { refreshStatusOverlay(); },
-        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
+        [this](bool enabled) { setBackgroundAutoRun(enabled); }
     });
     driverCoordinator_.bind(DriverCoordinator::Context{
         view_.driverPage(),
@@ -158,7 +160,8 @@ void MainWindow::setupUi() {
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },
-        [this](bool open) { inputHook_.setDialogOpen(open); }
+        [this](bool open) { inputHook_.setDialogOpen(open); },
+        [this]() { repairAgent(); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;

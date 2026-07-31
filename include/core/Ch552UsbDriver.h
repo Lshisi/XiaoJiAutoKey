@@ -23,6 +23,8 @@ public:
     [[nodiscard]] std::wstring PortName() const;
     [[nodiscard]] std::wstring FirmwareVersion() const;
     bool EnterBootloaderForUpdate();
+    bool BeginLease();
+    bool Heartbeat();
 
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;

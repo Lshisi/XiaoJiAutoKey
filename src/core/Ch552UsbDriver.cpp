@@ -14,7 +14,7 @@
 namespace {
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
 constexpr char kUpdateCommand[] = "UPD 714021";
-constexpr char kFastInputFirmwareVersion[] = "XiaoJi USB V1.1.3";
+constexpr char kFastInputFirmwareVersion[] = "XiaoJi USB V1.1.4";
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -271,28 +271,28 @@ bool Ch552UsbDriver::EnterBootloaderForUpdate() {
     if (handle_ == INVALID_HANDLE_VALUE) return false;
 
     SendCommandLocked("R");
-
-    DCB dcb{};
-    dcb.DCBlength = sizeof(dcb);
-    if (::GetCommState(handle_, &dcb)) {
-        dcb.BaudRate = CBR_1200;
-        dcb.fDtrControl = DTR_CONTROL_ENABLE;
-        if (::SetCommState(handle_, &dcb)) {
-            ::Sleep(20);
-            // The device disconnects while Windows is processing CLRDTR, so
-            // an EscapeCommFunction failure here can still mean success.
-            ::EscapeCommFunction(handle_, CLRDTR);
-            ::Sleep(30);
-            ClosePortLocked();
-            return true;
-        }
+    ::PurgeComm(handle_, PURGE_RXCLEAR | PURGE_TXCLEAR);
+    if (!WriteLineLocked(kUpdateCommand)) {
+        return false;
     }
+    ::FlushFileBuffers(handle_);
 
-    const bool ok = SendCommandLocked(kUpdateCommand);
-    if (ok) {
-        ClosePortLocked();
-    }
-    return ok;
+    // UPD is authenticated by the firmware and performs the actual jump to
+    // 0x3800. Do not treat a successful 1200-baud configuration as proof that
+    // the bootloader started; Windows may accept it without delivering DTR.
+    ::Sleep(180);
+    ClosePortLocked();
+    return true;
+}
+
+bool Ch552UsbDriver::BeginLease() {
+    std::lock_guard lock(mutex_);
+    return handle_ != INVALID_HANDLE_VALUE && SendCommandLocked("L");
+}
+
+bool Ch552UsbDriver::Heartbeat() {
+    std::lock_guard lock(mutex_);
+    return handle_ != INVALID_HANDLE_VALUE && SendCommandLocked("H");
 }
 
 bool Ch552UsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {

@@ -32,6 +32,7 @@ public:
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;
         std::function<void(bool)> setDialogOpen;
+        std::function<void()> repairAgent;
     };
 
     explicit DriverCoordinator(QObject* parent = nullptr);

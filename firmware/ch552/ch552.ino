@@ -6,6 +6,7 @@
 
 #define XIAOJI_UPDATE_TOKEN 714021UL
 #define XIAOJI_NUMPAD_ENTER 0x0100000DUL
+#define XIAOJI_LEASE_TIMEOUT_MS 1800UL
 
 static __xdata char commandBuffer[48];
 static __data uint8_t commandLength;
@@ -14,6 +15,8 @@ static __xdata uint8_t keyboardKeys[6];
 static __data uint8_t mouseButtons;
 static __data uint16_t consumerUsage;
 static __data uint8_t previousUsbConfig;
+static __data uint8_t leaseActive;
+static __xdata uint32_t lastHeartbeatMs;
 
 static void cdc_write_line(const __code char *text) {
   while (*text) {
@@ -344,11 +347,27 @@ static void handle_command(__xdata char *line) {
     return;
   }
   if (token_is(command, "VER")) {
-    cdc_write_line("OK XiaoJi USB V1.1.3");
+    cdc_write_line("OK XiaoJi USB V1.1.4");
     return;
   }
   if (token_is(command, "R")) {
     cdc_write_line(release_all() ? "OK RELEASE_ALL" : "ERR HID_BUSY");
+    return;
+  }
+  if (token_is(command, "L")) {
+    release_all();
+    leaseActive = 1;
+    lastHeartbeatMs = millis();
+    cdc_write_line("OK LEASE");
+    return;
+  }
+  if (token_is(command, "H")) {
+    if (!leaseActive) {
+      cdc_write_line("ERR LEASE_REQUIRED");
+      return;
+    }
+    lastHeartbeatMs = millis();
+    cdc_write_line("OK HEARTBEAT");
     return;
   }
   if (token_is(command, "UPD")) {
@@ -393,9 +412,15 @@ void setup(void) {
 }
 
 void loop(void) {
+  if (leaseActive && (uint32_t)(millis() - lastHeartbeatMs) > XIAOJI_LEASE_TIMEOUT_MS) {
+    leaseActive = 0;
+    release_all();
+  }
+
   if (previousUsbConfig != UsbConfig) {
     previousUsbConfig = UsbConfig;
     if (UsbConfig == 0) {
+      leaseActive = 0;
       clear_input_state();
     }
   }

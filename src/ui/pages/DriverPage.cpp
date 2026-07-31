@@ -218,6 +218,23 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addLayout(modeRow);
     panelLayout->addWidget(makeDivider(panel));
 
+    auto* agentRow = new QHBoxLayout();
+    auto* agentLabel = new QLabel(QString::fromWCharArray(L"USB \u540e\u53f0\u7ec4\u4ef6"), panel);
+    agentLabel->setFont(Fluent::Typography::body());
+    agentRow->addWidget(agentLabel);
+    agentRow->addStretch();
+    agentStatusValue_ = new QLabel(QString::fromWCharArray(L"\u5f85\u68c0\u67e5"), panel);
+    agentStatusValue_->setFont(Fluent::Typography::caption());
+    agentStatusValue_->setWordWrap(true);
+    agentRow->addWidget(agentStatusValue_);
+    repairAgentButton_ = new FluentButton(
+        FluentButton::Secondary, QString::fromWCharArray(L"\u4fee\u590d\u540e\u53f0"), panel);
+    repairAgentButton_->setFixedWidth(91);
+    repairAgentButton_->hide();
+    agentRow->addWidget(repairAgentButton_);
+    panelLayout->addLayout(agentRow);
+    panelLayout->addWidget(makeDivider(panel));
+
     auto* statusTitleRow = new QHBoxLayout();
     statusTitleRow->setContentsMargins(0, 0, 0, 0);
     statusTitleRow->setSpacing(8);
@@ -290,6 +307,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     connect(updateUsbButton_, &QPushButton::clicked, this, [this]() {
         emit updateUsbDriverRequested();
     });
+    connect(repairAgentButton_, &QPushButton::clicked, this, &DriverPage::repairAgentRequested);
 
     applyTheme();
 }
@@ -302,6 +320,7 @@ void DriverPage::updateThemeColors() {
     if (uninstallDdButton_) uninstallDdButton_->refreshMetrics();
     if (uninstallHidButton_) uninstallHidButton_->refreshMetrics();
     if (updateUsbButton_) updateUsbButton_->refreshMetrics();
+    if (repairAgentButton_) repairAgentButton_->refreshMetrics();
     update();
 }
 
@@ -337,6 +356,12 @@ void DriverPage::setBusy(bool busy) {
     if (uninstallDdButton_) uninstallDdButton_->setEnabled(!busy);
     if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
     if (updateUsbButton_) updateUsbButton_->setEnabled(!busy);
+    if (repairAgentButton_) repairAgentButton_->setEnabled(!busy);
+}
+
+void DriverPage::setAgentState(const QString& status, bool repairAvailable) {
+    if (agentStatusValue_) agentStatusValue_->setText(status);
+    if (repairAgentButton_) repairAgentButton_->setVisible(repairAvailable);
 }
 
 void DriverPage::applyTheme() {

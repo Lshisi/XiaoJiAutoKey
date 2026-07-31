@@ -19,6 +19,7 @@ public:
         QWidget* parent = nullptr;
         AppConfig* config = nullptr;
         std::function<void()> refreshHookState;
+        std::function<void()> saved;
     };
 
     explicit ConfigCoordinator(std::filesystem::path configPath, QObject* parent = nullptr);

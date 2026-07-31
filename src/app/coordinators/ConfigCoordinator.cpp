@@ -25,6 +25,8 @@ void ConfigCoordinator::save() {
     std::wstring error;
     if (!store_.Save(*context_.config, error)) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
+    } else if (context_.saved) {
+        context_.saved();
     }
 }
 

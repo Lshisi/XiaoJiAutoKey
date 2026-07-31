@@ -26,6 +26,7 @@
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
 #include "services/AppPaths.h"
+#include "services/AgentService.h"
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
@@ -84,6 +85,11 @@ private:
     void refreshUsbDriverAfterDeviceChange();
     void registerUsbDeviceNotifications();
     void unregisterUsbDeviceNotifications();
+    bool initializeAgentHandoff();
+    void syncAgentConfig();
+    void resumeAgent();
+    void setBackgroundAutoRun(bool enabled);
+    void repairAgent();
 
     MainWindowView view_;
 
@@ -117,6 +123,7 @@ private:
     EngineStateCoordinator engineStateCoordinator_;
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
+    QTimer usbHeartbeatTimer_;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;
@@ -134,5 +141,7 @@ private:
     std::wstring driverStatusNote_;
     bool suppressAutoPlay_ = false;
     bool startupUsbUpdatePromptShown_ = false;
+    bool agentPausedForUi_ = false;
+    bool agentRepeatRunningOnHandoff_ = false;
 
 };

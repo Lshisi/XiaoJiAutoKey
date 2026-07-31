@@ -89,6 +89,7 @@ private:
     void resumeAgent();
     void setBackgroundAutoRun(bool enabled);
     void repairAgent();
+    void prepareForSystemShutdown();
 
     MainWindowView view_;
 
@@ -142,5 +143,7 @@ private:
     bool startupUsbUpdatePromptShown_ = false;
     bool agentPausedForUi_ = false;
     bool agentRepeatRunningOnHandoff_ = false;
+    bool systemShutdownRequested_ = false;
+    bool systemShutdownSaveAttempted_ = false;
 
 };

@@ -242,5 +242,11 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+    if (systemShutdownRequested_) {
+        prepareForSystemShutdown();
+        view_.hideTrayIcon();
+        event->accept();
+        return;
+    }
     closeCoordinator_.handleClose(event);
 }

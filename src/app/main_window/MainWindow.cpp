@@ -1411,6 +1411,22 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
             rawInput_.handleNativeMessage(msg, result);
         }
         switch (msg->message) {
+        case WM_QUERYENDSESSION:
+            systemShutdownRequested_ = true;
+            prepareForSystemShutdown();
+            if (result) *result = TRUE;
+            return true;
+        case WM_ENDSESSION:
+            if (msg->wParam != FALSE) {
+                systemShutdownRequested_ = true;
+                prepareForSystemShutdown();
+                QApplication::quit();
+            } else {
+                systemShutdownRequested_ = false;
+                systemShutdownSaveAttempted_ = false;
+            }
+            if (result) *result = 0;
+            return true;
         case WM_DEVICECHANGE:
             if (!suppressAutoPlay_ &&
                 isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
@@ -1476,6 +1492,12 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     Q_UNUSED(message)
 #endif
     return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+void MainWindow::prepareForSystemShutdown() {
+    if (systemShutdownSaveAttempted_) return;
+    systemShutdownSaveAttempted_ = true;
+    configCoordinator_.save(false, 500);
 }
 
 void MainWindow::scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged) {

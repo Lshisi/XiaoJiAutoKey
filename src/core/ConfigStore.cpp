@@ -12,9 +12,10 @@ namespace {
 
 class ConfigWriteLock {
 public:
-    ConfigWriteLock() : mutex_(CreateMutexW(nullptr, FALSE, L"XiaoJiAutoKey_ConfigWrite_Mutex")) {
+    explicit ConfigWriteLock(std::uint32_t timeoutMs)
+        : mutex_(CreateMutexW(nullptr, FALSE, L"XiaoJiAutoKey_ConfigWrite_Mutex")) {
         if (!mutex_) return;
-        const DWORD result = WaitForSingleObject(mutex_, 30000);
+        const DWORD result = WaitForSingleObject(mutex_, timeoutMs);
         locked_ = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;
     }
 
@@ -29,6 +30,64 @@ private:
     HANDLE mutex_ = nullptr;
     bool locked_ = false;
 };
+
+AppConfig DefaultConfig() {
+    AppConfig config;
+    ProfileConfig profile;
+    profile.id = 1;
+    profile.name = L"\u9ed8\u8ba4\u914d\u7f6e";
+    MacroConfig macro;
+    macro.id = 1;
+    macro.name = L"\u9ed8\u8ba4\u914d\u7f6e";
+    macro.enabled = true;
+    config.profiles.push_back(std::move(profile));
+    config.activeProfileId = 1;
+    config.macros.push_back(std::move(macro));
+    config.activeMacroId = 1;
+    return config;
+}
+
+bool ReadFileContent(const std::filesystem::path& path, std::string& content) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+    std::ostringstream stream;
+    stream << file.rdbuf();
+    if (!file.good() && !file.eof()) return false;
+    content = stream.str();
+    return true;
+}
+
+bool WriteFileDurably(const std::filesystem::path& path, const std::string& content) {
+    HANDLE file = ::CreateFileW(
+        path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+
+    bool success = true;
+    std::size_t offset = 0;
+    while (offset < content.size()) {
+        const std::size_t remaining = content.size() - offset;
+        const DWORD chunkSize = static_cast<DWORD>(std::min<std::size_t>(remaining, MAXDWORD));
+        DWORD written = 0;
+        if (!::WriteFile(file, content.data() + offset, chunkSize, &written, nullptr) || written == 0) {
+            success = false;
+            break;
+        }
+        offset += written;
+    }
+    if (success) success = ::FlushFileBuffers(file) != FALSE;
+    if (!::CloseHandle(file)) success = false;
+    return success;
+}
+
+bool IsNewerFile(
+    const std::filesystem::path& candidate, const std::filesystem::path& reference) {
+    std::error_code candidateError;
+    std::error_code referenceError;
+    const auto candidateTime = std::filesystem::last_write_time(candidate, candidateError);
+    const auto referenceTime = std::filesystem::last_write_time(reference, referenceError);
+    return !candidateError && (referenceError || candidateTime >= referenceTime);
+}
 
 std::optional<std::string> GetStringField(const jsonlite::Object& object, const std::string& key) {
     const auto it = object.find(key);
@@ -203,36 +262,34 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
 ConfigStore::ConfigStore(std::filesystem::path configPath) : configPath_(std::move(configPath)) {}
 
 AppConfig ConfigStore::Load() const {
-    AppConfig config;
-
-    if (!std::filesystem::exists(configPath_)) {
-        // First run: create the default profile and macro.
-        ProfileConfig def;
-        def.id = 1;
-        def.name = L"\u9ed8\u8ba4\u914d\u7f6e";
-        MacroConfig defaultMacro;
-        defaultMacro.id = 1;
-        defaultMacro.name = L"\u9ed8\u8ba4\u914d\u7f6e";
-        defaultMacro.enabled = true;
-        config.profiles.push_back(def);
-        config.activeProfileId = 1;
-        config.macros.push_back(defaultMacro);
-        config.activeMacroId = 1;
-        return config;
+    auto sourcePath = configPath_;
+    auto tempPath = configPath_;
+    tempPath += L".tmp";
+    auto backupPath = configPath_;
+    backupPath += L".bak";
+    const bool currentValid = IsValidConfigFile(sourcePath);
+    const bool tempValid = IsValidConfigFile(tempPath);
+    if (tempValid && (!currentValid || IsNewerFile(tempPath, sourcePath))) {
+        sourcePath = std::move(tempPath);
+    } else if (!currentValid && IsValidConfigFile(backupPath)) {
+        sourcePath = std::move(backupPath);
+    } else if (!currentValid) {
+        return DefaultConfig();
     }
 
-    std::ifstream file(configPath_, std::ios::binary);
-    if (!file) return config;
+    AppConfig config;
+    std::ifstream file(sourcePath, std::ios::binary);
+    if (!file) return DefaultConfig();
 
     std::stringstream buffer;
     buffer << file.rdbuf();
 
     jsonlite::Value root;
     std::string error;
-    if (!jsonlite::Parse(buffer.str(), root, error)) return config;
+    if (!jsonlite::Parse(buffer.str(), root, error)) return DefaultConfig();
 
     const auto* object = root.AsObject();
-    if (!object) return config;
+    if (!object) return DefaultConfig();
 
     // Global settings
     if (const auto backgroundAutoRun = GetBoolField(*object, "backgroundAutoRun"); backgroundAutoRun.has_value())
@@ -367,7 +424,8 @@ AppConfig ConfigStore::Load() const {
     return config;
 }
 
-bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
+bool ConfigStore::Save(
+    const AppConfig& config, std::wstring& error, std::uint32_t lockTimeoutMs) const {
     jsonlite::Object root;
 
     // Global settings
@@ -438,6 +496,16 @@ bool ConfigStore::Save(const AppConfig& config, std::wstring& error) const {
 
     const std::string content = jsonlite::Stringify(root) + "\n";
 
+    return WriteAtomically(content, error, lockTimeoutMs);
+}
+
+bool ConfigStore::RestoreFrom(const std::filesystem::path& sourcePath, std::wstring& error) const {
+    std::string content;
+    if (!ReadFileContent(sourcePath, content) || !IsValidConfigText(content)) {
+        error = L"\u914d\u7f6e\u6062\u590d\u6587\u4ef6\u65e0\u6548";
+        return false;
+    }
+    if (content.empty() || content.back() != '\n') content.push_back('\n');
     return WriteAtomically(content, error);
 }
 
@@ -455,8 +523,9 @@ bool ConfigStore::IsValidConfigFile(const std::filesystem::path& path) {
     return IsValidConfigText(content.str());
 }
 
-bool ConfigStore::WriteAtomically(const std::string& content, std::wstring& error) const {
-    ConfigWriteLock writeLock;
+bool ConfigStore::WriteAtomically(
+    const std::string& content, std::wstring& error, std::uint32_t lockTimeoutMs) const {
+    ConfigWriteLock writeLock(lockTimeoutMs);
     if (!writeLock.locked()) {
         error = L"\u65e0\u6cd5\u83b7\u53d6\u914d\u7f6e\u5199\u5165\u9501";
         return false;
@@ -476,26 +545,36 @@ bool ConfigStore::WriteAtomically(const std::string& content, std::wstring& erro
     tempPath += L".tmp";
     auto backupPath = configPath_;
     backupPath += L".bak";
+    auto backupTempPath = backupPath;
+    backupTempPath += L".tmp";
 
-    std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
-    if (!file) {
-        error = L"\u65e0\u6cd5\u5199\u5165\u914d\u7f6e\u4e34\u65f6\u6587\u4ef6";
+    if (!IsValidConfigText(content)) {
+        error = L"\u914d\u7f6e\u5185\u5bb9\u683c\u5f0f\u65e0\u6548";
         return false;
     }
-    file.write(content.data(), static_cast<std::streamsize>(content.size()));
-    file.flush();
-    if (!file.good()) {
-        error = L"\u5199\u5165\u914d\u7f6e\u6587\u4ef6\u5931\u8d25";
-        file.close();
+    if (!WriteFileDurably(tempPath, content)) {
+        error = L"\u65e0\u6cd5\u5199\u5165\u914d\u7f6e\u4e34\u65f6\u6587\u4ef6";
         std::filesystem::remove(tempPath, ec);
         return false;
     }
-    file.close();
+    if (!IsValidConfigFile(tempPath)) {
+        error = L"\u914d\u7f6e\u4e34\u65f6\u6587\u4ef6\u6821\u9a8c\u5931\u8d25";
+        std::filesystem::remove(tempPath, ec);
+        return false;
+    }
 
-    if (std::filesystem::exists(configPath_)) {
-        std::filesystem::copy_file(
-            configPath_, backupPath, std::filesystem::copy_options::overwrite_existing, ec);
-        ec.clear();
+    if (IsValidConfigFile(configPath_)) {
+        std::string previousContent;
+        if (!ReadFileContent(configPath_, previousContent) ||
+            !WriteFileDurably(backupTempPath, previousContent) ||
+            !IsValidConfigFile(backupTempPath) ||
+            !::MoveFileExW(backupTempPath.c_str(), backupPath.c_str(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            error = L"\u65e0\u6cd5\u521b\u5efa\u914d\u7f6e\u5907\u4efd";
+            std::filesystem::remove(backupTempPath, ec);
+            std::filesystem::remove(tempPath, ec);
+            return false;
+        }
     }
 
     if (!::MoveFileExW(

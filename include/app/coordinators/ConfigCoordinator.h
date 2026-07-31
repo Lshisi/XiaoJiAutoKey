@@ -26,7 +26,7 @@ public:
 
     void bind(Context context);
     void load();
-    void save();
+    bool save(bool showError = true, std::uint32_t lockTimeoutMs = 30000);
 
     [[nodiscard]] const std::filesystem::path& configPath() const noexcept;
 

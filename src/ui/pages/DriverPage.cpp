@@ -3,6 +3,7 @@
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentComboBox.h"
+#include "../components/FluentSwitch.h"
 #include "../styles/DesignTokens.h"
 #include "FactionTheme.h"
 
@@ -218,22 +219,30 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addLayout(modeRow);
     panelLayout->addWidget(makeDivider(panel));
 
-    auto* agentRow = new QHBoxLayout();
-    auto* agentLabel = new QLabel(QString::fromWCharArray(L"USB \u540e\u53f0\u7ec4\u4ef6"), panel);
+    backgroundAutoRunSection_ = new QWidget(panel);
+    auto* agentRow = new QHBoxLayout(backgroundAutoRunSection_);
+    agentRow->setContentsMargins(0, 0, 0, 0);
+    agentRow->setSpacing(8);
+    auto* agentLabel = new QLabel(QString::fromWCharArray(L"USB \u540e\u53f0\u8fd0\u884c"), backgroundAutoRunSection_);
     agentLabel->setFont(Fluent::Typography::body());
     agentRow->addWidget(agentLabel);
     agentRow->addStretch();
-    agentStatusValue_ = new QLabel(QString::fromWCharArray(L"\u5f85\u68c0\u67e5"), panel);
+    agentStatusValue_ = new QLabel(QString::fromWCharArray(L"\u5f85\u68c0\u67e5"), backgroundAutoRunSection_);
     agentStatusValue_->setFont(Fluent::Typography::caption());
     agentStatusValue_->setWordWrap(true);
     agentRow->addWidget(agentStatusValue_);
     repairAgentButton_ = new FluentButton(
-        FluentButton::Secondary, QString::fromWCharArray(L"\u4fee\u590d\u540e\u53f0"), panel);
+        FluentButton::Secondary, QString::fromWCharArray(L"\u4fee\u590d\u540e\u53f0"), backgroundAutoRunSection_);
     repairAgentButton_->setFixedWidth(91);
     repairAgentButton_->hide();
     agentRow->addWidget(repairAgentButton_);
-    panelLayout->addLayout(agentRow);
-    panelLayout->addWidget(makeDivider(panel));
+    backgroundAutoRunSwitch_ = new FluentSwitch(backgroundAutoRunSection_);
+    agentRow->addWidget(backgroundAutoRunSwitch_);
+    backgroundAutoRunSection_->hide();
+    panelLayout->addWidget(backgroundAutoRunSection_);
+    backgroundAutoRunDivider_ = makeDivider(panel);
+    backgroundAutoRunDivider_->hide();
+    panelLayout->addWidget(backgroundAutoRunDivider_);
 
     auto* statusTitleRow = new QHBoxLayout();
     statusTitleRow->setContentsMargins(0, 0, 0, 0);
@@ -308,6 +317,8 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
         emit updateUsbDriverRequested();
     });
     connect(repairAgentButton_, &QPushButton::clicked, this, &DriverPage::repairAgentRequested);
+    connect(backgroundAutoRunSwitch_, &FluentSwitch::toggled,
+        this, &DriverPage::backgroundAutoRunToggled);
 
     applyTheme();
 }
@@ -352,14 +363,40 @@ void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled, bool usbU
 }
 
 void DriverPage::setBusy(bool busy) {
+    busy_ = busy;
     if (driverModeCombo_) driverModeCombo_->setEnabled(!busy);
     if (uninstallDdButton_) uninstallDdButton_->setEnabled(!busy);
     if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
     if (updateUsbButton_) updateUsbButton_->setEnabled(!busy);
     if (repairAgentButton_) repairAgentButton_->setEnabled(!busy);
+    if (backgroundAutoRunSwitch_) backgroundAutoRunSwitch_->setEnabled(!busy && !backgroundAutoRunBusy_);
+}
+
+void DriverPage::setBackgroundAutoRun(bool enabled) {
+    if (!backgroundAutoRunSwitch_) return;
+    backgroundAutoRunSwitch_->blockSignals(true);
+    backgroundAutoRunSwitch_->setChecked(enabled);
+    backgroundAutoRunSwitch_->blockSignals(false);
+}
+
+void DriverPage::setBackgroundAutoRunAvailable(bool available) {
+    if (backgroundAutoRunSection_) backgroundAutoRunSection_->setVisible(available);
+    if (backgroundAutoRunDivider_) backgroundAutoRunDivider_->setVisible(available);
+}
+
+void DriverPage::setBackgroundAutoRunBusy(bool busy, bool enabling) {
+    backgroundAutoRunBusy_ = busy;
+    if (backgroundAutoRunSwitch_) backgroundAutoRunSwitch_->setEnabled(!busy_ && !busy);
+    if (busy && agentStatusValue_) {
+        agentStatusValue_->setText(enabling
+            ? QString::fromWCharArray(L"\u5f00\u542f\u4e2d...")
+            : QString::fromWCharArray(L"\u5173\u95ed\u4e2d..."));
+    }
+    if (busy && repairAgentButton_) repairAgentButton_->hide();
 }
 
 void DriverPage::setAgentState(const QString& status, bool repairAvailable) {
+    if (backgroundAutoRunBusy_) return;
     if (agentStatusValue_) agentStatusValue_->setText(status);
     if (repairAgentButton_) repairAgentButton_->setVisible(repairAvailable);
 }

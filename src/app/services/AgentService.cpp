@@ -379,7 +379,9 @@ int AgentService::InstallElevated(const std::filesystem::path& sourceExe) {
 }
 
 bool AgentService::Uninstall(std::wstring* error) {
-    Shutdown(nullptr);
+    if (std::filesystem::exists(ExecutablePath()) || WaitNamedPipeW(PipeName().c_str(), 0)) {
+        Shutdown(nullptr);
+    }
     for (int attempt = 0; attempt < 30 && WaitNamedPipeW(PipeName().c_str(), 0); ++attempt) {
         Sleep(100);
     }

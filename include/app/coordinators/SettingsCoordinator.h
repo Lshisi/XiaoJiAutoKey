@@ -23,7 +23,6 @@ public:
         std::function<void()> refreshFactionVisuals;
         std::function<void()> refreshOverlay;
         std::function<void()> editHotkey;
-        std::function<void(bool)> setBackgroundAutoRun;
     };
 
     explicit SettingsCoordinator(QObject* parent = nullptr);

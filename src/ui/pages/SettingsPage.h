@@ -9,7 +9,6 @@ class QButtonGroup;
 class QPushButton;
 class QRadioButton;
 class FluentLineEdit;
-class FluentSwitch;
 class QSlider;
 
 class SettingsPage : public QWidget {
@@ -31,7 +30,6 @@ signals:
     void closeActionChanged(CloseAction action);
     void openConfigFolder();
     void factionChanged(const QString& factionId);
-    void backgroundAutoRunToggled(bool enabled);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -49,7 +47,6 @@ private:
     QLabel* factionPreviewIcon_ = nullptr;
     QLabel* factionPreviewName_ = nullptr;
     QWidget* factionPreviewBar_ = nullptr;
-    FluentSwitch* backgroundAutoRunSwitch_ = nullptr;
     QRadioButton* radioAsk_ = nullptr;
     QRadioButton* radioMin_ = nullptr;
     QRadioButton* radioExit_ = nullptr;

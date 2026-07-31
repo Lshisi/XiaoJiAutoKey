@@ -68,6 +68,12 @@ constexpr GUID kGuidDevInterfaceComPort = {
     {0x9C, 0xE4, 0x08, 0x00, 0x3E, 0x30, 0x1F, 0x73}
 };
 
+struct BackgroundAutoRunResult {
+    bool success = false;
+    bool repeatRunning = false;
+    std::wstring error;
+};
+
 int dpiScaled(int value, int dpi) {
     return qMax(value, (value * dpi + kBaseDpi / 2) / kBaseDpi);
 }
@@ -342,6 +348,13 @@ MainWindow::~MainWindow() {
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
+    if (backgroundAutoRunThread_) {
+        backgroundAutoRunThread_->wait();
+        backgroundAutoRunThread_ = nullptr;
+        if (backgroundAutoRunOperationEnabled_) {
+            AgentService::Resume(repeatRunning, nullptr);
+        }
+    }
     if (config_.backgroundAutoRun && agentPausedForUi_) {
         AgentService::Resume(repeatRunning, nullptr);
         agentPausedForUi_ = false;
@@ -673,7 +686,9 @@ bool MainWindow::loadCh552UsbDriver() {
 
 bool MainWindow::initializeAgentHandoff() {
     if (!config_.backgroundAutoRun) {
-        AgentService::Uninstall(nullptr);
+        if (agentPausedForUi_ || std::filesystem::exists(AgentService::ExecutablePath())) {
+            AgentService::Uninstall(nullptr);
+        }
         agentPausedForUi_ = false;
         agentRepeatRunningOnHandoff_ = false;
         return true;
@@ -711,16 +726,94 @@ void MainWindow::resumeAgent() {
 }
 
 void MainWindow::setBackgroundAutoRun(bool enabled) {
-    if (config_.backgroundAutoRun == enabled) return;
+    if (backgroundAutoRunThread_ || config_.backgroundAutoRun == enabled) return;
+    const bool previousValue = config_.backgroundAutoRun;
     config_.backgroundAutoRun = enabled;
-    configCoordinator_.save();
-    if (!enabled) {
-        agentPausedForUi_ = false;
-        AgentService::Uninstall(nullptr);
-    } else {
-        (void)initializeAgentHandoff();
+    if (!configCoordinator_.save(false, 250)) {
+        config_.backgroundAutoRun = previousValue;
+        if (auto* driverPage = view_.driverPage()) {
+            driverPage->setBackgroundAutoRun(previousValue);
+            driverPage->setAgentState(QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), false);
+        }
+        return;
     }
-    refreshDriverStatusUi();
+
+    auto* page = view_.driverPage();
+    if (page) {
+        page->setBackgroundAutoRun(enabled);
+        page->setBackgroundAutoRunBusy(true, enabled);
+    }
+
+    wchar_t executableBuffer[MAX_PATH] = {};
+    const DWORD executableLength = GetModuleFileNameW(nullptr, executableBuffer, MAX_PATH);
+    const std::filesystem::path executable = executableLength > 0
+        ? std::filesystem::path(executableBuffer)
+        : std::filesystem::path{};
+    const auto configPath = configCoordinator_.configPath();
+    const DWORD processId = GetCurrentProcessId();
+    const auto result = std::make_shared<BackgroundAutoRunResult>();
+
+    auto* thread = QThread::create([enabled, executable, configPath, processId, result]() {
+        if (!enabled) {
+            result->success = AgentService::Uninstall(&result->error);
+            return;
+        }
+        if (executable.empty()) {
+            result->error = L"Unable to resolve the application executable path";
+            return;
+        }
+        if (!AgentService::PublishFrontendConfigPath(configPath, &result->error) ||
+            !AgentService::EnsureInstalled(executable, &result->error) ||
+            !AgentService::PauseForUi(processId, &result->repeatRunning, &result->error)) {
+            AgentService::Shutdown(nullptr);
+            return;
+        }
+        result->success = true;
+    });
+    backgroundAutoRunThread_ = thread;
+    backgroundAutoRunOperationEnabled_ = enabled;
+    thread->setParent(this);
+
+    connect(thread, &QThread::finished, this, [this, thread, enabled, result]() {
+        backgroundAutoRunThread_ = nullptr;
+        backgroundAutoRunOperationEnabled_ = false;
+        thread->deleteLater();
+
+        if (enabled) {
+            agentPausedForUi_ = result->success;
+            if (result->success) {
+                agentRepeatRunningOnHandoff_ = agentRepeatRunningOnHandoff_ || result->repeatRunning;
+                driverStatusNote_.clear();
+            } else {
+                agentRepeatRunningOnHandoff_ = false;
+                driverStatusNote_ = L"USB background startup failed: " + result->error;
+            }
+        } else {
+            agentPausedForUi_ = false;
+            agentRepeatRunningOnHandoff_ = false;
+            if (!result->success) {
+                config_.backgroundAutoRun = true;
+                configCoordinator_.save(false, 500);
+                driverStatusNote_ = L"USB background shutdown failed: " + result->error;
+            } else {
+                driverStatusNote_.clear();
+            }
+        }
+
+        if (auto* driverPage = view_.driverPage()) {
+            driverPage->setBackgroundAutoRun(config_.backgroundAutoRun);
+            driverPage->setBackgroundAutoRunBusy(false, enabled);
+            if (!config_.backgroundAutoRun) {
+                driverPage->setAgentState(QString::fromWCharArray(L"\u5df2\u5173\u95ed"), false);
+            } else if (result->success) {
+                driverPage->setAgentState(QString::fromWCharArray(L"\u524d\u53f0\u63a5\u7ba1\u4e2d"), false);
+            } else {
+                driverPage->setAgentState(QString::fromWCharArray(L"\u9700\u8981\u4fee\u590d"), true);
+            }
+        }
+    }, Qt::QueuedConnection);
+
+    thread->start();
 }
 
 void MainWindow::repairAgent() {
@@ -904,6 +997,7 @@ void MainWindow::refreshDriverStatusUi() {
     }
 
     page->setDriverMode(config_.driverMode);
+    page->setBackgroundAutoRun(config_.backgroundAutoRun);
     const auto status = ddRuntimeService_.Inspect(driver_);
 
     QString summary = activeInputDriverReady()
@@ -922,17 +1016,6 @@ void MainWindow::refreshDriverStatusUi() {
         status.hidSysInstalled || status.hidDriverStorePresent ||
         status.hidRootDeviceOk || status.hidChildDeviceOk;
     page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable, isUsbDriverUpdateAvailable());
-    const AgentStatus agentStatus = AgentService::QueryStatus();
-    const bool agentHealthy = agentStatus.installed && agentStatus.taskRegistered && agentStatus.running;
-    page->setAgentState(
-        !config_.backgroundAutoRun
-            ? QString::fromWCharArray(L"\u5df2\u5173\u95ed")
-            : (agentStatus.firmwareUpdateRequired
-                ? QString::fromWCharArray(L"\u9700\u66f4\u65b0 USB \u56fa\u4ef6")
-            : (agentHealthy
-                ? QString::fromWCharArray(agentStatus.pausedForUi ? L"\u524d\u53f0\u63a5\u7ba1\u4e2d" : L"\u8fd0\u884c\u4e2d")
-                : QString::fromWCharArray(L"\u9700\u8981\u4fee\u590d"))),
-        config_.backgroundAutoRun && !agentHealthy);
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: ";
@@ -944,6 +1027,20 @@ void MainWindow::refreshDriverStatusUi() {
     const std::wstring usbPortName = usbCommunicationReady
         ? ch552Driver_.PortName()
         : Ch552UsbDriver::DetectPortName();
+    const bool usbBackgroundAvailable = config_.driverMode == DriverMode::Usb &&
+        usbCommunicationReady && ch552Driver_.FirmwareVersion() == kBundledUsbDriverVersion;
+    page->setBackgroundAutoRunAvailable(usbBackgroundAvailable);
+    if (usbBackgroundAvailable) {
+        const AgentStatus agentStatus = AgentService::QueryStatus();
+        const bool agentHealthy = agentStatus.installed && agentStatus.taskRegistered && agentStatus.running;
+        page->setAgentState(
+            !config_.backgroundAutoRun
+                ? QString::fromWCharArray(L"\u5df2\u5173\u95ed")
+                : (agentHealthy
+                    ? QString::fromWCharArray(agentStatus.pausedForUi ? L"\u524d\u53f0\u63a5\u7ba1\u4e2d" : L"\u8fd0\u884c\u4e2d")
+                    : QString::fromWCharArray(L"\u9700\u8981\u4fee\u590d")),
+            config_.backgroundAutoRun && !agentHealthy);
+    }
     detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
     detail << L"USB \u901a\u4fe1: ";
     if (usbCommunicationReady) {

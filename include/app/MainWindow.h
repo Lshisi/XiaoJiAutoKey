@@ -32,6 +32,8 @@
 #include <QMainWindow>
 #include <QTimer>
 
+class QThread;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -124,6 +126,8 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;
+    QThread* backgroundAutoRunThread_ = nullptr;
+    bool backgroundAutoRunOperationEnabled_ = false;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;

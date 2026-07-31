@@ -6,6 +6,7 @@
 
 class FluentButton;
 class FluentComboBox;
+class FluentSwitch;
 class QLabel;
 class QTextEdit;
 
@@ -19,6 +20,9 @@ public:
     void setDetailText(const QString& details);
     void setDriverActions(bool ddInstalled, bool hidInstalled, bool usbUpdateAvailable = false);
     void setBusy(bool busy);
+    void setBackgroundAutoRun(bool enabled);
+    void setBackgroundAutoRunAvailable(bool available);
+    void setBackgroundAutoRunBusy(bool busy, bool enabling);
     void setAgentState(const QString& status, bool repairAvailable);
     void updateThemeColors();
 
@@ -28,6 +32,7 @@ signals:
     void uninstallDriverRequested(DriverMode mode);
     void updateUsbDriverRequested();
     void repairAgentRequested();
+    void backgroundAutoRunToggled(bool enabled);
 
 private:
     void applyTheme();
@@ -41,4 +46,9 @@ private:
     FluentButton* updateUsbButton_ = nullptr;
     FluentButton* repairAgentButton_ = nullptr;
     QLabel* agentStatusValue_ = nullptr;
+    QWidget* backgroundAutoRunSection_ = nullptr;
+    QWidget* backgroundAutoRunDivider_ = nullptr;
+    FluentSwitch* backgroundAutoRunSwitch_ = nullptr;
+    bool busy_ = false;
+    bool backgroundAutoRunBusy_ = false;
 };

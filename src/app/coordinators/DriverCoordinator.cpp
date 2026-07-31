@@ -160,6 +160,9 @@ void DriverCoordinator::bind(Context context) {
     connect(context_.page, &DriverPage::repairAgentRequested, this, [this]() {
         if (context_.repairAgent) context_.repairAgent();
     });
+    connect(context_.page, &DriverPage::backgroundAutoRunToggled, this, [this](bool enabled) {
+        if (context_.setBackgroundAutoRun) context_.setBackgroundAutoRun(enabled);
+    });
 
     connect(context_.page, &DriverPage::uninstallDriverRequested, this, [this](DriverMode mode) {
         if (mode == DriverMode::Usb) {

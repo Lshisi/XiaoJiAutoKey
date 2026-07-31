@@ -96,7 +96,7 @@ struct ProfileConfig {
 };
 
 struct AppConfig {
-    bool backgroundAutoRun = true;
+    bool backgroundAutoRun = false;
     bool beepEnabled = true;
     bool statusOverlayShowRepeat = false;
     bool statusOverlayShowMacro = false;

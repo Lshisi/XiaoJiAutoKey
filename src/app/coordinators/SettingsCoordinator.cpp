@@ -30,9 +30,6 @@ void SettingsCoordinator::bind(Context context) {
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
     });
-    connect(context_.page, &SettingsPage::backgroundAutoRunToggled, this, [this](bool enabled) {
-        if (context_.setBackgroundAutoRun) context_.setBackgroundAutoRun(enabled);
-    });
 }
 
 void SettingsCoordinator::setFaction(const QString& factionId) {

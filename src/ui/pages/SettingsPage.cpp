@@ -4,7 +4,6 @@
 #include "../components/FactionMenu.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
-#include "../components/FluentSwitch.h"
 #include "FactionTheme.h"
 
 #include <QButtonGroup>
@@ -241,16 +240,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addWidget(opacityDesc);
     panelLayout->addWidget(makeDivider(panel));
 
-    auto* backgroundRow = new QHBoxLayout();
-    auto* backgroundLabel = new QLabel(QString::fromWCharArray(L"\u0055\u0053\u0042\u0020\u540e\u53f0\u8fd0\u884c"), panel);
-    backgroundLabel->setFont(Fluent::Typography::body());
-    backgroundRow->addWidget(backgroundLabel);
-    backgroundRow->addStretch();
-    backgroundAutoRunSwitch_ = new FluentSwitch(panel);
-    backgroundRow->addWidget(backgroundAutoRunSwitch_);
-    panelLayout->addLayout(backgroundRow);
-    panelLayout->addWidget(makeDivider(panel));
-
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5173\u95ed\u7a97\u53e3\u65f6"), panel));
     radioAsk_ = new QRadioButton(QString::fromWCharArray(L"\u6bcf\u6b21\u8be2\u95ee"), panel);
     radioMin_ = new QRadioButton(QString::fromWCharArray(L"\u6700\u5c0f\u5316\u5230\u7cfb\u7edf\u6258\u76d8"), panel);
@@ -303,8 +292,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         emit statusOverlayOpacityChanged(value);
     });
     connect(factionButton_, &QPushButton::clicked, this, &SettingsPage::showFactionMenu);
-    connect(backgroundAutoRunSwitch_, &FluentSwitch::toggled,
-        this, &SettingsPage::backgroundAutoRunToggled);
 
     applyPageTheme();
 }
@@ -315,11 +302,6 @@ void SettingsPage::setConfig(const AppConfig& config) {
     statusOverlayOpacitySlider_->setValue(config.statusOverlayOpacity);
     statusOverlayOpacitySlider_->blockSignals(false);
     if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(config.statusOverlayOpacity) + "%");
-    if (backgroundAutoRunSwitch_) {
-        backgroundAutoRunSwitch_->blockSignals(true);
-        backgroundAutoRunSwitch_->setChecked(config.backgroundAutoRun);
-        backgroundAutoRunSwitch_->blockSignals(false);
-    }
 }
 
 void SettingsPage::setHotkeyText(const QString&) {}

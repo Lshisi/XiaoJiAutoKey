@@ -181,7 +181,7 @@ void applySuggestedDpiRect(HWND hwnd, const RECT* rect) {
         SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-struct HidInstallResult {
+struct DriverInstallResult {
     bool ok = false;
     std::wstring message;
 };
@@ -316,6 +316,7 @@ MainWindow::MainWindow(QWidget* parent)
       inputHook_(this),
       rawInput_(this),
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
+      nativeHidRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
@@ -593,6 +594,27 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
         }
         return false;
     }
+    if (config_.driverMode == DriverMode::Native) {
+        if (loadNativeHidDriver()) {
+            driverUnavailableLogged_ = false;
+            return true;
+        }
+        if (!allowHidFallbackToLegacy) {
+            return false;
+        }
+        driverStatusNote_ = L"\u5c0f\u53fd HID \u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u56de\u9000 DD: " +
+            (nativeHidDriver_.GetLastError().empty()
+                ? std::wstring(L"\u9a71\u52a8\u672a\u5b89\u88c5\u6216\u8bbe\u5907\u63a5\u53e3\u4e0d\u53ef\u7528")
+                : nativeHidDriver_.GetLastError());
+        const bool legacyLoaded = loadLegacyDriver();
+        if (legacyLoaded) {
+            config_.driverMode = DriverMode::Legacy;
+            configCoordinator_.save();
+            driverUnavailableLogged_ = false;
+            driverStatusFallback_ = true;
+        }
+        return legacyLoaded;
+    }
     if (config_.driverMode == DriverMode::Hid) {
         if (loadHidDriver()) {
             driverUnavailableLogged_ = false;
@@ -620,6 +642,7 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
 }
 
 bool MainWindow::loadHidDriver() {
+    nativeHidDriver_.Disconnect();
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
@@ -654,6 +677,7 @@ bool MainWindow::loadHidDriver() {
 }
 
 bool MainWindow::loadLegacyDriver() {
+    nativeHidDriver_.Disconnect();
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
@@ -666,6 +690,7 @@ bool MainWindow::loadLegacyDriver() {
 }
 
 bool MainWindow::loadCh552UsbDriver() {
+    nativeHidDriver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
@@ -682,6 +707,29 @@ bool MainWindow::loadCh552UsbDriver() {
         inputDriver_.SetDriver(nullptr);
     }
     return loaded;
+}
+
+bool MainWindow::loadNativeHidDriver() {
+    ch552Driver_.Disconnect();
+    driver_.ReleaseAll();
+    driver_.Unload();
+    nativeHidDriver_.Disconnect();
+
+    const auto status = nativeHidRuntimeService_.Inspect();
+    const bool installed = status.serviceInstalled && status.sysInstalled &&
+        status.deviceStarted && status.interfacePresent;
+    if (!installed) {
+        inputDriver_.SetDriver(nullptr);
+        return false;
+    }
+
+    if (!nativeHidDriver_.Connect()) {
+        inputDriver_.SetDriver(nullptr);
+        return false;
+    }
+
+    inputDriver_.SetDriver(&nativeHidDriver_);
+    return true;
 }
 
 bool MainWindow::initializeAgentHandoff() {
@@ -955,7 +1003,7 @@ bool MainWindow::ensureHidDriverInstalledForSwitch() {
         QString::fromWCharArray(L"\u5b89\u88c5 HID \u9a71\u52a8"),
         QString::fromWCharArray(L"\u6b63\u5728\u5b89\u88c5 HID \u9a71\u52a8\uff0c\u5b8c\u6210\u540e\u5c06\u91cd\u542f\u5c0f\u53fd\u3002"),
         this);
-    const auto result = std::make_shared<HidInstallResult>();
+    const auto result = std::make_shared<DriverInstallResult>();
     auto* thread = QThread::create([runtimeService = &ddRuntimeService_, result]() {
         result->ok = runtimeService->InstallEmbeddedHidDriver(&result->message);
     });
@@ -990,6 +1038,98 @@ bool MainWindow::ensureHidDriverInstalledForSwitch() {
     return true;
 }
 
+bool MainWindow::ensureNativeHidInstalledForSwitch() {
+    const auto status = nativeHidRuntimeService_.Inspect();
+    const bool nativeReady = status.packageExists && status.serviceInstalled &&
+        status.sysInstalled && status.deviceStarted && status.interfacePresent;
+    if (nativeReady) {
+        return true;
+    }
+
+    if (!status.packageExists) {
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"\u5c0f\u53fd HID \u5b89\u88c5\u5931\u8d25"),
+            QString::fromWCharArray(L"\u5c0f\u53fd HID \u53d1\u5e03\u5305\u4e0d\u5b8c\u6574\uff0c\u8bf7\u786e\u8ba4 driver/native \u76ee\u5f55\u5305\u542b SYS\u3001INF \u548c CAT \u6587\u4ef6\u3002"));
+        return false;
+    }
+
+    inputHook_.setDialogOpen(true);
+    auto* progressDialog = new DriverProgressDialog(
+        QString::fromWCharArray(L"\u5b89\u88c5\u5c0f\u53fd HID"),
+        QString::fromWCharArray(L"\u6b63\u5728\u5b89\u88c5\u5c0f\u53fd HID \u9a71\u52a8\u5305\u5e76\u521b\u5efa\u865a\u62df\u8f93\u5165\u8bbe\u5907..."),
+        this);
+    const auto result = std::make_shared<DriverInstallResult>();
+    auto* thread = QThread::create([runtimeService = &nativeHidRuntimeService_, result]() {
+        result->ok = runtimeService->Install(&result->message);
+    });
+    thread->setParent(this);
+
+    connect(thread, &QThread::finished, this, [this, progressDialog, thread, result]() {
+        thread->deleteLater();
+        if (progressDialog) {
+            progressDialog->markFinished(result->ok
+                ? QString::fromWCharArray(L"\u5c0f\u53fd HID \u5b89\u88c5\u5b8c\u6210\uff0c\u6b63\u5728\u5237\u65b0\u8bbe\u5907\u72b6\u6001...")
+                : QString::fromWCharArray(L"\u5c0f\u53fd HID \u5b89\u88c5\u5931\u8d25\u3002"));
+            progressDialog->accept();
+            progressDialog->deleteLater();
+        }
+        inputHook_.setDialogOpen(false);
+    }, Qt::QueuedConnection);
+
+    thread->start();
+    progressDialog->exec();
+    inputHook_.setDialogOpen(false);
+
+    const auto installedStatus = nativeHidRuntimeService_.Inspect();
+    const bool installed = result->ok && installedStatus.serviceInstalled &&
+        installedStatus.sysInstalled && installedStatus.deviceStarted &&
+        installedStatus.interfacePresent;
+    if (!installed) {
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"\u5c0f\u53fd HID \u5b89\u88c5\u5931\u8d25"),
+            QString::fromWCharArray(L"\u65e0\u6cd5\u5b89\u88c5\u6216\u542f\u52a8\u5c0f\u53fd HID\uff0c\u5df2\u4fdd\u7559\u5f53\u524d\u9a71\u52a8\u3002\n\n\u5b89\u88c5\u8be6\u60c5\uff1a\n") +
+                QString::fromStdWString(result->message.empty() ? std::wstring(L"(none)") : result->message));
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::installNativeHidFromUi() {
+    auto* page = view_.driverPage();
+    if (page) page->setBusy(true);
+
+    const bool installed = ensureNativeHidInstalledForSwitch();
+    bool loaded = installed;
+    if (installed && config_.driverMode == DriverMode::Native) {
+        engineStateCoordinator_.setRepeatRunning(false);
+        macroEngine_.StopAll();
+        inputDriver_.ReleaseAll();
+        inputDriver_.ClearAllStates();
+        loaded = loadNativeHidDriver();
+        engineHookCoordinator_.refreshState();
+    }
+
+    if (page) page->setBusy(false);
+    refreshDriverStatusUi();
+    refreshStatusOverlay();
+
+    if (installed && loaded) {
+        AppMessageDialog::information(
+            this,
+            QString::fromWCharArray(L"\u5c0f\u53fd HID \u5df2\u5b89\u88c5"),
+            config_.driverMode == DriverMode::Native
+                ? QString::fromWCharArray(L"\u5c0f\u53fd HID \u5df2\u5b89\u88c5\u5e76\u8fde\u63a5\u3002")
+                : QString::fromWCharArray(L"\u5c0f\u53fd HID \u5df2\u5b89\u88c5\uff0c\u5207\u6362\u8fd0\u884c\u6a21\u5f0f\u540e\u5373\u53ef\u4f7f\u7528\u3002"));
+    } else if (installed) {
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"\u5c0f\u53fd HID \u8fde\u63a5\u5931\u8d25"),
+            QString::fromWCharArray(L"\u9a71\u52a8\u5df2\u5b89\u88c5\uff0c\u4f46\u5f53\u524d\u8fdb\u7a0b\u65e0\u6cd5\u8fde\u63a5\u8bbe\u5907\u63a5\u53e3\u3002\u8bf7\u91cd\u542f\u5c0f\u53fd\u540e\u91cd\u8bd5\u3002"));
+    }
+}
+
 void MainWindow::refreshDriverStatusUi() {
     auto* page = view_.driverPage();
     if (!page) {
@@ -999,6 +1139,7 @@ void MainWindow::refreshDriverStatusUi() {
     page->setDriverMode(config_.driverMode);
     page->setBackgroundAutoRun(config_.backgroundAutoRun);
     const auto status = ddRuntimeService_.Inspect(driver_);
+    const auto nativeStatus = nativeHidRuntimeService_.Inspect();
 
     QString summary = activeInputDriverReady()
         ? QString::fromWCharArray(L"\u53ef\u7528")
@@ -1015,14 +1156,53 @@ void MainWindow::refreshDriverStatusUi() {
     const bool hidUninstallAvailable = status.hidServiceInstalled || status.hidServicePendingDelete ||
         status.hidSysInstalled || status.hidDriverStorePresent ||
         status.hidRootDeviceOk || status.hidChildDeviceOk;
-    page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable, isUsbDriverUpdateAvailable());
+    const bool nativeUninstallAvailable = nativeStatus.serviceInstalled || nativeStatus.sysInstalled ||
+        nativeStatus.devicePresent || nativeStatus.interfacePresent ||
+        !nativeStatus.publishedInfName.empty();
+    const bool nativeReady = nativeStatus.serviceInstalled && nativeStatus.sysInstalled &&
+        nativeStatus.deviceStarted && nativeStatus.interfacePresent;
+    const bool nativeInstallAvailable = nativeStatus.packageExists && !nativeReady;
+    page->setDriverActions(
+        ddUninstallAvailable,
+        hidUninstallAvailable,
+        nativeInstallAvailable,
+        nativeUninstallAvailable,
+        isUsbDriverUpdateAvailable());
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: ";
     if (config_.driverMode == DriverMode::Usb) detail << L"USB";
+    else if (config_.driverMode == DriverMode::Native) detail << L"\u5c0f\u53fd HID";
     else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     detail << L"\n";
     detail << L"\n";
+
+    const bool nativeCommunicationReady = nativeHidDriver_.IsReady();
+    detail << L"\u5c0f\u53fd HID \u53d1\u5e03\u5305: "
+           << (nativeStatus.packageExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
+    detail << L"\u5c0f\u53fd HID \u670d\u52a1: "
+           << (nativeStatus.serviceInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
+    detail << L"\u5c0f\u53fd HID SYS: "
+           << (nativeStatus.sysInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
+    detail << L"\u5c0f\u53fd HID \u8bbe\u5907: "
+           << (nativeStatus.deviceStarted ? L"OK" :
+               (nativeStatus.devicePresent ? L"\u5f02\u5e38" : L"\u672a\u5b89\u88c5")) << L"\n";
+    detail << L"\u5c0f\u53fd HID \u901a\u4fe1: ";
+    if (nativeCommunicationReady) {
+        detail << L"\u5df2\u8fde\u63a5";
+    } else if (config_.driverMode == DriverMode::Native) {
+        detail << (nativeStatus.interfacePresent ? L"\u8fde\u63a5\u5931\u8d25" : L"\u63a5\u53e3\u4e0d\u53ef\u7528");
+    } else {
+        detail << (nativeStatus.interfacePresent ? L"\u672a\u542f\u7528" : L"\u4e0d\u53ef\u7528");
+    }
+    detail << L"\n";
+    if (nativeCommunicationReady) {
+        const std::uint32_t version = nativeHidDriver_.DriverVersion();
+        detail << L"\u5c0f\u53fd HID \u7248\u672c: " << ((version >> 16) & 0xffffU)
+               << L"." << (version & 0xffffU) << L"\n";
+    }
+    detail << L"\n";
+
     const bool usbCommunicationReady = ch552Driver_.IsReady();
     const std::wstring usbPortName = usbCommunicationReady
         ? ch552Driver_.PortName()
@@ -1049,7 +1229,8 @@ void MainWindow::refreshDriverStatusUi() {
         detail << L"\u8fde\u63a5\u5931\u8d25";
     } else {
         detail << L"\u672a\u542f\u7528\uff08\u5f53\u524d\u4f7f\u7528 "
-               << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\uff09";
+               << (config_.driverMode == DriverMode::Hid ? L"HID" :
+                   (config_.driverMode == DriverMode::Native ? L"\u5c0f\u53fd HID" : L"DD")) << L"\uff09";
     }
     detail << L"\n";
     if (usbCommunicationReady) {
@@ -1138,7 +1319,11 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
 
     const QString targetName = mode == DriverMode::Hid
         ? QStringLiteral("HID")
-        : (mode == DriverMode::Usb ? QStringLiteral("USB") : QStringLiteral("DD"));
+        : (mode == DriverMode::Usb
+            ? QStringLiteral("USB")
+            : (mode == DriverMode::Native
+                ? QString::fromWCharArray(L"\u5c0f\u53fd HID")
+                : QStringLiteral("DD")));
     inputHook_.setDialogOpen(true);
     const bool confirmed = ConfigConfirmDialog::confirm(
         this,
@@ -1153,6 +1338,10 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     }
 
     if (mode == DriverMode::Hid && !ensureHidDriverInstalledForSwitch()) {
+        refreshDriverStatusUi();
+        return DriverCoordinator::SwitchResult::Canceled;
+    }
+    if (mode == DriverMode::Native && !ensureNativeHidInstalledForSwitch()) {
         refreshDriverStatusUi();
         return DriverCoordinator::SwitchResult::Canceled;
     }
@@ -1222,17 +1411,23 @@ void MainWindow::prepareDriverUninstall(DriverMode mode) {
         driver_.ReleaseAll();
         driver_.Unload();
         inputDriver_.SetDriver(nullptr);
+    } else if (mode == DriverMode::Native && nativeHidDriver_.IsReady()) {
+        nativeHidDriver_.Disconnect();
+        inputDriver_.SetDriver(nullptr);
     }
 }
 
 void MainWindow::finalizeDriverUninstall(DriverMode mode) {
     if (config_.driverMode == mode) {
         inputDriver_.SetDriver(nullptr);
-        if (mode != DriverMode::Usb) {
+        if (mode == DriverMode::Native) {
+            nativeHidDriver_.Disconnect();
+        } else if (mode != DriverMode::Usb) {
             driver_.Unload();
         }
     }
-    if (mode == DriverMode::Hid && config_.driverMode == DriverMode::Hid) {
+    if ((mode == DriverMode::Hid && config_.driverMode == DriverMode::Hid) ||
+        (mode == DriverMode::Native && config_.driverMode == DriverMode::Native)) {
         config_.driverMode = DriverMode::Legacy;
         configCoordinator_.save();
         loadLegacyDriver();

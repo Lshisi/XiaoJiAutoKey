@@ -67,3 +67,13 @@ config.json
 
 # Kiro
 .kiro/
+
+# Local assistant settings
+.claude/
+
+# Local driver-signing experiments and private key material
+_tsa/
+*.pfx
+*.key
+*.tsq
+*.tsr

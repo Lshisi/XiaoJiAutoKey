@@ -68,6 +68,7 @@ private:
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
     bool ensureNativeHidInstalledForSwitch();
+    void installNativeHidFromUi();
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
     bool isUsbDriverUpdateAvailable() const;

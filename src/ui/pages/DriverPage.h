@@ -18,8 +18,8 @@ public:
     void setDriverMode(DriverMode mode);
     void setStatusSummary(const QString& summary);
     void setDetailText(const QString& details);
-    void setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstalled,
-                          bool usbUpdateAvailable = false);
+    void setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstallAvailable,
+                          bool nativeInstalled, bool usbUpdateAvailable = false);
     void setBusy(bool busy);
     void setBackgroundAutoRun(bool enabled);
     void setBackgroundAutoRunAvailable(bool available);
@@ -30,6 +30,7 @@ public:
 signals:
     void driverModeChanged(DriverMode mode);
     void refreshRequested();
+    void installNativeDriverRequested();
     void uninstallDriverRequested(DriverMode mode);
     void updateUsbDriverRequested();
     void repairAgentRequested();
@@ -44,6 +45,7 @@ private:
     QWidget* summaryPanel_ = nullptr;
     FluentButton* uninstallDdButton_ = nullptr;
     FluentButton* uninstallHidButton_ = nullptr;
+    FluentButton* installNativeButton_ = nullptr;
     FluentButton* uninstallNativeButton_ = nullptr;
     FluentButton* updateUsbButton_ = nullptr;
     FluentButton* repairAgentButton_ = nullptr;

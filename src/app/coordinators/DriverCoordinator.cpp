@@ -159,6 +159,10 @@ void DriverCoordinator::bind(Context context) {
         if (context_.refreshStatus) context_.refreshStatus();
     });
 
+    connect(context_.page, &DriverPage::installNativeDriverRequested, this, [this]() {
+        if (context_.installNativeDriver) context_.installNativeDriver();
+    });
+
     connect(context_.page, &DriverPage::updateUsbDriverRequested, this, [this]() {
         if (context_.updateUsbDriver) context_.updateUsbDriver();
     });

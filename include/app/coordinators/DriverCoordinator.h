@@ -27,6 +27,7 @@ public:
         NativeHidRuntimeService* nativeRuntimeService = nullptr;
         QWidget* parentWidget = nullptr;
         std::function<SwitchResult(DriverMode)> switchDriverMode;
+        std::function<void()> installNativeDriver;
         std::function<void(DriverMode)> prepareDriverUninstall;
         std::function<void(DriverMode)> finalizeDriverUninstall;
         std::function<void()> updateUsbDriver;

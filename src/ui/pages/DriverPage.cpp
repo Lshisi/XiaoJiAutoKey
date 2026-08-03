@@ -283,6 +283,11 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     uninstallHidButton_->setFixedWidth(91);
     uninstallHidButton_->hide();
     statusTitleRow->addWidget(uninstallHidButton_);
+    installNativeButton_ = new FluentButton(
+        FluentButton::Primary, QString::fromWCharArray(L"\u5b89\u88c5\u5c0f\u53fd"), panel);
+    installNativeButton_->setFixedWidth(91);
+    installNativeButton_->hide();
+    statusTitleRow->addWidget(installNativeButton_);
     uninstallNativeButton_ = new FluentButton(
         FluentButton::Primary, QString::fromWCharArray(L"\u5378\u8f7d\u5c0f\u53fd"), panel);
     uninstallNativeButton_->setFixedWidth(91);
@@ -344,6 +349,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     connect(uninstallHidButton_, &QPushButton::clicked, this, [this]() {
         emit uninstallDriverRequested(DriverMode::Hid);
     });
+    connect(installNativeButton_, &QPushButton::clicked, this, &DriverPage::installNativeDriverRequested);
     connect(uninstallNativeButton_, &QPushButton::clicked, this, [this]() {
         emit uninstallDriverRequested(DriverMode::Native);
     });
@@ -364,6 +370,7 @@ void DriverPage::updateThemeColors() {
     }
     if (uninstallDdButton_) uninstallDdButton_->refreshMetrics();
     if (uninstallHidButton_) uninstallHidButton_->refreshMetrics();
+    if (installNativeButton_) installNativeButton_->refreshMetrics();
     if (uninstallNativeButton_) uninstallNativeButton_->refreshMetrics();
     if (updateUsbButton_) updateUsbButton_->refreshMetrics();
     if (repairAgentButton_) repairAgentButton_->refreshMetrics();
@@ -391,10 +398,11 @@ void DriverPage::setDetailText(const QString& details) {
     if (summaryDetailValue_) summaryDetailValue_->setPlainText(compactDriverDetails(details));
 }
 
-void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstalled,
-                                  bool usbUpdateAvailable) {
+void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled, bool nativeInstallAvailable,
+                                  bool nativeInstalled, bool usbUpdateAvailable) {
     if (uninstallDdButton_) uninstallDdButton_->setVisible(ddInstalled);
     if (uninstallHidButton_) uninstallHidButton_->setVisible(hidInstalled);
+    if (installNativeButton_) installNativeButton_->setVisible(nativeInstallAvailable);
     if (uninstallNativeButton_) uninstallNativeButton_->setVisible(nativeInstalled);
     if (updateUsbButton_) updateUsbButton_->setVisible(usbUpdateAvailable);
 }
@@ -404,6 +412,7 @@ void DriverPage::setBusy(bool busy) {
     if (driverModeCombo_) driverModeCombo_->setEnabled(!busy);
     if (uninstallDdButton_) uninstallDdButton_->setEnabled(!busy);
     if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
+    if (installNativeButton_) installNativeButton_->setEnabled(!busy);
     if (uninstallNativeButton_) uninstallNativeButton_->setEnabled(!busy);
     if (updateUsbButton_) updateUsbButton_->setEnabled(!busy);
     if (repairAgentButton_) repairAgentButton_->setEnabled(!busy);

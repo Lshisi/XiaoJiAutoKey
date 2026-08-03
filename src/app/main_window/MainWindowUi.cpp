@@ -154,6 +154,7 @@ void MainWindow::setupUi() {
         &nativeHidRuntimeService_,
         this,
         [this](DriverMode mode) { return switchDriverMode(mode); },
+        [this]() { installNativeHidFromUi(); },
         [this](DriverMode mode) { prepareDriverUninstall(mode); },
         [this](DriverMode mode) { finalizeDriverUninstall(mode); },
         [this]() { updateUsbDriver(); },

@@ -35,6 +35,7 @@ public:
         std::function<void()> saveConfig;
         std::function<void(bool)> setDialogOpen;
         std::function<void()> repairAgent;
+        std::function<void(bool)> setBackgroundAutoRun;
     };
 
     explicit DriverCoordinator(QObject* parent = nullptr);

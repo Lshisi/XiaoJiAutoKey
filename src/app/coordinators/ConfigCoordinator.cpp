@@ -19,15 +19,19 @@ void ConfigCoordinator::load() {
     if (context_.refreshHookState) context_.refreshHookState();
 }
 
-void ConfigCoordinator::save() {
-    if (!context_.config) return;
+bool ConfigCoordinator::save(bool showError, std::uint32_t lockTimeoutMs) {
+    if (!context_.config) return false;
 
     std::wstring error;
-    if (!store_.Save(*context_.config, error)) {
-        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
+    if (!store_.Save(*context_.config, error, lockTimeoutMs)) {
+        if (showError) {
+            AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25"), QString::fromStdWString(error));
+        }
+        return false;
     } else if (context_.saved) {
         context_.saved();
     }
+    return true;
 }
 
 const std::filesystem::path& ConfigCoordinator::configPath() const noexcept {

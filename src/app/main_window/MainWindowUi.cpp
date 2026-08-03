@@ -8,6 +8,7 @@
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 
+#include <QCloseEvent>
 #include <QTimer>
 
 void MainWindow::setupUi() {
@@ -144,8 +145,7 @@ void MainWindow::setupUi() {
             refreshStatusOverlay();
         },
         [this]() { refreshStatusOverlay(); },
-        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
-        [this](bool enabled) { setBackgroundAutoRun(enabled); }
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
     });
     driverCoordinator_.bind(DriverCoordinator::Context{
         view_.driverPage(),
@@ -161,7 +161,8 @@ void MainWindow::setupUi() {
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },
         [this](bool open) { inputHook_.setDialogOpen(open); },
-        [this]() { repairAgent(); }
+        [this]() { repairAgent(); },
+        [this](bool enabled) { setBackgroundAutoRun(enabled); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;
@@ -243,5 +244,11 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+    if (systemShutdownRequested_) {
+        prepareForSystemShutdown();
+        view_.hideTrayIcon();
+        event->accept();
+        return;
+    }
     closeCoordinator_.handleClose(event);
 }

@@ -295,17 +295,40 @@ bool AgentService::RecoverFrontendConfig(const std::filesystem::path& frontendCo
         removeLegacyFiles();
         return true;
     };
-    if (ConfigStore::IsValidConfigFile(frontendConfig)) {
-        return migrateLegacyRuntimeState();
-    }
+    auto frontendTemp = frontendConfig;
+    frontendTemp += L".tmp";
     auto frontendBackup = frontendConfig;
     frontendBackup += L".bak";
+    ConfigStore frontendStore(frontendConfig);
+    const bool currentValid = ConfigStore::IsValidConfigFile(frontendConfig);
+    const bool tempValid = ConfigStore::IsValidConfigFile(frontendTemp);
+    std::error_code tempTimeError;
+    std::error_code currentTimeError;
+    const auto tempTime = std::filesystem::last_write_time(frontendTemp, tempTimeError);
+    const auto currentTime = std::filesystem::last_write_time(frontendConfig, currentTimeError);
+    const bool tempIsNewer = !tempTimeError && (currentTimeError || tempTime >= currentTime);
+    if (tempValid && (!currentValid || tempIsNewer)) {
+        std::wstring error;
+        if (frontendStore.RestoreFrom(frontendTemp, error)) return migrateLegacyRuntimeState();
+    }
+    if (currentValid) return migrateLegacyRuntimeState();
+
     for (const auto& candidate : {frontendBackup, legacyConfig, legacyBackup}) {
         if (!ConfigStore::IsValidConfigFile(candidate)) continue;
+        std::wstring error;
+        if (frontendStore.RestoreFrom(candidate, error)) return migrateLegacyRuntimeState();
+    }
+
+    const auto preserveCorruptFile = [](const std::filesystem::path& path) {
         std::error_code ec;
-        std::filesystem::copy_file(candidate, frontendConfig,
-            std::filesystem::copy_options::overwrite_existing, ec);
-        if (!ec) return migrateLegacyRuntimeState();
+        if (!std::filesystem::exists(path, ec) || ec) return;
+        auto corruptPath = path;
+        corruptPath += L".corrupt";
+        ::MoveFileExW(path.c_str(), corruptPath.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    };
+    for (const auto& path : {frontendConfig, frontendTemp, frontendBackup}) {
+        if (!ConfigStore::IsValidConfigFile(path)) preserveCorruptFile(path);
     }
     removeLegacyFiles();
     return false;
@@ -356,7 +379,9 @@ int AgentService::InstallElevated(const std::filesystem::path& sourceExe) {
 }
 
 bool AgentService::Uninstall(std::wstring* error) {
-    Shutdown(nullptr);
+    if (std::filesystem::exists(ExecutablePath()) || WaitNamedPipeW(PipeName().c_str(), 0)) {
+        Shutdown(nullptr);
+    }
     for (int attempt = 0; attempt < 30 && WaitNamedPipeW(PipeName().c_str(), 0); ++attempt) {
         Sleep(100);
     }

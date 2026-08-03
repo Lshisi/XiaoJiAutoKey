@@ -65,3 +65,15 @@ config.json
 
 # Kiro
 .kiro/
+
+# Local assistant settings
+.claude/settings.local.json
+
+# Local timestamp authority artifacts
+_tsa/
+*.tsq
+*.tsr
+
+# Driver build output
+driver/xiaoji-vhid/obj/
+driver/xiaoji-vhid/package/

@@ -4,7 +4,6 @@
 
 #include <QObject>
 #include <QString>
-#include <filesystem>
 #include <functional>
 
 class QMainWindow;
@@ -17,7 +16,6 @@ public:
     struct Context {
         SettingsPage* page = nullptr;
         AppConfig* config = nullptr;
-        std::filesystem::path configPath;
         QMainWindow* window = nullptr;
         std::function<void()> saveConfig;
         std::function<void()> refreshFactionVisuals;

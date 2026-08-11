@@ -584,7 +584,7 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     macroPage_->updateThemeColors();
     driverPage_->updateThemeColors();
     settingsPage_->setFaction(FactionTheme::instance().current().id);
-    aboutPage_->setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
+    aboutPage_->updateThemeColors();
     window->update();
 }
 

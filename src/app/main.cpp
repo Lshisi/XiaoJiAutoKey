@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
         if (hMutex) CloseHandle(hMutex);
         return 0;
     }
-    window.show();
+    window.ShowForStartup();
 
     const int result = app.exec();
 

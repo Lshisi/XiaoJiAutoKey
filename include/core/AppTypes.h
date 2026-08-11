@@ -55,6 +55,11 @@ enum class CloseAction {
     Exit,
 };
 
+enum class StartupAction {
+    Tray,
+    Window,
+};
+
 enum class DriverMode {
     Legacy,
     Hid,
@@ -105,6 +110,7 @@ struct AppConfig {
     int statusOverlayX = 6;
     int statusOverlayY = 6;
     int statusOverlayOpacity = 70;
+    StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Legacy;
     std::string faction = "cangjian";

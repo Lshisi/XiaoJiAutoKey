@@ -266,23 +266,35 @@ std::wstring Ch552UsbDriver::FirmwareVersion() const {
     return firmwareVersion_;
 }
 
-bool Ch552UsbDriver::EnterBootloaderForUpdate() {
+Ch552UsbDriver::UpdateRequestResult Ch552UsbDriver::EnterBootloaderForUpdate() {
     std::lock_guard lock(mutex_);
-    if (handle_ == INVALID_HANDLE_VALUE) return false;
+    if (handle_ == INVALID_HANDLE_VALUE) {
+        lastError_ = L"USB device is not connected";
+        return UpdateRequestResult::Failed;
+    }
 
-    SendCommandLocked("R");
+    lastError_.clear();
+    (void)SendCommandLocked("R");
     ::PurgeComm(handle_, PURGE_RXCLEAR | PURGE_TXCLEAR);
     if (!WriteLineLocked(kUpdateCommand)) {
-        return false;
+        return UpdateRequestResult::Failed;
     }
     ::FlushFileBuffers(handle_);
 
+    const std::string response = ReadAvailableLocked(600);
+    if (!response.empty() && response.rfind("OK", 0) != 0) {
+        lastError_ = L"Device rejected firmware update request: " + ToWide(response);
+        return UpdateRequestResult::Failed;
+    }
+
     // UPD is authenticated by the firmware and performs the actual jump to
-    // 0x3800. Do not treat a successful 1200-baud configuration as proof that
-    // the bootloader started; Windows may accept it without delivering DTR.
+    // 0x3800. Older firmware may disconnect before Windows delivers the
+    // acknowledgement, so the caller verifies enumeration separately.
     ::Sleep(180);
     ClosePortLocked();
-    return true;
+    return response.empty()
+        ? UpdateRequestResult::Sent
+        : UpdateRequestResult::Acknowledged;
 }
 
 bool Ch552UsbDriver::BeginLease() {

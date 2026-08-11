@@ -22,33 +22,6 @@ namespace {
 
 constexpr int kSettingsActionButtonWidth = 120;
 constexpr int kSettingsActionButtonHeight = 28;
-constexpr int kSettingsActionRightInset = 12;
-
-class ElidedPathLabel final : public QLabel {
-public:
-    explicit ElidedPathLabel(QWidget* parent = nullptr)
-        : QLabel(parent) {
-        setMinimumWidth(0);
-        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    }
-
-    QSize minimumSizeHint() const override {
-        return QSize(0, fontMetrics().height());
-    }
-
-    QSize sizeHint() const override {
-        return QSize(0, fontMetrics().height());
-    }
-
-protected:
-    void paintEvent(QPaintEvent*) override {
-        QPainter painter(this);
-        painter.setFont(font());
-        painter.setPen(palette().color(QPalette::WindowText));
-        const QString elided = fontMetrics().elidedText(text(), Qt::ElideMiddle, width());
-        painter.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter, elided);
-    }
-};
 
 QLabel* makeSectionTitle(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text, parent);
@@ -240,6 +213,22 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addWidget(opacityDesc);
     panelLayout->addWidget(makeDivider(panel));
 
+    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u542f\u52a8\u65f6"), panel));
+    radioStartupTray_ = new QRadioButton(QString::fromWCharArray(L"\u8fdb\u5165\u7cfb\u7edf\u6258\u76d8"), panel);
+    radioStartupWindow_ = new QRadioButton(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"), panel);
+    radioStartupTray_->setFont(Fluent::Typography::body());
+    radioStartupWindow_->setFont(Fluent::Typography::body());
+    radioStartupTray_->setFixedHeight(22);
+    radioStartupWindow_->setFixedHeight(22);
+    radioStartupWindow_->setChecked(true);
+    auto* startupGroup = new QButtonGroup(this);
+    startupGroup->addButton(radioStartupTray_, 0);
+    startupGroup->addButton(radioStartupWindow_, 1);
+    startupActionGroup_ = startupGroup;
+    panelLayout->addWidget(radioStartupTray_);
+    panelLayout->addWidget(radioStartupWindow_);
+    panelLayout->addWidget(makeDivider(panel));
+
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5173\u95ed\u7a97\u53e3\u65f6"), panel));
     radioAsk_ = new QRadioButton(QString::fromWCharArray(L"\u6bcf\u6b21\u8be2\u95ee"), panel);
     radioMin_ = new QRadioButton(QString::fromWCharArray(L"\u6700\u5c0f\u5316\u5230\u7cfb\u7edf\u6258\u76d8"), panel);
@@ -259,34 +248,24 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     panelLayout->addWidget(radioAsk_);
     panelLayout->addWidget(radioMin_);
     panelLayout->addWidget(radioExit_);
-    panelLayout->addWidget(makeDivider(panel));
-
-    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u914d\u7f6e\u6587\u4ef6"), panel));
-    auto* configPathRow = new QHBoxLayout();
-    configPathRow->setContentsMargins(0, 0, kSettingsActionRightInset, 0);
-    configPathRow->setSpacing(10);
-    configPathLabel_ = new ElidedPathLabel(panel);
-    configPathLabel_->setFont(Fluent::Typography::caption());
-    configPathLabel_->setPalette(mutedPalette(configPathLabel_));
-    configPathLabel_->setWordWrap(false);
-    configPathRow->addWidget(configPathLabel_, 1);
-    auto* openBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u6253\u5f00\u6587\u4ef6\u5939"), panel);
-    openBtn->setFixedSize(kSettingsActionButtonWidth, kSettingsActionButtonHeight);
-    configPathRow->addWidget(openBtn);
-    panelLayout->addLayout(configPathRow);
 
     outerLayout->addWidget(panel);
     outerLayout->addSpacing(0);
     scrollArea->setWidget(scrollContent);
+    if (auto* viewport = scrollArea->viewport()) {
+        viewport->setStyleSheet(QStringLiteral("background: transparent;"));
+    }
     pageLayout->addWidget(scrollArea);
 
+    connect(startupGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, [this](int id) {
+        emit startupActionChanged(id == 1 ? StartupAction::Window : StartupAction::Tray);
+    });
     connect(btnGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, [this](int id) {
         CloseAction action = CloseAction::Ask;
         if (id == 1) action = CloseAction::Minimize;
         else if (id == 2) action = CloseAction::Exit;
         emit closeActionChanged(action);
     });
-    connect(openBtn, &QPushButton::clicked, this, &SettingsPage::openConfigFolder);
     connect(statusOverlayOpacitySlider_, &QSlider::valueChanged, this, [this](int value) {
         if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(value) + "%");
         emit statusOverlayOpacityChanged(value);
@@ -306,9 +285,12 @@ void SettingsPage::setConfig(const AppConfig& config) {
 
 void SettingsPage::setHotkeyText(const QString&) {}
 
-void SettingsPage::setConfigPath(const QString& path) {
-    configPathLabel_->setToolTip(path);
-    configPathLabel_->setText(path);
+void SettingsPage::setStartupAction(StartupAction action) {
+    if (!startupActionGroup_) return;
+    const int id = action == StartupAction::Window ? 1 : 0;
+    startupActionGroup_->blockSignals(true);
+    if (auto* btn = startupActionGroup_->button(id)) btn->setChecked(true);
+    startupActionGroup_->blockSignals(false);
 }
 
 void SettingsPage::setCloseAction(CloseAction action) {
@@ -351,6 +333,8 @@ void SettingsPage::applyPageTheme() {
     if (radioAsk_) radioAsk_->setStyleSheet(radioStyle);
     if (radioMin_) radioMin_->setStyleSheet(radioStyle);
     if (radioExit_) radioExit_->setStyleSheet(radioStyle);
+    if (radioStartupTray_) radioStartupTray_->setStyleSheet(radioStyle);
+    if (radioStartupWindow_) radioStartupWindow_->setStyleSheet(radioStyle);
 
     updateFactionButtonText();
     if (factionPreviewName_) factionPreviewName_->setText(FactionTheme::instance().current().name);

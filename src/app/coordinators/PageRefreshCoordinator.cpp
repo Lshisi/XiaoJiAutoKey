@@ -4,6 +4,7 @@
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
 #include "ui/components/FluentSidebar.h"
+#include "ui/pages/AboutPage.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
@@ -50,7 +51,7 @@ void PageRefreshCoordinator::refreshAll() {
 
     context_.view->settingsPage()->setConfig(*context_.config);
     context_.view->settingsPage()->setHotkeyText(hotkeyText);
-    context_.view->settingsPage()->setConfigPath(QString::fromStdWString(context_.configPath.wstring()));
+    context_.view->settingsPage()->setStartupAction(context_.config->startupAction);
     context_.view->settingsPage()->setCloseAction(context_.config->closeAction);
     context_.view->settingsPage()->setFaction(QString::fromStdString(context_.config->faction));
     context_.view->settingsPage()->setCustomSoundPaths(QString(), QString());

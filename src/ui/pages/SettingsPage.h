@@ -18,7 +18,7 @@ public:
 
     void setConfig(const AppConfig& config);
     void setHotkeyText(const QString& text);
-    void setConfigPath(const QString& path);
+    void setStartupAction(StartupAction action);
     void setCloseAction(CloseAction action);
     void setFaction(const QString& factionId);
     void setCustomSoundPaths(const QString& onPath, const QString& offPath);
@@ -27,8 +27,8 @@ signals:
     void hotkeyEditClicked();
     void beepToggled(bool enabled);
     void statusOverlayOpacityChanged(int opacity);
+    void startupActionChanged(StartupAction action);
     void closeActionChanged(CloseAction action);
-    void openConfigFolder();
     void factionChanged(const QString& factionId);
 
 protected:
@@ -39,7 +39,7 @@ private:
     void showFactionMenu();
     void updateFactionButtonText();
 
-    QLabel* configPathLabel_;
+    QButtonGroup* startupActionGroup_ = nullptr;
     QButtonGroup* closeActionGroup_ = nullptr;
     QPushButton* factionButton_ = nullptr;
     QSlider* statusOverlayOpacitySlider_ = nullptr;
@@ -47,6 +47,8 @@ private:
     QLabel* factionPreviewIcon_ = nullptr;
     QLabel* factionPreviewName_ = nullptr;
     QWidget* factionPreviewBar_ = nullptr;
+    QRadioButton* radioStartupTray_ = nullptr;
+    QRadioButton* radioStartupWindow_ = nullptr;
     QRadioButton* radioAsk_ = nullptr;
     QRadioButton* radioMin_ = nullptr;
     QRadioButton* radioExit_ = nullptr;

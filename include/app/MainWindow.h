@@ -33,6 +33,7 @@
 #include <QTimer>
 
 class QThread;
+class QShowEvent;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -42,9 +43,11 @@ public:
     ~MainWindow() override;
 
     bool Initialize();
+    void ShowForStartup();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void showEvent(QShowEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     bool event(QEvent* event) override;

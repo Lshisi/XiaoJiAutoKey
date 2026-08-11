@@ -577,10 +577,16 @@ bool MainWindow::Initialize() {
     QTimer::singleShot(250, this, [this]() {
         view_.initializeTray(this);
     });
-    QTimer::singleShot(800, this, [this]() {
-        checkUsbDriverUpdateOnStartup();
-    });
     return true;
+}
+
+void MainWindow::ShowForStartup() {
+    if (config_.startupAction == StartupAction::Tray) {
+        view_.initializeTray(this);
+        hide();
+        return;
+    }
+    show();
 }
 
 bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
@@ -1121,8 +1127,8 @@ void MainWindow::checkUsbDriverUpdateOnStartup() {
 
     const bool confirmed = ConfigConfirmDialog::confirm(
         this,
-        QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0"),
-        QString::fromWCharArray(L"\u68c0\u6d4b\u5230 USB \u9a71\u52a8\u6709\u65b0\u7248\u672c\uff0c\u662f\u5426\u73b0\u5728\u66f4\u65b0\uff1f"),
+        QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0"),
+        QString::fromWCharArray(L"\u68c0\u6d4b\u5230 USB \u8bbe\u5907\u56fa\u4ef6\u6709\u65b0\u7248\u672c\uff0c\u662f\u5426\u73b0\u5728\u66f4\u65b0\uff1f"),
         QString::fromWCharArray(L"\u66f4\u65b0"));
     if (confirmed) {
         updateUsbDriver(false);
@@ -1248,16 +1254,16 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
     if (!firmware.exists() || !updater.exists() || !winUsbInstaller.exists()) {
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u7a0b\u5e8f\u5185\u7f6e\u7684 USB \u9a71\u52a8\u66f4\u65b0\u6587\u4ef6\u4e0d\u5b58\u5728\u3002"));
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u7a0b\u5e8f\u5185\u7f6e\u7684 USB \u56fa\u4ef6\u66f4\u65b0\u6587\u4ef6\u4e0d\u5b58\u5728\u3002"));
         return;
     }
 
     if (requireConfirmation) {
         const bool confirmed = ConfigConfirmDialog::confirm(
             this,
-            QString::fromWCharArray(L"\u66f4\u65b0 USB \u9a71\u52a8"),
-            QString::fromWCharArray(L"\u5c06\u81ea\u52a8\u66f4\u65b0 USB \u9a71\u52a8\u3002\u66f4\u65b0\u8fc7\u7a0b\u4e2d\u8bf7\u4e0d\u8981\u62d4\u51fa USB\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
+            QString::fromWCharArray(L"\u66f4\u65b0 USB \u56fa\u4ef6"),
+            QString::fromWCharArray(L"\u5c06\u81ea\u52a8\u66f4\u65b0 USB \u8bbe\u5907\u56fa\u4ef6\u3002\u66f4\u65b0\u8fc7\u7a0b\u4e2d\u8bf7\u4e0d\u8981\u62d4\u51fa USB\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
             QString::fromWCharArray(L"\u66f4\u65b0"));
         if (!confirmed) {
             return;
@@ -1267,7 +1273,7 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
     inputHook_.setDialogOpen(true);
     suppressAutoPlay_ = true;
     auto* progressDialog = new DriverProgressDialog(
-        QString::fromWCharArray(L"\u66f4\u65b0 USB \u9a71\u52a8"),
+        QString::fromWCharArray(L"\u66f4\u65b0 USB \u56fa\u4ef6"),
         QString::fromWCharArray(L"\u6b63\u5728\u51c6\u5907 USB \u8bbe\u5907..."),
         this);
     progressDialog->show();
@@ -1285,11 +1291,14 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u7684 USB \u8bbe\u5907\u3002"));
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u7684 USB \u8bbe\u5907\u3002\u8bf7\u786e\u8ba4\u8bbe\u5907\u5df2\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\uff0c\u7136\u540e\u91cd\u8bd5\u3002"));
         refreshDriverStatusUi();
         return;
     }
+
+    const std::wstring sourceFirmwareVersion = ch552Driver_.FirmwareVersion();
+    const std::wstring sourcePortName = ch552Driver_.PortName();
 
     QTemporaryDir updateDirectory(QDir::tempPath() + QStringLiteral("/XiaoJiUsbUpdate-XXXXXX"));
     QString preparationError;
@@ -1311,9 +1320,9 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
             preparationError.isEmpty()
-                ? QString::fromWCharArray(L"\u65e0\u6cd5\u51c6\u5907 USB \u9a71\u52a8\u66f4\u65b0\u6587\u4ef6\u3002")
+                ? QString::fromWCharArray(L"\u65e0\u6cd5\u51c6\u5907 USB \u56fa\u4ef6\u66f4\u65b0\u6587\u4ef6\u3002")
                 : preparationError);
         refreshDriverStatusUi();
         return;
@@ -1329,29 +1338,75 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u9700\u8981\u5b89\u88c5 CH552 \u4e0b\u8f7d\u6a21\u5f0f WinUSB \u9a71\u52a8\uff0c\u4f46\u5b89\u88c5\u672a\u5b8c\u6210\u3002\n\n") + winUsbError);
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u6240\u9700\u7684 Windows USB \u7ec4\u4ef6\u5b89\u88c5\u672a\u5b8c\u6210\u3002\u8bf7\u5141\u8bb8\u7ba1\u7406\u5458\u6388\u6743\u540e\u91cd\u8bd5\u3002\n\n") + winUsbError);
         return;
     }
 
-    if (!ch552Driver_.EnterBootloaderForUpdate()) {
+    const auto updateRequestResult = ch552Driver_.EnterBootloaderForUpdate();
+    if (updateRequestResult == Ch552UsbDriver::UpdateRequestResult::Failed) {
         const QString error = QString::fromStdWString(ch552Driver_.GetLastError());
+        ddRuntimeService_.LogRuntimeError(
+            L"usb-update.log",
+            L"Firmware update request failed. source_firmware=" + sourceFirmwareVersion +
+                L", source_port=" + sourcePortName +
+                L", error=" + error.toStdWString());
         progressDialog->accept();
         progressDialog->deleteLater();
         inputHook_.setDialogOpen(false);
         suppressAutoPlay_ = false;
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"USB \u8bbe\u5907\u672a\u54cd\u5e94\u66f4\u65b0\u8bf7\u6c42\u3002\n\n") + error);
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(
+                L"USB \u8bbe\u5907\u672a\u63a5\u53d7\u56fa\u4ef6\u66f4\u65b0\u8bf7\u6c42\u3002\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\u3002\n\n"
+                L"\u8be6\u7ec6\u4fe1\u606f\u5df2\u5199\u5165 logs \u76ee\u5f55\u3002"));
         refreshDriverStatusUi();
         return;
     }
+    const bool updateRequestAcknowledged =
+        updateRequestResult == Ch552UsbDriver::UpdateRequestResult::Acknowledged;
 
     inputDriver_.SetDriver(nullptr);
     progressDialog->setMessage(QString::fromWCharArray(L"\u6b63\u5728\u7b49\u5f85 USB \u8fdb\u5165\u66f4\u65b0\u6a21\u5f0f..."));
-    QThread::msleep(1200);
+    QElapsedTimer bootloaderTimer;
+    bootloaderTimer.start();
+    bool bootloaderPresent = false;
+    while (bootloaderTimer.elapsed() < 10000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        if (isUsbDevicePresent(kCh552BootloaderVidPid)) {
+            bootloaderPresent = true;
+            break;
+        }
+        QThread::msleep(100);
+    }
+    if (!bootloaderPresent) {
+        ddRuntimeService_.LogRuntimeError(
+            L"usb-update.log",
+            L"Firmware update mode was not detected after the request was sent.\n"
+                L"request_acknowledged=" +
+                (updateRequestAcknowledged ? std::wstring(L"1") : std::wstring(L"0")) +
+                L", source_firmware=" + sourceFirmwareVersion +
+                L", source_port=" + sourcePortName +
+                L", normal_device_present=" +
+                (isUsbDevicePresent(kXiaoJiUsbVidPid) ? std::wstring(L"1") : std::wstring(L"0")));
+        progressDialog->accept();
+        progressDialog->deleteLater();
+        inputHook_.setDialogOpen(false);
+        suppressAutoPlay_ = false;
+        engineHookCoordinator_.refreshState();
+        refreshDriverStatusUi();
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            QString::fromWCharArray(
+                L"\u56fa\u4ef6\u66f4\u65b0\u8bf7\u6c42\u5df2\u53d1\u9001\uff0c\u4f46 Windows \u672a\u80fd\u8bc6\u522b\u8bbe\u5907\u7684\u66f4\u65b0\u6a21\u5f0f\u3002\n\n"
+                L"\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\uff0c\u4e0d\u8981\u4f7f\u7528 USB \u6269\u5c55\u575e\u6216\u96c6\u7ebf\u5668\u3002\n\n"
+                L"\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002"));
+        return;
+    }
 
+    progressDialog->setMessage(QString::fromWCharArray(L"\u6b63\u5728\u5199\u5165 USB \u8bbe\u5907\u56fa\u4ef6..."));
     QProcess updateProcess;
     updateProcess.setWorkingDirectory(updateDirectory.path());
     updateProcess.setProcessChannelMode(QProcess::MergedChannels);
@@ -1384,12 +1439,16 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
         updateProcess.exitStatus() == QProcess::NormalExit &&
         updateProcess.exitCode() == 0;
     if (!updateSucceeded) {
-        const bool bootloaderPresent = isUsbDevicePresent(kCh552BootloaderVidPid);
+        const bool bootloaderStillPresent = isUsbDevicePresent(kCh552BootloaderVidPid);
         ddRuntimeService_.LogRuntimeError(
             L"usb-update.log",
             L"USB updater failed. started=" + std::to_wstring(updaterStarted) +
                 L", exit_code=" + std::to_wstring(updateProcess.exitCode()) +
-                L", bootloader_present=" + (bootloaderPresent ? std::wstring(L"1") : std::wstring(L"0")) + L"\n" +
+                L", bootloader_present=" + (bootloaderStillPresent ? std::wstring(L"1") : std::wstring(L"0")) +
+                L", request_acknowledged=" +
+                (updateRequestAcknowledged ? std::wstring(L"1") : std::wstring(L"0")) +
+                L", source_firmware=" + sourceFirmwareVersion +
+                L", source_port=" + sourcePortName + L"\n" +
                 (updateOutput.isEmpty() ? std::wstring(L"(no output)") : updateOutput.toStdWString()));
         progressDialog->accept();
         progressDialog->deleteLater();
@@ -1399,14 +1458,14 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
         refreshDriverStatusUi();
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5931\u8d25"),
-            bootloaderPresent
-                ? QString::fromWCharArray(L"\u5df2\u68c0\u6d4b\u5230 CH552 \u4e0b\u8f7d\u6a21\u5f0f\uff0c\u4f46 WinUSB \u5237\u5199\u901a\u9053\u65e0\u6cd5\u6253\u5f00\u3002\n\n\u8bf7\u68c0\u67e5 Windows \u8bbe\u5907\u7ba1\u7406\u5668\u4e2d\u7684 WinUSB \u7ed1\u5b9a\u3002\u8be6\u7ec6\u4fe1\u606f\u5df2\u5199\u5165 logs \u76ee\u5f55\u3002")
-                : QString::fromWCharArray(L"\u672a\u80fd\u5b8c\u6210 USB \u9a71\u52a8\u5199\u5165\uff0c\u4e14\u672a\u68c0\u6d4b\u5230 CH552 \u4e0b\u8f7d\u6a21\u5f0f\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u540e\u91cd\u8bd5\u3002\n\n\u8be6\u7ec6\u4fe1\u606f\u5df2\u5199\u5165 logs \u76ee\u5f55\u3002"));
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
+            bootloaderStillPresent
+                ? QString::fromWCharArray(L"\u8bbe\u5907\u5df2\u8fdb\u5165\u56fa\u4ef6\u66f4\u65b0\u6a21\u5f0f\uff0c\u4f46\u56fa\u4ef6\u5199\u5165\u672a\u5b8c\u6210\u3002\u8bf7\u62d4\u51fa\u5e76\u91cd\u65b0\u63d2\u5165\u8bbe\u5907\u540e\u91cd\u8bd5\u3002\n\n\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002")
+                : QString::fromWCharArray(L"\u56fa\u4ef6\u5199\u5165\u8fc7\u7a0b\u4e2d USB \u8bbe\u5907\u5df2\u65ad\u5f00\u3002\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\u3002\n\n\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002"));
         return;
     }
 
-    progressDialog->markFinished(QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u5199\u5165\uff0c\u6b63\u5728\u7b49\u5f85\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5..."));
+    progressDialog->markFinished(QString::fromWCharArray(L"USB \u56fa\u4ef6\u5df2\u5199\u5165\uff0c\u6b63\u5728\u7b49\u5f85\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5..."));
     QElapsedTimer reconnectTimer;
     reconnectTimer.start();
     bool reconnected = false;
@@ -1431,15 +1490,15 @@ void MainWindow::updateUsbDriver(bool requireConfirmation) {
     if (versionVerified) {
         AppMessageDialog::information(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5b8c\u6210"),
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u66f4\u65b0\u5e76\u91cd\u65b0\u8fde\u63a5\u3002"));
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5b8c\u6210"),
+            QString::fromWCharArray(L"USB \u8bbe\u5907\u56fa\u4ef6\u5df2\u66f4\u65b0\u5e76\u91cd\u65b0\u8fde\u63a5\u3002"));
     } else {
         AppMessageDialog::warning(
             this,
-            QString::fromWCharArray(L"USB \u9a71\u52a8\u66f4\u65b0\u5f85\u786e\u8ba4"),
+            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5f85\u786e\u8ba4"),
             reconnected
-                ? QString::fromWCharArray(L"USB \u8bbe\u5907\u5df2\u91cd\u65b0\u8fde\u63a5\uff0c\u4f46\u7248\u672c\u6821\u9a8c\u672a\u901a\u8fc7\u3002\u8bf7\u91cd\u8bd5\u66f4\u65b0\u3002")
-                : QString::fromWCharArray(L"USB \u9a71\u52a8\u5df2\u5199\u5165\uff0c\u4f46\u6682\u672a\u7b49\u5230\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u3002"));
+                ? QString::fromWCharArray(L"USB \u8bbe\u5907\u5df2\u91cd\u65b0\u8fde\u63a5\uff0c\u4f46\u56fa\u4ef6\u7248\u672c\u6821\u9a8c\u672a\u901a\u8fc7\u3002\u8bf7\u91cd\u8bd5\u66f4\u65b0\u3002")
+                : QString::fromWCharArray(L"USB \u56fa\u4ef6\u5df2\u5199\u5165\uff0c\u4f46\u6682\u672a\u7b49\u5230\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u3002"));
     }
 }
 

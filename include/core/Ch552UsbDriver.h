@@ -10,6 +10,12 @@
 
 class Ch552UsbDriver final : public InputDriver {
 public:
+    enum class UpdateRequestResult {
+        Failed,
+        Sent,
+        Acknowledged,
+    };
+
     Ch552UsbDriver() = default;
     ~Ch552UsbDriver() override;
 
@@ -22,7 +28,7 @@ public:
     [[nodiscard]] std::wstring GetLastError() const override;
     [[nodiscard]] std::wstring PortName() const;
     [[nodiscard]] std::wstring FirmwareVersion() const;
-    bool EnterBootloaderForUpdate();
+    UpdateRequestResult EnterBootloaderForUpdate();
     bool BeginLease();
     bool Heartbeat();
 

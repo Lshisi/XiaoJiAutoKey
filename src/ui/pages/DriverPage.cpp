@@ -257,7 +257,7 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     uninstallHidButton_->setFixedWidth(91);
     uninstallHidButton_->hide();
     statusTitleRow->addWidget(uninstallHidButton_);
-    updateUsbButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u66f4\u65b0\u9a71\u52a8"), panel);
+    updateUsbButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u66f4\u65b0\u56fa\u4ef6"), panel);
     updateUsbButton_->setFixedWidth(91);
     updateUsbButton_->hide();
     statusTitleRow->addWidget(updateUsbButton_);

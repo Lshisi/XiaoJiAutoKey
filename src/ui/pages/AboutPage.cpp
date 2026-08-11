@@ -13,6 +13,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QScrollArea>
 #include <QSizePolicy>
 #include <QTimer>
 #include <QUrl>
@@ -32,17 +33,28 @@ void copyWithFeedback(FluentButton* button, const QString& text) {
 }
 
 AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
-    setStyleSheet(QString("AboutPage { background: %1; }").arg(FactionTheme::instance().palette().surfaceTint.name()));
     setAttribute(Qt::WA_StyledBackground, true);
 
     auto* pageLayout = new QVBoxLayout(this);
-    pageLayout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
-        Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
     pageLayout->setSpacing(0);
 
+    scrollArea_ = new QScrollArea(this);
+    scrollArea_->setWidgetResizable(true);
+    scrollArea_->setFrameShape(QFrame::NoFrame);
+    scrollArea_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    auto* scrollContent = new QWidget(scrollArea_);
+    scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    scrollContent->setStyleSheet(QStringLiteral("background: transparent;"));
+    auto* contentLayout = new QVBoxLayout(scrollContent);
+    contentLayout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
+        Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap);
+    contentLayout->setSpacing(0);
+
     // Outer big card
-    auto* outerCard = new FluentCard(this);
-    outerCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    auto* outerCard = new FluentCard(scrollContent);
+    outerCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     outerCard->contentLayout()->setSpacing(10);
 
     // Page title
@@ -92,10 +104,10 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     contactCard->contentLayout()->addLayout(groupRow);
     outerCard->contentLayout()->addWidget(contactCard);
 
-    // Offline usage guide
-    auto* usageCard = new FluentCard(QString::fromWCharArray(L"\u4f7f\u7528\u8bf4\u660e"), outerCard);
+    // Offline configuration guide
+    auto* usageCard = new FluentCard(QString::fromWCharArray(L"\u914d\u7f6e\u8bf4\u660e"), outerCard);
     auto* usageRow = new QHBoxLayout();
-    auto* usageLabel = new QLabel(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e\u4f7f\u7528\u8bf4\u660e"), usageCard);
+    auto* usageLabel = new QLabel(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e\u914d\u7f6e\u8bf4\u660e"), usageCard);
     usageLabel->setWordWrap(true);
     usageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     usageRow->addWidget(usageLabel, 1);
@@ -119,9 +131,13 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     disclaimerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     disclaimerCard->contentLayout()->addWidget(disclaimerLabel);
     outerCard->contentLayout()->addWidget(disclaimerCard);
-    outerCard->contentLayout()->addStretch(1);
-
-    pageLayout->addWidget(outerCard);
+    contentLayout->addWidget(outerCard);
+    contentLayout->addStretch(1);
+    scrollArea_->setWidget(scrollContent);
+    if (auto* viewport = scrollArea_->viewport()) {
+        viewport->setStyleSheet(QStringLiteral("background: transparent;"));
+    }
+    pageLayout->addWidget(scrollArea_);
 
     connect(copyGroupBtn, &QPushButton::clicked, [copyGroupBtn, groupLabel]() { copyWithFeedback(copyGroupBtn, groupLabel->text()); });
     connect(openUsageBtn, &QPushButton::clicked, this, [this]() {
@@ -139,4 +155,25 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
                 QString::fromWCharArray(L"\u8bf7\u786e\u8ba4\u7cfb\u7edf\u5df2\u4e3a MHTML \u6587\u4ef6\u914d\u7f6e\u53ef\u7528\u7684\u6d4f\u89c8\u5668\u3002"));
         }
     });
+    updateThemeColors();
+}
+
+void AboutPage::updateThemeColors() {
+    setStyleSheet(QString("AboutPage { background: %1; }")
+        .arg(FactionTheme::instance().palette().surfaceTint.name()));
+    if (scrollArea_) {
+        scrollArea_->setStyleSheet(
+            QString("QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
+            "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::handle:vertical:hover { background: %2; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
+                .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
+                    Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
+        if (auto* viewport = scrollArea_->viewport()) {
+            viewport->setStyleSheet(QStringLiteral("background: transparent;"));
+        }
+    }
+    update();
 }

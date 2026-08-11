@@ -4,7 +4,6 @@
 
 #include <QObject>
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 
 class MacroEngine;
@@ -20,7 +19,6 @@ public:
         AppConfig* config = nullptr;
         RepeaterEngine* repeaterEngine = nullptr;
         MacroEngine* macroEngine = nullptr;
-        std::filesystem::path configPath;
         std::function<ProfileConfig*()> activeProfile;
         std::function<MacroConfig*()> activeMacro;
         std::function<void()> refreshFactionVisuals;

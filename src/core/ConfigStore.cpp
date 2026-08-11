@@ -311,6 +311,12 @@ AppConfig ConfigStore::Load() const {
     if (const auto opacity = GetIntField(*object, "statusOverlayOpacity"); opacity.has_value())
         config.statusOverlayOpacity = std::clamp(*opacity, 30, 100);
 
+    if (const auto startupStr = GetStringField(*object, "startupAction"); startupStr.has_value()) {
+        config.startupAction = *startupStr == "tray"
+            ? StartupAction::Tray
+            : StartupAction::Window;
+    }
+
     if (const auto closeStr = GetStringField(*object, "closeAction"); closeStr.has_value()) {
         if (*closeStr == "minimize") config.closeAction = CloseAction::Minimize;
         else if (*closeStr == "exit") config.closeAction = CloseAction::Exit;
@@ -438,6 +444,9 @@ bool ConfigStore::Save(
     root.emplace("statusOverlayX", config.statusOverlayX);
     root.emplace("statusOverlayY", config.statusOverlayY);
     root.emplace("statusOverlayOpacity", std::clamp(config.statusOverlayOpacity, 30, 100));
+
+    root.emplace("startupAction",
+        std::string(config.startupAction == StartupAction::Window ? "window" : "tray"));
 
     std::string closeActionStr = "ask";
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";

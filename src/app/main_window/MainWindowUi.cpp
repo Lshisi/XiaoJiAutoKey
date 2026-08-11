@@ -9,6 +9,7 @@
 #include "ui/pages/SettingsPage.h"
 
 #include <QCloseEvent>
+#include <QShowEvent>
 #include <QTimer>
 
 void MainWindow::setupUi() {
@@ -36,7 +37,6 @@ void MainWindow::setupUi() {
         &config_,
         &engine_,
         &macroEngine_,
-        configCoordinator_.configPath(),
         [this]() { return profileController_.activeProfile(); },
         [this]() { return macroController_.activeMacro(); },
         [this]() { view_.updateFactionVisuals(this); }
@@ -137,7 +137,6 @@ void MainWindow::setupUi() {
     settingsCoordinator_.bind(SettingsCoordinator::Context{
         view_.settingsPage(),
         &config_,
-        configCoordinator_.configPath(),
         this,
         [this]() { configCoordinator_.save(); },
         [this]() {
@@ -250,4 +249,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         return;
     }
     closeCoordinator_.handleClose(event);
+}
+
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    QTimer::singleShot(500, this, [this]() {
+        if (isVisible()) checkUsbDriverUpdateOnStartup();
+    });
 }

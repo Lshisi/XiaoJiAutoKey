@@ -5,7 +5,6 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
-#include <cwctype>
 #include <queue>
 #include <Windows.h>
 #include <mmsystem.h>
@@ -217,12 +216,10 @@ bool SoundService::ensureAliasOpen(const PlayRequest& request) const {
     }
 
     closeAliasSync(request.alias);
-    auto extension = request.soundPath.extension().wstring();
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
-        return static_cast<wchar_t>(std::towlower(ch));
-    });
-    const wchar_t* deviceType = extension == L".wav" ? L"waveaudio" : L"mpegvideo";
-    const std::wstring openCommand = L"open \"" + request.soundPath.wstring() + L"\" type " + deviceType + L" alias " + request.alias;
+    // MCI's waveaudio driver does not reliably support the per-alias
+    // "setaudio ... volume" command. Open WAV files through mpegvideo as
+    // well so the configured preview/repeat/macro volume is actually used.
+    const std::wstring openCommand = L"open \"" + request.soundPath.wstring() + L"\" type mpegvideo alias " + request.alias;
     if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) {
         return false;
     }

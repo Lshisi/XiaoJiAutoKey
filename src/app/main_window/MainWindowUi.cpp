@@ -253,7 +253,4 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 
 void MainWindow::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
-    QTimer::singleShot(500, this, [this]() {
-        if (isVisible()) checkUsbDriverUpdateOnStartup();
-    });
 }

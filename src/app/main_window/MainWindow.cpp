@@ -3,6 +3,7 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/DialogChrome.h"
+#include "services/AgentService.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
@@ -33,7 +34,6 @@
 #include <QTimer>
 #include <QtGlobal>
 #include <QVBoxLayout>
-#include <QVersionNumber>
 #include <QWindow>
 #include <Windows.h>
 #include <Dbt.h>
@@ -66,12 +66,6 @@ constexpr GUID kGuidDevInterfaceComPort = {
     0x8089,
     0x11D0,
     {0x9C, 0xE4, 0x08, 0x00, 0x3E, 0x30, 0x1F, 0x73}
-};
-
-struct BackgroundAutoRunResult {
-    bool success = false;
-    bool repeatRunning = false;
-    std::wstring error;
 };
 
 int dpiScaled(int value, int dpi) {
@@ -343,22 +337,10 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-    const bool repeatRunning = engine_.IsToolRunning();
     unregisterUsbDeviceNotifications();
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
-    if (backgroundAutoRunThread_) {
-        backgroundAutoRunThread_->wait();
-        backgroundAutoRunThread_ = nullptr;
-        if (backgroundAutoRunOperationEnabled_) {
-            AgentService::Resume(repeatRunning, nullptr);
-        }
-    }
-    if (config_.backgroundAutoRun && agentPausedForUi_) {
-        AgentService::Resume(repeatRunning, nullptr);
-        agentPausedForUi_ = false;
-    }
 }
 
 bool isUsbDevicePresent(const wchar_t* vidPid) {
@@ -532,28 +514,17 @@ bool installWinUsbBootloaderDriver(const QString& installerPath, const QString& 
 bool MainWindow::Initialize() {
     setupUi();
     registerUsbDeviceNotifications();
-    if (AgentService::IsRunning()) {
-        agentPausedForUi_ = AgentService::PauseForUi(
-            GetCurrentProcessId(), &agentRepeatRunningOnHandoff_, nullptr);
-    }
-    AgentService::RecoverFrontendConfig(appPaths_.configPath());
-    AgentService::PublishFrontendConfigPath(appPaths_.configPath(), nullptr);
     configCoordinator_.load();
-    const bool agentHandoffReady = initializeAgentHandoff();
+    config_.backgroundAutoRun = false;
+    configCoordinator_.save(false, 500);
+    initializeAgentHandoff();
     soundService_.warmUpToggleSounds(
         config_.customSoundOn,
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-    const bool usbHandoffFailed = config_.backgroundAutoRun &&
-        config_.driverMode == DriverMode::Usb && !agentHandoffReady;
-    if (!usbHandoffFailed) {
-        if (!loadConfiguredDriver()) {
-            logDriverUnavailableOnce();
-        }
-    } else {
-        inputDriver_.SetDriver(nullptr);
-        driverStatusNote_ = L"USB Agent handoff failed; repair it before using USB.";
+    if (!loadConfiguredDriver()) {
+        logDriverUnavailableOnce();
     }
     usbHeartbeatTimer_.start();
     try {
@@ -566,10 +537,6 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.startThreads();
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
-    if (agentRepeatRunningOnHandoff_) {
-        (void)engineStateCoordinator_.setRepeatRunningFast(true);
-        agentRepeatRunningOnHandoff_ = false;
-    }
     pageRefreshCoordinator_.refreshAll();
     refreshStatusOverlay();
     bindDpiRefreshSignals();
@@ -691,145 +658,25 @@ bool MainWindow::loadCh552UsbDriver() {
 }
 
 bool MainWindow::initializeAgentHandoff() {
-    if (!config_.backgroundAutoRun) {
-        if (agentPausedForUi_ || std::filesystem::exists(AgentService::ExecutablePath())) {
-            AgentService::Uninstall(nullptr);
-        }
-        agentPausedForUi_ = false;
-        agentRepeatRunningOnHandoff_ = false;
-        return true;
-    }
-    wchar_t executable[MAX_PATH] = {};
-    const DWORD length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
-    if (length == 0) return false;
-    std::wstring error;
-    const auto failHandoff = [this]() {
-        AgentService::Shutdown(nullptr);
-        agentPausedForUi_ = false;
-        agentRepeatRunningOnHandoff_ = false;
-        return false;
-    };
-    configCoordinator_.save();
-    if (!AgentService::PublishFrontendConfigPath(configCoordinator_.configPath(), &error)) {
-        return failHandoff();
-    }
-    if (!AgentService::EnsureInstalled(std::filesystem::path(executable), &error)) {
-        return failHandoff();
-    }
-    bool repeatRunning = false;
-    if (!AgentService::PauseForUi(GetCurrentProcessId(), &repeatRunning, &error)) {
-        return failHandoff();
-    }
-    agentRepeatRunningOnHandoff_ = agentRepeatRunningOnHandoff_ || repeatRunning;
-    agentPausedForUi_ = true;
+    // USB background Agent is temporarily disabled; remove any previous installation.
+    config_.backgroundAutoRun = false;
+    AgentService::Uninstall(nullptr);
     return true;
 }
 
-void MainWindow::resumeAgent() {
-    if (!agentPausedForUi_) return;
-    AgentService::Resume(engine_.IsToolRunning(), nullptr);
-    agentPausedForUi_ = false;
-}
-
 void MainWindow::setBackgroundAutoRun(bool enabled) {
-    if (backgroundAutoRunThread_ || config_.backgroundAutoRun == enabled) return;
-    const bool previousValue = config_.backgroundAutoRun;
-    config_.backgroundAutoRun = enabled;
-    if (!configCoordinator_.save(false, 250)) {
-        config_.backgroundAutoRun = previousValue;
-        if (auto* driverPage = view_.driverPage()) {
-            driverPage->setBackgroundAutoRun(previousValue);
-            driverPage->setAgentState(QString::fromWCharArray(L"\u4fdd\u5b58\u5931\u8d25"), false);
-        }
-        return;
+    Q_UNUSED(enabled);
+    config_.backgroundAutoRun = false;
+    configCoordinator_.save(false, 500);
+    initializeAgentHandoff();
+    if (auto* page = view_.driverPage()) {
+        page->setBackgroundAutoRun(false);
+        page->setBackgroundAutoRunAvailable(false);
     }
-
-    auto* page = view_.driverPage();
-    if (page) {
-        page->setBackgroundAutoRun(enabled);
-        page->setBackgroundAutoRunBusy(true, enabled);
-    }
-
-    wchar_t executableBuffer[MAX_PATH] = {};
-    const DWORD executableLength = GetModuleFileNameW(nullptr, executableBuffer, MAX_PATH);
-    const std::filesystem::path executable = executableLength > 0
-        ? std::filesystem::path(executableBuffer)
-        : std::filesystem::path{};
-    const auto configPath = configCoordinator_.configPath();
-    const DWORD processId = GetCurrentProcessId();
-    const auto result = std::make_shared<BackgroundAutoRunResult>();
-
-    auto* thread = QThread::create([enabled, executable, configPath, processId, result]() {
-        if (!enabled) {
-            result->success = AgentService::Uninstall(&result->error);
-            return;
-        }
-        if (executable.empty()) {
-            result->error = L"Unable to resolve the application executable path";
-            return;
-        }
-        if (!AgentService::PublishFrontendConfigPath(configPath, &result->error) ||
-            !AgentService::EnsureInstalled(executable, &result->error) ||
-            !AgentService::PauseForUi(processId, &result->repeatRunning, &result->error)) {
-            AgentService::Shutdown(nullptr);
-            return;
-        }
-        result->success = true;
-    });
-    backgroundAutoRunThread_ = thread;
-    backgroundAutoRunOperationEnabled_ = enabled;
-    thread->setParent(this);
-
-    connect(thread, &QThread::finished, this, [this, thread, enabled, result]() {
-        backgroundAutoRunThread_ = nullptr;
-        backgroundAutoRunOperationEnabled_ = false;
-        thread->deleteLater();
-
-        if (enabled) {
-            agentPausedForUi_ = result->success;
-            if (result->success) {
-                agentRepeatRunningOnHandoff_ = agentRepeatRunningOnHandoff_ || result->repeatRunning;
-                driverStatusNote_.clear();
-            } else {
-                agentRepeatRunningOnHandoff_ = false;
-                driverStatusNote_ = L"USB background startup failed: " + result->error;
-            }
-        } else {
-            agentPausedForUi_ = false;
-            agentRepeatRunningOnHandoff_ = false;
-            if (!result->success) {
-                config_.backgroundAutoRun = true;
-                configCoordinator_.save(false, 500);
-                driverStatusNote_ = L"USB background shutdown failed: " + result->error;
-            } else {
-                driverStatusNote_.clear();
-            }
-        }
-
-        if (auto* driverPage = view_.driverPage()) {
-            driverPage->setBackgroundAutoRun(config_.backgroundAutoRun);
-            driverPage->setBackgroundAutoRunBusy(false, enabled);
-            if (!config_.backgroundAutoRun) {
-                driverPage->setAgentState(QString::fromWCharArray(L"\u5df2\u5173\u95ed"), false);
-            } else if (result->success) {
-                driverPage->setAgentState(QString::fromWCharArray(L"\u524d\u53f0\u63a5\u7ba1\u4e2d"), false);
-            } else {
-                driverPage->setAgentState(QString::fromWCharArray(L"\u9700\u8981\u4fee\u590d"), true);
-            }
-        }
-    }, Qt::QueuedConnection);
-
-    thread->start();
 }
 
 void MainWindow::repairAgent() {
-    if (!config_.backgroundAutoRun) return;
-    const bool ready = initializeAgentHandoff();
-    if (ready && config_.driverMode == DriverMode::Usb && !activeInputDriverReady()) {
-        (void)loadCh552UsbDriver();
-        engineHookCoordinator_.refreshState();
-        refreshStatusOverlay();
-    }
+    initializeAgentHandoff();
     refreshDriverStatusUi();
 }
 
@@ -871,9 +718,6 @@ void MainWindow::refreshUsbDriverAfterDeviceChange() {
     const bool loaded = loadCh552UsbDriver();
     if (loaded) {
         driverUnavailableLogged_ = false;
-        QTimer::singleShot(0, this, [this]() {
-            checkUsbDriverUpdateOnStartup();
-        });
     }
     engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
@@ -1003,7 +847,7 @@ void MainWindow::refreshDriverStatusUi() {
     }
 
     page->setDriverMode(config_.driverMode);
-    page->setBackgroundAutoRun(config_.backgroundAutoRun);
+    page->setBackgroundAutoRun(false);
     const auto status = ddRuntimeService_.Inspect(driver_);
 
     QString summary = activeInputDriverReady()
@@ -1033,20 +877,7 @@ void MainWindow::refreshDriverStatusUi() {
     const std::wstring usbPortName = usbCommunicationReady
         ? ch552Driver_.PortName()
         : Ch552UsbDriver::DetectPortName();
-    const bool usbBackgroundAvailable = config_.driverMode == DriverMode::Usb &&
-        usbCommunicationReady && ch552Driver_.FirmwareVersion() == kBundledUsbDriverVersion;
-    page->setBackgroundAutoRunAvailable(usbBackgroundAvailable);
-    if (usbBackgroundAvailable) {
-        const AgentStatus agentStatus = AgentService::QueryStatus();
-        const bool agentHealthy = agentStatus.installed && agentStatus.taskRegistered && agentStatus.running;
-        page->setAgentState(
-            !config_.backgroundAutoRun
-                ? QString::fromWCharArray(L"\u5df2\u5173\u95ed")
-                : (agentHealthy
-                    ? QString::fromWCharArray(agentStatus.pausedForUi ? L"\u524d\u53f0\u63a5\u7ba1\u4e2d" : L"\u8fd0\u884c\u4e2d")
-                    : QString::fromWCharArray(L"\u9700\u8981\u4fee\u590d")),
-            config_.backgroundAutoRun && !agentHealthy);
-    }
+    page->setBackgroundAutoRunAvailable(false);
     detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
     detail << L"USB \u901a\u4fe1: ";
     if (usbCommunicationReady) {
@@ -1097,42 +928,8 @@ void MainWindow::refreshDriverStatusUi() {
 }
 
 bool MainWindow::isUsbDriverUpdateAvailable() const {
-    if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) {
-        return false;
-    }
-    const QString current = QString::fromStdWString(ch552Driver_.FirmwareVersion()).trimmed();
-    if (current.isEmpty()) {
-        return false;
-    }
-    if (current.contains(QStringLiteral("XiaoJi USB Bridge"), Qt::CaseInsensitive)) {
-        return true;
-    }
-    const QString bundled = QString::fromWCharArray(kBundledUsbDriverVersion);
-    const QVersionNumber currentVersion = QVersionNumber::fromString(current.mid(current.lastIndexOf(QLatin1Char('V')) + 1));
-    const QVersionNumber bundledVersion = QVersionNumber::fromString(bundled.mid(bundled.lastIndexOf(QLatin1Char('V')) + 1));
-    if (currentVersion.isNull() || bundledVersion.isNull()) {
-        return false;
-    }
-    return QVersionNumber::compare(bundledVersion, currentVersion) > 0;
-}
-
-void MainWindow::checkUsbDriverUpdateOnStartup() {
-    if (startupUsbUpdatePromptShown_) {
-        return;
-    }
-    if (!isUsbDriverUpdateAvailable()) {
-        return;
-    }
-    startupUsbUpdatePromptShown_ = true;
-
-    const bool confirmed = ConfigConfirmDialog::confirm(
-        this,
-        QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0"),
-        QString::fromWCharArray(L"\u68c0\u6d4b\u5230 USB \u8bbe\u5907\u56fa\u4ef6\u6709\u65b0\u7248\u672c\uff0c\u662f\u5426\u73b0\u5728\u66f4\u65b0\uff1f"),
-        QString::fromWCharArray(L"\u66f4\u65b0"));
-    if (confirmed) {
-        updateUsbDriver(false);
-    }
+    // Firmware rollout is paused until the current CH552 release is verified.
+    return false;
 }
 
 DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
@@ -1248,6 +1045,10 @@ void MainWindow::finalizeDriverUninstall(DriverMode mode) {
 }
 
 void MainWindow::updateUsbDriver(bool requireConfirmation) {
+    // Keep the old updater implementation available for a later release, but do not expose it now.
+    Q_UNUSED(requireConfirmation);
+    return;
+
     QFile firmware(kEmbeddedUsbFirmwareResource);
     QFile updater(kEmbeddedUsbUpdaterResource);
     QFile winUsbInstaller(QStringLiteral(":/firmware/updater/xiaoji-winusb-installer.exe"));

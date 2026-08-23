@@ -19,7 +19,6 @@ find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
 
 set(MOC_HEADERS
     include/app/MainWindow.h
-    include/app/agent/AgentRuntime.h
     include/app/input/GlobalInputHook.h
     include/app/input/RawInputManager.h
     include/app/coordinators/SettingsCoordinator.h
@@ -194,7 +193,6 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
     src/app/main.cpp
-    src/app/agent/AgentRuntime.cpp
     src/app/main_window/MainWindow.cpp
     src/app/main_window/MainWindowHooks.cpp
     src/app/main_window/MainWindowUi.cpp

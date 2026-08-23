@@ -26,13 +26,11 @@
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
 #include "services/AppPaths.h"
-#include "services/AgentService.h"
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
 #include <QTimer>
 
-class QThread;
 class QShowEvent;
 
 class MainWindow : public QMainWindow {
@@ -70,7 +68,6 @@ private:
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
     bool isUsbDriverUpdateAvailable() const;
-    void checkUsbDriverUpdateOnStartup();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     void prepareDriverUninstall(DriverMode mode);
     void finalizeDriverUninstall(DriverMode mode);
@@ -91,7 +88,6 @@ private:
     void registerUsbDeviceNotifications();
     void unregisterUsbDeviceNotifications();
     bool initializeAgentHandoff();
-    void resumeAgent();
     void setBackgroundAutoRun(bool enabled);
     void repairAgent();
     void prepareForSystemShutdown();
@@ -129,8 +125,6 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;
-    QThread* backgroundAutoRunThread_ = nullptr;
-    bool backgroundAutoRunOperationEnabled_ = false;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;
@@ -147,9 +141,6 @@ private:
     bool driverStatusFallback_ = false;
     std::wstring driverStatusNote_;
     bool suppressAutoPlay_ = false;
-    bool startupUsbUpdatePromptShown_ = false;
-    bool agentPausedForUi_ = false;
-    bool agentRepeatRunningOnHandoff_ = false;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;
 

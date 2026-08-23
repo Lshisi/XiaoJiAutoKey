@@ -45,7 +45,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     scrollArea_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     auto* scrollContent = new QWidget(scrollArea_);
-    scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     scrollContent->setStyleSheet(QStringLiteral("background: transparent;"));
     auto* contentLayout = new QVBoxLayout(scrollContent);
     contentLayout->setContentsMargins(Fluent::Spacing::pageMargin, Fluent::Spacing::cardGap,
@@ -54,7 +54,10 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
 
     // Outer big card
     auto* outerCard = new FluentCard(scrollContent);
-    outerCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    outerCard->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    if (auto* outerCardLayout = qobject_cast<QVBoxLayout*>(outerCard->layout())) {
+        outerCardLayout->setAlignment(Qt::AlignTop);
+    }
     outerCard->contentLayout()->setSpacing(10);
 
     // Page title
@@ -131,8 +134,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     disclaimerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     disclaimerCard->contentLayout()->addWidget(disclaimerLabel);
     outerCard->contentLayout()->addWidget(disclaimerCard);
-    contentLayout->addWidget(outerCard);
-    contentLayout->addStretch(1);
+    contentLayout->addWidget(outerCard, 1);
     scrollArea_->setWidget(scrollContent);
     if (auto* viewport = scrollArea_->viewport()) {
         viewport->setStyleSheet(QStringLiteral("background: transparent;"));

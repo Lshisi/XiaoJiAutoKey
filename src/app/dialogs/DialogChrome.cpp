@@ -69,7 +69,6 @@ QPushButton* DialogChrome::createCloseButton(QDialog* dialog) {
     closeFont.setPointSize(13);
     closeBtn->setFont(closeFont);
     closeBtn->setFixedSize(28, 28);
-    closeBtn->setToolTip(QString::fromWCharArray(L"\u5173\u95ed"));
     closeBtn->setAccessibleName(QString::fromWCharArray(L"\u5173\u95ed"));
     QObject::connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::reject);
     return closeBtn;

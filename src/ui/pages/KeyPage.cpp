@@ -104,22 +104,18 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     profileEnabledLabel_->setPalette(enabledLabelPal);
     profileRow->addWidget(profileEnabledLabel_);
     profileEnabledSwitch_ = new FluentSwitch(this);
-    profileEnabledSwitch_->setToolTip(QString::fromWCharArray(L"\u505c\u7528\u540e\u4fdd\u7559\u914d\u7f6e\u5185\u5bb9\uff0c\u4f46\u4e0d\u54cd\u5e94\u5feb\u6377\u952e\u4e5f\u4e0d\u6267\u884c\u8fde\u53d1"));
     profileRow->addWidget(profileEnabledSwitch_);
     profileAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);  // + icon
     profileAddBtn_->setFixedSize(28, 28);
     profileAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    profileAddBtn_->setToolTip(QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"));
     profileRow->addWidget(profileAddBtn_);
     profileRenameBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE8AC)), this);  // rename icon
     profileRenameBtn_->setFixedSize(28, 28);
     profileRenameBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    profileRenameBtn_->setToolTip(QString::fromWCharArray(L"\u91cd\u547d\u540d"));
     profileRow->addWidget(profileRenameBtn_);
     profileDeleteBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), this);  // delete icon
     profileDeleteBtn_->setFixedSize(28, 28);
     profileDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    profileDeleteBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u914d\u7f6e"));
     profileRow->addWidget(profileDeleteBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);
@@ -172,7 +168,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     QPalette sequenceSwitchPalette = sequenceSwitchLabel_->palette();
     sequenceSwitchPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     sequenceSwitchLabel_->setPalette(sequenceSwitchPalette);
-    sequenceSwitchLabel_->setToolTip(QString::fromWCharArray(L"\u6bcf\u6309\u4e00\u6b21\uff0c\u5207\u6362\u6a21\u5f0f\u6309\u952e\u6309\u5217\u8868\u987a\u5e8f\u5207\u6362\u5230\u4e0b\u4e00\u4e2a"));
     keyToolsRow->addWidget(sequenceSwitchLabel_);
 
     sequenceSwitchKeyWidget_ = new QWidget(this);
@@ -185,7 +180,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     sequenceSwitchAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     sequenceSwitchAddBtn_->setFixedSize(24, 24);
     sequenceSwitchAddBtn_->setFont(QFont("Segoe MDL2 Assets", 9));
-    sequenceSwitchAddBtn_->setToolTip(QString::fromWCharArray(L"\u5f55\u5236\u5207\u6362\u952e"));
     keyToolsRow->addWidget(sequenceSwitchAddBtn_);
 
     keyToolsDivider_ = new QWidget(this);
@@ -201,7 +195,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     QPalette pauseLabelPal = pauseKeyLabel_->palette();
     pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     pauseKeyLabel_->setPalette(pauseLabelPal);
-    pauseKeyLabel_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u6240\u6709\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\u6682\u505c\uff0c\u677e\u5f00\u540e\u6062\u590d"));
     keyToolsRow->addWidget(pauseKeyLabel_);
 
     pauseKeyListWidget_ = new QWidget(this);
@@ -216,7 +209,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     auto* pauseAddBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     pauseAddBtn->setFixedSize(24, 24);
     pauseAddBtn->setFont(QFont("Segoe MDL2 Assets", 9));
-    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u5f55\u5236\u6682\u505c\u952e"));
     keyToolsRow->addWidget(pauseAddBtn);
     tableCard->contentLayout()->addLayout(keyToolsRow);
 
@@ -262,7 +254,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     hotkeyClearBtn_ = new FluentButton(FluentButton::Secondary, QString(QChar(0xE74D)), this);
     hotkeyClearBtn_->setFixedSize(32, 32);
     hotkeyClearBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    hotkeyClearBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u542f\u505c\u5feb\u6377\u952e"));
     hotkeyRow->addWidget(hotkeyClearBtn_);
     triggerCard->contentLayout()->addLayout(hotkeyRow);
     triggerCard->contentLayout()->addSpacing(4);
@@ -274,7 +265,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);  // sound icon
     soundSettingsBtn_->setFixedSize(32, 28);
     soundSettingsBtn_->setFont(QFont("Segoe MDL2 Assets", 12));
-    soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
     statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
@@ -286,7 +276,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
     mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u6309\u538b\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedModeCheck_->setToolTip(QString::fromWCharArray(L"\u5f00\u542f\u540e\uff0c\u6309\u4f4f\u6309\u538b\u6a21\u5f0f\u952e\u65f6\uff0c\u4f1a\u6682\u505c\u6240\u6709\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(mixedModeCheck_);
     mixedCard->contentLayout()->addSpacing(2);
     auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\uff0c\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
@@ -304,7 +293,6 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mixedCard->contentLayout()->addSpacing(8);
     wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361"), this);
     wasdProtectionCheck_->setFont(Fluent::Typography::body());
-    wasdProtectionCheck_->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f W/A/S/D \u65f6\uff0c\u4e34\u65f6\u964d\u4f4e\u5f00\u5173/\u72ec\u7acb/\u5207\u6362\u6309\u952e\u8fde\u53d1\u9891\u7387\uff0c\u677e\u5f00\u540e\u6062\u590d\u3002"));
     mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
     mixedCard->contentLayout()->addSpacing(2);
     auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
@@ -537,7 +525,6 @@ void KeyPage::refreshSequenceSwitchKey() {
         keyLabel->setFont(Fluent::Typography::caption());
         keyLabel->setStyleSheet("background: transparent;");
         keyLabel->setMaximumWidth(kSequenceKeyLabelMaxWidth);
-        if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
         tagLayout->addWidget(keyLabel);
 
         sequenceSwitchClearBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);
@@ -612,13 +599,11 @@ void KeyPage::refreshPauseKeyList() {
             keyLabel->setFont(captionFont);
             keyLabel->setStyleSheet("background: transparent;");
             keyLabel->setMaximumWidth(kPauseKeyLabelMaxWidth);
-            if (shownKeyName != fullKeyName) keyLabel->setToolTip(fullKeyName);
             tagLayout->addWidget(keyLabel);
 
             auto* delBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE711)), tag);  // X icon
             delBtn->setFixedSize(18, 18);
             delBtn->setFont(QFont("Segoe MDL2 Assets", 7));
-            delBtn->setToolTip(QString::fromWCharArray(L"\u79fb\u9664\u6682\u505c\u952e %1").arg(fullKeyName));
             tagLayout->addWidget(delBtn);
 
             pauseKeyListLayout_->addWidget(tag);
@@ -633,7 +618,6 @@ void KeyPage::refreshPauseKeyList() {
             auto* moreBtn = new FluentButton(
                 FluentButton::Secondary, QString("+%1").arg(hiddenCount), pauseKeyListWidget_);
             moreBtn->setFixedSize(kPauseMoreButtonWidth, 24);
-            moreBtn->setToolTip(QString::fromWCharArray(L"\u67e5\u770b\u5176\u4f59 %1 \u4e2a\u6682\u505c\u952e").arg(hiddenCount));
 
             connect(moreBtn, &QPushButton::clicked, this, [this, moreBtn, visibleCount, totalCount]() {
                 QStringList hiddenKeyNames;
@@ -697,21 +681,12 @@ void KeyPage::refreshTable() {
         modeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         table_->setItem(i, 2, modeItem);
         auto mixedKind = PriorityIconWidget::Kind::None;
-        QString mixedTip = QString::fromWCharArray(L"\u5f00\u5173\u6a21\u5f0f\u4e0d\u53c2\u4e0e\u6309\u538b\u4f18\u5148");
         if (b.mode == RepeatMode::Hold) {
             mixedKind = b.suppressMixedMode
                 ? PriorityIconWidget::Kind::Disabled
                 : PriorityIconWidget::Kind::Enabled;
-            mixedTip = b.suppressMixedMode
-                ? QString::fromWCharArray(L"\u4e0d\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4e0d\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1")
-                : QString::fromWCharArray(L"\u53c2\u4e0e\uff1a\u6309\u4f4f\u8be5\u6309\u538b\u952e\u4f1a\u6682\u505c\u5f00\u5173\u8fde\u53d1");
-        } else if (b.mode == RepeatMode::Independent) {
-            mixedTip = QString::fromWCharArray(L"\u72ec\u7acb\u6a21\u5f0f\u4e5f\u4f1a\u53d7\u6309\u538b\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u4f4d\u5f71\u54cd");
-        } else if (b.mode == RepeatMode::Sequence) {
-            mixedTip = QString::fromWCharArray(L"\u5207\u6362\u6a21\u5f0f\u4f1a\u53d7\u6309\u538b\u4f18\u5148\u3001\u6682\u505c\u952e\u548c WASD \u9632\u5361\u5f71\u54cd");
         }
         auto* mixedWidget = new PriorityIconWidget(mixedKind);
-        mixedWidget->setToolTip(mixedTip);
         table_->setCellWidget(i, 3, mixedWidget);
         auto* delayItem = new QTableWidgetItem(QString::number(b.delayMs));
         delayItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);

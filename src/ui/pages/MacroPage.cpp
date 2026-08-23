@@ -54,22 +54,18 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     macroEnabledLabel_->setPalette(enabledLabelPal);
     profileRow->addWidget(macroEnabledLabel_);
     macroEnabledSwitch_ = new FluentSwitch(this);
-    macroEnabledSwitch_->setToolTip(QString::fromWCharArray(L"\u505c\u7528\u540e\u4fdd\u7559\u914d\u7f6e\u5185\u5bb9\uff0c\u4f46\u4e0d\u54cd\u5e94\u5feb\u6377\u952e\u4e5f\u4e0d\u6267\u884c\u5faa\u73af"));
     profileRow->addWidget(macroEnabledSwitch_);
     macroAddBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     macroAddBtn_->setFixedSize(28, 28);
     macroAddBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroAddBtn_->setToolTip(QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af"));
     profileRow->addWidget(macroAddBtn_);
     macroRenameBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE8AC)), this);
     macroRenameBtn_->setFixedSize(28, 28);
     macroRenameBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroRenameBtn_->setToolTip(QString::fromWCharArray(L"\u91cd\u547d\u540d\u5faa\u73af"));
     profileRow->addWidget(macroRenameBtn_);
     macroDeleteBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), this);
     macroDeleteBtn_->setFixedSize(28, 28);
     macroDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    macroDeleteBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u5faa\u73af"));
     profileRow->addWidget(macroDeleteBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);
@@ -118,7 +114,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     QPalette pauseLabelPal = pauseLabel->palette();
     pauseLabelPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     pauseLabel->setPalette(pauseLabelPal);
-    pauseLabel->setToolTip(QString::fromWCharArray(L"\u6309\u4f4f\u6682\u505c\u952e\u65f6\uff0c\u5f53\u524d\u8fd0\u884c\u7684\u5b8f\u4f1a\u4e34\u65f6\u6682\u505c\uff0c\u677e\u5f00\u540e\u7ee7\u7eed"));
     pauseRow->addWidget(pauseLabel);
 
     pauseKeyListWidget_ = new QWidget(this);
@@ -130,7 +125,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     auto* pauseAddBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE710)), this);
     pauseAddBtn->setFixedSize(24, 24);
     pauseAddBtn->setFont(QFont("Segoe MDL2 Assets", 9));
-    pauseAddBtn->setToolTip(QString::fromWCharArray(L"\u6dfb\u52a0\u6682\u505c\u952e"));
     pauseRow->addWidget(pauseAddBtn);
     tableCard->contentLayout()->addLayout(pauseRow);
     layout->addWidget(tableCard, 5);
@@ -175,7 +169,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     hotkeyClearBtn_ = new FluentButton(FluentButton::Secondary, QString(QChar(0xE74D)), this);
     hotkeyClearBtn_->setFixedSize(32, 32);
     hotkeyClearBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
-    hotkeyClearBtn_->setToolTip(QString::fromWCharArray(L"\u5220\u9664\u542f\u505c\u5feb\u6377\u952e"));
     hotkeyRow->addWidget(hotkeyClearBtn_);
     triggerCard->contentLayout()->addLayout(hotkeyRow);
     triggerCard->contentLayout()->addSpacing(4);
@@ -187,7 +180,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     soundSettingsBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE189)), this);
     soundSettingsBtn_->setFixedSize(32, 28);
     soundSettingsBtn_->setFont(QFont("Segoe MDL2 Assets", 12));
-    soundSettingsBtn_->setToolTip(QString::fromWCharArray(L"\u97f3\u6548\u8bbe\u7f6e"));
     beepRow->addWidget(soundSettingsBtn_);
     triggerCard->contentLayout()->addLayout(beepRow);
     statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
@@ -474,7 +466,6 @@ void MacroPage::refreshTable() {
         // Drag handle (first column)
         auto* handleItem = new QTableWidgetItem(QString::fromWCharArray(L"\u2261"));  // ≡
         handleItem->setTextAlignment(Qt::AlignCenter);
-        handleItem->setToolTip(QString::fromWCharArray(L"\u62D6\u52A8\u6392\u5E8F"));
         table_->setItem(i, 0, handleItem);
 
         // Key name

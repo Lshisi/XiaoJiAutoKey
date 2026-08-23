@@ -149,19 +149,16 @@ void SoundSettingsDialog::addSoundRow(const QString& labelText, QString* pathVal
     pathEdit->setPlaceholderText(QString::fromWCharArray(L"\u9ed8\u8ba4\u5185\u7f6e\u97f3\u6548"));
     pathEdit->setText(*pathValue);
     pathEdit->setCursor(Qt::PointingHandCursor);
-    pathEdit->setToolTip(QString::fromWCharArray(L"\u70b9\u51fb\u9009\u62e9\u97f3\u9891"));
     row->addWidget(pathEdit, 1);
 
     auto* previewBtn = new FluentButton(FluentButton::Primary, QString(QChar(0xE768)), this);
     previewBtn->setFont(QFont("Segoe MDL2 Assets", 11));
     previewBtn->setFixedSize(32, 30);
-    previewBtn->setToolTip(QString::fromWCharArray(L"\u8bd5\u542c"));
     row->addWidget(previewBtn);
 
     auto* resetBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE74D)), this);
     resetBtn->setFont(QFont("Segoe MDL2 Assets", 12));
     resetBtn->setFixedSize(30, 30);
-    resetBtn->setToolTip(QString::fromWCharArray(L"\u6062\u590d\u9ed8\u8ba4"));
     row->addWidget(resetBtn);
 
     connect(pathEdit, &FluentLineEdit::clicked, this, [this, pathValue, pathEdit, running]() {

@@ -490,7 +490,6 @@ void MainWindowView::initializeTray(QMainWindow* window) {
     auto* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
     auto* quitAction = trayMenu_->addAction(QString::fromWCharArray(L"\u9000\u51fa"));
     trayIcon_->setContextMenu(trayMenu_);
-    trayIcon_->setToolTip(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
     trayIcon_->show();
     QObject::connect(showAction, &QAction::triggered, window, [window]() {
         window->showNormal();

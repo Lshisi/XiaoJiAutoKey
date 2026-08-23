@@ -156,7 +156,6 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     lockButton_->setCursor(Qt::PointingHandCursor);
     lockButton_->setFont(QFont("Segoe MDL2 Assets", 10));
     lockButton_->setText(QString(QChar(0xE785)));
-    lockButton_->setToolTip(QString::fromWCharArray(L"\u9501\u5b9a\u4f4d\u7f6e"));
     lockButton_->setStyleSheet(
         "QPushButton { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);"
         " border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; padding: 0; }"
@@ -389,7 +388,6 @@ void StatusOverlayWindow::setLocked(bool locked) {
     setCursor(locked_ ? Qt::ArrowCursor : Qt::SizeAllCursor);
     if (lockButton_) {
         lockButton_->setText(QString(QChar(locked_ ? 0xE72E : 0xE785)));
-        lockButton_->setToolTip(QString::fromWCharArray(locked_ ? L"\u89e3\u9501\u4f4d\u7f6e" : L"\u9501\u5b9a\u4f4d\u7f6e"));
     }
     if (isVisible()) {
         syncLockButton();

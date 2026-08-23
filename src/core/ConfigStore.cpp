@@ -80,6 +80,14 @@ bool WriteFileDurably(const std::filesystem::path& path, const std::string& cont
     return success;
 }
 
+void HideFileIfPresent(const std::filesystem::path& path) noexcept {
+    const DWORD attributes = ::GetFileAttributesW(path.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_HIDDEN) != 0) {
+        return;
+    }
+    ::SetFileAttributesW(path.c_str(), attributes | FILE_ATTRIBUTE_HIDDEN);
+}
+
 bool IsNewerFile(
     const std::filesystem::path& candidate, const std::filesystem::path& reference) {
     std::error_code candidateError;
@@ -267,6 +275,7 @@ AppConfig ConfigStore::Load() const {
     tempPath += L".tmp";
     auto backupPath = configPath_;
     backupPath += L".bak";
+    HideFileIfPresent(backupPath);
     const bool currentValid = IsValidConfigFile(sourcePath);
     const bool tempValid = IsValidConfigFile(tempPath);
     if (tempValid && (!currentValid || IsNewerFile(tempPath, sourcePath))) {
@@ -584,6 +593,7 @@ bool ConfigStore::WriteAtomically(
             std::filesystem::remove(tempPath, ec);
             return false;
         }
+        HideFileIfPresent(backupPath);
     }
 
     if (!::MoveFileExW(

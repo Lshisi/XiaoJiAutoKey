@@ -368,6 +368,7 @@ void AgentRuntime::handleInput(const KeyDescriptor& key, bool pressed) {
         } else if (!pressed) {
             controlHotkeyDown_ = false;
         }
+        handleMacroInput(key, pressed);
         return;
     }
     if (repeater_.IsToolRunning()) {

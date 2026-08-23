@@ -81,10 +81,10 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
         } else if (!pressed) {
             rawControlHotkeyPressed_ = false;
         }
-        return;
+    } else {
+        handlePhysicalChanged(key, pressed);
     }
 
-    handlePhysicalChanged(key, pressed);
     handleMacroTriggerChanged(key, pressed);
 }
 

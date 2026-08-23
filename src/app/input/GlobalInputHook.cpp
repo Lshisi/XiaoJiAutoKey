@@ -200,9 +200,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         } else if (released) {
             hook->controlHotkeyPressed_ = false;
         }
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-    if (repeatRunning) {
+    } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
             emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);
@@ -265,9 +263,7 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         } else if (!pressed) {
             hook->controlHotkeyPressed_ = false;
         }
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-    if (repeatRunning) {
+    } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
             emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);

@@ -112,10 +112,16 @@ AgentRuntime::AgentRuntime(QWidget* parent)
     setAttribute(Qt::WA_ShowWithoutActivating, true);
     resize(1, 1);
 
-    connect(&rawInput_, &RawInputManager::keyboardChanged, this,
-        [this](const KeyDescriptor& key, bool pressed) { handleInput(key, pressed); });
-    connect(&rawInput_, &RawInputManager::mouseChanged, this,
-        [this](const KeyDescriptor& key, bool pressed) { handleInput(key, pressed); });
+    const auto handleRawInput = [this](const KeyDescriptor& key, bool pressed) {
+        const auto* profile = ActiveProfile(config_);
+        if (hook_.isRunning() && profile && profile->enabled && profile->controlHotkey &&
+            *profile->controlHotkey == key) {
+            return;
+        }
+        handleInput(key, pressed);
+    };
+    connect(&rawInput_, &RawInputManager::keyboardChanged, this, handleRawInput);
+    connect(&rawInput_, &RawInputManager::mouseChanged, this, handleRawInput);
     connect(&hook_, &GlobalInputHook::controlHotkeyPressed, this, [this]() { toggleRepeat(); });
     connect(&hook_, &GlobalInputHook::physicalKeyChanged, this,
         [this](const KeyDescriptor& key, bool pressed) { handleInput(key, pressed); });

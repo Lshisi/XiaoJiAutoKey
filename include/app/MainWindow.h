@@ -55,7 +55,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
+    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = false);
     bool loadHidDriver();
     bool loadLegacyDriver();
     bool loadCh552UsbDriver();
@@ -91,6 +91,7 @@ private:
     void setBackgroundAutoRun(bool enabled);
     void repairAgent();
     void prepareForSystemShutdown();
+    void recoverInputAfterResume();
 
     MainWindowView view_;
 
@@ -125,6 +126,7 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;
+    QTimer inputRecoveryTimer_;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;
@@ -143,5 +145,6 @@ private:
     bool suppressAutoPlay_ = false;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;
+    int inputRecoveryAttempts_ = 0;
 
 };

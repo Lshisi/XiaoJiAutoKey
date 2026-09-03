@@ -320,6 +320,11 @@ MainWindow::MainWindow(QWidget* parent)
     connect(&usbDeviceRefreshTimer_, &QTimer::timeout, this, [this]() {
         refreshUsbDriverAfterDeviceChange();
     });
+    inputRecoveryTimer_.setSingleShot(true);
+    inputRecoveryTimer_.setInterval(700);
+    connect(&inputRecoveryTimer_, &QTimer::timeout, this, [this]() {
+        recoverInputAfterResume();
+    });
     usbHeartbeatTimer_.setInterval(750);
     connect(&usbHeartbeatTimer_, &QTimer::timeout, this, [this]() {
         if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) return;
@@ -523,7 +528,9 @@ bool MainWindow::Initialize() {
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-    if (!loadConfiguredDriver()) {
+    // Keep the selected HID mode on startup. A transient HID failure must not
+    // silently switch the user's configuration to legacy DD.
+    if (!loadConfiguredDriver(false)) {
         logDriverUnavailableOnce();
     }
     usbHeartbeatTimer_.start();
@@ -593,6 +600,9 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
 }
 
 bool MainWindow::loadHidDriver() {
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
@@ -627,11 +637,31 @@ bool MainWindow::loadHidDriver() {
 }
 
 bool MainWindow::loadLegacyDriver() {
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
-    ensureLegacyDdInfInstalled();
-    const bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    if (!ensureLegacyDdInfInstalled()) {
+        return false;
+    }
+
+    bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    if (!loaded) {
+        // Resume can leave the INF services reporting ready while the runtime
+        // handles are still stale. The repair helper probes the runtime first,
+        // then refreshes or rebuilds the device instances only when needed.
+        std::wstring repairMessage;
+        loaded = ddRuntimeService_.RepairEmbeddedInfDriver(
+            [this]() {
+                return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+            },
+            &repairMessage);
+        if (!loaded && !repairMessage.empty()) {
+            driverStatusNote_ = repairMessage;
+        }
+    }
     if (loaded) {
         inputDriver_.SetDriver(&driver_);
     }
@@ -639,6 +669,9 @@ bool MainWindow::loadLegacyDriver() {
 }
 
 bool MainWindow::loadCh552UsbDriver() {
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    inputDriver_.SetDriver(nullptr);
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
@@ -743,15 +776,29 @@ bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* erro
         return false;
     }
 
-    if (!targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
-        if (errorMessage) {
-            *errorMessage = targetDriver.GetLastError();
-        }
-        targetDriver.ReleaseAll();
-        targetDriver.Unload();
-        return false;
+    if (targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
+        return true;
     }
-    return true;
+
+    std::wstring repairMessage;
+    if (ddRuntimeService_.RepairEmbeddedInfDriver(
+            [&targetDriver, this]() {
+                return targetDriver.LoadFromDirectory(appPaths_.exeDir(), false);
+            },
+            &repairMessage)) {
+        return true;
+    }
+
+    if (errorMessage) {
+        *errorMessage = targetDriver.GetLastError();
+        if (!repairMessage.empty()) {
+            if (!errorMessage->empty()) *errorMessage += L"; ";
+            *errorMessage += L"INF repair=" + repairMessage;
+        }
+    }
+    targetDriver.ReleaseAll();
+    targetDriver.Unload();
+    return false;
 }
 
 bool MainWindow::canLoadCh552UsbDriver(std::wstring* errorMessage) {
@@ -1022,9 +1069,9 @@ void MainWindow::prepareDriverUninstall(DriverMode mode) {
 
     if ((mode == DriverMode::Hid && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) ||
         (mode == DriverMode::Legacy && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy)) {
+        inputDriver_.SetDriver(nullptr);
         driver_.ReleaseAll();
         driver_.Unload();
-        inputDriver_.SetDriver(nullptr);
     }
 }
 
@@ -1390,6 +1437,49 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
                 usbDeviceRefreshTimer_.start(650);
             }
             break;
+        case WM_INPUT_DEVICE_CHANGE:
+            rawInput_.clearDeviceCache();
+            if (config_.driverMode == DriverMode::Hid && msg->wParam == GIDC_REMOVAL) {
+                // A device-change notification can arrive after Windows has
+                // invalidated the old Raw Input registration. Drop it now so
+                // the low-level hook remains available during recovery.
+                rawInput_.unregisterWindow();
+                engineHookCoordinator_.refreshState();
+                inputRecoveryAttempts_ = 0;
+                inputRecoveryTimer_.start();
+            } else {
+                engineHookCoordinator_.refreshState();
+            }
+            break;
+        case WM_POWERBROADCAST:
+            switch (msg->wParam) {
+            case PBT_APMSUSPEND:
+            case PBT_APMSTANDBY:
+                // Do not carry stale HID handles or pressed-key state across
+                // a suspend. The runtime is rebuilt after Windows resumes.
+                engineStateCoordinator_.setRepeatRunning(false);
+                engine_.ReleaseAll();
+                macroEngine_.StopAll();
+                inputDriver_.ReleaseAll();
+                inputDriver_.ClearAllStates();
+                inputDriver_.SetDriver(nullptr);
+                inputHook_.stop();
+                rawInput_.unregisterWindow();
+                driver_.ReleaseAll();
+                driver_.Unload();
+                ch552Driver_.Disconnect();
+                break;
+            case PBT_APMRESUMEAUTOMATIC:
+            case PBT_APMRESUMESUSPEND:
+            case PBT_APMRESUMECRITICAL:
+                inputRecoveryAttempts_ = 0;
+                inputRecoveryTimer_.start();
+                break;
+            default:
+                break;
+            }
+            if (result) *result = TRUE;
+            return true;
         case WM_THEMECHANGED:
             Fluent::Theme::refreshDarkModeCache();
             scheduleRuntimeVisualRefresh(false, true);
@@ -1449,6 +1539,84 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     Q_UNUSED(message)
 #endif
     return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+void MainWindow::recoverInputAfterResume() {
+    if (systemShutdownRequested_) return;
+
+    constexpr int kMaxInputRecoveryAttempts = 5;
+    ++inputRecoveryAttempts_;
+
+    // Sleep can drop the selected HID device and leave injected keys held.
+    // Tear down the complete input pipeline before probing the runtime again.
+    engineStateCoordinator_.setRepeatRunning(false);
+    engine_.ReleaseAll();
+    macroEngine_.StopAll();
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    inputDriver_.SetDriver(nullptr);
+
+    inputHook_.stop();
+    rawInput_.unregisterWindow();
+
+    // A suspended HID instance can disappear while the service, SYS and DLL
+    // are still present. Do not immediately fall back to DD here: that path
+    // changes the saved mode and can leave both runtimes unavailable. Keep the
+    // user's HID choice and probe it again on the next recovery pass if
+    // Windows is still bringing the device back.
+    bool driverLoaded = loadConfiguredDriver(false);
+    if (!driverLoaded && config_.driverMode == DriverMode::Hid && inputRecoveryAttempts_ <= 2) {
+        std::wstring repairMessage;
+        const bool repairAccepted = ddRuntimeService_.InstallEmbeddedHidDriver(&repairMessage);
+        if (!repairMessage.empty()) {
+            ddRuntimeService_.LogRuntimeError(
+                L"dd-runtime.log",
+                L"HID resume repair attempt=" + std::to_wstring(inputRecoveryAttempts_) +
+                    L" accepted=" + (repairAccepted ? std::wstring(L"1") : std::wstring(L"0")) +
+                    L"\n" + repairMessage);
+        }
+        driverLoaded = loadConfiguredDriver(false);
+    }
+    if (driverLoaded) {
+        driverUnavailableLogged_ = false;
+    }
+
+    bool rawInputReady = false;
+    if (driverLoaded) {
+        rawInputReady = rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+        if (!rawInputReady) {
+            // A partial RegisterRawInputDevices result must not leave the
+            // low-level hook suppressed for only one device class.
+            rawInput_.unregisterWindow();
+        }
+    } else {
+        // Never suppress the low-level hook while the selected driver is down.
+        rawInput_.unregisterWindow();
+    }
+    engineHookCoordinator_.refreshState();
+    const bool hookReady = inputHook_.start();
+
+    if (!driverLoaded || !rawInputReady || !hookReady) {
+        if (inputRecoveryAttempts_ < kMaxInputRecoveryAttempts) {
+            driverStatusNote_ = !driverLoaded
+                ? L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u6b63\u5728\u91cd\u8bd5\u3002"
+                : L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u94fe\u8def\u672a\u5b8c\u6210\u6062\u590d\uff0c\u6b63\u5728\u91cd\u8bd5\u3002";
+            inputRecoveryTimer_.start(1000);
+        } else {
+            driverStatusNote_ = !driverLoaded
+                ? L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u9a71\u52a8\u4e0d\u53ef\u7528\u3002"
+                : L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u94fe\u8def\u6062\u590d\u5931\u8d25\u3002";
+            logDriverUnavailableOnce();
+        }
+    } else {
+        inputRecoveryAttempts_ = 0;
+        if (!driverStatusFallback_) {
+            driverStatusNote_.clear();
+        }
+    }
+
+    refreshDriverStatusUi();
+    refreshStatusOverlay();
 }
 
 void MainWindow::prepareForSystemShutdown() {
@@ -1732,12 +1900,27 @@ void MainWindow::logDriverUnavailableOnce() {
     }
     driverUnavailableLogged_ = true;
 
+    const auto status = ddRuntimeService_.Inspect(driver_);
     std::wstringstream errorLog;
     errorLog << L"driver_mode=";
     if (config_.driverMode == DriverMode::Usb) errorLog << L"USB";
     else errorLog << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     errorLog << L"\n"
              << L"last_error=" << (activeInputDriverError().empty() ? L"(none)" : activeInputDriverError()) << L"\n"
+             << L"runtime_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
+             << L"runtime_kind=" << static_cast<int>(driver_.GetRuntimeKind()) << L"\n"
+             << L"hid_runtime=" << status.hidRuntimeExists << L"\n"
+             << L"hid_service=" << status.hidServiceInstalled << L"\n"
+             << L"hid_sys=" << status.hidSysInstalled << L"\n"
+             << L"hid_root_device=" << status.hidRootDeviceOk << L"\n"
+             << L"hid_child_device=" << status.hidChildDeviceOk << L"\n"
+             << L"inf_keyboard_service=" << status.infKeyboardServiceInstalled << L"\n"
+             << L"inf_mouse_service=" << status.infMouseServiceInstalled << L"\n"
+             << L"inf_keyboard_device="
+             << (status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound) << L"\n"
+             << L"inf_mouse_device="
+             << (status.infMouseDeviceStarted && status.infMouseDeviceBound) << L"\n"
+             << L"recovery_attempts=" << inputRecoveryAttempts_ << L"\n"
              << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
     ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
 }

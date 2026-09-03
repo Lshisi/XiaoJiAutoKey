@@ -7,6 +7,7 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
     driver_ = driver;
     forwardedDown_.clear();
+    owners_.clear();
 }
 
 InputDriver* InputDriverRouter::CurrentDriver() const noexcept {

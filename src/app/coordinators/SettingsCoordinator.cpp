@@ -4,6 +4,7 @@
 #include "dialogs/GameProcessDialog.h"
 #include "ui/pages/SettingsPage.h"
 
+#include <QMainWindow>
 #include <QStringList>
 
 SettingsCoordinator::SettingsCoordinator(QObject* parent) : QObject(parent) {}

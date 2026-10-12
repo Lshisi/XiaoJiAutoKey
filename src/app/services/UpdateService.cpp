@@ -18,7 +18,7 @@
 #include <Windows.h>
 #include <winhttp.h>
 
-#include "miniz_zip.h"
+#include "miniz.h"
 
 #include <vector>
 

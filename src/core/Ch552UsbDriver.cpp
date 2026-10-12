@@ -13,8 +13,6 @@
 
 namespace {
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
-constexpr char kUpdateCommand[] = "UPD 714021";
-constexpr char kFastInputFirmwareVersion[] = "XiaoJi USB V1.1.4";
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -266,37 +264,6 @@ std::wstring Ch552UsbDriver::FirmwareVersion() const {
     return firmwareVersion_;
 }
 
-Ch552UsbDriver::UpdateRequestResult Ch552UsbDriver::EnterBootloaderForUpdate() {
-    std::lock_guard lock(mutex_);
-    if (handle_ == INVALID_HANDLE_VALUE) {
-        lastError_ = L"USB device is not connected";
-        return UpdateRequestResult::Failed;
-    }
-
-    lastError_.clear();
-    (void)SendCommandLocked("R");
-    ::PurgeComm(handle_, PURGE_RXCLEAR | PURGE_TXCLEAR);
-    if (!WriteLineLocked(kUpdateCommand)) {
-        return UpdateRequestResult::Failed;
-    }
-    ::FlushFileBuffers(handle_);
-
-    const std::string response = ReadAvailableLocked(600);
-    if (!response.empty() && response.rfind("OK", 0) != 0) {
-        lastError_ = L"Device rejected firmware update request: " + ToWide(response);
-        return UpdateRequestResult::Failed;
-    }
-
-    // UPD is authenticated by the firmware and performs the actual jump to
-    // 0x3800. Older firmware may disconnect before Windows delivers the
-    // acknowledgement, so the caller verifies enumeration separately.
-    ::Sleep(180);
-    ClosePortLocked();
-    return response.empty()
-        ? UpdateRequestResult::Sent
-        : UpdateRequestResult::Acknowledged;
-}
-
 bool Ch552UsbDriver::BeginLease() {
     std::lock_guard lock(mutex_);
     return handle_ != INVALID_HANDLE_VALUE && SendCommandLocked("L");
@@ -486,7 +453,8 @@ bool Ch552UsbDriver::QueryVersionLocked() {
     firmwareVersion_ = ToWide(response.substr(3));
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\r'), firmwareVersion_.end());
     firmwareVersion_.erase(std::remove(firmwareVersion_.begin(), firmwareVersion_.end(), L'\n'), firmwareVersion_.end());
-    fastInputSupported_ = response.find(kFastInputFirmwareVersion) != std::string::npos;
+    fastInputSupported_ = firmwareVersion_ == L"XiaoJi USB V1.1.3" ||
+        firmwareVersion_ == L"XiaoJi USB V1.1.4";
     SendCommandLocked("R");
     return true;
 }

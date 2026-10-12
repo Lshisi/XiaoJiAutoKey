@@ -74,15 +74,10 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
     }
 
     const auto controlHotkey = context_.controlHotkey ? context_.controlHotkey() : std::nullopt;
-    const bool hookRunning = context_.hook && context_.hook->isRunning();
     if (controlHotkey.has_value() && *controlHotkey == key) {
-        // The low-level hook owns this key while it is alive. Raw Input only
-        // takes over when the hook failed or has already exited.
         if (pressed && !rawControlHotkeyPressed_) {
             rawControlHotkeyPressed_ = true;
-            if (!hookRunning) {
-                handleControlHotkeyPressed();
-            }
+            handleControlHotkeyPressed();
         } else if (!pressed) {
             rawControlHotkeyPressed_ = false;
         }
@@ -90,10 +85,7 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
         handlePhysicalChanged(key, pressed);
     }
 
-    if (!hookRunning ||
-        !controlHotkey.has_value() || *controlHotkey != key) {
-        handleMacroTriggerChanged(key, pressed);
-    }
+    handleMacroTriggerChanged(key, pressed);
 }
 
 void EngineHookCoordinator::handlePhysicalChanged(const KeyDescriptor& key, bool pressed) {

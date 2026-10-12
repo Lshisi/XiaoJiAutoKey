@@ -30,12 +30,7 @@ GlobalInputHook::~GlobalInputHook() {
 }
 
 bool GlobalInputHook::start() {
-    if (hookThread_.joinable()) {
-        // A failed hook initialization can leave a finished but still joinable
-        // thread behind. Join it before attempting a real restart.
-        if (hookThreadId_.load() != 0) return true;
-        hookThread_.join();
-    }
+    if (hookThread_.joinable()) return true;
 
     {
         std::lock_guard lock(hookInitMutex_);
@@ -63,11 +58,6 @@ void GlobalInputHook::stop() {
     if (g_hookInstance == this) {
         g_hookInstance = nullptr;
     }
-    controlHotkeyPressed_ = false;
-}
-
-bool GlobalInputHook::isRunning() const noexcept {
-    return hookThreadId_.load() != 0;
 }
 
 void GlobalInputHook::setControlHotkey(std::optional<KeyDescriptor> key) {
@@ -96,15 +86,13 @@ void GlobalInputHook::setRepeatRunning(bool running) {
 }
 
 void GlobalInputHook::setRawKeyboardActive(bool active) {
-    if (rawKeyboardActive_.exchange(active) != active) {
-        controlHotkeyPressed_ = false;
-    }
+    rawKeyboardActive_ = active;
+    if (active) controlHotkeyPressed_ = false;
 }
 
 void GlobalInputHook::setRawMouseActive(bool active) {
-    if (rawMouseActive_.exchange(active) != active) {
-        controlHotkeyPressed_ = false;
-    }
+    rawMouseActive_ = active;
+    if (active) controlHotkeyPressed_ = false;
 }
 
 void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter) {
@@ -172,6 +160,12 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     if (info->flags & LLKHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
+    const ULONGLONG nowTick = GetTickCount64();
+    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
+    if (nowTick < ignoreUntil) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
@@ -183,6 +177,14 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         captureActive = hook->captureActive_;
     }
 
+    if (!captureActive && hook->rawKeyboardActive_.load()) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
+    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
     if (captureActive && pressed) {
         const auto encoded = EncodeKey(key);
         QMetaObject::invokeMethod(hook, [hook, encoded] { emit hook->capturedKey(encoded); }, Qt::QueuedConnection);
@@ -191,8 +193,6 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    // The control hotkey remains on the low-level hook even while Raw Input
-    // is enabled, so a stale Raw Input registration cannot disable toggling.
     const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
     if (isControlHotkey) {
         if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
@@ -200,27 +200,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         } else if (released) {
             hook->controlHotkeyPressed_ = false;
         }
-        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->macroTriggerChanged(key, pressed);
-        }, Qt::QueuedConnection);
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    const ULONGLONG nowTick = GetTickCount64();
-    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
-    if (nowTick < ignoreUntil) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (!captureActive && hook->rawKeyboardActive_.load()) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (repeatRunning) {
+    } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
             emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);
@@ -253,7 +233,17 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         captureStartedTick = hook->captureStartedTick_;
     }
 
+    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+    if (!captureActive && hook->rawMouseActive_.load()) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
     if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
+
+    const ULONGLONG nowTick = GetTickCount64();
+    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
+    if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool repeatRunning = hook->repeatRunning_.load();
 
@@ -273,25 +263,7 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
         } else if (!pressed) {
             hook->controlHotkeyPressed_ = false;
         }
-        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->macroTriggerChanged(key, pressed);
-        }, Qt::QueuedConnection);
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    const ULONGLONG nowTick = GetTickCount64();
-    const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
-    if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
-
-    if (!captureActive && hook->rawMouseActive_.load()) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (repeatRunning) {
+    } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, key, pressed] {
             emit hook->physicalKeyChanged(key, pressed);
         }, Qt::QueuedConnection);

@@ -138,7 +138,6 @@ RawInputManager::~RawInputManager() {
 }
 
 bool RawInputManager::registerWindow(HWND hwnd) {
-    unregisterWindow();
     if (!hwnd) {
         keyboardActive_ = false;
         mouseActive_ = false;
@@ -150,7 +149,7 @@ bool RawInputManager::registerWindow(HWND hwnd) {
         RAWINPUTDEVICE device{};
         device.usUsagePage = 0x01;
         device.usUsage = usage;
-        device.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
+        device.dwFlags = RIDEV_INPUTSINK;
         device.hwndTarget = hwnd;
         return RegisterRawInputDevices(&device, 1, sizeof(device)) != FALSE;
     };
@@ -159,27 +158,7 @@ bool RawInputManager::registerWindow(HWND hwnd) {
     mouseActive_ = registerDevice(0x02);    // Mouse
     hwnd_ = hwnd;
     deviceCache_.clear();
-    if (keyboardActive_ && mouseActive_) {
-        return true;
-    }
-
-    // RegisterRawInputDevices can partially succeed. Roll back the successful
-    // registration so the low-level hook remains the single active fallback.
-    const auto removeDevice = [](USHORT usage) {
-        RAWINPUTDEVICE device{};
-        device.usUsagePage = 0x01;
-        device.usUsage = usage;
-        device.dwFlags = RIDEV_REMOVE;
-        device.hwndTarget = nullptr;
-        RegisterRawInputDevices(&device, 1, sizeof(device));
-    };
-    if (keyboardActive_) removeDevice(0x06);
-    if (mouseActive_) removeDevice(0x02);
-    hwnd_ = nullptr;
-    keyboardActive_ = false;
-    mouseActive_ = false;
-    deviceCache_.clear();
-    return false;
+    return keyboardActive_ && mouseActive_;
 }
 
 void RawInputManager::unregisterWindow() {
@@ -212,10 +191,6 @@ bool RawInputManager::isActive() const noexcept {
 
 bool RawInputManager::isMouseActive() const noexcept {
     return mouseActive_;
-}
-
-void RawInputManager::clearDeviceCache() {
-    deviceCache_.clear();
 }
 
 bool RawInputManager::handleNativeMessage(MSG* message, long* result) {

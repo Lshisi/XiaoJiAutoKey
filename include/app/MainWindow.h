@@ -31,8 +31,6 @@
 #include <QMainWindow>
 #include <QTimer>
 
-class QShowEvent;
-
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -45,7 +43,6 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
-    void showEvent(QShowEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     bool event(QEvent* event) override;
@@ -55,7 +52,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
-    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = false);
+    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();
     bool loadCh552UsbDriver();
@@ -67,11 +64,9 @@ private:
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();
     void refreshDriverStatusUi();
-    bool isUsbDriverUpdateAvailable() const;
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     void prepareDriverUninstall(DriverMode mode);
     void finalizeDriverUninstall(DriverMode mode);
-    void updateUsbDriver(bool requireConfirmation = true);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
     bool rebootComputer();
@@ -87,11 +82,7 @@ private:
     void refreshUsbDriverAfterDeviceChange();
     void registerUsbDeviceNotifications();
     void unregisterUsbDeviceNotifications();
-    bool initializeAgentHandoff();
-    void setBackgroundAutoRun(bool enabled);
-    void repairAgent();
     void prepareForSystemShutdown();
-    void recoverInputAfterResume();
 
     MainWindowView view_;
 
@@ -126,7 +117,6 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;
-    QTimer inputRecoveryTimer_;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;
@@ -142,9 +132,7 @@ private:
     bool driverUnavailableLogged_ = false;
     bool driverStatusFallback_ = false;
     std::wstring driverStatusNote_;
-    bool suppressAutoPlay_ = false;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;
-    int inputRecoveryAttempts_ = 0;
 
 };

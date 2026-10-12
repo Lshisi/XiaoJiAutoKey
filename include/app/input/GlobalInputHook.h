@@ -21,7 +21,6 @@ public:
 
     bool start();
     void stop();
-    [[nodiscard]] bool isRunning() const noexcept;
 
     void setControlHotkey(std::optional<KeyDescriptor> key);
     void setCaptureActive(bool active);

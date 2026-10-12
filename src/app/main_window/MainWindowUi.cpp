@@ -9,7 +9,6 @@
 #include "ui/pages/SettingsPage.h"
 
 #include <QCloseEvent>
-#include <QShowEvent>
 #include <QTimer>
 
 void MainWindow::setupUi() {
@@ -154,13 +153,10 @@ void MainWindow::setupUi() {
         [this](DriverMode mode) { return switchDriverMode(mode); },
         [this](DriverMode mode) { prepareDriverUninstall(mode); },
         [this](DriverMode mode) { finalizeDriverUninstall(mode); },
-        [this]() { updateUsbDriver(); },
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },
-        [this](bool open) { inputHook_.setDialogOpen(open); },
-        [this]() { repairAgent(); },
-        [this](bool enabled) { setBackgroundAutoRun(enabled); }
+        [this](bool open) { inputHook_.setDialogOpen(open); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;
@@ -249,8 +245,4 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         return;
     }
     closeCoordinator_.handleClose(event);
-}
-
-void MainWindow::showEvent(QShowEvent* event) {
-    QMainWindow::showEvent(event);
 }

@@ -27,13 +27,10 @@ public:
         std::function<SwitchResult(DriverMode)> switchDriverMode;
         std::function<void(DriverMode)> prepareDriverUninstall;
         std::function<void(DriverMode)> finalizeDriverUninstall;
-        std::function<void()> updateUsbDriver;
         std::function<bool()> rebootComputer;
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;
         std::function<void(bool)> setDialogOpen;
-        std::function<void()> repairAgent;
-        std::function<void(bool)> setBackgroundAutoRun;
     };
 
     explicit DriverCoordinator(QObject* parent = nullptr);

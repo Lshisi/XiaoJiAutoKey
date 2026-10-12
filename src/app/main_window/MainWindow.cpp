@@ -12,13 +12,7 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDialog>
-#include <QDir>
 #include <QEvent>
-#include <QEventLoop>
-#include <QElapsedTimer>
-#include <QFile>
-#include <QFileInfo>
-#include <QDateTime>
 #include <QFont>
 #include <QLabel>
 #include <QMouseEvent>
@@ -28,8 +22,6 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QString>
-#include <QStandardPaths>
-#include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 #include <QtGlobal>
@@ -37,24 +29,16 @@
 #include <QWindow>
 #include <Windows.h>
 #include <Dbt.h>
-#include <Shellapi.h>
-#include <SetupAPI.h>
 #include <memory>
-#include <cwchar>
 #include <stdexcept>
 #include <sstream>
-#include <vector>
 
 namespace {
 constexpr int kBaseWindowWidth = 780;
 constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
 constexpr wchar_t kXiaoJiUsbVidPid[] = L"vid_1209&pid_584a";
-constexpr wchar_t kCh552BootloaderVidPid[] = L"vid_4348&pid_55e0";
-constexpr auto kEmbeddedUsbFirmwareResource = ":/firmware/xiaoji_usb.hex";
-constexpr auto kEmbeddedUsbUpdaterResource = ":/firmware/updater/usb-updater.exe";
 constexpr wchar_t kBundledUsbDriverVersion[] = L"XiaoJi USB V1.1.4";
-const UINT kQueryCancelAutoPlayMessage = ::RegisterWindowMessageW(L"QueryCancelAutoPlay");
 constexpr GUID kGuidDevInterfaceUsbDevice = {
     0xA5DCBF10,
     0x6530,
@@ -320,11 +304,6 @@ MainWindow::MainWindow(QWidget* parent)
     connect(&usbDeviceRefreshTimer_, &QTimer::timeout, this, [this]() {
         refreshUsbDriverAfterDeviceChange();
     });
-    inputRecoveryTimer_.setSingleShot(true);
-    inputRecoveryTimer_.setInterval(700);
-    connect(&inputRecoveryTimer_, &QTimer::timeout, this, [this]() {
-        recoverInputAfterResume();
-    });
     usbHeartbeatTimer_.setInterval(750);
     connect(&usbHeartbeatTimer_, &QTimer::timeout, this, [this]() {
         if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) return;
@@ -348,189 +327,35 @@ MainWindow::~MainWindow() {
     inputDriver_.ClearAllStates();
 }
 
-bool isUsbDevicePresent(const wchar_t* vidPid) {
-    HDEVINFO deviceInfo = ::SetupDiGetClassDevsW(
-        nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT);
-    if (deviceInfo == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    bool found = false;
-    for (DWORD index = 0; !found; ++index) {
-        SP_DEVINFO_DATA deviceData{};
-        deviceData.cbSize = sizeof(deviceData);
-        if (!::SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData)) {
-            break;
-        }
-
-        DWORD propertyType = 0;
-        DWORD requiredSize = 0;
-        ::SetupDiGetDeviceRegistryPropertyW(
-            deviceInfo, &deviceData, SPDRP_HARDWAREID, &propertyType,
-            nullptr, 0, &requiredSize);
-        if (requiredSize < sizeof(wchar_t)) {
-            continue;
-        }
-
-        std::vector<BYTE> property(requiredSize);
-        if (!::SetupDiGetDeviceRegistryPropertyW(
-                deviceInfo, &deviceData, SPDRP_HARDWAREID, &propertyType,
-                property.data(), static_cast<DWORD>(property.size()), nullptr)) {
-            continue;
-        }
-
-        const wchar_t* hardwareId = reinterpret_cast<const wchar_t*>(property.data());
-        while (*hardwareId != L'\0') {
-            if (QString::fromWCharArray(hardwareId).contains(
-                    QString::fromWCharArray(vidPid), Qt::CaseInsensitive)) {
-                found = true;
-                break;
-            }
-            hardwareId += std::wcslen(hardwareId) + 1;
-        }
-    }
-
-    ::SetupDiDestroyDeviceInfoList(deviceInfo);
-    return found;
-}
-
-bool isCurrentProcessElevated() {
-    HANDLE token = nullptr;
-    if (!::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &token)) {
-        return false;
-    }
-    TOKEN_ELEVATION elevation{};
-    DWORD returned = 0;
-    const bool elevated = ::GetTokenInformation(
-        token, TokenElevation, &elevation, sizeof(elevation), &returned) != FALSE &&
-        elevation.TokenIsElevated != 0;
-    ::CloseHandle(token);
-    return elevated;
-}
-
-bool installWinUsbBootloaderDriver(const QString& installerPath, const QString& driverPath,
-    const QString& logPath, QString* errorMessage) {
-    QString effectiveLogPath = logPath;
-    QFileInfo requestedLogInfo(effectiveLogPath);
-    QDir().mkpath(requestedLogInfo.absolutePath());
-    QFile logProbe(effectiveLogPath);
-    if (!logProbe.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        effectiveLogPath = QDir(
-            QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
-            .filePath(QStringLiteral("logs/winusb-install.log"));
-    }
-    logProbe.close();
-    const QFileInfo logInfo(effectiveLogPath);
-    QDir().mkpath(logInfo.absolutePath());
-    auto appendLog = [&effectiveLogPath](const QString& text) {
-        QFile log(effectiveLogPath);
-        if (log.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-            log.write(text.toUtf8());
-            log.write("\r\n");
-        }
-    };
-
-    appendLog(QStringLiteral("[%1] Starting WinUSB bootloader driver installation")
-        .arg(QDateTime::currentDateTime().toString(Qt::ISODate)));
-    appendLog(QStringLiteral("INSTALLER=%1").arg(QDir::toNativeSeparators(installerPath)));
-    appendLog(QStringLiteral("DRIVER_OUTPUT=%1").arg(QDir::toNativeSeparators(driverPath)));
-    appendLog(QStringLiteral("LOG=%1").arg(QDir::toNativeSeparators(effectiveLogPath)));
-    appendLog(QStringLiteral("Process elevated=%1").arg(isCurrentProcessElevated() ? QStringLiteral("1") : QStringLiteral("0")));
-
-    // ShellExecuteEx with runas cannot redirect stdout directly.  Use a short
-    // elevated cmd script so libwdi output survives the UAC child process.
-    const QString scriptPath = logInfo.absoluteDir().filePath(
-        QStringLiteral("winusb-install-%1.cmd").arg(QCoreApplication::applicationPid()));
-    QFile script(scriptPath);
-    if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        appendLog(QStringLiteral("Unable to create elevated helper: %1").arg(script.errorString()));
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u521b\u5efa WinUSB \u5b89\u88c5\u8f85\u52a9\u811a\u672c\u3002\n\n\u65e5\u5fd7\uff1a") + effectiveLogPath;
-        }
-        return false;
-    }
-    QDir().mkpath(driverPath);
-    const QByteArray installerForCmd = QDir::toNativeSeparators(installerPath).toUtf8();
-    const QByteArray driverForCmd = QDir::toNativeSeparators(driverPath).toUtf8();
-    const QByteArray logForCmd = QDir::toNativeSeparators(effectiveLogPath).toUtf8();
-    QByteArray scriptContents = "@echo off\r\nsetlocal\r\n";
-    scriptContents += "echo ==== libwdi output ==== >> \"" + logForCmd + "\"\r\n";
-    scriptContents += "echo Command: xiaoji-winusb-installer.exe --vid 0x4348 --pid 0x55E0 --type 0 >> \"" + logForCmd + "\"\r\n";
-    scriptContents += "\"" + installerForCmd + "\" --name \"XiaoJi CH552 Bootloader\" --manufacturer \"XiaoJi\" --vid 0x4348 --pid 0x55E0 --type 0 --dest \"" + driverForCmd + "\" --inf xiaoji-bootloader.inf --log 0 --timeout 60000 >> \"" + logForCmd + "\" 2>&1\r\n";
-    scriptContents += "set WDI_EXIT=%ERRORLEVEL%\r\n";
-    scriptContents += "echo LIBWDI_EXIT_CODE=%WDI_EXIT% >> \"" + logForCmd + "\"\r\n";
-    scriptContents += "exit /b %WDI_EXIT%\r\n";
-    script.write(scriptContents);
-    script.close();
-
-    const QString arguments = QStringLiteral("/d /c \"\"%1\"\"").arg(QDir::toNativeSeparators(scriptPath));
-    std::wstring argumentsWide = arguments.toStdWString();
-    SHELLEXECUTEINFOW executeInfo{};
-    executeInfo.cbSize = sizeof(executeInfo);
-    executeInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
-    executeInfo.lpVerb = L"runas";
-    executeInfo.lpFile = L"cmd.exe";
-    executeInfo.lpParameters = argumentsWide.c_str();
-    executeInfo.nShow = SW_HIDE;
-    if (!::ShellExecuteExW(&executeInfo)) {
-        const DWORD shellError = ::GetLastError();
-        appendLog(QStringLiteral("ShellExecuteExW failed: %1 (0x%2)")
-            .arg(QString::number(shellError))
-            .arg(QString::number(shellError, 16).toUpper()));
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u4ee5\u7ba1\u7406\u5458\u6743\u9650\u542f\u52a8 WinUSB \u9a71\u52a8\u5b89\u88c5\u3002\n\n\u65e5\u5fd7\uff1a") + effectiveLogPath;
-        }
-        QFile::remove(scriptPath);
-        return false;
-    }
-
-    const DWORD waitResult = ::WaitForSingleObject(executeInfo.hProcess, 120000);
-    DWORD exitCode = ERROR_TIMEOUT;
-    if (waitResult == WAIT_OBJECT_0) {
-        if (!::GetExitCodeProcess(executeInfo.hProcess, &exitCode)) {
-            exitCode = ::GetLastError();
-            appendLog(QStringLiteral("GetExitCodeProcess failed: %1 (0x%2)")
-                .arg(QString::number(exitCode))
-                .arg(QString::number(exitCode, 16).toUpper()));
-        }
-    } else {
-        appendLog(QStringLiteral("WaitForSingleObject result=%1").arg(QString::number(waitResult)));
-    }
-    ::CloseHandle(executeInfo.hProcess);
-    appendLog(QStringLiteral("Helper exit code=%1 (0x%2)")
-        .arg(QString::number(exitCode))
-        .arg(QString::number(exitCode, 16).toUpper()));
-    QFile::remove(scriptPath);
-    if (waitResult != WAIT_OBJECT_0 || exitCode != ERROR_SUCCESS) {
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"WinUSB \u9a71\u52a8\u5b89\u88c5\u5931\u8d25\uff08\u9000\u51fa\u7801 ") +
-                QString::number(static_cast<qulonglong>(exitCode)) +
-                QString::fromWCharArray(L"\uff0c0x") +
-                QString::number(static_cast<qulonglong>(exitCode), 16).toUpper() +
-                QString::fromWCharArray(L"\uff09\u3002\n\n\u65e5\u5fd7\uff1a") + effectiveLogPath;
-            *errorMessage += QString::fromWCharArray(
-                L"\n\n\u8bf7\u67e5\u770b\u65e5\u5fd7\u4e2d\u7684 libwdi \u5b89\u88c5\u8be6\u7ec6\u8f93\u51fa\u3002");
-        }
-        return false;
-    }
-    return true;
-}
-
 bool MainWindow::Initialize() {
     setupUi();
     registerUsbDeviceNotifications();
+    std::wstring agentError;
+    if (!AgentService::Uninstall(&agentError)) {
+        ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", L"Legacy Agent cleanup: " + agentError);
+    }
+    if (!AgentService::RecoverFrontendConfig(appPaths_.configPath())) {
+        ddRuntimeService_.LogRuntimeError(
+            L"dd-runtime.log", L"Legacy Agent configuration recovery failed; startup canceled.");
+        AppMessageDialog::warning(this,
+            QString::fromWCharArray(L"\u914d\u7f6e\u6062\u590d\u5931\u8d25"),
+            QString::fromWCharArray(
+                L"\u65e0\u6cd5\u5c06\u65e7\u540e\u53f0\u914d\u7f6e\u6062\u590d\u5230\u7a0b\u5e8f\u76ee\u5f55\u3002"
+                L"\u539f\u914d\u7f6e\u4e0e\u5907\u4efd\u5df2\u4fdd\u7559\uff0c\u672c\u6b21\u542f\u52a8\u5df2\u53d6\u6d88\u3002"
+                L"\u8bf7\u68c0\u67e5\u7a0b\u5e8f\u76ee\u5f55\u7684\u5199\u5165\u6743\u9650\u548c\u78c1\u76d8\u7a7a\u95f4\u540e\u91cd\u8bd5\u3002"));
+        return false;
+    }
     configCoordinator_.load();
-    config_.backgroundAutoRun = false;
-    configCoordinator_.save(false, 500);
-    initializeAgentHandoff();
+    if (config_.backgroundAutoRun) {
+        config_.backgroundAutoRun = false;
+        configCoordinator_.save(false, 500);
+    }
     soundService_.warmUpToggleSounds(
         config_.customSoundOn,
         config_.customSoundOff,
         config_.macroSoundOn,
         config_.macroSoundOff);
-    // Keep the selected HID mode on startup. A transient HID failure must not
-    // silently switch the user's configuration to legacy DD.
-    if (!loadConfiguredDriver(false)) {
+    if (!loadConfiguredDriver()) {
         logDriverUnavailableOnce();
     }
     usbHeartbeatTimer_.start();
@@ -600,9 +425,6 @@ bool MainWindow::loadConfiguredDriver(bool allowHidFallbackToLegacy) {
 }
 
 bool MainWindow::loadHidDriver() {
-    inputDriver_.ReleaseAll();
-    inputDriver_.ClearAllStates();
-    inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
@@ -637,31 +459,11 @@ bool MainWindow::loadHidDriver() {
 }
 
 bool MainWindow::loadLegacyDriver() {
-    inputDriver_.ReleaseAll();
-    inputDriver_.ClearAllStates();
-    inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
-    if (!ensureLegacyDdInfInstalled()) {
-        return false;
-    }
-
-    bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
-    if (!loaded) {
-        // Resume can leave the INF services reporting ready while the runtime
-        // handles are still stale. The repair helper probes the runtime first,
-        // then refreshes or rebuilds the device instances only when needed.
-        std::wstring repairMessage;
-        loaded = ddRuntimeService_.RepairEmbeddedInfDriver(
-            [this]() {
-                return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
-            },
-            &repairMessage);
-        if (!loaded && !repairMessage.empty()) {
-            driverStatusNote_ = repairMessage;
-        }
-    }
+    ensureLegacyDdInfInstalled();
+    const bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
     if (loaded) {
         inputDriver_.SetDriver(&driver_);
     }
@@ -669,9 +471,6 @@ bool MainWindow::loadLegacyDriver() {
 }
 
 bool MainWindow::loadCh552UsbDriver() {
-    inputDriver_.ReleaseAll();
-    inputDriver_.ClearAllStates();
-    inputDriver_.SetDriver(nullptr);
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
@@ -688,29 +487,6 @@ bool MainWindow::loadCh552UsbDriver() {
         inputDriver_.SetDriver(nullptr);
     }
     return loaded;
-}
-
-bool MainWindow::initializeAgentHandoff() {
-    // USB background Agent is temporarily disabled; remove any previous installation.
-    config_.backgroundAutoRun = false;
-    AgentService::Uninstall(nullptr);
-    return true;
-}
-
-void MainWindow::setBackgroundAutoRun(bool enabled) {
-    Q_UNUSED(enabled);
-    config_.backgroundAutoRun = false;
-    configCoordinator_.save(false, 500);
-    initializeAgentHandoff();
-    if (auto* page = view_.driverPage()) {
-        page->setBackgroundAutoRun(false);
-        page->setBackgroundAutoRunAvailable(false);
-    }
-}
-
-void MainWindow::repairAgent() {
-    initializeAgentHandoff();
-    refreshDriverStatusUi();
 }
 
 void MainWindow::registerUsbDeviceNotifications() {
@@ -776,29 +552,15 @@ bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* erro
         return false;
     }
 
-    if (targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
-        return true;
-    }
-
-    std::wstring repairMessage;
-    if (ddRuntimeService_.RepairEmbeddedInfDriver(
-            [&targetDriver, this]() {
-                return targetDriver.LoadFromDirectory(appPaths_.exeDir(), false);
-            },
-            &repairMessage)) {
-        return true;
-    }
-
-    if (errorMessage) {
-        *errorMessage = targetDriver.GetLastError();
-        if (!repairMessage.empty()) {
-            if (!errorMessage->empty()) *errorMessage += L"; ";
-            *errorMessage += L"INF repair=" + repairMessage;
+    if (!targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
+        if (errorMessage) {
+            *errorMessage = targetDriver.GetLastError();
         }
+        targetDriver.ReleaseAll();
+        targetDriver.Unload();
+        return false;
     }
-    targetDriver.ReleaseAll();
-    targetDriver.Unload();
-    return false;
+    return true;
 }
 
 bool MainWindow::canLoadCh552UsbDriver(std::wstring* errorMessage) {
@@ -894,7 +656,6 @@ void MainWindow::refreshDriverStatusUi() {
     }
 
     page->setDriverMode(config_.driverMode);
-    page->setBackgroundAutoRun(false);
     const auto status = ddRuntimeService_.Inspect(driver_);
 
     QString summary = activeInputDriverReady()
@@ -912,7 +673,7 @@ void MainWindow::refreshDriverStatusUi() {
     const bool hidUninstallAvailable = status.hidServiceInstalled || status.hidServicePendingDelete ||
         status.hidSysInstalled || status.hidDriverStorePresent ||
         status.hidRootDeviceOk || status.hidChildDeviceOk;
-    page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable, isUsbDriverUpdateAvailable());
+    page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable);
 
     std::wstringstream detail;
     detail << L"\u914d\u7f6e\u9a71\u52a8: ";
@@ -924,7 +685,6 @@ void MainWindow::refreshDriverStatusUi() {
     const std::wstring usbPortName = usbCommunicationReady
         ? ch552Driver_.PortName()
         : Ch552UsbDriver::DetectPortName();
-    page->setBackgroundAutoRunAvailable(false);
     detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
     detail << L"USB \u901a\u4fe1: ";
     if (usbCommunicationReady) {
@@ -972,11 +732,6 @@ void MainWindow::refreshDriverStatusUi() {
         }
     }
     page->setDetailText(QString::fromStdWString(detail.str()));
-}
-
-bool MainWindow::isUsbDriverUpdateAvailable() const {
-    // Firmware rollout is paused until the current CH552 release is verified.
-    return false;
 }
 
 DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
@@ -1069,9 +824,9 @@ void MainWindow::prepareDriverUninstall(DriverMode mode) {
 
     if ((mode == DriverMode::Hid && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) ||
         (mode == DriverMode::Legacy && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy)) {
-        inputDriver_.SetDriver(nullptr);
         driver_.ReleaseAll();
         driver_.Unload();
+        inputDriver_.SetDriver(nullptr);
     }
 }
 
@@ -1089,265 +844,6 @@ void MainWindow::finalizeDriverUninstall(DriverMode mode) {
     }
     engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
-}
-
-void MainWindow::updateUsbDriver(bool requireConfirmation) {
-    // Keep the old updater implementation available for a later release, but do not expose it now.
-    Q_UNUSED(requireConfirmation);
-    return;
-
-    QFile firmware(kEmbeddedUsbFirmwareResource);
-    QFile updater(kEmbeddedUsbUpdaterResource);
-    QFile winUsbInstaller(QStringLiteral(":/firmware/updater/xiaoji-winusb-installer.exe"));
-    if (!firmware.exists() || !updater.exists() || !winUsbInstaller.exists()) {
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u7a0b\u5e8f\u5185\u7f6e\u7684 USB \u56fa\u4ef6\u66f4\u65b0\u6587\u4ef6\u4e0d\u5b58\u5728\u3002"));
-        return;
-    }
-
-    if (requireConfirmation) {
-        const bool confirmed = ConfigConfirmDialog::confirm(
-            this,
-            QString::fromWCharArray(L"\u66f4\u65b0 USB \u56fa\u4ef6"),
-            QString::fromWCharArray(L"\u5c06\u81ea\u52a8\u66f4\u65b0 USB \u8bbe\u5907\u56fa\u4ef6\u3002\u66f4\u65b0\u8fc7\u7a0b\u4e2d\u8bf7\u4e0d\u8981\u62d4\u51fa USB\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
-            QString::fromWCharArray(L"\u66f4\u65b0"));
-        if (!confirmed) {
-            return;
-        }
-    }
-
-    inputHook_.setDialogOpen(true);
-    suppressAutoPlay_ = true;
-    auto* progressDialog = new DriverProgressDialog(
-        QString::fromWCharArray(L"\u66f4\u65b0 USB \u56fa\u4ef6"),
-        QString::fromWCharArray(L"\u6b63\u5728\u51c6\u5907 USB \u8bbe\u5907..."),
-        this);
-    progressDialog->show();
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-
-    engineStateCoordinator_.setRepeatRunning(false);
-    macroEngine_.StopAll();
-    inputDriver_.ReleaseAll();
-    inputDriver_.ClearAllStates();
-
-    if (!ch552Driver_.IsReady() && !loadCh552UsbDriver()) {
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u7684 USB \u8bbe\u5907\u3002\u8bf7\u786e\u8ba4\u8bbe\u5907\u5df2\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\uff0c\u7136\u540e\u91cd\u8bd5\u3002"));
-        refreshDriverStatusUi();
-        return;
-    }
-
-    const std::wstring sourceFirmwareVersion = ch552Driver_.FirmwareVersion();
-    const std::wstring sourcePortName = ch552Driver_.PortName();
-
-    QTemporaryDir updateDirectory(QDir::tempPath() + QStringLiteral("/XiaoJiUsbUpdate-XXXXXX"));
-    QString preparationError;
-    const QString firmwarePath = updateDirectory.filePath(QStringLiteral("xiaoji_usb.hex"));
-    const QString updaterPath = updateDirectory.filePath(QStringLiteral("usb-updater.exe"));
-    const QString winUsbInstallerPath = updateDirectory.filePath(QStringLiteral("xiaoji-winusb-installer.exe"));
-    const QString winUsbDriverPath = updateDirectory.filePath(QStringLiteral("winusb-driver"));
-    const bool updateFilesReady = updateDirectory.isValid() &&
-        extractResource(QStringLiteral(":/firmware/xiaoji_usb.hex"), firmwarePath, &preparationError) &&
-        extractResource(QStringLiteral(":/firmware/updater/usb-updater.exe"), updaterPath, &preparationError) &&
-        extractResource(QStringLiteral(":/firmware/updater/CH375DLL.dll"), updateDirectory.filePath(QStringLiteral("CH375DLL.dll")), &preparationError) &&
-        extractResource(QStringLiteral(":/firmware/updater/libusb-1.0.dll"), updateDirectory.filePath(QStringLiteral("libusb-1.0.dll")), &preparationError) &&
-        extractResource(QStringLiteral(":/firmware/updater/libgcc_s_sjlj-1.dll"), updateDirectory.filePath(QStringLiteral("libgcc_s_sjlj-1.dll")), &preparationError) &&
-        extractResource(QStringLiteral(":/firmware/updater/xiaoji-winusb-installer.exe"), winUsbInstallerPath, &preparationError);
-    if (!updateFilesReady) {
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            preparationError.isEmpty()
-                ? QString::fromWCharArray(L"\u65e0\u6cd5\u51c6\u5907 USB \u56fa\u4ef6\u66f4\u65b0\u6587\u4ef6\u3002")
-                : preparationError);
-        refreshDriverStatusUi();
-        return;
-    }
-
-    const QString winUsbLogPath = QString::fromStdWString(
-        (appPaths_.logsDir() / L"winusb-install.log").wstring());
-    QString winUsbError;
-    if (!installWinUsbBootloaderDriver(winUsbInstallerPath, winUsbDriverPath, winUsbLogPath, &winUsbError)) {
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(L"\u56fa\u4ef6\u66f4\u65b0\u6240\u9700\u7684 Windows USB \u7ec4\u4ef6\u5b89\u88c5\u672a\u5b8c\u6210\u3002\u8bf7\u5141\u8bb8\u7ba1\u7406\u5458\u6388\u6743\u540e\u91cd\u8bd5\u3002\n\n") + winUsbError);
-        return;
-    }
-
-    const auto updateRequestResult = ch552Driver_.EnterBootloaderForUpdate();
-    if (updateRequestResult == Ch552UsbDriver::UpdateRequestResult::Failed) {
-        const QString error = QString::fromStdWString(ch552Driver_.GetLastError());
-        ddRuntimeService_.LogRuntimeError(
-            L"usb-update.log",
-            L"Firmware update request failed. source_firmware=" + sourceFirmwareVersion +
-                L", source_port=" + sourcePortName +
-                L", error=" + error.toStdWString());
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(
-                L"USB \u8bbe\u5907\u672a\u63a5\u53d7\u56fa\u4ef6\u66f4\u65b0\u8bf7\u6c42\u3002\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\u3002\n\n"
-                L"\u8be6\u7ec6\u4fe1\u606f\u5df2\u5199\u5165 logs \u76ee\u5f55\u3002"));
-        refreshDriverStatusUi();
-        return;
-    }
-    const bool updateRequestAcknowledged =
-        updateRequestResult == Ch552UsbDriver::UpdateRequestResult::Acknowledged;
-
-    inputDriver_.SetDriver(nullptr);
-    progressDialog->setMessage(QString::fromWCharArray(L"\u6b63\u5728\u7b49\u5f85 USB \u8fdb\u5165\u66f4\u65b0\u6a21\u5f0f..."));
-    QElapsedTimer bootloaderTimer;
-    bootloaderTimer.start();
-    bool bootloaderPresent = false;
-    while (bootloaderTimer.elapsed() < 10000) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        if (isUsbDevicePresent(kCh552BootloaderVidPid)) {
-            bootloaderPresent = true;
-            break;
-        }
-        QThread::msleep(100);
-    }
-    if (!bootloaderPresent) {
-        ddRuntimeService_.LogRuntimeError(
-            L"usb-update.log",
-            L"Firmware update mode was not detected after the request was sent.\n"
-                L"request_acknowledged=" +
-                (updateRequestAcknowledged ? std::wstring(L"1") : std::wstring(L"0")) +
-                L", source_firmware=" + sourceFirmwareVersion +
-                L", source_port=" + sourcePortName +
-                L", normal_device_present=" +
-                (isUsbDevicePresent(kXiaoJiUsbVidPid) ? std::wstring(L"1") : std::wstring(L"0")));
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        engineHookCoordinator_.refreshState();
-        refreshDriverStatusUi();
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            QString::fromWCharArray(
-                L"\u56fa\u4ef6\u66f4\u65b0\u8bf7\u6c42\u5df2\u53d1\u9001\uff0c\u4f46 Windows \u672a\u80fd\u8bc6\u522b\u8bbe\u5907\u7684\u66f4\u65b0\u6a21\u5f0f\u3002\n\n"
-                L"\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\uff0c\u4e0d\u8981\u4f7f\u7528 USB \u6269\u5c55\u575e\u6216\u96c6\u7ebf\u5668\u3002\n\n"
-                L"\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002"));
-        return;
-    }
-
-    progressDialog->setMessage(QString::fromWCharArray(L"\u6b63\u5728\u5199\u5165 USB \u8bbe\u5907\u56fa\u4ef6..."));
-    QProcess updateProcess;
-    updateProcess.setWorkingDirectory(updateDirectory.path());
-    updateProcess.setProcessChannelMode(QProcess::MergedChannels);
-#ifdef Q_OS_WIN
-    updateProcess.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* arguments) {
-        arguments->flags |= CREATE_NO_WINDOW;
-    });
-#endif
-    updateProcess.setProgram(updaterPath);
-    updateProcess.setArguments({
-        QStringLiteral("-r"), QStringLiteral("10"),
-        QStringLiteral("-t"), QStringLiteral("CH552"),
-        QStringLiteral("-c"), QStringLiteral("3"),
-        firmwarePath
-    });
-    updateProcess.start();
-    const bool updaterStarted = updateProcess.waitForStarted(3000);
-    QElapsedTimer updateTimer;
-    updateTimer.start();
-    while (updaterStarted && updateProcess.state() != QProcess::NotRunning && updateTimer.elapsed() < 30000) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        updateProcess.waitForFinished(100);
-    }
-    if (updateProcess.state() != QProcess::NotRunning) {
-        updateProcess.kill();
-        updateProcess.waitForFinished(1000);
-    }
-    const QString updateOutput = QString::fromLocal8Bit(updateProcess.readAll()).trimmed();
-    const bool updateSucceeded = updaterStarted &&
-        updateProcess.exitStatus() == QProcess::NormalExit &&
-        updateProcess.exitCode() == 0;
-    if (!updateSucceeded) {
-        const bool bootloaderStillPresent = isUsbDevicePresent(kCh552BootloaderVidPid);
-        ddRuntimeService_.LogRuntimeError(
-            L"usb-update.log",
-            L"USB updater failed. started=" + std::to_wstring(updaterStarted) +
-                L", exit_code=" + std::to_wstring(updateProcess.exitCode()) +
-                L", bootloader_present=" + (bootloaderStillPresent ? std::wstring(L"1") : std::wstring(L"0")) +
-                L", request_acknowledged=" +
-                (updateRequestAcknowledged ? std::wstring(L"1") : std::wstring(L"0")) +
-                L", source_firmware=" + sourceFirmwareVersion +
-                L", source_port=" + sourcePortName + L"\n" +
-                (updateOutput.isEmpty() ? std::wstring(L"(no output)") : updateOutput.toStdWString()));
-        progressDialog->accept();
-        progressDialog->deleteLater();
-        inputHook_.setDialogOpen(false);
-        suppressAutoPlay_ = false;
-        engineHookCoordinator_.refreshState();
-        refreshDriverStatusUi();
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5931\u8d25"),
-            bootloaderStillPresent
-                ? QString::fromWCharArray(L"\u8bbe\u5907\u5df2\u8fdb\u5165\u56fa\u4ef6\u66f4\u65b0\u6a21\u5f0f\uff0c\u4f46\u56fa\u4ef6\u5199\u5165\u672a\u5b8c\u6210\u3002\u8bf7\u62d4\u51fa\u5e76\u91cd\u65b0\u63d2\u5165\u8bbe\u5907\u540e\u91cd\u8bd5\u3002\n\n\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002")
-                : QString::fromWCharArray(L"\u56fa\u4ef6\u5199\u5165\u8fc7\u7a0b\u4e2d USB \u8bbe\u5907\u5df2\u65ad\u5f00\u3002\u8bf7\u5b8c\u5168\u62d4\u51fa\u8bbe\u5907\uff0c\u7b49\u5f85 5 \u79d2\u540e\u76f4\u8fde\u7535\u8111 USB \u63a5\u53e3\u91cd\u8bd5\u3002\n\n\u5982\u679c\u4ecd\u7136\u5931\u8d25\uff0c\u8bf7\u63d0\u4f9b logs \u76ee\u5f55\u4e2d\u7684 usb-update.log \u548c winusb-install.log\u3002"));
-        return;
-    }
-
-    progressDialog->markFinished(QString::fromWCharArray(L"USB \u56fa\u4ef6\u5df2\u5199\u5165\uff0c\u6b63\u5728\u7b49\u5f85\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5..."));
-    QElapsedTimer reconnectTimer;
-    reconnectTimer.start();
-    bool reconnected = false;
-    while (reconnectTimer.elapsed() < 12000) {
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        QThread::msleep(250);
-        if (loadCh552UsbDriver()) {
-            reconnected = true;
-            break;
-        }
-    }
-
-    inputHook_.setDialogOpen(false);
-    suppressAutoPlay_ = false;
-    progressDialog->accept();
-    progressDialog->deleteLater();
-    engineHookCoordinator_.refreshState();
-    refreshDriverStatusUi();
-    refreshStatusOverlay();
-
-    const bool versionVerified = reconnected && !isUsbDriverUpdateAvailable();
-    if (versionVerified) {
-        AppMessageDialog::information(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5b8c\u6210"),
-            QString::fromWCharArray(L"USB \u8bbe\u5907\u56fa\u4ef6\u5df2\u66f4\u65b0\u5e76\u91cd\u65b0\u8fde\u63a5\u3002"));
-    } else {
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"USB \u56fa\u4ef6\u66f4\u65b0\u5f85\u786e\u8ba4"),
-            reconnected
-                ? QString::fromWCharArray(L"USB \u8bbe\u5907\u5df2\u91cd\u65b0\u8fde\u63a5\uff0c\u4f46\u56fa\u4ef6\u7248\u672c\u6821\u9a8c\u672a\u901a\u8fc7\u3002\u8bf7\u91cd\u8bd5\u66f4\u65b0\u3002")
-                : QString::fromWCharArray(L"USB \u56fa\u4ef6\u5df2\u5199\u5165\uff0c\u4f46\u6682\u672a\u7b49\u5230\u8bbe\u5907\u91cd\u65b0\u8fde\u63a5\u3002\u8bf7\u91cd\u63d2 USB \u8bbe\u5907\u3002"));
-    }
 }
 
 bool MainWindow::rebootComputer() {
@@ -1406,11 +902,6 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
 #ifdef Q_OS_WIN
     auto* msg = static_cast<MSG*>(message);
     if (msg) {
-        if (suppressAutoPlay_ && kQueryCancelAutoPlayMessage != 0 &&
-            msg->message == kQueryCancelAutoPlayMessage) {
-            if (result) *result = TRUE;
-            return true;
-        }
         if (msg->message == WM_INPUT) {
             rawInput_.handleNativeMessage(msg, result);
         }
@@ -1432,54 +923,10 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
             if (result) *result = 0;
             return true;
         case WM_DEVICECHANGE:
-            if (!suppressAutoPlay_ &&
-                isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
+            if (isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
                 usbDeviceRefreshTimer_.start(650);
             }
             break;
-        case WM_INPUT_DEVICE_CHANGE:
-            rawInput_.clearDeviceCache();
-            if (config_.driverMode == DriverMode::Hid && msg->wParam == GIDC_REMOVAL) {
-                // A device-change notification can arrive after Windows has
-                // invalidated the old Raw Input registration. Drop it now so
-                // the low-level hook remains available during recovery.
-                rawInput_.unregisterWindow();
-                engineHookCoordinator_.refreshState();
-                inputRecoveryAttempts_ = 0;
-                inputRecoveryTimer_.start();
-            } else {
-                engineHookCoordinator_.refreshState();
-            }
-            break;
-        case WM_POWERBROADCAST:
-            switch (msg->wParam) {
-            case PBT_APMSUSPEND:
-            case PBT_APMSTANDBY:
-                // Do not carry stale HID handles or pressed-key state across
-                // a suspend. The runtime is rebuilt after Windows resumes.
-                engineStateCoordinator_.setRepeatRunning(false);
-                engine_.ReleaseAll();
-                macroEngine_.StopAll();
-                inputDriver_.ReleaseAll();
-                inputDriver_.ClearAllStates();
-                inputDriver_.SetDriver(nullptr);
-                inputHook_.stop();
-                rawInput_.unregisterWindow();
-                driver_.ReleaseAll();
-                driver_.Unload();
-                ch552Driver_.Disconnect();
-                break;
-            case PBT_APMRESUMEAUTOMATIC:
-            case PBT_APMRESUMESUSPEND:
-            case PBT_APMRESUMECRITICAL:
-                inputRecoveryAttempts_ = 0;
-                inputRecoveryTimer_.start();
-                break;
-            default:
-                break;
-            }
-            if (result) *result = TRUE;
-            return true;
         case WM_THEMECHANGED:
             Fluent::Theme::refreshDarkModeCache();
             scheduleRuntimeVisualRefresh(false, true);
@@ -1539,84 +986,6 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
     Q_UNUSED(message)
 #endif
     return QMainWindow::nativeEvent(eventType, message, result);
-}
-
-void MainWindow::recoverInputAfterResume() {
-    if (systemShutdownRequested_) return;
-
-    constexpr int kMaxInputRecoveryAttempts = 5;
-    ++inputRecoveryAttempts_;
-
-    // Sleep can drop the selected HID device and leave injected keys held.
-    // Tear down the complete input pipeline before probing the runtime again.
-    engineStateCoordinator_.setRepeatRunning(false);
-    engine_.ReleaseAll();
-    macroEngine_.StopAll();
-    inputDriver_.ReleaseAll();
-    inputDriver_.ClearAllStates();
-    inputDriver_.SetDriver(nullptr);
-
-    inputHook_.stop();
-    rawInput_.unregisterWindow();
-
-    // A suspended HID instance can disappear while the service, SYS and DLL
-    // are still present. Do not immediately fall back to DD here: that path
-    // changes the saved mode and can leave both runtimes unavailable. Keep the
-    // user's HID choice and probe it again on the next recovery pass if
-    // Windows is still bringing the device back.
-    bool driverLoaded = loadConfiguredDriver(false);
-    if (!driverLoaded && config_.driverMode == DriverMode::Hid && inputRecoveryAttempts_ <= 2) {
-        std::wstring repairMessage;
-        const bool repairAccepted = ddRuntimeService_.InstallEmbeddedHidDriver(&repairMessage);
-        if (!repairMessage.empty()) {
-            ddRuntimeService_.LogRuntimeError(
-                L"dd-runtime.log",
-                L"HID resume repair attempt=" + std::to_wstring(inputRecoveryAttempts_) +
-                    L" accepted=" + (repairAccepted ? std::wstring(L"1") : std::wstring(L"0")) +
-                    L"\n" + repairMessage);
-        }
-        driverLoaded = loadConfiguredDriver(false);
-    }
-    if (driverLoaded) {
-        driverUnavailableLogged_ = false;
-    }
-
-    bool rawInputReady = false;
-    if (driverLoaded) {
-        rawInputReady = rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
-        if (!rawInputReady) {
-            // A partial RegisterRawInputDevices result must not leave the
-            // low-level hook suppressed for only one device class.
-            rawInput_.unregisterWindow();
-        }
-    } else {
-        // Never suppress the low-level hook while the selected driver is down.
-        rawInput_.unregisterWindow();
-    }
-    engineHookCoordinator_.refreshState();
-    const bool hookReady = inputHook_.start();
-
-    if (!driverLoaded || !rawInputReady || !hookReady) {
-        if (inputRecoveryAttempts_ < kMaxInputRecoveryAttempts) {
-            driverStatusNote_ = !driverLoaded
-                ? L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u9a71\u52a8\u4e0d\u53ef\u7528\uff0c\u6b63\u5728\u91cd\u8bd5\u3002"
-                : L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u94fe\u8def\u672a\u5b8c\u6210\u6062\u590d\uff0c\u6b63\u5728\u91cd\u8bd5\u3002";
-            inputRecoveryTimer_.start(1000);
-        } else {
-            driverStatusNote_ = !driverLoaded
-                ? L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u9a71\u52a8\u4e0d\u53ef\u7528\u3002"
-                : L"\u4f11\u7720\u6062\u590d\u540e\u8f93\u5165\u94fe\u8def\u6062\u590d\u5931\u8d25\u3002";
-            logDriverUnavailableOnce();
-        }
-    } else {
-        inputRecoveryAttempts_ = 0;
-        if (!driverStatusFallback_) {
-            driverStatusNote_.clear();
-        }
-    }
-
-    refreshDriverStatusUi();
-    refreshStatusOverlay();
 }
 
 void MainWindow::prepareForSystemShutdown() {
@@ -1920,7 +1289,6 @@ void MainWindow::logDriverUnavailableOnce() {
              << (status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound) << L"\n"
              << L"inf_mouse_device="
              << (status.infMouseDeviceStarted && status.infMouseDeviceBound) << L"\n"
-             << L"recovery_attempts=" << inputRecoveryAttempts_ << L"\n"
              << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
     ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
 }

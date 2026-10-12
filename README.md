@@ -212,7 +212,6 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 │   └── ch552/              # CH552 固件
 ├── third_party/
 │   ├── dd/                 # DD 驱动运行库（DD32.dll / DD64.dll / hid）
-│   ├── libwdi/             # USB 驱动安装库
 │   └── miniz/              # zip 解压库（更新功能使用）
 └── scripts/                # 构建和打包脚本
 ```
@@ -229,7 +228,6 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 
 - 本项目代码以 [GPL-3.0](./LICENSE) 协议开源
 - `third_party/miniz/`：miniz，公有领域 / MIT
-- `third_party/libwdi/`：libwdi，LGPL-3.0
 - `third_party/dd/` 下的 DD 驱动运行库为第三方闭源组件，版权归其原作者所有，仅作为运行时依赖分发
 
 ## 免责声明

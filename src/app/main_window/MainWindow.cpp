@@ -256,31 +256,6 @@ private:
     QPoint dragStartFrame_;
 };
 
-bool extractResource(const QString& resourcePath, const QString& targetPath, QString* errorMessage) {
-    QFile source(resourcePath);
-    if (!source.open(QIODevice::ReadOnly)) {
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u8bfb\u53d6\u5185\u7f6e\u66f4\u65b0\u6587\u4ef6\uff1a") + resourcePath;
-        }
-        return false;
-    }
-
-    QFile target(targetPath);
-    if (!target.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u521b\u5efa\u4e34\u65f6\u66f4\u65b0\u6587\u4ef6\uff1a") + target.errorString();
-        }
-        return false;
-    }
-    if (target.write(source.readAll()) < 0) {
-        if (errorMessage) {
-            *errorMessage = QString::fromWCharArray(L"\u65e0\u6cd5\u5199\u5165\u4e34\u65f6\u66f4\u65b0\u6587\u4ef6\uff1a") + target.errorString();
-        }
-        return false;
-    }
-    return true;
-}
-
 }
 
 MainWindow::MainWindow(QWidget* parent)

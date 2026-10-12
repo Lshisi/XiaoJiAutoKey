@@ -45,6 +45,20 @@ void MainWindow::setupUi() {
         [this]() { return macroController_.activeMacro(); },
         [this]() { view_.updateFactionVisuals(this); }
     });
+
+    updateCoordinator_.bind(UpdateCoordinator::Context{
+        view_.aboutPage(),
+        view_.keyPage(),
+        &updateService_,
+        &config_,
+        [this]() { configCoordinator_.save(); },
+        [this](const QString& stagingDir) { applyStagedUpdateAndRestart(stagingDir); },
+        [this]() {
+            view_.sidebar()->setCurrentPage(QStringLiteral("about"));
+            view_.navigateTo(QStringLiteral("about"));
+        }
+    });
+
     connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
         if (pageId == QStringLiteral("driver")) {

@@ -134,6 +134,9 @@ struct AppConfig {
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Legacy;
     std::string faction = "cangjian";
+    // Latest version seen through a manual update check; only used to keep
+    // the update badge visible across restarts. Never triggers a check.
+    std::string latestKnownVersion;
 
     std::wstring customSoundOn;
     std::wstring customSoundOff;

@@ -3,6 +3,7 @@
 #include "DdDriver.h"
 #include "services/AppPaths.h"
 #include "services/DdRuntimeService.h"
+#include "services/UpdateService.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QApplication>
@@ -13,8 +14,10 @@
 #include <QCoreApplication>
 #include <QFont>
 #include <QGuiApplication>
+#include <QObject>
 #include <QStringList>
 #include <QStyleFactory>
+#include <QTimer>
 #include <QtPlugin>
 
 #include <Windows.h>
@@ -158,6 +161,27 @@ void WriteText(std::ostringstream& out, const char* key, const std::string& valu
     out << key << "=" << value << "\n";
 }
 
+constexpr wchar_t kSingleInstanceMutexName[] = L"XiaoJiAutoKey_SingleInstance_Mutex";
+constexpr wchar_t kActivateWindowEventName[] = L"XiaoJiAutoKey_Activate_Event";
+
+// Ask the already-running instance to surface its main window. The instance
+// that owns the single-instance mutex creates the activation event while it is
+// still initializing, so a short retry covers the startup race. Returns false
+// only when no running instance could be reached.
+bool SignalRunningInstanceToShowWindow() {
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        HANDLE activateEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, kActivateWindowEventName);
+        if (activateEvent) {
+            AllowSetForegroundWindow(ASFW_ANY);
+            const BOOL signaled = SetEvent(activateEvent);
+            CloseHandle(activateEvent);
+            return signaled != FALSE;
+        }
+        Sleep(100);
+    }
+    return false;
+}
+
 }  // namespace
 
 int main(int argc, char *argv[]) {
@@ -231,7 +255,17 @@ int main(int argc, char *argv[]) {
     }
 
     if (args.contains(QStringLiteral("--restart-wait"))) {
-        Sleep(1500);
+        // Wait until the previous instance has fully released the
+        // single-instance mutex before contending for it, so a restart or an
+        // in-place update relaunch cannot lose the race and exit early.
+        for (int attempt = 0; attempt < 100; ++attempt) {
+            HANDLE existingMutex = OpenMutexW(SYNCHRONIZE, FALSE, kSingleInstanceMutexName);
+            if (!existingMutex) {
+                break;
+            }
+            WaitForSingleObject(existingMutex, 100);
+            CloseHandle(existingMutex);
+        }
     }
 
     if (args.contains(QStringLiteral("--agent"))) {
@@ -239,12 +273,20 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    HANDLE hMutex = CreateMutexW(nullptr, TRUE, L"XiaoJiAutoKey_SingleInstance_Mutex");
+    HANDLE hMutex = CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
-        MessageBoxW(nullptr, L"\u5c0f\u53fd\u6309\u952e\u5df2\u5728\u8fd0\u884c\u4e2d\uff0c\u8bf7\u52ff\u91cd\u590d\u6253\u5f00\u3002", L"\u63d0\u793a", MB_OK | MB_ICONINFORMATION);
+        if (!SignalRunningInstanceToShowWindow()) {
+            MessageBoxW(nullptr, L"\u5c0f\u53fd\u6309\u952e\u5df2\u5728\u8fd0\u884c\u4e2d\uff0c\u8bf7\u52ff\u91cd\u590d\u6253\u5f00\u3002", L"\u63d0\u793a", MB_OK | MB_ICONINFORMATION);
+        }
         return 0;
     }
+
+    HANDLE activateEvent = CreateEventW(nullptr, FALSE, FALSE, kActivateWindowEventName);
+
+    // Remove leftovers from an in-place update (renamed old exe and staging
+    // directory); performs no network access.
+    UpdateService::cleanupPreviousUpdateArtifacts();
 
     PreserveTimerResolution();
     timeBeginPeriod(1);
@@ -265,14 +307,32 @@ int main(int argc, char *argv[]) {
     MainWindow window;
     if (!window.Initialize()) {
         timeEndPeriod(1);
+        if (activateEvent) CloseHandle(activateEvent);
         if (hMutex) CloseHandle(hMutex);
         return 0;
     }
     window.ShowForStartup();
 
+    // A second launch signals the activation event instead of showing a
+    // message box; poll it here and bring the window back to the foreground,
+    // also when it is currently hidden in the tray.
+    QTimer activationTimer(&window);
+    activationTimer.setInterval(150);
+    QObject::connect(&activationTimer, &QTimer::timeout, &window, [&window, activateEvent]() {
+        if (!activateEvent || WaitForSingleObject(activateEvent, 0) != WAIT_OBJECT_0) {
+            return;
+        }
+        window.showNormal();
+        window.raise();
+        window.activateWindow();
+    });
+    activationTimer.start();
+
     const int result = app.exec();
 
+    activationTimer.stop();
     timeEndPeriod(1);
+    if (activateEvent) CloseHandle(activateEvent);
     if (hMutex) CloseHandle(hMutex);
     return result;
 }

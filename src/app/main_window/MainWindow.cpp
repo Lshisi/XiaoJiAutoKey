@@ -295,7 +295,9 @@ MainWindow::MainWindow(QWidget* parent)
       rawInput_(this),
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
       soundService_(appPaths_.exeDir()),
-      statusOverlay_(nullptr) {
+      statusOverlay_(nullptr),
+      updateService_(this),
+      updateCoordinator_(this) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
     connect(&runtimeVisualRefreshTimer_, &QTimer::timeout, this, [this]() {
         applyRuntimeVisualRefresh();
@@ -346,6 +348,7 @@ bool MainWindow::Initialize() {
         return false;
     }
     configCoordinator_.load();
+    updateCoordinator_.restoreBadgeFromConfig();
     if (config_.backgroundAutoRun) {
         config_.backgroundAutoRun = false;
         configCoordinator_.save(false, 500);
@@ -854,6 +857,46 @@ bool MainWindow::rebootComputer() {
         QStringLiteral("/f")
     };
     return QProcess::startDetached(program, arguments, QCoreApplication::applicationDirPath());
+}
+
+void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
+    // Stop the running sessions and unload the driver DLLs so the package
+    // files next to the exe can be replaced.
+    (void)engineStateCoordinator_.setRepeatRunningFast(false);
+    macroEngine_.StopAll();
+    inputDriver_.ReleaseAll();
+    inputDriver_.ClearAllStates();
+    inputDriver_.SetDriver(nullptr);
+    driver_.ReleaseAll();
+    driver_.Unload();
+    ch552Driver_.Disconnect();
+
+    QString error;
+    if (!UpdateService::applyStagedUpdate(stagingDir, &error)) {
+        // Best effort: bring the driver back so the application stays usable.
+        if (!loadConfiguredDriver(false)) {
+            logDriverUnavailableOnce();
+        }
+        refreshDriverStatusUi();
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"\u66f4\u65b0\u5931\u8d25"),
+            error + QString::fromWCharArray(
+                L"\u3002\u4e5f\u53ef\u524d\u5f80\u5f00\u6e90\u4ed3\u5e93\u624b\u52a8\u4e0b\u8f7d\u6700\u65b0\u7248\u672c\u3002"));
+        return;
+    }
+
+    suppressDdUnavailablePrompt_ = true;
+    const QString program = QCoreApplication::applicationFilePath();
+    const QStringList arguments = { QStringLiteral("--restart-wait") };
+    if (!QProcess::startDetached(program, arguments, QCoreApplication::applicationDirPath())) {
+        AppMessageDialog::warning(
+            this,
+            QString::fromWCharArray(L"\u66f4\u65b0\u5b8c\u6210"),
+            QString::fromWCharArray(
+                L"\u65b0\u7248\u672c\u5df2\u5c31\u7eea\uff0c\u4f46\u65e0\u6cd5\u81ea\u52a8\u91cd\u542f\uff0c\u8bf7\u624b\u52a8\u6253\u5f00\u5c0f\u53fd\u6309\u952e\u3002"));
+    }
+    QCoreApplication::quit();
 }
 
 bool MainWindow::restartApplication(const QString& reasonMessage) {

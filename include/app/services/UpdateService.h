@@ -1,0 +1,65 @@
+#pragma once
+
+#include <QByteArray>
+#include <QObject>
+#include <QString>
+
+#include <atomic>
+#include <functional>
+#include <mutex>
+#include <thread>
+
+// Manual update checks against the Gitee releases of the open-source
+// repository. Nothing here runs on its own: every network request must be
+// triggered explicitly by the user from the about page; the application never
+// checks for updates automatically.
+class UpdateService : public QObject {
+    Q_OBJECT
+
+public:
+    explicit UpdateService(QObject* parent = nullptr);
+    ~UpdateService() override;
+
+    UpdateService(const UpdateService&) = delete;
+    UpdateService& operator=(const UpdateService&) = delete;
+
+    // Fetches the release list and reports the newest version. Runs on a
+    // worker thread; results are delivered via checkFinished.
+    void checkForUpdate();
+
+    // Downloads the release asset and unpacks it into a staging directory.
+    // Results are delivered via downloadProgress / stageFinished.
+    void downloadAndStageUpdate(const QString& assetUrl, const QString& version);
+
+    // Replaces the installation next to the running exe with a previously
+    // staged package. The caller must stop the engines and unload the input
+    // driver DLLs first; on failure the previous executable is restored.
+    [[nodiscard]] static bool applyStagedUpdate(const QString& stagingDir, QString* errorMessage);
+
+    // Removes leftovers from earlier updates (renamed old exe and staging
+    // directory). Safe to call on every startup; performs no network access.
+    static void cleanupPreviousUpdateArtifacts();
+
+    [[nodiscard]] static bool isVersionNewer(const QString& candidate, const QString& reference);
+    [[nodiscard]] static QString normalizedVersion(const QString& version);
+    [[nodiscard]] static QString releasePageUrl();
+
+signals:
+    void checkFinished(bool ok, const QString& message, bool hasUpdate,
+        const QString& latestVersion, const QString& assetUrl);
+    void downloadProgress(qint64 received, qint64 total);
+    void stageFinished(bool ok, const QString& message, const QString& stagingDir);
+
+private:
+    struct SessionGuard;
+
+    bool fetchUrl(const QString& url, const std::function<bool(qint64, qint64)>& onProgress,
+        QByteArray* body, unsigned long* statusCode, QString* error);
+    void runWorker(std::function<void()> job);
+
+    std::thread worker_;
+    std::atomic<bool> workerBusy_{false};
+    std::mutex sessionMutex_;
+    void* session_ = nullptr;      // HINTERNET, kept as void* to avoid Windows.h here
+    bool sessionClosed_ = false;   // set by the destructor to abort in-flight work
+};

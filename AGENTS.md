@@ -32,6 +32,22 @@
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build --config Release --target XiaoJiAutoKey
 ```
 
+# 发布流程（线上更新）
+
+项目开源在 `gitee.com/fourteen-fourteen/xiao-ji-auto-key`（GPL-3.0）。程序内"软件更新"功能的数据源是 Gitee Releases（基于 git tag），更新逻辑见 `src/app/services/UpdateService.cpp`。发布新版本时：
+
+1. 提升 `CMakeLists.txt` 里 `project(XiaoJiAutoKey VERSION x.y.z)` 的版本号（`APP_VERSION` 宏由它生成），并在 `README.md` 版本历史里添加对应条目、更新"当前版本"标记。
+2. 用 `scripts/package-release.ps1` 打包（产物为 `dist/XiaoJiAutoKey.zip`，内部有顶层 `XiaoJiAutoKey/` 目录）。
+3. 在仓库打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致）。
+4. 在 Gitee 上基于该 tag 创建"发行版（Release）"，并把 `XiaoJiAutoKey.zip` 重命名后（建议 `XiaoJiAutoKey-vx.y.z.zip`）作为附件上传。附件的下载地址形如 `.../releases/download/...`，程序只把这种附件当作可用的更新包；Gitee 自动生成的源码包（`/archive/refs/tags/...`）会被忽略。
+5. 更新包约束：必须是 zip；顶层目录（如有）会被自动剥掉；`config.json` 永远不会被更新包覆盖；PowerShell 5.1 生成的反斜杠路径条目和 GBK 文件名条目都能被解压逻辑兼容。
+
+注意事项：
+
+- 更新检查**只在用户于关于页手动点击"检查更新"时发生**，启动、运行、关机都不能触发联网检查；首页"有新版本"标签只读取 `config.json` 里的 `latestKnownVersion`，不允许为了它发请求。
+- 不做强制弹窗、不做强制更新；所有更新动作（检查、下载、重启安装）都由用户主动点击触发。
+- 程序内更新流程：下载 zip 到 `%TEMP%\XiaoJiAutoKeyUpdate` → miniz 解压校验 → 用户点"立即重启更新" → 停引擎、卸载驱动 → 运行中的 exe 改名为 `XiaoJiAutoKey.old.exe` → 覆盖安装目录 → 以 `--restart-wait` 拉起新实例并退出。新实例启动时会自动清理 `.old.exe` 和暂存目录。
+
 # UI 规则
 
 ## 深色模式

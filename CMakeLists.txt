@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.1.5 LANGUAGES CXX)
+project(XiaoJiAutoKey VERSION 1.1.6 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,6 +56,8 @@ set(MOC_HEADERS
     src/ui/pages/DriverPage.h
     src/ui/pages/SettingsPage.h
     src/ui/pages/AboutPage.h
+    include/app/coordinators/UpdateCoordinator.h
+    include/app/services/UpdateService.h
 )
 
 qt5_wrap_cpp(MOC_SOURCES ${MOC_HEADERS})
@@ -153,6 +155,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/coordinators/CloseCoordinator.h
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
+    include/app/coordinators/UpdateCoordinator.h
     include/app/controllers/MacroController.h
     include/app/widgets/StatusOverlayWindow.h
     include/app/MainWindow.h
@@ -161,6 +164,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/services/AppPaths.h
     include/app/services/DdRuntimeService.h
     include/app/services/SoundService.h
+    include/app/services/UpdateService.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/ConfigConfirmDialog.h
@@ -192,6 +196,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/coordinators/CloseCoordinator.cpp
     src/app/coordinators/ConfigCoordinator.cpp
     src/app/coordinators/EngineStateCoordinator.cpp
+    src/app/coordinators/UpdateCoordinator.cpp
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
     src/app/main.cpp
@@ -203,6 +208,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/services/AppPaths.cpp
     src/app/services/DdRuntimeService.cpp
     src/app/services/SoundService.cpp
+    src/app/services/UpdateService.cpp
     src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
@@ -222,6 +228,11 @@ add_executable(XiaoJiAutoKey WIN32
     ${UI_PAGE_HEADERS}
     ${MOC_SOURCES}
     ${RESOURCE_SOURCES}
+    # miniz (public domain / MIT) - used to unpack downloaded update archives.
+    third_party/miniz/miniz.c
+    third_party/miniz/miniz_tdef.c
+    third_party/miniz/miniz_tinfl.c
+    third_party/miniz/miniz_zip.c
     app.rc
 )
 
@@ -243,6 +254,7 @@ target_include_directories(XiaoJiAutoKey PRIVATE
     src/ui/styles
     src/ui/components
     src/ui/pages
+    third_party/miniz
 )
 
 target_compile_definitions(XiaoJiAutoKey PRIVATE
@@ -258,6 +270,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     Qt5::Svg
     shlwapi
     winmm
+    winhttp
     dwmapi
     hid
     setupapi

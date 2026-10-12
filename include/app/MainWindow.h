@@ -25,7 +25,9 @@
 #include "coordinators/CloseCoordinator.h"
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
+#include "coordinators/UpdateCoordinator.h"
 #include "services/AppPaths.h"
+#include "services/UpdateService.h"
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
@@ -84,6 +86,7 @@ private:
     void registerUsbDeviceNotifications();
     void unregisterUsbDeviceNotifications();
     void prepareForSystemShutdown();
+    void applyStagedUpdateAndRestart(const QString& stagingDir);
 
     MainWindowView view_;
 
@@ -115,6 +118,8 @@ private:
     PageRefreshCoordinator pageRefreshCoordinator_;
     CloseCoordinator closeCoordinator_;
     EngineStateCoordinator engineStateCoordinator_;
+    UpdateService updateService_;
+    UpdateCoordinator updateCoordinator_;
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;

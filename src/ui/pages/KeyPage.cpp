@@ -124,6 +124,13 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     auto* title = new QLabel(QString::fromWCharArray(L"\u6309\u952e\u5217\u8868"), this);
     title->setFont(Fluent::Typography::pageTitle());
     headerRow->addWidget(title);
+    updateBadge_ = new QLabel(this);
+    updateBadge_->setFont(Fluent::Typography::caption());
+    updateBadge_->setCursor(Qt::PointingHandCursor);
+    updateBadge_->hide();
+    updateBadge_->installEventFilter(this);
+    headerRow->addSpacing(8);
+    headerRow->addWidget(updateBadge_);
     headerRow->addStretch();
     addBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"+  \u6dfb\u52a0\u6309\u952e"), this);
     addBtn_->setFixedHeight(28);
@@ -486,6 +493,9 @@ void KeyPage::updateThemeColors() {
         keyToolsDivider_->setStyleSheet(QString("background: %1;")
             .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     }
+    if (updateBadge_ && updateBadge_->isVisible()) {
+        applyUpdateBadgeStyle();
+    }
     beepCheck_->update();
     if (statusOverlayCheck_) statusOverlayCheck_->update();
     mixedModeCheck_->update();
@@ -504,6 +514,37 @@ void KeyPage::applyPageTheme() {
 void KeyPage::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
     pauseKeys_ = keys;
     refreshPauseKeyList();
+}
+
+void KeyPage::setUpdateBadge(const QString& version) {
+    if (!updateBadge_) {
+        return;
+    }
+    if (version.isEmpty()) {
+        updateBadge_->hide();
+        return;
+    }
+    updateBadge_->setText(QString::fromWCharArray(L"\u6709\u65b0\u7248\u672c V") + version);
+    applyUpdateBadgeStyle();
+    updateBadge_->show();
+}
+
+void KeyPage::applyUpdateBadgeStyle() {
+    if (!updateBadge_) {
+        return;
+    }
+    const auto palette = FactionTheme::instance().palette();
+    updateBadge_->setStyleSheet(QString(
+        "QLabel {"
+        "  color: %1;"
+        "  background: %2;"
+        "  border: 1px solid %3;"
+        "  border-radius: 8px;"
+        "  padding: 1px 8px;"
+        "}")
+        .arg(palette.accent.name(),
+            palette.accentSoft.name(),
+            palette.accentBorder.name()));
 }
 
 void KeyPage::refreshSequenceSwitchKey() {
@@ -737,6 +778,10 @@ void KeyPage::refreshTable() {
 }
 
 bool KeyPage::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == updateBadge_ && event->type() == QEvent::MouseButtonRelease) {
+        emit updateBadgeClicked();
+        return true;
+    }
     if (watched == hotkeyEdit_ && event->type() == QEvent::MouseButtonPress) {
         if (running_) return true;  // Ignore clicks while running
         emit hotkeyEditClicked();

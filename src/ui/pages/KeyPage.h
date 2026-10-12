@@ -33,6 +33,10 @@ public:
     void updateThemeColors();
     FluentLineEdit* hotkeyEditWidget() const { return hotkeyEdit_; }
 
+    // Shows/hides the small "update available" tag in the key list header.
+    // An empty version hides it; no network access happens here.
+    void setUpdateBadge(const QString& version);
+
     // Profile management
     void setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& profiles, std::uint64_t activeId);
 
@@ -55,6 +59,7 @@ signals:
     void pauseKeyAddClicked();
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
+    void updateBadgeClicked();
 
     // Profile signals
     void profileSwitched(quint64 profileId);
@@ -72,6 +77,7 @@ private:
     void refreshSequenceSwitchKey();
     void refreshPauseKeyList();
     void applyPageTheme();
+    void applyUpdateBadgeStyle();
 
     FluentTable* table_;
     FluentButton* addBtn_;
@@ -85,6 +91,8 @@ private:
     QCheckBox* wasdProtectionCheck_ = nullptr;
     QCheckBox* rememberSequencePositionCheck_ = nullptr;
     QWidget* sequenceStartDivider_ = nullptr;
+    QLabel* statusLabel_;
+    QLabel* updateBadge_ = nullptr;
     std::vector<KeyBinding> bindings_;
     std::optional<KeyDescriptor> sequenceSwitchKey_;
     std::vector<KeyDescriptor> pauseKeys_;

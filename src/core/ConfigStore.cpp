@@ -365,6 +365,10 @@ AppConfig ConfigStore::Load() const {
     if (config.faction.empty() || config.faction == "none")
         config.faction = "cangjian";
 
+    if (const auto latestKnownVersion = GetStringField(*object, "latestKnownVersion");
+        latestKnownVersion.has_value() && !latestKnownVersion->empty())
+        config.latestKnownVersion = *latestKnownVersion;
+
     if (const auto soundOn = GetStringField(*object, "customSoundOn"); soundOn.has_value() && !soundOn->empty())
         config.customSoundOn = ToWide(*soundOn);
     if (const auto soundOff = GetStringField(*object, "customSoundOff"); soundOff.has_value() && !soundOff->empty())
@@ -502,6 +506,8 @@ bool ConfigStore::Save(
 
     if (!config.faction.empty())
         root.emplace("faction", config.faction);
+    if (!config.latestKnownVersion.empty())
+        root.emplace("latestKnownVersion", config.latestKnownVersion);
 
     if (!config.customSoundOn.empty())
         root.emplace("customSoundOn", ToUtf8(config.customSoundOn));

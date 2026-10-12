@@ -1,0 +1,45 @@
+#pragma once
+
+#include "AppTypes.h"
+
+#include <QObject>
+#include <QString>
+#include <functional>
+
+class AboutPage;
+class KeyPage;
+class UpdateService;
+
+// Wires the about page update card, the key page update badge and the update
+// service together. Checks only ever run in response to about page actions;
+// nothing here triggers network access on its own.
+class UpdateCoordinator : public QObject {
+    Q_OBJECT
+
+public:
+    struct Context {
+        AboutPage* aboutPage = nullptr;
+        KeyPage* keyPage = nullptr;
+        UpdateService* updateService = nullptr;
+        AppConfig* config = nullptr;
+        std::function<void()> saveConfig;
+        std::function<void(const QString& stagingDir)> applyStagedUpdate;
+        std::function<void()> navigateToAbout;
+    };
+
+    explicit UpdateCoordinator(QObject* parent = nullptr);
+
+    void bind(Context context);
+
+    // Restores the update badge from the last known version stored in the
+    // config. Performs no network access.
+    void restoreBadgeFromConfig();
+
+private:
+    void handleCheckFinished(bool ok, const QString& message, bool hasUpdate,
+        const QString& latestVersion, const QString& assetUrl);
+
+    Context context_;
+    QString stagedDir_;
+    QString latestKnownVersion_;
+};

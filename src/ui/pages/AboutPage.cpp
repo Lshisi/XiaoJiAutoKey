@@ -10,29 +10,22 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QApplication>
-#include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QProgressBar>
 #include <QScrollArea>
 #include <QShowEvent>
 #include <QSizePolicy>
-#include <QTimer>
 #include <QUrl>
 
 namespace {
 
-void copyWithFeedback(FluentButton* button, const QString& text) {
-    QApplication::clipboard()->setText(text);
-    button->setText(QString::fromWCharArray(L"\u5df2\u590d\u5236"));
-    button->setEnabled(false);
-    QTimer::singleShot(1200, button, [button]() {
-        button->setText(QString::fromWCharArray(L"\u590d\u5236"));
-        button->setEnabled(true);
-    });
+QString formatMegabytes(qint64 bytes) {
+    return QString::number(static_cast<double>(bytes) / 1024.0 / 1024.0, 'f', 1) + QStringLiteral(" MB");
 }
 
-}
+}  // namespace
 
 AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
@@ -94,20 +87,58 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     infoCard->contentLayout()->addLayout(infoRow);
     outerCard->contentLayout()->addWidget(infoCard);
 
-    // ── Inner card 2: Contact ──
-    auto* contactCard = new FluentCard(QString::fromWCharArray(L"\u8054\u7cfb\u4f5c\u8005"), outerCard);
-    auto* groupRow = new QHBoxLayout();
-    auto* groupPrefix = new QLabel(QString::fromWCharArray(L"QQ\u7fa4: "), contactCard);
-    groupPrefix->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-    groupRow->addWidget(groupPrefix);
-    auto* groupLabel = new QLabel("REMOVED", contactCard);
-    groupLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    groupRow->addWidget(groupLabel, 1);
-    auto* copyGroupBtn = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u590d\u5236"), contactCard);
-    copyGroupBtn->setFixedSize(64, 24);
-    groupRow->addWidget(copyGroupBtn);
-    contactCard->contentLayout()->addLayout(groupRow);
-    outerCard->contentLayout()->addWidget(contactCard);
+    // ── Inner card 2: Software update ──
+    auto* updateCard = new FluentCard(QString::fromWCharArray(L"\u8f6f\u4ef6\u66f4\u65b0"), outerCard);
+
+    auto* updateHeaderRow = new QHBoxLayout();
+    auto* versionCaption = new QLabel(QString::fromWCharArray(L"\u5f53\u524d\u7248\u672c: "), updateCard);
+    versionCaption->setFont(Fluent::Typography::body());
+    updateHeaderRow->addWidget(versionCaption);
+    versionValueLabel_ = new QLabel(QString("V") + APP_VERSION, updateCard);
+    versionValueLabel_->setFont(Fluent::Typography::body());
+    updateHeaderRow->addWidget(versionValueLabel_);
+    updateHeaderRow->addStretch();
+    checkUpdateBtn_ = new FluentButton(FluentButton::Secondary,
+        QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"), updateCard);
+    checkUpdateBtn_->setFixedHeight(28);
+    checkUpdateBtn_->setMinimumWidth(88);
+    updateHeaderRow->addWidget(checkUpdateBtn_);
+    updateCard->contentLayout()->addLayout(updateHeaderRow);
+
+    updateStatusLabel_ = new QLabel(updateCard);
+    updateStatusLabel_->setFont(Fluent::Typography::body());
+    updateStatusLabel_->setWordWrap(true);
+    updateStatusLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    updateCard->contentLayout()->addWidget(updateStatusLabel_);
+
+    auto* updateActionRow = new QHBoxLayout();
+    downloadUpdateBtn_ = new FluentButton(FluentButton::Primary,
+        QString::fromWCharArray(L"\u4e0b\u8f7d\u5e76\u5b89\u88c5"), updateCard);
+    downloadUpdateBtn_->setFixedHeight(28);
+    downloadUpdateBtn_->setMinimumWidth(104);
+    downloadUpdateBtn_->hide();
+    updateActionRow->addWidget(downloadUpdateBtn_);
+    restartUpdateBtn_ = new FluentButton(FluentButton::Primary,
+        QString::fromWCharArray(L"\u7acb\u5373\u91cd\u542f\u66f4\u65b0"), updateCard);
+    restartUpdateBtn_->setFixedHeight(28);
+    restartUpdateBtn_->setMinimumWidth(112);
+    restartUpdateBtn_->hide();
+    updateActionRow->addWidget(restartUpdateBtn_);
+    updateActionRow->addStretch();
+    updateCard->contentLayout()->addLayout(updateActionRow);
+
+    downloadProgressBar_ = new QProgressBar(updateCard);
+    downloadProgressBar_->setTextVisible(false);
+    downloadProgressBar_->setFixedHeight(6);
+    downloadProgressBar_->hide();
+    updateCard->contentLayout()->addWidget(downloadProgressBar_);
+
+    downloadProgressLabel_ = new QLabel(updateCard);
+    downloadProgressLabel_->setFont(Fluent::Typography::caption());
+    downloadProgressLabel_->hide();
+    updateCard->contentLayout()->addWidget(downloadProgressLabel_);
+
+    outerCard->contentLayout()->addWidget(updateCard);
 
     // Offline configuration guide
     auto* usageCard = new FluentCard(QString::fromWCharArray(L"\u914d\u7f6e\u8bf4\u660e"), outerCard);
@@ -143,7 +174,17 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     }
     pageLayout->addWidget(scrollArea_);
 
-    connect(copyGroupBtn, &QPushButton::clicked, [copyGroupBtn, groupLabel]() { copyWithFeedback(copyGroupBtn, groupLabel->text()); });
+    connect(checkUpdateBtn_, &QPushButton::clicked, this, [this]() {
+        emit checkUpdateRequested();
+    });
+    connect(downloadUpdateBtn_, &QPushButton::clicked, this, [this]() {
+        // An empty URL means the release only has no attached package; the
+        // coordinator opens the release page instead of downloading.
+        emit downloadUpdateRequested(pendingAssetUrl_);
+    });
+    connect(restartUpdateBtn_, &QPushButton::clicked, this, [this]() {
+        emit restartForUpdateRequested();
+    });
     connect(openUsageBtn, &QPushButton::clicked, this, [this]() {
         const QString guidePath = QDir(QApplication::applicationDirPath()).filePath(
             QString::fromWCharArray(L"\u4f7f\u7528\u8bf4\u660e.mhtml"));
@@ -159,6 +200,9 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
                 QString::fromWCharArray(L"\u8bf7\u786e\u8ba4\u7cfb\u7edf\u5df2\u4e3a MHTML \u6587\u4ef6\u914d\u7f6e\u53ef\u7528\u7684\u6d4f\u89c8\u5668\u3002"));
         }
     });
+
+    setUpdateIdle(QString::fromWCharArray(
+        L"\u4ec5\u5728\u672c\u9875\u624b\u52a8\u68c0\u67e5\u66f4\u65b0\uff0c\u8f6f\u4ef6\u4e0d\u4f1a\u81ea\u52a8\u8054\u7f51\u68c0\u67e5\u3002"));
     updateThemeColors();
 }
 
@@ -170,6 +214,126 @@ void AboutPage::refreshIcon() {
 void AboutPage::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     refreshIcon();
+}
+
+void AboutPage::setUpdateStatus(const QString& text, UpdateStatusKind kind) {
+    updateStatusKind_ = kind;
+    updateStatusLabel_->setText(text);
+    applyUpdateCardStyles();
+}
+
+void AboutPage::applyUpdateCardStyles() {
+    QColor statusColor = Fluent::Colors::textSecondary();
+    if (updateStatusKind_ == UpdateStatusKind::Accent) {
+        statusColor = FactionTheme::instance().palette().accent;
+    } else if (updateStatusKind_ == UpdateStatusKind::Error) {
+        statusColor = Fluent::Colors::danger();
+    }
+    if (updateStatusLabel_) {
+        updateStatusLabel_->setStyleSheet(
+            QString("QLabel { color: %1; background: transparent; border: none; }")
+                .arg(statusColor.name(QColor::HexArgb)));
+    }
+    if (downloadProgressBar_) {
+        downloadProgressBar_->setStyleSheet(
+            QString("QProgressBar { background: %1; border: none; border-radius: 3px; }"
+                "QProgressBar::chunk { background: %2; border-radius: 3px; }")
+                .arg(Fluent::Theme::isDarkMode()
+                        ? QStringLiteral("rgba(255,255,255,0.14)")
+                        : QStringLiteral("rgba(0,0,0,0.10)"),
+                    FactionTheme::instance().palette().accent.name()));
+    }
+    if (downloadProgressLabel_) {
+        downloadProgressLabel_->setStyleSheet(
+            QString("QLabel { color: %1; background: transparent; border: none; }")
+                .arg(Fluent::Colors::textSecondary().name(QColor::HexArgb)));
+    }
+}
+
+void AboutPage::setUpdateIdle(const QString& message) {
+    pendingAssetUrl_.clear();
+    checkUpdateBtn_->setEnabled(true);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
+    downloadUpdateBtn_->hide();
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    setUpdateStatus(message, UpdateStatusKind::Info);
+}
+
+void AboutPage::setChecking() {
+    checkUpdateBtn_->setEnabled(false);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u4e2d..."));
+    downloadUpdateBtn_->hide();
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    setUpdateStatus(QString::fromWCharArray(L"\u6b63\u5728\u68c0\u67e5\u66f4\u65b0\uff0c\u8bf7\u7a0d\u5019..."),
+        UpdateStatusKind::Info);
+}
+
+void AboutPage::setUpdateAvailable(const QString& latestVersion, const QString& assetUrl) {
+    checkUpdateBtn_->setEnabled(true);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    pendingAssetUrl_ = assetUrl;
+    downloadUpdateBtn_->setText(assetUrl.isEmpty()
+        ? QString::fromWCharArray(L"\u524d\u5f80\u4e0b\u8f7d")
+        : QString::fromWCharArray(L"\u4e0b\u8f7d\u5e76\u5b89\u88c5"));
+    downloadUpdateBtn_->show();
+    setUpdateStatus(QString::fromWCharArray(L"\u53d1\u73b0\u65b0\u7248\u672c V") + latestVersion,
+        UpdateStatusKind::Accent);
+}
+
+void AboutPage::setDownloading() {
+    checkUpdateBtn_->setEnabled(true);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
+    downloadUpdateBtn_->hide();
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->setRange(0, 100);
+    downloadProgressBar_->setValue(0);
+    downloadProgressBar_->show();
+    downloadProgressLabel_->clear();
+    downloadProgressLabel_->show();
+    setUpdateStatus(QString::fromWCharArray(L"\u6b63\u5728\u4e0b\u8f7d\u66f4\u65b0\u5305..."),
+        UpdateStatusKind::Info);
+}
+
+void AboutPage::showDownloadProgress(qint64 received, qint64 total) {
+    if (total > 0) {
+        downloadProgressBar_->setRange(0, 100);
+        downloadProgressBar_->setValue(
+            static_cast<int>(received * 100 / total));
+        downloadProgressLabel_->setText(
+            formatMegabytes(received) + QStringLiteral(" / ") + formatMegabytes(total));
+    } else {
+        downloadProgressBar_->setRange(0, 0);
+        downloadProgressLabel_->setText(formatMegabytes(received));
+    }
+}
+
+void AboutPage::setUpdateStaged() {
+    checkUpdateBtn_->setEnabled(true);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
+    downloadUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    restartUpdateBtn_->show();
+    setUpdateStatus(QString::fromWCharArray(L"\u66f4\u65b0\u5305\u5df2\u5c31\u7eea\uff0c\u91cd\u542f\u540e\u5b8c\u6210\u66f4\u65b0"),
+        UpdateStatusKind::Accent);
+}
+
+void AboutPage::setUpdateError(const QString& message) {
+    pendingAssetUrl_.clear();
+    checkUpdateBtn_->setEnabled(true);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
+    downloadUpdateBtn_->hide();
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    setUpdateStatus(message, UpdateStatusKind::Error);
 }
 
 void AboutPage::updateThemeColors() {
@@ -190,5 +354,6 @@ void AboutPage::updateThemeColors() {
             viewport->setStyleSheet(QStringLiteral("background: transparent;"));
         }
     }
+    applyUpdateCardStyles();
     update();
 }

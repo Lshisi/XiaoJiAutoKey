@@ -23,6 +23,11 @@ struct MacroRuntime {
     std::chrono::steady_clock::time_point keyDownTime{};
 };
 
+struct MacroStatus {
+    bool running = false;
+    bool paused = false;
+};
+
 class MacroEngine {
 public:
     explicit MacroEngine(InputDriver& driver);
@@ -40,6 +45,7 @@ public:
 
     [[nodiscard]] bool HasActiveMacro() const;
     [[nodiscard]] bool IsRunning(std::uint64_t macroId) const;
+    [[nodiscard]] MacroStatus GetStatus(std::uint64_t macroId) const;
 
 private:
     void WorkerLoop();

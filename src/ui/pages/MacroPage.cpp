@@ -17,7 +17,15 @@
 #include <QIntValidator>
 
 namespace {
-constexpr int kTriggerCardHeight = 162;
+class LoopCountValidator final : public QIntValidator {
+public:
+    explicit LoopCountValidator(QObject* parent) : QIntValidator(0, 99999, parent) {}
+
+    void fixup(QString& input) const override {
+        // Empty input must become acceptable before QLineEdit emits editingFinished.
+        if (input.trimmed().isEmpty()) input = QStringLiteral("0");
+    }
+};
 }
 
 MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
@@ -139,29 +147,16 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
-    controlCard->contentLayout()->addSpacing(4);
-    statusLabel_ = new QLabel(QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"), this);
-    statusLabel_->setFont(Fluent::Typography::caption());
-    QPalette sPal = statusLabel_->palette();
-    sPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    statusLabel_->setPalette(sPal);
-    controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
 
     // -- Card 2: 启动触发 --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
     triggerCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    triggerCard->setFixedHeight(kTriggerCardHeight);
     triggerCard->layout()->setContentsMargins(12, 6, 12, 6);
     triggerCard->contentLayout()->setSpacing(4);
-    auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
-    hotkeyLabel->setFont(Fluent::Typography::caption());
-    QPalette hPal = hotkeyLabel->palette();
-    hPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    hotkeyLabel->setPalette(hPal);
-    triggerCard->contentLayout()->addWidget(hotkeyLabel);
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
+    hotkeyEdit_->setAccessibleName(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"));
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     auto* hotkeyRow = new QHBoxLayout();
     hotkeyRow->setSpacing(6);
@@ -184,7 +179,17 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addLayout(beepRow);
     statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
     statusOverlayCheck_->setFont(Fluent::Typography::body());
-    triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
+    auto* overlayRow = new QHBoxLayout();
+    overlayRow->addWidget(statusOverlayCheck_);
+    overlayRow->addStretch();
+    auto* overlaySettingsBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE713)), this);
+    overlaySettingsBtn->setFixedSize(32, 28);
+    overlaySettingsBtn->setFont(QFont("Segoe MDL2 Assets", 12));
+    overlaySettingsBtn->setToolTip(QString::fromWCharArray(L"\u60ac\u6d6e\u7a97\u8bbe\u7f6e"));
+    overlaySettingsBtn->setAccessibleName(overlaySettingsBtn->toolTip());
+    overlayRow->addWidget(overlaySettingsBtn);
+    triggerCard->contentLayout()->addLayout(overlayRow);
+    connect(overlaySettingsBtn, &QPushButton::clicked, this, &MacroPage::statusOverlaySettingsClicked);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 模式设置 --
@@ -206,8 +211,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     modeCard->contentLayout()->addWidget(loopLabel_);
     loopEdit_ = new FluentLineEdit(this);
     loopEdit_->setText("0");
-    loopEdit_->setPlaceholderText("0");
-    loopEdit_->setValidator(new QIntValidator(0, 99999, this));
+    loopEdit_->setValidator(new LoopCountValidator(loopEdit_));
     modeCard->contentLayout()->addWidget(loopEdit_);
     modeCard->contentLayout()->addStretch();
     modeCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -253,7 +257,6 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
         int count = loopEdit_->text().toInt(&ok);
         if (!ok || count < 0) count = 0;
         loopEdit_->setText(QString::number(count));
-        loopEdit_->clearFocus();
         emit loopCountChanged(count);
     });
 
@@ -296,13 +299,6 @@ void MacroPage::setRunning(bool running) {
     startBtn_->setEnabled(running || macroEnabled_);
     startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
     updateStartBtnText();
-    if (statusLabel_) {
-        statusLabel_->setText(running
-            ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
-            : (macroEnabled_
-                ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
-                : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528")));
-    }
     addBtn_->setEnabled(!running);
     table_->setEnabled(!running);
     macroCombo_->setEnabled(!running);
@@ -328,11 +324,6 @@ void MacroPage::setMacroEnabled(bool enabled) {
     macroEnabledSwitch_->setChecked(enabled);
     macroEnabledSwitch_->blockSignals(false);
     startBtn_->setEnabled(running_ || macroEnabled_);
-    if (!running_ && statusLabel_) {
-        statusLabel_->setText(macroEnabled_
-            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
-            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528"));
-    }
 }
 
 void MacroPage::setHotkeyText(const QString& text) {

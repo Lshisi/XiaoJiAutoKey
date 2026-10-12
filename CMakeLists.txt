@@ -40,6 +40,7 @@ set(MOC_HEADERS
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
     include/app/dialogs/SoundSettingsDialog.h
+    include/app/dialogs/StatusOverlaySettingsDialog.h
     include/app/widgets/StatusOverlayWindow.h
     src/ui/components/DraggableTable.h
     src/ui/components/FluentButton.h
@@ -169,6 +170,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
     include/app/dialogs/SoundSettingsDialog.h
+    include/app/dialogs/StatusOverlaySettingsDialog.h
     include/core/MacroEngine.h
     include/core/InputDriver.h
     include/core/InputDriverRouter.h
@@ -212,6 +214,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/dialogs/MacroStepDialog.cpp
     src/app/dialogs/PauseKeyDialog.cpp
     src/app/dialogs/SoundSettingsDialog.cpp
+    src/app/dialogs/StatusOverlaySettingsDialog.cpp
     ${CORE_SOURCES}
     ${UI_COMPONENT_SOURCES}
     ${UI_COMPONENT_HEADERS}

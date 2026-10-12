@@ -23,7 +23,6 @@
 #include <QTimer>
 
 namespace {
-constexpr int kTriggerCardHeight = 162;
 constexpr int kSequenceKeyLabelMaxWidth = 64;
 constexpr int kMaxVisiblePauseKeys = 3;
 constexpr int kPauseKeyLabelMaxWidth = 72;
@@ -72,6 +71,7 @@ private:
 }
 
 KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
+    setFocusPolicy(Qt::ClickFocus);
     setAttribute(Qt::WA_StyledBackground, true);
     applyPageTheme();
 
@@ -224,29 +224,16 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     startBtn_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u25B6  \u542f\u52a8"), this);
     startBtn_->setFixedHeight(32);
     controlCard->contentLayout()->addWidget(startBtn_);
-    controlCard->contentLayout()->addSpacing(4);
-    statusLabel_ = new QLabel(QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62"), this);
-    statusLabel_->setFont(Fluent::Typography::caption());
-    QPalette sPal = statusLabel_->palette();
-    sPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    statusLabel_->setPalette(sPal);
-    controlCard->contentLayout()->addWidget(statusLabel_);
     rightLayout->addWidget(controlCard);
 
     // -- Card 2: startup trigger --
     auto* triggerCard = new FluentCard(QString::fromWCharArray(L"\u542f\u52a8\u89e6\u53d1"), this);
     triggerCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    triggerCard->setFixedHeight(kTriggerCardHeight);
     triggerCard->layout()->setContentsMargins(12, 6, 12, 6);
     triggerCard->contentLayout()->setSpacing(4);
-    auto* hotkeyLabel = new QLabel(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"), this);
-    hotkeyLabel->setFont(Fluent::Typography::caption());
-    QPalette hPal = hotkeyLabel->palette();
-    hPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    hotkeyLabel->setPalette(hPal);
-    triggerCard->contentLayout()->addWidget(hotkeyLabel);
     hotkeyEdit_ = new FluentLineEdit(this);
     hotkeyEdit_->setReadOnly(true);
+    hotkeyEdit_->setAccessibleName(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e"));
     hotkeyEdit_->setPlaceholderText(QString::fromWCharArray(L"\u70b9\u51fb\u5f55\u5236"));
     auto* hotkeyRow = new QHBoxLayout();
     hotkeyRow->setSpacing(6);
@@ -269,39 +256,68 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     triggerCard->contentLayout()->addLayout(beepRow);
     statusOverlayCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u663e\u793a\u5230\u6d6e\u7a97"), this);
     statusOverlayCheck_->setFont(Fluent::Typography::body());
-    triggerCard->contentLayout()->addWidget(statusOverlayCheck_);
+    auto* overlayRow = new QHBoxLayout();
+    overlayRow->addWidget(statusOverlayCheck_);
+    overlayRow->addStretch();
+    auto* overlaySettingsBtn = new FluentButton(FluentButton::Icon, QString(QChar(0xE713)), this);
+    overlaySettingsBtn->setFixedSize(32, 28);
+    overlaySettingsBtn->setFont(QFont("Segoe MDL2 Assets", 12));
+    overlaySettingsBtn->setToolTip(QString::fromWCharArray(L"\u60ac\u6d6e\u7a97\u8bbe\u7f6e"));
+    overlaySettingsBtn->setAccessibleName(overlaySettingsBtn->toolTip());
+    overlayRow->addWidget(overlaySettingsBtn);
+    triggerCard->contentLayout()->addLayout(overlayRow);
+    connect(overlaySettingsBtn, &QPushButton::clicked, this, &KeyPage::statusOverlaySettingsClicked);
     rightLayout->addWidget(triggerCard);
 
     // -- Card 3: 按压优先 --
     auto* mixedCard = new FluentCard(QString::fromWCharArray(L"\u8bbe\u7f6e"), this);
+    auto* mixedSection = new QVBoxLayout();
+    mixedSection->setSpacing(Fluent::Spacing::cardGap / 2);
     mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u6309\u538b\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
-    mixedCard->contentLayout()->addWidget(mixedModeCheck_);
-    mixedCard->contentLayout()->addSpacing(2);
+    mixedSection->addWidget(mixedModeCheck_);
     auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\uff0c\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
     mixedDesc->setFont(Fluent::Typography::caption());
     mixedDesc->setWordWrap(true);
     QPalette mPal = mixedDesc->palette();
     mPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     mixedDesc->setPalette(mPal);
-    mixedCard->contentLayout()->addWidget(mixedDesc);
-    mixedCard->contentLayout()->addSpacing(8);
+    mixedSection->addWidget(mixedDesc);
+    mixedCard->contentLayout()->addLayout(mixedSection);
     auto* wasdSeparator = new QWidget(this);
     wasdSeparator->setFixedHeight(1);
     wasdSeparator->setStyleSheet(QString("background: %1;").arg(Fluent::Colors::divider().name(QColor::HexArgb)));
     mixedCard->contentLayout()->addWidget(wasdSeparator);
-    mixedCard->contentLayout()->addSpacing(8);
+    auto* wasdSection = new QVBoxLayout();
+    wasdSection->setSpacing(Fluent::Spacing::cardGap / 2);
     wasdProtectionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"WASD \u9632\u5361"), this);
     wasdProtectionCheck_->setFont(Fluent::Typography::body());
-    mixedCard->contentLayout()->addWidget(wasdProtectionCheck_);
-    mixedCard->contentLayout()->addSpacing(2);
+    wasdSection->addWidget(wasdProtectionCheck_);
     auto* wasdDesc = new QLabel(QString::fromWCharArray(L"\u79fb\u52a8\u65f6\u964d\u901f\uff0c\u677e\u5f00\u6062\u590d\u3002"), this);
     wasdDesc->setFont(Fluent::Typography::caption());
     wasdDesc->setWordWrap(true);
     QPalette wPal = wasdDesc->palette();
     wPal.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     wasdDesc->setPalette(wPal);
-    mixedCard->contentLayout()->addWidget(wasdDesc);
+    wasdSection->addWidget(wasdDesc);
+    mixedCard->contentLayout()->addLayout(wasdSection);
+    sequenceStartDivider_ = new QWidget(mixedCard);
+    sequenceStartDivider_->setFixedHeight(1);
+    mixedCard->contentLayout()->addWidget(sequenceStartDivider_);
+    auto* sequenceSection = new QVBoxLayout();
+    sequenceSection->setSpacing(Fluent::Spacing::cardGap / 2);
+    rememberSequencePositionCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u8bb0\u4f4f\u5207\u6362\u4f4d\u7f6e"), mixedCard);
+    rememberSequencePositionCheck_->setFont(Fluent::Typography::body());
+    rememberSequencePositionCheck_->setChecked(true);
+    sequenceSection->addWidget(rememberSequencePositionCheck_);
+    auto* sequenceDesc = new QLabel(QString::fromWCharArray(L"\u52fe\u9009\u7eed\u7528\u4e0a\u6b21\uff0c\u53d6\u6d88\u4ece\u5934\u5f00\u59cb\u3002"), mixedCard);
+    sequenceDesc->setFont(Fluent::Typography::caption());
+    sequenceDesc->setWordWrap(true);
+    QPalette sequencePalette = sequenceDesc->palette();
+    sequencePalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    sequenceDesc->setPalette(sequencePalette);
+    sequenceSection->addWidget(sequenceDesc);
+    mixedCard->contentLayout()->addLayout(sequenceSection);
     mixedCard->contentLayout()->addStretch();
     mixedCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     rightLayout->addWidget(mixedCard, 1);
@@ -317,6 +333,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(statusOverlayCheck_, &QCheckBox::toggled, this, &KeyPage::statusOverlayToggled);
     connect(mixedModeCheck_, &QCheckBox::toggled, this, &KeyPage::mixedModeToggled);
     connect(wasdProtectionCheck_, &QCheckBox::toggled, this, &KeyPage::wasdProtectionToggled);
+    connect(rememberSequencePositionCheck_, &QCheckBox::toggled, this, &KeyPage::rememberSequencePositionChanged);
     connect(sequenceSwitchAddBtn_, &QPushButton::clicked, this, &KeyPage::sequenceSwitchKeyAddClicked);
     connect(pauseAddBtn, &QPushButton::clicked, this, &KeyPage::pauseKeyAddClicked);
     connect(soundSettingsBtn_, &QPushButton::clicked, this, &KeyPage::soundSettingsClicked);
@@ -358,11 +375,6 @@ void KeyPage::setProfileEnabled(bool enabled) {
     profileEnabledSwitch_->setChecked(enabled);
     profileEnabledSwitch_->blockSignals(false);
     startBtn_->setEnabled(running_ || profileEnabled_);
-    if (!running_) {
-        statusLabel_->setText(profileEnabled_
-            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
-            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528"));
-    }
 }
 
 void KeyPage::setRunning(bool running) {
@@ -371,11 +383,6 @@ void KeyPage::setRunning(bool running) {
     startBtn_->setEnabled(running || profileEnabled_);
     startBtn_->setButtonStyle(running ? FluentButton::Danger : FluentButton::Primary);
     updateStartBtnText();
-    statusLabel_->setText(running
-        ? QString::fromWCharArray(L"\u72b6\u6001: \u8fd0\u884c\u4e2d")
-        : (profileEnabled_
-            ? QString::fromWCharArray(L"\u72b6\u6001: \u5df2\u505c\u6b62")
-            : QString::fromWCharArray(L"\u72b6\u6001: \u5f53\u524d\u914d\u7f6e\u5df2\u505c\u7528")));
 
     // Disable editing controls while running
     addBtn_->setEnabled(!running);
@@ -397,6 +404,7 @@ void KeyPage::setRunning(bool running) {
     }
     mixedModeCheck_->setEnabled(!running);
     if (wasdProtectionCheck_) wasdProtectionCheck_->setEnabled(!running);
+    if (rememberSequencePositionCheck_) rememberSequencePositionCheck_->setEnabled(!running);
 }
 
 void KeyPage::setHotkeyText(const QString& text) {
@@ -436,6 +444,13 @@ void KeyPage::setWasdProtection(bool enabled) {
     wasdProtectionCheck_->blockSignals(false);
 }
 
+void KeyPage::setRememberSequencePosition(bool enabled) {
+    if (!rememberSequencePositionCheck_) return;
+    rememberSequencePositionCheck_->blockSignals(true);
+    rememberSequencePositionCheck_->setChecked(enabled);
+    rememberSequencePositionCheck_->blockSignals(false);
+}
+
 void KeyPage::setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording) {
     sequenceSwitchKey_ = key;
     sequenceSwitchRecording_ = recording;
@@ -446,6 +461,11 @@ void KeyPage::updateThemeColors() {
     applyPageTheme();
     table_->refreshThemeStyle();
     profileCombo_->refreshThemeStyle();
+    if (rememberSequencePositionCheck_) rememberSequencePositionCheck_->update();
+    if (sequenceStartDivider_) {
+        sequenceStartDivider_->setStyleSheet(QString("background: %1;")
+            .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+    }
     if (profileEnabledLabel_) {
         QPalette labelPalette = profileEnabledLabel_->palette();
         labelPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());

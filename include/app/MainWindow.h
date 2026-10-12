@@ -52,6 +52,7 @@ private:
     void setupUi();
     void setupHooks();
     void refreshStatusOverlay();
+    void openStatusOverlaySettings(bool macroPage);
     bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
     bool loadHidDriver();
     bool loadLegacyDriver();

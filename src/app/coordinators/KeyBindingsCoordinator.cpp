@@ -27,6 +27,7 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
     connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
     connect(context_.page, &KeyPage::wasdProtectionToggled, this, &KeyBindingsCoordinator::onWasdProtectionToggled);
+    connect(context_.page, &KeyPage::rememberSequencePositionChanged, this, &KeyBindingsCoordinator::onRememberSequencePositionChanged);
     connect(context_.page, &KeyPage::sequenceSwitchKeyAddClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyAdd);
     connect(context_.page, &KeyPage::sequenceSwitchKeyDeleteClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyDelete);
     connect(context_.page, &KeyPage::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
@@ -151,6 +152,18 @@ void KeyBindingsCoordinator::onWasdProtectionToggled(bool enabled) {
     auto result = context_.controller->setWasdProtection(enabled);
     if (!result.ok) return;
     context_.engine->SetWasdProtection(enabled);
+    if (context_.saveConfig) context_.saveConfig();
+}
+
+void KeyBindingsCoordinator::onRememberSequencePositionChanged(bool enabled) {
+    if (!context_.controller || !context_.engine) return;
+    if (context_.engine->IsToolRunning()) {
+        if (context_.refreshAll) context_.refreshAll();
+        return;
+    }
+    const auto result = context_.controller->setRememberSequencePosition(enabled);
+    if (!result.ok) return;
+    if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
 }
 

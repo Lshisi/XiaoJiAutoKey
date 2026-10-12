@@ -55,6 +55,7 @@ signals:
     void hotkeyClearClicked();
     void beepToggled(bool enabled);
     void statusOverlayToggled(bool enabled);
+    void statusOverlaySettingsClicked();
     void pauseKeyAddClicked();
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
@@ -81,7 +82,6 @@ private:
     FluentComboBox* modeCombo_;
     FluentLineEdit* loopEdit_;
     QLabel* loopLabel_;
-    QLabel* statusLabel_ = nullptr;
     std::vector<KeyDescriptor> pauseKeys_;
     QWidget* pauseKeyListWidget_ = nullptr;
     QHBoxLayout* pauseKeyListLayout_ = nullptr;

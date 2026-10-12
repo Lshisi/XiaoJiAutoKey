@@ -35,6 +35,15 @@ struct TaskRuntime {
     std::chrono::steady_clock::time_point downTime{};
 };
 
+struct RepeaterStatus {
+    bool running = false;
+    bool paused = false;
+    bool holdPriorityActive = false;
+    std::optional<KeyDescriptor> independentKey;
+    std::optional<std::uint64_t> sequenceTaskId;
+    std::vector<KeyDescriptor> holdKeys;
+};
+
 class RepeaterEngine {
 public:
     explicit RepeaterEngine(InputDriver& driver);
@@ -43,7 +52,7 @@ public:
     void StartThread();
     void StopThread();
 
-    void UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings);
+    void UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings, bool rememberSequencePosition);
     void ForgetProfileRuntimeState(std::uint64_t profileId);
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
@@ -59,6 +68,7 @@ public:
     void ReleaseAll();
 
     bool HasActiveHoldKeys() const;
+    [[nodiscard]] RepeaterStatus GetStatus() const;
 
 private:
     void WorkerLoop();
@@ -114,6 +124,7 @@ private:
     bool sequenceSwitchDown_ = false;
     std::optional<std::uint64_t> activeProfileId_;
     std::optional<std::uint64_t> sequenceActiveTaskId_;
+    bool rememberSequencePosition_ = true;
     std::unordered_map<std::uint64_t, std::uint64_t> sequenceSelectionByProfile_;
     std::unordered_set<std::uint64_t> sourceActiveKeys_;
 };

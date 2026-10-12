@@ -326,6 +326,14 @@ void MacroEngine::WorkerLoop() {
     }
 }
 
+MacroStatus MacroEngine::GetStatus(std::uint64_t macroId) const {
+    std::lock_guard lock(mutex_);
+    const auto it = std::find_if(macros_.begin(), macros_.end(),
+        [macroId](const MacroRuntime& rt) { return rt.config.id == macroId; });
+    const bool running = it != macros_.end() && it->config.enabled && it->active;
+    return {running, running && IsPauseActive()};
+}
+
 std::chrono::steady_clock::time_point MacroEngine::Now() {
     return std::chrono::steady_clock::now();
 }

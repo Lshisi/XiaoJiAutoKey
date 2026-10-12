@@ -27,6 +27,7 @@ public:
     void setStatusOverlayEnabled(bool enabled);
     void setMixedMode(bool enabled);
     void setWasdProtection(bool enabled);
+    void setRememberSequencePosition(bool enabled);
     void setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording = false);
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void updateThemeColors();
@@ -45,8 +46,10 @@ signals:
     void hotkeyClearClicked();
     void beepToggled(bool enabled);
     void statusOverlayToggled(bool enabled);
+    void statusOverlaySettingsClicked();
     void mixedModeToggled(bool enabled);
     void wasdProtectionToggled(bool enabled);
+    void rememberSequencePositionChanged(bool enabled);
     void sequenceSwitchKeyAddClicked();
     void sequenceSwitchKeyDeleteClicked();
     void pauseKeyAddClicked();
@@ -80,7 +83,8 @@ private:
     FluentButton* soundSettingsBtn_ = nullptr;
     QCheckBox* mixedModeCheck_;
     QCheckBox* wasdProtectionCheck_ = nullptr;
-    QLabel* statusLabel_;
+    QCheckBox* rememberSequencePositionCheck_ = nullptr;
+    QWidget* sequenceStartDivider_ = nullptr;
     std::vector<KeyBinding> bindings_;
     std::optional<KeyDescriptor> sequenceSwitchKey_;
     std::vector<KeyDescriptor> pauseKeys_;

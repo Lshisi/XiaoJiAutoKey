@@ -1249,10 +1249,14 @@ void MainWindow::syncQtGeometryWithNativeWindow() {
 void MainWindow::refreshStatusOverlay() {
     auto* profile = profileController_.activeProfile();
     auto* macro = macroController_.activeMacro();
-    const bool repeatRunning = engine_.IsToolRunning();
-    const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
-    statusOverlay_.updateStatus(config_, profile, macro, repeatRunning, macroRunning);
-    view_.updateActivityIcons(this, repeatRunning, macroRunning);
+    if (config_.statusOverlayShowRepeat || config_.statusOverlayShowMacro) {
+        const auto repeatStatus = config_.statusOverlayShowRepeat ? engine_.GetStatus() : RepeaterStatus{};
+        const auto macroStatus = config_.statusOverlayShowMacro && macro ? macroEngine_.GetStatus(macro->id) : MacroStatus{};
+        statusOverlay_.updateStatus(config_, profile, macro, repeatStatus, macroStatus);
+    } else {
+        statusOverlay_.setOverlayEnabled(false);
+    }
+    view_.updateActivityIcons(this, engine_.IsToolRunning(), macro && macroEngine_.IsRunning(macro->id));
 }
 
 void MainWindow::showDdUnavailableMessage() {

@@ -14,6 +14,31 @@
 
 namespace {
 
+class CaptionButton final : public QPushButton {
+public:
+    CaptionButton(bool close, QWidget* parent) : QPushButton(parent), close_(close) {}
+
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        QPushButton::paintEvent(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor color = !isEnabled() ? Fluent::Colors::textTertiary()
+            : close_ && (underMouse() || isDown()) ? QColor(Qt::white) : Fluent::Colors::textPrimary();
+        painter.setPen(QPen(color, 1.1, Qt::SolidLine, Qt::RoundCap));
+        const QPointF center(width() / 2.0, height() / 2.0);
+        if (close_) {
+            painter.drawLine(center + QPointF(-3.5, -3.5), center + QPointF(3.5, 3.5));
+            painter.drawLine(center + QPointF(-3.5, 3.5), center + QPointF(3.5, -3.5));
+        } else {
+            painter.drawLine(center + QPointF(-4.0, 0), center + QPointF(4.0, 0));
+        }
+    }
+
+private:
+    bool close_;
+};
+
 QColor mixColor(const QColor& a, const QColor& b, double t) {
     const double clamped = qBound(0.0, t, 1.0);
     return QColor(
@@ -75,8 +100,8 @@ FluentTitleBar::FluentTitleBar(QWidget* parent)
     layout->addStretch();
 
     // Caption buttons
-    minBtn_ = createCaptionButton(QStringLiteral("\u2500"));
-    closeBtn_ = createCaptionButton(QStringLiteral("\u2715"));
+    minBtn_ = createCaptionButton(false);
+    closeBtn_ = createCaptionButton(true);
 
     layout->addWidget(minBtn_);
     layout->addWidget(closeBtn_);
@@ -173,8 +198,10 @@ void FluentTitleBar::applyTitlePalette() {
     titleLabel_->setPalette(pal);
 }
 
-QPushButton* FluentTitleBar::createCaptionButton(const QString& icon) {
-    auto* btn = new QPushButton(icon, this);
+QPushButton* FluentTitleBar::createCaptionButton(bool close) {
+    auto* btn = new CaptionButton(close, this);
+    btn->setAccessibleName(close ? QStringLiteral("\u5173\u95ed") : QStringLiteral("\u6700\u5c0f\u5316"));
+    btn->setToolTip(btn->accessibleName());
     btn->setFixedSize(40, 28);
     btn->setFlat(true);
     btn->setCursor(Qt::ArrowCursor);

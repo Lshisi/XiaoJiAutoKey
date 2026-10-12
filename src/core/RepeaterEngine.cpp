@@ -334,7 +334,7 @@ void RepeaterEngine::NormalizeSequenceSelectionLocked() {
 
     sequenceActiveTaskId_.reset();
 
-    if (activeProfileId_.has_value()) {
+    if (rememberSequencePosition_ && activeProfileId_.has_value()) {
         const auto remembered = sequenceSelectionByProfile_.find(*activeProfileId_);
         if (remembered != sequenceSelectionByProfile_.end()) {
             const bool stillValid = std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
@@ -405,7 +405,7 @@ void RepeaterEngine::AdvanceSequenceSelectionLocked() {
 }
 
 void RepeaterEngine::RememberSequenceSelectionLocked() {
-    if (!activeProfileId_.has_value() || !sequenceActiveTaskId_.has_value()) {
+    if (!rememberSequencePosition_ || !activeProfileId_.has_value() || !sequenceActiveTaskId_.has_value()) {
         return;
     }
     sequenceSelectionByProfile_[*activeProfileId_] = *sequenceActiveTaskId_;
@@ -488,7 +488,7 @@ bool RepeaterEngine::HasActiveHoldKeys() const {
 }
 
 // ── bindings ─────────────────────────────
-void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings) {
+void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings, bool rememberSequencePosition) {
     waiter_.Wake();
     std::lock_guard lock(mutex_);
 
@@ -498,6 +498,8 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
     }
 
     std::vector<TaskRuntime> updated;
+    rememberSequencePosition_ = rememberSequencePosition;
+    if (!rememberSequencePosition_) ClearRememberedSequenceSelectionLocked();
     updated.reserve(bindings.size());
 
     for (auto& b : bindings) {
@@ -525,6 +527,24 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
     NormalizeIndependentSelectionLocked();
     NormalizeSequenceSelectionLocked();
     SyncSourceActiveKeysLocked();
+}
+
+RepeaterStatus RepeaterEngine::GetStatus() const {
+    std::lock_guard lock(mutex_);
+    RepeaterStatus status;
+    status.running = toolRunning_;
+    if (!toolRunning_) return status;
+    status.paused = IsPauseActive();
+    status.holdPriorityActive = mixedMode_ && IsHoldActive();
+    status.independentKey = independentActiveKey_;
+    status.sequenceTaskId = sequenceActiveTaskId_;
+    for (const auto& task : tasks_) {
+        if (task.config.enabled && task.config.mode == RepeatMode::Hold
+            && holdPhysicalDown_.count(task.config.key) > 0) {
+            status.holdKeys.push_back(task.config.key);
+        }
+    }
+    return status;
 }
 
 void RepeaterEngine::ForgetProfileRuntimeState(std::uint64_t profileId) {

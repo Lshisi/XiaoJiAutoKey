@@ -3,12 +3,15 @@
 #include "AppTypes.h"
 
 #include <QPoint>
+#include <QStringList>
 #include <QWidget>
 
 class QLabel;
 class QPushButton;
 class QScreen;
 class QWindow;
+struct RepeaterStatus;
+struct MacroStatus;
 
 class StatusOverlayWindow : public QWidget {
     Q_OBJECT
@@ -21,8 +24,8 @@ public:
     void updateStatus(const AppConfig& config,
         const ProfileConfig* profile,
         const MacroConfig* macro,
-        bool repeatRunning,
-        bool macroRunning);
+        const RepeaterStatus& repeat,
+        const MacroStatus& macroStatus);
 
 signals:
     void positionChanged(const QPoint& position);
@@ -53,6 +56,8 @@ private:
     void moveToConfiguredPosition(const AppConfig& config);
     void applyVisibleState();
     int currentScreenDpi() const;
+    void setDisplayLines(QLabel* label, const QStringList& lines);
+    void refreshTextLayout();
 
     QLabel* repeatIndicator_ = nullptr;
     QLabel* macroIndicator_ = nullptr;

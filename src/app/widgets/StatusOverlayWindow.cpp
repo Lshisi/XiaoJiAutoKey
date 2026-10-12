@@ -1,4 +1,6 @@
 #include "widgets/StatusOverlayWindow.h"
+#include "RepeaterEngine.h"
+#include "MacroEngine.h"
 
 #include "FactionTheme.h"
 #include "ui/styles/DesignTokens.h"
@@ -9,6 +11,7 @@
 #include <QApplication>
 #include <QCursor>
 #include <QGuiApplication>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -20,6 +23,7 @@
 #include <QShowEvent>
 #include <QStringList>
 #include <QTimer>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWindow>
 
@@ -128,13 +132,22 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(1);
         stateLabel = new QLabel(block);
+        stateLabel->setTextFormat(Qt::PlainText);
+        stateLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         stateLabel->setFont(Fluent::Typography::caption());
         stateLabel->setStyleSheet("color: rgba(255, 255, 255, 0.95);");
         hotkeyLabel = new QLabel(block);
+        hotkeyLabel->setTextFormat(Qt::PlainText);
+        hotkeyLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         hotkeyLabel->setFont(Fluent::Typography::caption());
         hotkeyLabel->setStyleSheet("color: rgba(255, 255, 255, 0.9);");
-        hotkeyLabel->setWordWrap(true);
-        layout->addWidget(stateLabel);
+        hotkeyLabel->setWordWrap(false);
+        auto* titleRow = new QHBoxLayout();
+        titleRow->setContentsMargins(0, 0, 0, 0);
+        titleRow->setSpacing(0);
+        titleRow->addWidget(stateLabel, 1);
+        titleRow->addSpacing(24);
+        layout->addLayout(titleRow);
         layout->addWidget(hotkeyLabel);
         outer->addLayout(layout, 1);
         return block;
@@ -156,6 +169,8 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     lockButton_->setCursor(Qt::PointingHandCursor);
     lockButton_->setFont(QFont("Segoe MDL2 Assets", 10));
     lockButton_->setText(QString(QChar(0xE785)));
+    lockButton_->setToolTip(QStringLiteral("\u9501\u5b9a\u4f4d\u7f6e"));
+    lockButton_->setAccessibleName(lockButton_->toolTip());
     lockButton_->setStyleSheet(
         "QPushButton { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);"
         " border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; padding: 0; }"
@@ -189,6 +204,7 @@ void StatusOverlayWindow::refreshForDpiChange(int nativeDpi) {
     if (macroTitleLabel_) macroTitleLabel_->setFont(Fluent::Typography::caption());
     if (macroHotkeyLabel_) macroHotkeyLabel_->setFont(Fluent::Typography::caption());
     if (lockButton_) lockButton_->setFont(QFont("Segoe MDL2 Assets", 10));
+    refreshTextLayout();
 
     if (layout()) {
         layout()->invalidate();
@@ -203,8 +219,8 @@ void StatusOverlayWindow::refreshForDpiChange(int nativeDpi) {
 void StatusOverlayWindow::updateStatus(const AppConfig& config,
     const ProfileConfig* profile,
     const MacroConfig* macro,
-    bool repeatRunning,
-    bool macroRunning) {
+    const RepeaterStatus& repeat,
+    const MacroStatus& macroStatus) {
     const bool showRepeat = config.statusOverlayShowRepeat;
     const bool showMacro = config.statusOverlayShowMacro;
     const bool shouldShow = showRepeat || showMacro;
@@ -216,7 +232,20 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     setLocked(config.statusOverlayLocked);
     setOverlayOpacity(config.statusOverlayOpacity);
 
-    refreshThemeStyle(repeatRunning, macroRunning);
+    const auto& repeatOptions = config.repeatOverlay;
+    const auto& macroOptions = config.macroOverlay;
+    const QFontMetrics metrics(Fluent::Typography::caption());
+    const int desiredWidth = std::max(178,
+        metrics.horizontalAdvance(QStringLiteral("\u8fde\u53d1: \u914d\u7f6e\u505c\u7528")) + 66);
+    const auto* currentScreen = nearestScreenForPoint(pos());
+    setFixedWidth(currentScreen ? std::min(desiredWidth, currentScreen->availableGeometry().width()) : desiredWidth);
+
+    // Hold bindings keep running while the pause key suspends the other modes.
+    const bool hasPausableBindings = profile && std::any_of(profile->bindings.begin(), profile->bindings.end(),
+        [](const KeyBinding& binding) { return binding.enabled && binding.mode != RepeatMode::Hold; });
+    const bool repeatPaused = repeat.running && repeat.paused && hasPausableBindings;
+    refreshThemeStyle(repeat.running && (!repeatPaused || !repeat.holdKeys.empty()),
+        macroStatus.running && !macroStatus.paused);
 
     repeatIndicator_->setVisible(showRepeat);
     macroIndicator_->setVisible(showMacro);
@@ -224,26 +253,135 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
     repeatBlock_->setVisible(showRepeat);
     macroBlock_->setVisible(showMacro);
     if (showRepeat) {
-        repeatTitleLabel_->setText(profile && !profile->enabled
-            ? QString::fromWCharArray(L"\u8fde\u53d1\uff1a\u914d\u7f6e\u5df2\u505c\u7528")
-            : QString::fromWCharArray(repeatRunning ? L"\u8fde\u53d1\uff1a\u5df2\u5f00\u542f" : L"\u8fde\u53d1\uff1a\u5df2\u5173\u95ed"));
-        repeatHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") +
-            TextOrDash(profile && profile->enabled ? profile->controlHotkey : std::nullopt));
+        QString state = QStringLiteral("\u5df2\u5173\u95ed");
+        if (!profile) state = QStringLiteral("\u65e0\u914d\u7f6e");
+        else if (!profile->enabled) state = QStringLiteral("\u914d\u7f6e\u505c\u7528");
+        else if (repeatPaused) state = repeat.holdKeys.empty() ? QStringLiteral("\u5df2\u6682\u505c") : QStringLiteral("\u90e8\u5206\u6682\u505c");
+        else if (repeat.running) state = QStringLiteral("\u5df2\u5f00\u542f");
+        setDisplayLines(repeatTitleLabel_, {QStringLiteral("\u8fde\u53d1: ") + state});
+
+        QStringList lines;
+        if (profile) {
+            if (repeatOptions.showHotkey) lines << QStringLiteral("\u542f\u505c: ") + TextOrDash(profile->enabled ? profile->controlHotkey : std::nullopt);
+            const auto hasMode = [profile](RepeatMode mode) {
+                return std::any_of(profile->bindings.begin(), profile->bindings.end(), [mode](const KeyBinding& binding) {
+                    return binding.enabled && binding.mode == mode;
+                });
+            };
+            const auto modeState = [&]() {
+                if (!profile->enabled) return QStringLiteral("(\u505c\u7528)");
+                if (!repeat.running) return QStringLiteral("(\u5173\u95ed)");
+                if (repeat.paused) return QStringLiteral("(\u6682\u505c)");
+                if (repeat.holdPriorityActive) return QStringLiteral("(\u8ba9\u4f4d)");
+                return QString();
+            };
+            const auto keySummary = [&](const std::vector<KeyDescriptor>& keys, const QString& prefix) {
+                QStringList names;
+                for (std::size_t i = 0; i < std::min<std::size_t>(2, keys.size()); ++i)
+                    names << QString::fromStdWString(GetKeyDisplayName(keys[i]));
+                const QString suffix = keys.size() > 2
+                    ? QStringLiteral(" \u7b49%1\u952e").arg(static_cast<qulonglong>(keys.size())) : QString();
+                const int budget = std::max(0, width() - 42 - metrics.horizontalAdvance(prefix + suffix));
+                return prefix + metrics.elidedText(names.join(QStringLiteral(", ")), Qt::ElideRight, budget) + suffix;
+            };
+            if (repeatOptions.showIndependent && hasMode(RepeatMode::Independent)) {
+                lines << QStringLiteral("\u72ec\u7acb") + modeState() + QStringLiteral(": ")
+                    + (repeat.independentKey ? TextOrDash(repeat.independentKey) : QStringLiteral("\u672a\u6fc0\u6d3b"));
+            }
+            if (repeatOptions.showHold && hasMode(RepeatMode::Hold)) {
+                const QString prefix = QStringLiteral("\u6309\u538b: ");
+                lines << (repeat.holdKeys.empty() ? prefix + QStringLiteral("\u672a\u6309\u538b") : keySummary(repeat.holdKeys, prefix));
+            }
+            if (repeatOptions.showToggle && hasMode(RepeatMode::Toggle)) {
+                std::vector<KeyDescriptor> keys;
+                for (const auto& binding : profile->bindings)
+                    if (binding.enabled && binding.mode == RepeatMode::Toggle) keys.push_back(binding.key);
+                lines << keySummary(keys, QStringLiteral("\u5f00\u5173") + modeState() + QStringLiteral(": "));
+            }
+            if (repeatOptions.showSequence && hasMode(RepeatMode::Sequence)) {
+                QString selected = QStringLiteral("\u672a\u6fc0\u6d3b");
+                for (const auto& binding : profile->bindings) {
+                    if (binding.enabled && binding.mode == RepeatMode::Sequence
+                        && repeat.sequenceTaskId && binding.id == *repeat.sequenceTaskId) {
+                        selected = QString::fromStdWString(GetKeyDisplayName(binding.key));
+                        break;
+                    }
+                }
+                lines << QStringLiteral("\u5207\u6362") + modeState() + QStringLiteral(": ") + selected;
+            }
+            if (repeatOptions.showSequenceHotkey && profile->sequenceSwitchKey)
+                lines << QStringLiteral("\u5207\u6362\u952e: ") + TextOrDash(profile->sequenceSwitchKey);
+            if (repeatOptions.showPauseKeys && !profile->pauseKeys.empty())
+                lines << keySummary(profile->pauseKeys, QStringLiteral("\u6682\u505c\u952e: "));
+        }
+        setDisplayLines(repeatHotkeyLabel_, lines);
     }
     if (showMacro) {
-        macroTitleLabel_->setText(macro && !macro->enabled
-            ? QString::fromWCharArray(L"\u5faa\u73af\uff1a\u914d\u7f6e\u5df2\u505c\u7528")
-            : QString::fromWCharArray(macroRunning ? L"\u5faa\u73af\uff1a\u5df2\u5f00\u542f" : L"\u5faa\u73af\uff1a\u5df2\u5173\u95ed"));
-        macroHotkeyLabel_->setText(QString::fromWCharArray(L"\u542f\u505c ") +
-            TextOrDash(macro && macro->enabled ? macro->triggerKey : std::nullopt) +
-            QString::fromWCharArray(L"  ") + LoopText(macro));
+        QString state = QStringLiteral("\u5df2\u5173\u95ed");
+        if (!macro) state = QStringLiteral("\u65e0\u914d\u7f6e");
+        else if (!macro->enabled) state = QStringLiteral("\u914d\u7f6e\u505c\u7528");
+        else if (macroStatus.paused) state = QStringLiteral("\u5df2\u6682\u505c");
+        else if (macroStatus.running) state = QStringLiteral("\u5df2\u5f00\u542f");
+        setDisplayLines(macroTitleLabel_, {QStringLiteral("\u5faa\u73af: ") + state});
+        QStringList lines;
+        if (macro) {
+            QString trigger;
+            if (macroOptions.showHotkey) trigger = QStringLiteral("\u542f\u505c: ") + TextOrDash(macro->enabled ? macro->triggerKey : std::nullopt);
+            if (macroOptions.showTriggerMode) {
+                const QString mode = macro->triggerMode == MacroTriggerMode::Hold ? QStringLiteral("\u6309\u538b") : QStringLiteral("\u5f00\u5173");
+                trigger += trigger.isEmpty() ? QStringLiteral("\u89e6\u53d1: ") + mode : QStringLiteral("(") + mode + QStringLiteral(")");
+            }
+            if (macroOptions.showLoopCount && macro->triggerMode == MacroTriggerMode::Toggle) {
+                const QString combined = trigger.isEmpty() ? LoopText(macro) : trigger + QStringLiteral("  ") + LoopText(macro);
+                if (metrics.horizontalAdvance(combined) <= width() - 42) trigger = combined;
+                else {
+                    if (!trigger.isEmpty()) lines << trigger;
+                    trigger = LoopText(macro);
+                }
+            }
+            if (!trigger.isEmpty()) lines << trigger;
+            if (macroOptions.showPauseKeys && !macro->pauseKeys.empty()) {
+                QStringList names;
+                for (const auto& key : macro->pauseKeys) names << QString::fromStdWString(GetKeyDisplayName(key));
+                const QString suffix = names.size() > 2 ? QStringLiteral(" \u7b49%1\u952e").arg(names.size()) : QString();
+                const QString prefix = QStringLiteral("\u6682\u505c\u952e: ");
+                const int budget = std::max(0, width() - 42 - metrics.horizontalAdvance(prefix + suffix));
+                lines << prefix + metrics.elidedText(names.mid(0, 2).join(QStringLiteral(", ")), Qt::ElideRight, budget) + suffix;
+            }
+        }
+        setDisplayLines(macroHotkeyLabel_, lines);
     }
 
+    refreshTextLayout();
     adjustSize();
     moveToConfiguredPosition(config);
     setOverlayEnabled(true);
     move(boundedPosition(pos()));
     syncLockButton();
+}
+
+void StatusOverlayWindow::setDisplayLines(QLabel* label, const QStringList& lines) {
+    label->setProperty("overlayLines", lines);
+    label->setToolTip(lines.join(QLatin1Char('\n')));
+    label->setVisible(!lines.isEmpty());
+}
+
+void StatusOverlayWindow::refreshTextLayout() {
+    for (auto* label : {repeatTitleLabel_, repeatHotkeyLabel_, macroTitleLabel_, macroHotkeyLabel_}) {
+        if (!label) continue;
+        const bool title = label == repeatTitleLabel_ || label == macroTitleLabel_;
+        const int available = std::max(0, width() - 42 - (title ? 24 : 0));
+        QStringList visibleLines;
+        const auto lines = label->property("overlayLines").toStringList();
+        for (const auto& line : lines)
+            visibleLines << label->fontMetrics().elidedText(line, Qt::ElideRight, available);
+        const QString text = visibleLines.join(QLatin1Char('\n'));
+        if (label->text() != text) label->setText(text);
+    }
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
 }
 
 void StatusOverlayWindow::refreshThemeStyle(bool repeatRunning, bool macroRunning) {
@@ -388,6 +526,8 @@ void StatusOverlayWindow::setLocked(bool locked) {
     setCursor(locked_ ? Qt::ArrowCursor : Qt::SizeAllCursor);
     if (lockButton_) {
         lockButton_->setText(QString(QChar(locked_ ? 0xE72E : 0xE785)));
+        lockButton_->setToolTip(locked_ ? QStringLiteral("\u89e3\u9501\u4f4d\u7f6e") : QStringLiteral("\u9501\u5b9a\u4f4d\u7f6e"));
+        lockButton_->setAccessibleName(lockButton_->toolTip());
     }
     if (isVisible()) {
         syncLockButton();

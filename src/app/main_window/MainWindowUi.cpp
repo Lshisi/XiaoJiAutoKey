@@ -2,6 +2,7 @@
 
 #include "FactionTheme.h"
 #include "config/ActiveConfigValidator.h"
+#include "dialogs/StatusOverlaySettingsDialog.h"
 #include "ui/components/FluentSidebar.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/KeyPage.h"
@@ -13,6 +14,10 @@
 
 void MainWindow::setupUi() {
     view_.setup(this);
+    connect(view_.keyPage(), &KeyPage::statusOverlaySettingsClicked, this,
+        [this]() { openStatusOverlaySettings(false); });
+    connect(view_.macroPage(), &MacroPage::statusOverlaySettingsClicked, this,
+        [this]() { openStatusOverlaySettings(true); });
     engineStateCoordinator_.bind(EngineStateCoordinator::Context{
         &view_,
         &engine_,
@@ -235,6 +240,16 @@ void MainWindow::setupUi() {
         refreshStatusOverlay();
     });
     macroStateTimer->start(100);
+}
+
+void MainWindow::openStatusOverlaySettings(bool macroPage) {
+    StatusOverlaySettingsDialog dialog(config_, macroPage, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const auto settings = dialog.settings();
+    config_.repeatOverlay = settings.repeat;
+    config_.macroOverlay = settings.macro;
+    configCoordinator_.save();
+    refreshStatusOverlay();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

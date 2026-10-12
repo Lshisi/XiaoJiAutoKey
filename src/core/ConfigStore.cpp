@@ -319,6 +319,28 @@ AppConfig ConfigStore::Load() const {
         config.statusOverlayY = *overlayY;
     if (const auto opacity = GetIntField(*object, "statusOverlayOpacity"); opacity.has_value())
         config.statusOverlayOpacity = std::clamp(*opacity, 30, 100);
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowHotkey"); value.has_value())
+        config.repeatOverlay.showHotkey = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowIndependent"); value.has_value())
+        config.repeatOverlay.showIndependent = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowHold"); value.has_value())
+        config.repeatOverlay.showHold = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowToggle"); value.has_value())
+        config.repeatOverlay.showToggle = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowSequence"); value.has_value())
+        config.repeatOverlay.showSequence = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowSequenceHotkey"); value.has_value())
+        config.repeatOverlay.showSequenceHotkey = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowPauseKeys"); value.has_value())
+        config.repeatOverlay.showPauseKeys = *value;
+    if (const auto value = GetBoolField(*object, "macroOverlayShowHotkey"); value.has_value())
+        config.macroOverlay.showHotkey = *value;
+    if (const auto value = GetBoolField(*object, "macroOverlayShowTriggerMode"); value.has_value())
+        config.macroOverlay.showTriggerMode = *value;
+    if (const auto value = GetBoolField(*object, "macroOverlayShowLoopCount"); value.has_value())
+        config.macroOverlay.showLoopCount = *value;
+    if (const auto value = GetBoolField(*object, "macroOverlayShowPauseKeys"); value.has_value())
+        config.macroOverlay.showPauseKeys = *value;
 
     if (const auto startupStr = GetStringField(*object, "startupAction"); startupStr.has_value()) {
         config.startupAction = *startupStr == "tray"
@@ -385,6 +407,7 @@ AppConfig ConfigStore::Load() const {
                     profile.mixedMode = *mixed;
                 if (auto wasdProtection = GetBoolField(*pObj, "wasdProtection"); wasdProtection.has_value())
                     profile.wasdProtection = *wasdProtection;
+                profile.rememberSequencePosition = GetBoolField(*pObj, "rememberSequencePosition").value_or(true);
 
                 // Load pause keys
                 const auto pauseKeysIt = pObj->find("pauseKeys");
@@ -453,6 +476,17 @@ bool ConfigStore::Save(
     root.emplace("statusOverlayX", config.statusOverlayX);
     root.emplace("statusOverlayY", config.statusOverlayY);
     root.emplace("statusOverlayOpacity", std::clamp(config.statusOverlayOpacity, 30, 100));
+    root.emplace("repeatOverlayShowHotkey", config.repeatOverlay.showHotkey);
+    root.emplace("repeatOverlayShowIndependent", config.repeatOverlay.showIndependent);
+    root.emplace("repeatOverlayShowHold", config.repeatOverlay.showHold);
+    root.emplace("repeatOverlayShowToggle", config.repeatOverlay.showToggle);
+    root.emplace("repeatOverlayShowSequence", config.repeatOverlay.showSequence);
+    root.emplace("repeatOverlayShowSequenceHotkey", config.repeatOverlay.showSequenceHotkey);
+    root.emplace("repeatOverlayShowPauseKeys", config.repeatOverlay.showPauseKeys);
+    root.emplace("macroOverlayShowHotkey", config.macroOverlay.showHotkey);
+    root.emplace("macroOverlayShowTriggerMode", config.macroOverlay.showTriggerMode);
+    root.emplace("macroOverlayShowLoopCount", config.macroOverlay.showLoopCount);
+    root.emplace("macroOverlayShowPauseKeys", config.macroOverlay.showPauseKeys);
 
     root.emplace("startupAction",
         std::string(config.startupAction == StartupAction::Window ? "window" : "tray"));
@@ -498,6 +532,7 @@ bool ConfigStore::Save(
         pObj.emplace("defaultDelayMs", profile.defaultDelayMs);
         pObj.emplace("mixedMode", profile.mixedMode);
         pObj.emplace("wasdProtection", profile.wasdProtection);
+        pObj.emplace("rememberSequencePosition", profile.rememberSequencePosition);
 
         // Serialize pause keys
         jsonlite::Array pauseKeysArr;

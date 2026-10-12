@@ -6,6 +6,10 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <QApplication>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QCoreApplication>
 #include <QFont>
 #include <QGuiApplication>
@@ -33,6 +37,49 @@ Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 #pragma comment(lib, "winmm.lib")
 
 namespace {
+
+class SpaceInputFilter final : public QObject {
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease
+            || event->type() == QEvent::ShortcutOverride) {
+            const auto* keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->key() == Qt::Key_Space) {
+                // Claim Space before Qt resolves shortcuts, even when entering text.
+                if (event->type() != QEvent::ShortcutOverride && isEditableTextTarget(watched)) {
+                    return QObject::eventFilter(watched, event);
+                }
+                event->accept();
+                return true;
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    static bool isEditableTextTarget(QObject* target) {
+        if (auto* edit = qobject_cast<QLineEdit*>(target)) {
+            return edit->isEnabled() && !edit->isReadOnly();
+        }
+        if (auto* edit = qobject_cast<QTextEdit*>(target)) {
+            return edit->isEnabled() && !edit->isReadOnly();
+        }
+        if (auto* edit = qobject_cast<QPlainTextEdit*>(target)) {
+            return edit->isEnabled() && !edit->isReadOnly();
+        }
+        // Multiline editors may receive key events through their viewport.
+        if (auto* edit = qobject_cast<QTextEdit*>(target->parent())) {
+            return target == edit->viewport() && edit->isEnabled() && !edit->isReadOnly();
+        }
+        if (auto* edit = qobject_cast<QPlainTextEdit*>(target->parent())) {
+            return target == edit->viewport() && edit->isEnabled() && !edit->isReadOnly();
+        }
+        return false;
+    }
+};
 
 void PreserveTimerResolution() {
     PROCESS_POWER_THROTTLING_STATE state{};
@@ -207,6 +254,8 @@ int main(int argc, char *argv[]) {
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
+    SpaceInputFilter spaceInputFilter;
+    app.installEventFilter(&spaceInputFilter);
     app.setStyle(QStyleFactory::create("Fusion"));
     app.setPalette(Fluent::Theme::applicationPalette());
 

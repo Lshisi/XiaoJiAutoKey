@@ -2,6 +2,7 @@
 #include "../styles/DesignTokens.h"
 #include "../components/FluentCard.h"
 #include "../components/FluentButton.h"
+#include "../components/FactionIcon.h"
 #include "FactionTheme.h"
 #include "dialogs/AppMessageDialog.h"
 
@@ -14,6 +15,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QScrollArea>
+#include <QShowEvent>
 #include <QSizePolicy>
 #include <QTimer>
 #include <QUrl>
@@ -68,10 +70,10 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     // ── Inner card 1: App info ──
     auto* infoCard = new FluentCard(outerCard);
     auto* infoRow = new QHBoxLayout();
-    auto* iconLabel = new QLabel(infoCard);
-    iconLabel->setPixmap(QPixmap(":/assets/icon.png").scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    iconLabel->setFixedSize(48, 48);
-    infoRow->addWidget(iconLabel);
+    iconLabel_ = new QLabel(infoCard);
+    iconLabel_->setFixedSize(48, 48);
+    iconLabel_->setAlignment(Qt::AlignCenter);
+    infoRow->addWidget(iconLabel_);
     infoRow->addSpacing(12);
     auto* infoText = new QVBoxLayout();
     infoText->setSpacing(2);
@@ -160,7 +162,18 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     updateThemeColors();
 }
 
+void AboutPage::refreshIcon() {
+    if (!iconLabel_) return;
+    iconLabel_->setPixmap(FactionIcon::render(QStringLiteral(":/assets/icon.png"), iconLabel_->size(), iconLabel_));
+}
+
+void AboutPage::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    refreshIcon();
+}
+
 void AboutPage::updateThemeColors() {
+    refreshIcon();
     setStyleSheet(QString("AboutPage { background: %1; }")
         .arg(FactionTheme::instance().palette().surfaceTint.name()));
     if (scrollArea_) {

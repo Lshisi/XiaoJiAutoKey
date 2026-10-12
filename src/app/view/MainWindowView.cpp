@@ -1,4 +1,5 @@
 #include "view/MainWindowView.h"
+#include "dialogs/StatusOverlaySettingsDialog.h"
 
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentCard.h"
@@ -584,6 +585,7 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     driverPage_->updateThemeColors();
     settingsPage_->setFaction(FactionTheme::instance().current().id);
     aboutPage_->updateThemeColors();
+    for (auto* dialog : window->findChildren<StatusOverlaySettingsDialog*>()) dialog->refreshVisuals();
     window->update();
 }
 
@@ -612,6 +614,7 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
         }
         window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
         keepWindowWithinAvailableGeometry(window, screen, nativeDpi, false);
+        if (aboutPage_) aboutPage_->refreshIcon();
     }
 
     if (auto* central = window->centralWidget()) {
@@ -620,6 +623,8 @@ void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged,
             refreshLayoutTree(central, true);
         }
     }
+
+    for (auto* dialog : window->findChildren<StatusOverlaySettingsDialog*>()) dialog->refreshVisuals();
 
     updateActivityIcons(window, activityIconActive_, false);
 

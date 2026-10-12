@@ -95,9 +95,27 @@ struct ProfileConfig {
     int defaultDelayMs = kDefaultDelayMs;
     bool mixedMode = false;
     bool wasdProtection = false;
+    bool rememberSequencePosition = true;
     std::optional<KeyDescriptor> sequenceSwitchKey;
     std::vector<KeyDescriptor> pauseKeys;
     std::vector<KeyBinding> bindings;
+};
+
+struct RepeatOverlayOptions {
+    bool showHotkey = true;
+    bool showIndependent = false;
+    bool showHold = false;
+    bool showToggle = false;
+    bool showSequence = false;
+    bool showSequenceHotkey = false;
+    bool showPauseKeys = false;
+};
+
+struct MacroOverlayOptions {
+    bool showHotkey = true;
+    bool showTriggerMode = false;
+    bool showLoopCount = true;
+    bool showPauseKeys = false;
 };
 
 struct AppConfig {
@@ -110,6 +128,8 @@ struct AppConfig {
     int statusOverlayX = 6;
     int statusOverlayY = 6;
     int statusOverlayOpacity = 70;
+    RepeatOverlayOptions repeatOverlay;
+    MacroOverlayOptions macroOverlay;
     StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Legacy;

@@ -31,6 +31,7 @@ public:
     ControllerResult clearSequenceSwitchKey();
     ControllerResult setMixedMode(bool enabled);
     ControllerResult setWasdProtection(bool enabled);
+    ControllerResult setRememberSequencePosition(bool enabled);
 
     ControllerResult deleteBinding(std::uint64_t id);
     ControllerResult setBindingEnabled(std::uint64_t id, bool enabled);

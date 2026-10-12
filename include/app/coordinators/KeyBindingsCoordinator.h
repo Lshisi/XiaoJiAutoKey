@@ -52,6 +52,7 @@ private:
     void onStatusOverlayToggled(bool enabled);
     void onMixedModeToggled(bool enabled);
     void onWasdProtectionToggled(bool enabled);
+    void onRememberSequencePositionChanged(bool enabled);
     void onSequenceSwitchKeyAdd();
     void onSequenceSwitchKeyDelete();
     void onPauseKeyAdd();

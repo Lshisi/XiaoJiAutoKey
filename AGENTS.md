@@ -36,7 +36,7 @@
 
 项目开源在 `gitee.com/fourteen-fourteen/xiao-ji-auto-key`（GPL-3.0）。程序内"软件更新"功能的数据源是 Gitee Releases（基于 git tag），更新逻辑见 `src/app/services/UpdateService.cpp`。发布新版本时：
 
-1. 提升 `CMakeLists.txt` 里 `project(XiaoJiAutoKey VERSION x.y.z)` 的版本号（`APP_VERSION` 宏由它生成），并在 `README.md` 版本历史里添加对应条目、更新"当前版本"标记。
+1. 提升 `CMakeLists.txt` 里 `project(XiaoJiAutoKey VERSION x.y.z)` 的版本号（`APP_VERSION` 宏由它生成）。README 不写版本号和版本历史，版本信息只存在于 git tag 和 Gitee Release 的发布说明里。
 2. 用 `scripts/package-release.ps1` 打包（产物为 `dist/XiaoJiAutoKey.zip`，内部有顶层 `XiaoJiAutoKey/` 目录）。
 3. 在仓库打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致）。
 4. 在 Gitee 上基于该 tag 创建"发行版（Release）"，并把 `XiaoJiAutoKey.zip` 重命名后（建议 `XiaoJiAutoKey-vx.y.z.zip`）作为附件上传。附件的下载地址形如 `.../releases/download/...`，程序只把这种附件当作可用的更新包；Gitee 自动生成的源码包（`/archive/refs/tags/...`）会被忽略。

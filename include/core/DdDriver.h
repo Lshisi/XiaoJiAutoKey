@@ -38,6 +38,8 @@ public:
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
+    [[nodiscard]] bool SupportsMouseMove() const override;
     void ReleaseAll() override;
     void ClearAllStates() override;  // Clear pressedKeys_ and selfInjected_ state.
     bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
@@ -47,6 +49,7 @@ private:
     using DD_btn_t = int(__stdcall*)(int);
     using DD_key_t = int(__stdcall*)(int, int);
     using DD_todc_t = int(__stdcall*)(int);
+    using DD_move_t = int(__stdcall*)(int, int);
 
     bool LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind);
     bool SendKeyboardTap(std::uint32_t vk);
@@ -55,7 +58,7 @@ private:
     bool SendMouseUp(std::uint32_t vk);
     bool SendHidMouseButton(std::uint32_t vk, bool down);
     bool EnsureHidMouseHandleLocked();
-    bool WriteHidMouseReportLocked();
+    bool WriteHidMouseReportLocked(int deltaX = 0, int deltaY = 0);
     void CloseHidMouseHandleLocked();
     bool TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage);
     bool WriteModuleHandleSlot(std::uintptr_t rva, HANDLE value);
@@ -76,6 +79,9 @@ private:
     DD_btn_t ddBtn_ = nullptr;
     DD_key_t ddKey_ = nullptr;
     DD_todc_t ddToDc_ = nullptr;
+    // 可选导出：DD_mov(绝对)/DD_movR(相对)，老版 DD DLL 可能没有。
+    DD_move_t ddMov_ = nullptr;
+    DD_move_t ddMovR_ = nullptr;
     RuntimeKind runtimeKind_ = RuntimeKind::Unknown;
     HANDLE infKeyboardHandle_ = INVALID_HANDLE_VALUE;
     HANDLE infMouseHandle_ = INVALID_HANDLE_VALUE;

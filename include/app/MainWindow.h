@@ -2,7 +2,9 @@
 
 #include "AppTypes.h"
 #include "DdDriver.h"
+#include "ForegroundWatcher.h"
 #include "InputDriverRouter.h"
+#include "ShareCodec.h"
 #include "input/GlobalInputHook.h"
 #include "input/RawInputManager.h"
 #include "MacroEngine.h"
@@ -88,6 +90,16 @@ private:
     void prepareForSystemShutdown();
     void applyStagedUpdateAndRestart(const QString& stagingDir);
 
+    // 前台门控（仅游戏客户端前台时生效）
+    void applyGameGateSettings();
+    void onGameForegroundChanged(bool gameForeground);
+    void hookTrayGameGateAction();
+    bool trayGateHooked_ = false;
+
+    // 配置分享
+    void openShareDialog(bool focusMacro);
+    void applyImportedSharePayload(const SharePayload& payload);
+
     MainWindowView view_;
 
     // Core
@@ -104,6 +116,7 @@ private:
     MacroEngine macroEngine_;
     GlobalInputHook inputHook_;
     RawInputManager rawInput_;
+    ForegroundWatcher gameWatcher_;
     DdRuntimeService ddRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;

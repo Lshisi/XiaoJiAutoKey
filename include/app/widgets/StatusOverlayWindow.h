@@ -20,6 +20,7 @@ public:
     explicit StatusOverlayWindow(QWidget* parent = nullptr);
 
     void setOverlayEnabled(bool enabled);
+    void setGameGatePaused(bool paused);
     void refreshForDpiChange(int nativeDpi = 0);
     void updateStatus(const AppConfig& config,
         const ProfileConfig* profile,
@@ -61,6 +62,7 @@ private:
 
     QLabel* repeatIndicator_ = nullptr;
     QLabel* macroIndicator_ = nullptr;
+    QLabel* gateBadge_ = nullptr;
     QLabel* titleLabel_ = nullptr;
     QLabel* repeatTitleLabel_ = nullptr;
     QLabel* repeatHotkeyLabel_ = nullptr;
@@ -72,6 +74,7 @@ private:
     QWidget* lockButtonWindow_ = nullptr;
     bool overlayEnabled_ = false;
     bool locked_ = false;
+    bool gameGatePaused_ = false;
     int opacity_ = 70;
     bool dragging_ = false;
     bool positionInitialized_ = false;

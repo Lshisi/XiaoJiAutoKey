@@ -17,6 +17,8 @@ public:
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
+    [[nodiscard]] bool SupportsMouseMove() const override;
     void SetSourceActiveKeys(InputSource src, const std::vector<KeyDescriptor>& keys) override;
     void ReleaseSource(InputSource src) override;
     void ReleaseAll() override;

@@ -40,6 +40,15 @@ struct KeyDescriptor {
     [[nodiscard]] bool operator==(const KeyDescriptor& other) const noexcept = default;
 };
 
+// 鼠标键的点击位置：跟随鼠标，或锚定在游戏窗口客户区内的固定比例点位。
+struct ClickPosition {
+    bool fixedPosition = false;
+    double anchorX = 0.5;  // 0.0-1.0，相对游戏窗口客户区
+    double anchorY = 0.5;
+
+    [[nodiscard]] bool IsFixed() const noexcept { return fixedPosition; }
+};
+
 struct KeyBinding {
     std::uint64_t id = 0;
     bool enabled = true;
@@ -47,6 +56,7 @@ struct KeyBinding {
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = kDefaultDelayMs;
     bool suppressMixedMode = false;
+    ClickPosition clickPos;  // 仅对鼠标键有意义
 };
 
 enum class CloseAction {
@@ -121,6 +131,10 @@ struct MacroOverlayOptions {
 struct AppConfig {
     bool backgroundAutoRun = false;
     bool beepEnabled = true;
+    // 仅当游戏客户端在前台时生效（离开游戏自动暂停并释放按键）
+    bool gameGateEnabled = false;
+    // 额外识别的游戏进程名（小写，支持 "name*" 前缀通配）
+    std::vector<std::string> gameGateProcesses;
     bool statusOverlayShowRepeat = false;
     bool statusOverlayShowMacro = false;
     bool statusOverlayLocked = false;

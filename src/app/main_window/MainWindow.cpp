@@ -3,12 +3,15 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/DialogChrome.h"
+#include "dialogs/ShareDialog.h"
+#include "FactionTheme.h"
 #include "services/AgentService.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDialog>
@@ -29,6 +32,9 @@
 #include <QWindow>
 #include <Windows.h>
 #include <Dbt.h>
+#include <Shellapi.h>
+#include <SetupAPI.h>
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <sstream>
@@ -299,6 +305,9 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     unregisterUsbDeviceNotifications();
+    // 先停前台监视，避免析构期间回调再投递到已销毁的窗口。
+    gameWatcher_.SetCallback(nullptr);
+    gameWatcher_.Stop();
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
@@ -347,12 +356,22 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.startThreads();
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
+    // 前台门控：监视游戏客户端窗口，并给引擎提供固定点位锚定。
+    engine_.SetGameWindowProvider(&gameWatcher_);
+    gameWatcher_.SetCallback([this](bool gameForeground) {
+        QMetaObject::invokeMethod(this, [this, gameForeground]() {
+            onGameForegroundChanged(gameForeground);
+        }, Qt::QueuedConnection);
+    });
+    applyGameGateSettings();
+    gameWatcher_.Start();
     pageRefreshCoordinator_.refreshAll();
     refreshStatusOverlay();
     bindDpiRefreshSignals();
     observedScreenDpi_ = currentScreenDpi();
     QTimer::singleShot(250, this, [this]() {
         view_.initializeTray(this);
+        hookTrayGameGateAction();
     });
     return true;
 }
@@ -360,6 +379,7 @@ bool MainWindow::Initialize() {
 void MainWindow::ShowForStartup() {
     if (config_.startupAction == StartupAction::Tray) {
         view_.initializeTray(this);
+        hookTrayGameGateAction();
         hide();
         return;
     }
@@ -1267,6 +1287,11 @@ void MainWindow::syncQtGeometryWithNativeWindow() {
 void MainWindow::refreshStatusOverlay() {
     auto* profile = profileController_.activeProfile();
     auto* macro = macroController_.activeMacro();
+    const bool repeatRunning = engine_.IsToolRunning();
+    const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
+    statusOverlay_.setGameGatePaused(
+        config_.gameGateEnabled && !gameWatcher_.IsGameForeground()
+        && (repeatRunning || macroRunning));
     if (config_.statusOverlayShowRepeat || config_.statusOverlayShowMacro) {
         const auto repeatStatus = config_.statusOverlayShowRepeat ? engine_.GetStatus() : RepeaterStatus{};
         const auto macroStatus = config_.statusOverlayShowMacro && macro ? macroEngine_.GetStatus(macro->id) : MacroStatus{};
@@ -1274,7 +1299,130 @@ void MainWindow::refreshStatusOverlay() {
     } else {
         statusOverlay_.setOverlayEnabled(false);
     }
-    view_.updateActivityIcons(this, engine_.IsToolRunning(), macro && macroEngine_.IsRunning(macro->id));
+    view_.updateActivityIcons(this, repeatRunning, macroRunning);
+}
+
+void MainWindow::applyGameGateSettings() {
+    ForegroundWatcher::Rules rules;
+    rules.enabled = config_.gameGateEnabled;
+    rules.customProcesses = config_.gameGateProcesses;
+    gameWatcher_.SetRules(std::move(rules));
+
+    if (auto* action = view_.trayGameGateAction()) {
+        action->blockSignals(true);
+        action->setChecked(config_.gameGateEnabled);
+        action->blockSignals(false);
+    }
+    if (auto* page = view_.settingsPage()) {
+        page->setGameGateEnabled(config_.gameGateEnabled);
+    }
+    onGameForegroundChanged(gameWatcher_.IsGameForeground());
+}
+
+void MainWindow::onGameForegroundChanged(bool gameForeground) {
+    const bool suspended = config_.gameGateEnabled && !gameForeground;
+    engine_.SetSuspended(suspended);
+    macroEngine_.SetSuspended(suspended);
+    refreshStatusOverlay();
+}
+
+void MainWindow::hookTrayGameGateAction() {
+    if (trayGateHooked_) {
+        return;
+    }
+    auto* action = view_.trayGameGateAction();
+    if (action == nullptr) {
+        return;
+    }
+    trayGateHooked_ = true;
+    connect(action, &QAction::toggled, this, [this](bool checked) {
+        config_.gameGateEnabled = checked;
+        configCoordinator_.save();
+        applyGameGateSettings();
+    });
+    applyGameGateSettings();
+}
+
+void MainWindow::openShareDialog(bool focusMacro) {
+    ShareDialog::ExportData data;
+    data.currentProfile.faction = config_.faction;
+    if (auto* profile = profileController_.activeProfile()) {
+        data.currentProfile.profiles.push_back(*profile);
+    }
+    if (auto* macro = macroController_.activeMacro()) {
+        data.currentMacro.macros.push_back(*macro);
+    }
+    data.everything.faction = config_.faction;
+    data.everything.profiles = config_.profiles;
+    data.everything.macros = config_.macros;
+
+    ShareDialog dialog(
+        focusMacro ? ShareDialog::Mode::ExportMacro : ShareDialog::Mode::ExportProfile,
+        data, this);
+    if (dialog.exec() != QDialog::Accepted || !dialog.hasImport()) {
+        return;
+    }
+    applyImportedSharePayload(dialog.importedPayload());
+}
+
+void MainWindow::applyImportedSharePayload(const SharePayload& payload) {
+    bool structureChanged = false;
+
+    engineStateCoordinator_.setRepeatRunning(false);
+    macroEngine_.StopAll();
+
+    std::uint64_t nextProfileId = profileController_.nextProfileId();
+    for (auto profile : payload.profiles) {
+        profile.id = nextProfileId++;
+        std::uint64_t bindingId = 0;
+        for (auto& binding : profile.bindings) {
+            binding.id = ++bindingId;
+        }
+        for (const auto& existing : config_.profiles) {
+            if (existing.name == profile.name) {
+                profile.name += L"(\u5bfc\u5165)";
+                break;
+            }
+        }
+        config_.profiles.push_back(std::move(profile));
+        structureChanged = true;
+    }
+
+    std::uint64_t nextMacroId = 1;
+    for (const auto& existing : config_.macros) {
+        nextMacroId = std::max(nextMacroId, existing.id + 1);
+    }
+    for (auto macro : payload.macros) {
+        macro.id = nextMacroId++;
+        for (const auto& existing : config_.macros) {
+            if (existing.name == macro.name) {
+                macro.name += L"(\u5bfc\u5165)";
+                break;
+            }
+        }
+        config_.macros.push_back(std::move(macro));
+        structureChanged = true;
+    }
+
+    // 配方携带门派主题时跟随切换（仅导入方案时）。
+    if (!payload.profiles.empty() && !payload.faction.empty()) {
+        const QString factionId = QString::fromStdString(payload.faction);
+        if (factionId != QString::fromStdString(config_.faction)) {
+            config_.faction = payload.faction;
+            FactionTheme::instance().setCurrent(factionId);
+            view_.updateFactionVisuals(this);
+        }
+    }
+
+    if (!structureChanged) {
+        return;
+    }
+
+    configCoordinator_.save();
+    engineStateCoordinator_.applyBindings();
+    engineStateCoordinator_.applyMacros();
+    pageRefreshCoordinator_.refreshAll();
+    refreshStatusOverlay();
 }
 
 void MainWindow::showDdUnavailableMessage() {

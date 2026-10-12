@@ -228,11 +228,14 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     if (bindingId.has_value()) {
         if (auto idx = findBindingIndex(*bindingId)) {
             const auto& binding = profile->bindings[*idx];
-            existing = BindingEditResult{binding.key, binding.mode, binding.delayMs, binding.enabled, binding.suppressMixedMode};
+            existing = BindingEditResult{
+                binding.key, binding.mode, binding.delayMs, binding.enabled,
+                binding.suppressMixedMode, binding.clickPos};
         }
     }
 
-    BindingEditDialog dialog(existing, kDefaultDelayMs, context_.parent);
+    BindingEditDialog dialog(existing, kDefaultDelayMs, context_.gameWindows,
+        context_.driverSupportsMouseMove, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -252,7 +255,8 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         editResult.mode,
         editResult.delayMs,
         editResult.enabled,
-        editResult.suppressMixedMode);
+        editResult.suppressMixedMode,
+        editResult.clickPos);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;

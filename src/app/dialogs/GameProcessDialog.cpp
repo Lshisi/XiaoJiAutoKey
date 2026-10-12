@@ -1,0 +1,229 @@
+#include "dialogs/GameProcessDialog.h"
+
+#include "dialogs/DialogChrome.h"
+#include "ui/components/FluentButton.h"
+#include "ui/components/FluentComboBox.h"
+#include "ui/components/FluentLineEdit.h"
+#include "ui/styles/DesignTokens.h"
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QListWidget>
+#include <QMouseEvent>
+#include <QPushButton>
+#include <QShowEvent>
+#include <QVBoxLayout>
+
+#include <Windows.h>
+#include <TlHelp32.h>
+
+#include <algorithm>
+#include <set>
+
+namespace {
+
+QStringList RunningProcessNames() {
+    QStringList names;
+    HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return names;
+    }
+
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    if (::Process32FirstW(snapshot, &entry)) {
+        std::set<QString> seen;
+        do {
+            const QString name = QString::fromWCharArray(entry.szExeFile).toLower();
+            if (!name.isEmpty() && name.size() <= 64 && seen.insert(name).second) {
+                names.push_back(name);
+            }
+        } while (::Process32NextW(snapshot, &entry));
+    }
+    ::CloseHandle(snapshot);
+    names.sort();
+    return names;
+}
+
+}  // namespace
+
+GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidget* parent)
+    : QDialog(parent), processes_(initialProcesses) {
+    setWindowTitle(QString::fromWCharArray(L"\u6e38\u620f\u8fdb\u7a0b\u7ba1\u7406"));
+    DialogChrome::apply(this);
+    setModal(true);
+    setFixedSize(420, 460);
+
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(24, 18, 24, 18);
+    root->setSpacing(12);
+
+    auto* titleRow = new QHBoxLayout();
+    titleRow->setSpacing(8);
+    auto* titleLabel = new QLabel(windowTitle(), this);
+    titleLabel->setFont(Fluent::Typography::cardTitle());
+    titleRow->addWidget(titleLabel);
+    titleRow->addStretch();
+    titleRow->addWidget(DialogChrome::createCloseButton(this));
+    root->addLayout(titleRow);
+
+    auto* descLabel = new QLabel(QString::fromWCharArray(
+        L"\u5df2\u5185\u7f6e\u8bc6\u522b\u5251\u7f513\u65d7\u8230\u7aef / \u65e0\u754c / "
+        L"\u7f18\u8d77\u7b49 JX3Client \u7cfb\u5ba2\u6237\u7aef\u3002"
+        L"\u5982\u9700\u989d\u5916\u8bc6\u522b\uff08\u5982\u6a21\u62df\u5668\u6216\u542f\u52a8\u5668\uff09\uff0c"
+        L"\u5728\u6b64\u6dfb\u52a0\u8fdb\u7a0b\u540d\uff0c\u652f\u6301 name* \u524d\u7f00\u901a\u914d\u3002"), this);
+    descLabel->setFont(Fluent::Typography::caption());
+    descLabel->setWordWrap(true);
+    QPalette descPalette = descLabel->palette();
+    descPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
+    descLabel->setPalette(descPalette);
+    root->addWidget(descLabel);
+
+    processCombo_ = new FluentComboBox(this);
+    processCombo_->setFixedHeight(28);
+    root->addWidget(processCombo_);
+
+    auto* addRow = new QHBoxLayout();
+    addRow->setSpacing(8);
+    processEdit_ = new FluentLineEdit(this);
+    processEdit_->setPlaceholderText(QString::fromWCharArray(L"\u624b\u52a8\u8f93\u5165\u8fdb\u7a0b\u540d\uff0c\u5982 mumu*"));
+    addRow->addWidget(processEdit_, 1);
+    auto* addBtn = new FluentButton(FluentButton::Secondary,
+        QString::fromWCharArray(L"\u6dfb\u52a0"), this);
+    addBtn->setFixedWidth(72);
+    addRow->addWidget(addBtn);
+    root->addLayout(addRow);
+
+    listWidget_ = new QListWidget(this);
+    listWidget_->setFixedHeight(180);
+    refreshListTheme();
+    root->addWidget(listWidget_);
+
+    root->addStretch();
+
+    auto* buttons = new QHBoxLayout();
+    buttons->addStretch();
+    auto* cancelButton = new FluentButton(FluentButton::Secondary,
+        QString::fromWCharArray(L"\u53d6\u6d88"), this);
+    okButton_ = new FluentButton(FluentButton::Primary,
+        QString::fromWCharArray(L"\u4fdd\u5b58"), this);
+    cancelButton->setFixedWidth(78);
+    okButton_->setFixedWidth(78);
+    buttons->addWidget(cancelButton);
+    buttons->addSpacing(8);
+    buttons->addWidget(okButton_);
+    root->addLayout(buttons);
+
+    for (const auto& name : processes_) {
+        listWidget_->addItem(name);
+    }
+
+    connect(addBtn, &QPushButton::clicked, this, [this]() {
+        addProcess(processEdit_->text().trimmed().toLower());
+    });
+    connect(processEdit_, &FluentLineEdit::returnPressed, this, [this]() {
+        addProcess(processEdit_->text().trimmed().toLower());
+    });
+    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(okButton_, &QPushButton::clicked, this, &QDialog::accept);
+}
+
+QStringList GameProcessDialog::processes() const {
+    QStringList result;
+    for (int i = 0; i < listWidget_->count(); ++i) {
+        const QString name = listWidget_->item(i)->text().trimmed();
+        if (!name.isEmpty()) {
+            result.push_back(name);
+        }
+    }
+    return result;
+}
+
+void GameProcessDialog::addProcess(const QString& name) {
+    if (name.isEmpty() || name.size() > 260) {
+        return;
+    }
+    for (int i = 0; i < listWidget_->count(); ++i) {
+        if (listWidget_->item(i)->text() == name) {
+            return;
+        }
+    }
+    listWidget_->addItem(name);
+    processEdit_->clear();
+}
+
+void GameProcessDialog::refreshListTheme() {
+    if (!listWidget_) {
+        return;
+    }
+    listWidget_->setStyleSheet(QString(
+        "QListWidget { background: %1; border: 1px solid %2; border-radius: 6px; "
+        "color: %3; padding: 4px; }"
+        "QListWidget::item { height: 26px; padding: 2px 6px; border-radius: 4px; }"
+        "QListWidget::item:hover { background: %4; }"
+        "QListWidget::item:selected { background: %5; color: %3; }")
+        .arg(Fluent::Colors::cardBg().name(),
+            Fluent::Colors::border().name(QColor::HexArgb),
+            Fluent::Colors::textPrimary().name(),
+            Fluent::Colors::hoverBg().name(QColor::HexArgb),
+            Fluent::Colors::selectedBg().name(QColor::HexArgb)));
+    // 双击条目删除
+    disconnect(listWidget_, nullptr, nullptr, nullptr);
+    connect(listWidget_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        delete listWidget_->takeItem(listWidget_->row(item));
+    });
+}
+
+void GameProcessDialog::refreshRunningProcesses() {
+    const QStringList running = RunningProcessNames();
+    processCombo_->blockSignals(true);
+    processCombo_->clear();
+    processCombo_->addItem(QString::fromWCharArray(L"\u4ece\u8fd0\u884c\u4e2d\u7684\u8fdb\u7a0b\u9009\u62e9..."));
+    processCombo_->addItems(running);
+    processCombo_->setCurrentIndex(0);
+    processCombo_->blockSignals(false);
+    disconnect(processCombo_, nullptr, nullptr, nullptr);
+    connect(processCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index <= 0) return;
+        addProcess(processCombo_->itemText(index).toLower());
+    });
+}
+
+void GameProcessDialog::paintEvent(QPaintEvent* event) {
+    DialogChrome::paint(this, event);
+}
+
+void GameProcessDialog::showEvent(QShowEvent* event) {
+    QDialog::showEvent(event);
+    refreshRunningProcesses();
+    refreshListTheme();
+}
+
+void GameProcessDialog::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        dragging_ = true;
+        dragStartGlobal_ = event->globalPos();
+        dragStartFrame_ = frameGeometry().topLeft();
+        event->accept();
+        return;
+    }
+    QDialog::mousePressEvent(event);
+}
+
+void GameProcessDialog::mouseMoveEvent(QMouseEvent* event) {
+    if (dragging_ && (event->buttons() & Qt::LeftButton)) {
+        move(dragStartFrame_ + event->globalPos() - dragStartGlobal_);
+        event->accept();
+        return;
+    }
+    QDialog::mouseMoveEvent(event);
+}
+
+void GameProcessDialog::mouseReleaseEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && dragging_) {
+        dragging_ = false;
+        event->accept();
+        return;
+    }
+    QDialog::mouseReleaseEvent(event);
+}

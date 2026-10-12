@@ -403,6 +403,16 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
         return false;
     }
 
+    // 可选的鼠标移动导出，大小写两种命名都尝试。
+    ddMovR_ = reinterpret_cast<DD_move_t>(::GetProcAddress(module_, "DD_movR"));
+    if (ddMovR_ == nullptr) {
+        ddMovR_ = reinterpret_cast<DD_move_t>(::GetProcAddress(module_, "dd_movR"));
+    }
+    ddMov_ = reinterpret_cast<DD_move_t>(::GetProcAddress(module_, "DD_mov"));
+    if (ddMov_ == nullptr) {
+        ddMov_ = reinterpret_cast<DD_move_t>(::GetProcAddress(module_, "dd_mov"));
+    }
+
     int initResult = [this, runtimeKind]() {
         if (runtimeKind == RuntimeKind::Hid) {
             HidInitGuard guard;
@@ -503,6 +513,8 @@ void DdDriver::Unload() {
     ddBtn_ = nullptr;
     ddKey_ = nullptr;
     ddToDc_ = nullptr;
+    ddMov_ = nullptr;
+    ddMovR_ = nullptr;
     runtimeKind_ = RuntimeKind::Unknown;
 }
 
@@ -516,6 +528,8 @@ void DdDriver::SwapWith(DdDriver& other) {
     std::swap(ddBtn_, other.ddBtn_);
     std::swap(ddKey_, other.ddKey_);
     std::swap(ddToDc_, other.ddToDc_);
+    std::swap(ddMov_, other.ddMov_);
+    std::swap(ddMovR_, other.ddMovR_);
     std::swap(runtimeKind_, other.runtimeKind_);
     std::swap(infKeyboardHandle_, other.infKeyboardHandle_);
     std::swap(infMouseHandle_, other.infMouseHandle_);
@@ -830,6 +844,54 @@ bool DdDriver::SendMouseUp(std::uint32_t vk) {
     return ddBtn_(mouseCodes->second) == 1;
 }
 
+bool DdDriver::SendMouseMove(int deltaX, int deltaY, InputSource) {
+    std::lock_guard ioLock(ioMutex_);
+    if (!IsReady()) return false;
+
+    if (runtimeKind_ == RuntimeKind::Hid) {
+        // ddxoft HID 相对鼠标报文，位移按有符号字节分块发送。
+        std::lock_guard hidLock(hidMouseMutex_);
+        if (!EnsureHidMouseHandleLocked()) {
+            return false;
+        }
+        while (deltaX != 0 || deltaY != 0) {
+            const auto step = [](int value) -> signed char {
+                return static_cast<signed char>(std::clamp(value, -127, 127));
+            };
+            const int stepX = step(deltaX);
+            const int stepY = step(deltaY);
+            if (!WriteHidMouseReportLocked(stepX, stepY)) {
+                CloseHidMouseHandleLocked();
+                if (!EnsureHidMouseHandleLocked() || !WriteHidMouseReportLocked(stepX, stepY)) {
+                    return false;
+                }
+            }
+            deltaX -= stepX;
+            deltaY -= stepY;
+        }
+        return true;
+    }
+
+    if (ddMovR_ != nullptr) {
+        return ddMovR_(deltaX, deltaY) == 1;
+    }
+    if (ddMov_ != nullptr) {
+        POINT current{};
+        if (!::GetCursorPos(&current)) {
+            return false;
+        }
+        return ddMov_(static_cast<int>(current.x) + deltaX, static_cast<int>(current.y) + deltaY) == 1;
+    }
+    return false;
+}
+
+bool DdDriver::SupportsMouseMove() const {
+    if (runtimeKind_ == RuntimeKind::Hid) {
+        return true;  // 句柄按需打开
+    }
+    return ddMov_ != nullptr || ddMovR_ != nullptr;
+}
+
 bool DdDriver::SendHidMouseButton(std::uint32_t vk, bool down) {
     const auto buttonBit = ToHidMouseButtonBit(vk);
     if (!buttonBit.has_value()) {
@@ -945,7 +1007,7 @@ bool DdDriver::EnsureHidMouseHandleLocked() {
     return opened;
 }
 
-bool DdDriver::WriteHidMouseReportLocked() {
+bool DdDriver::WriteHidMouseReportLocked(int deltaX, int deltaY) {
     if (hidMouseHandle_ == INVALID_HANDLE_VALUE) {
         return false;
     }
@@ -955,6 +1017,9 @@ bool DdDriver::WriteHidMouseReportLocked() {
     report[1] = kDdxoftHidMouseCommand;
     report[2] = kDdxoftHidRelativeMouseReportId;
     report[3] = hidMouseButtonState_;
+    // 报文第 4/5 字节是相对位移（有符号字节），单次最多 127 像素。
+    report[4] = static_cast<BYTE>(static_cast<signed char>(deltaX));
+    report[5] = static_cast<BYTE>(static_cast<signed char>(deltaY));
 
     DWORD written = 0;
     return ::WriteFile(

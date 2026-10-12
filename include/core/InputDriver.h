@@ -15,6 +15,12 @@ public:
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
+    // 相对移动光标（像素）；驱动不支持时返回 false。
+    virtual bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) {
+        (void)deltaX; (void)deltaY; (void)src;
+        return false;
+    }
+    [[nodiscard]] virtual bool SupportsMouseMove() const { return false; }
     virtual void SetSourceActiveKeys(InputSource, const std::vector<KeyDescriptor>&) {}
     virtual void ReleaseSource(InputSource) { ReleaseAll(); }
     virtual void ReleaseAll() = 0;

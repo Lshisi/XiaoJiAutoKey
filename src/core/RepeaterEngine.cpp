@@ -97,6 +97,15 @@ void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
     pauseKeysDown_.clear();
 }
 
+void RepeaterEngine::SetSuspended(bool suspended) {
+    waiter_.Wake();
+    suspended_.store(suspended);
+}
+
+void RepeaterEngine::SetGameWindowProvider(GameWindowProvider* provider) {
+    gameWindows_ = provider;
+}
+
 bool RepeaterEngine::IsPauseActive() const {
     return !pauseKeysDown_.empty();
 }
@@ -510,7 +519,8 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
             b.mode,
             b.delayMs,
             b.enabled,
-            b.suppressMixedMode
+            b.suppressMixedMode,
+            b.key.device == InputDevice::Mouse ? b.clickPos : ClickPosition{},
         };
 
         auto it = std::find_if(tasks_.begin(), tasks_.end(),
@@ -565,7 +575,7 @@ void RepeaterEngine::ForgetProfileRuntimeState(std::uint64_t profileId) {
 void RepeaterEngine::WorkerLoop() {
     while (!exit_.load()) {
         std::vector<KeyDescriptor> releases;
-        std::vector<KeyDescriptor> presses;
+        std::vector<std::pair<KeyDescriptor, ClickPosition>> presses;
         std::uint64_t batchGeneration = 0;
         std::optional<std::chrono::steady_clock::time_point> nextWake;
         {
@@ -577,6 +587,8 @@ void RepeaterEngine::WorkerLoop() {
 
             const bool holdActive = IsHoldActive();
             const bool pauseActive = IsPauseActive();
+            const bool suspended = suspended_.load();
+            const bool blocked = pauseActive || suspended;
             const bool wasdProtectionActive = IsWasdProtectionActive();
             const std::optional<KeyDescriptor> selectedIndependentKey = independentActiveKey_;
             const std::optional<std::uint64_t> selectedSequenceTaskId = sequenceActiveTaskId_;
@@ -600,7 +612,7 @@ void RepeaterEngine::WorkerLoop() {
                 }
 
                 if (isHoldMode) {
-                    const bool isDown = holdPhysicalDown_.count(t.config.key) > 0;
+                    const bool isDown = holdPhysicalDown_.count(t.config.key) > 0 && !suspended;
                     if (!isDown) {
                         if (t.isDown) {
                             queueRelease(t);
@@ -615,7 +627,7 @@ void RepeaterEngine::WorkerLoop() {
                         }
                         continue;
                     }
-                    if ((mixedMode_ && holdActive) || pauseActive) {
+                    if ((mixedMode_ && holdActive) || blocked) {
                         if (t.isDown) {
                             queueRelease(t);
                         }
@@ -630,7 +642,7 @@ void RepeaterEngine::WorkerLoop() {
                         }
                         continue;
                     }
-                    if ((mixedMode_ && holdActive) || pauseActive) {
+                    if ((mixedMode_ && holdActive) || blocked) {
                         if (t.isDown) {
                             queueRelease(t);
                         }
@@ -643,7 +655,7 @@ void RepeaterEngine::WorkerLoop() {
                         }
                         continue;
                     }
-                    if ((mixedMode_ && holdActive) || pauseActive) {
+                    if ((mixedMode_ && holdActive) || blocked) {
                         if (t.isDown) {
                             queueRelease(t);
                         }
@@ -662,13 +674,13 @@ void RepeaterEngine::WorkerLoop() {
 
                 if (t.lastUpTime == std::chrono::steady_clock::time_point{}
                     || now - t.lastUpTime >= std::chrono::milliseconds(interval)) {
-                    presses.push_back(t.config.key);
+                    presses.emplace_back(t.config.key, t.config.clickPos);
                     t.isDown = true;
                     t.downTime = now;
                 }
             }
 
-            for (const auto& key : presses) {
+            for (const auto& [key, clickPos] : presses) {
                 BeforeSendLocked(key);
             }
 
@@ -676,7 +688,12 @@ void RepeaterEngine::WorkerLoop() {
                 for (const auto& key : releases) {
                     driver_.SendUp(key, InputSource::Repeater);
                 }
-                for (const auto& key : presses) {
+                for (const auto& [key, clickPos] : presses) {
+                    if (key.device == InputDevice::Mouse && clickPos.IsFixed() && gameWindows_ != nullptr) {
+                        if (const auto point = ResolveClickAnchorScreenPoint(clickPos, gameWindows_)) {
+                            MoveCursorToScreenPoint(driver_, point->x, point->y);
+                        }
+                    }
                     driver_.SendDown(key, InputSource::Repeater);
                 }
             }

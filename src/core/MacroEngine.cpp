@@ -141,6 +141,11 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
     }
 }
 
+void MacroEngine::SetSuspended(bool suspended) {
+    waiter_.Wake();
+    suspended_.store(suspended);
+}
+
 void MacroEngine::StopAll() {
     waiter_.Wake();
     {
@@ -219,7 +224,7 @@ void MacroEngine::WorkerLoop() {
 
         {
             std::lock_guard lock(mutex_);
-            const bool pauseActive = IsPauseActive();
+            const bool pauseActive = IsPauseActive() || suspended_.load();
 
             for (auto& rt : macros_) {
                 if (!rt.active || !rt.config.enabled) continue;

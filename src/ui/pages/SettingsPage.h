@@ -9,6 +9,7 @@ class QButtonGroup;
 class QPushButton;
 class QRadioButton;
 class FluentLineEdit;
+class FluentSwitch;
 class QSlider;
 
 class SettingsPage : public QWidget {
@@ -22,6 +23,7 @@ public:
     void setCloseAction(CloseAction action);
     void setFaction(const QString& factionId);
     void setCustomSoundPaths(const QString& onPath, const QString& offPath);
+    void setGameGateEnabled(bool enabled);
 
 signals:
     void hotkeyEditClicked();
@@ -30,6 +32,8 @@ signals:
     void startupActionChanged(StartupAction action);
     void closeActionChanged(CloseAction action);
     void factionChanged(const QString& factionId);
+    void gameGateEnabledChanged(bool enabled);
+    void gameGateProcessesEditRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -52,4 +56,8 @@ private:
     QRadioButton* radioAsk_ = nullptr;
     QRadioButton* radioMin_ = nullptr;
     QRadioButton* radioExit_ = nullptr;
+    FluentSwitch* gameGateSwitch_ = nullptr;
+    QLabel* gameGateDescLabel_ = nullptr;
+    QPushButton* gameProcessButton_ = nullptr;
+    QLabel* gameProcessHintLabel_ = nullptr;
 };

@@ -2,6 +2,8 @@
 
 #include "AppTypes.h"
 
+#include "ClickPositioning.h"
+
 #include <QObject>
 #include <cstdint>
 #include <functional>
@@ -34,6 +36,8 @@ public:
         std::function<MacroConfig*()> activeMacro;
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
+        GameWindowProvider* gameWindows = nullptr;
+        std::function<bool()> driverSupportsMouseMove;
     };
 
     explicit KeyBindingsCoordinator(QObject* parent = nullptr);

@@ -157,6 +157,13 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     root->addWidget(repeatBlock_);
     root->addWidget(macroBlock_);
 
+    gateBadge_ = new QLabel(this);
+    gateBadge_->setFont(Fluent::Typography::caption());
+    gateBadge_->setText(QString::fromWCharArray(
+        L"\u975e\u6e38\u620f\u7a97\u53e3 \u00b7 \u5df2\u6682\u505c"));
+    gateBadge_->hide();
+    root->addWidget(gateBadge_, 0, Qt::AlignLeft);
+
     lockButtonWindow_ = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     lockButtonWindow_->setAttribute(Qt::WA_TranslucentBackground, true);
     lockButtonWindow_->setAttribute(Qt::WA_ShowWithoutActivating, true);
@@ -216,6 +223,17 @@ void StatusOverlayWindow::refreshForDpiChange(int nativeDpi) {
     update();
 }
 
+void StatusOverlayWindow::setGameGatePaused(bool paused) {
+    if (gameGatePaused_ == paused) {
+        return;
+    }
+    gameGatePaused_ = paused;
+    if (gateBadge_) {
+        gateBadge_->setVisible(paused && overlayEnabled_);
+    }
+    update();
+}
+
 void StatusOverlayWindow::updateStatus(const AppConfig& config,
     const ProfileConfig* profile,
     const MacroConfig* macro,
@@ -252,6 +270,9 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config,
 
     repeatBlock_->setVisible(showRepeat);
     macroBlock_->setVisible(showMacro);
+    if (gateBadge_) {
+        gateBadge_->setVisible(gameGatePaused_);
+    }
     if (showRepeat) {
         QString state = QStringLiteral("\u5df2\u5173\u95ed");
         if (!profile) state = QStringLiteral("\u65e0\u914d\u7f6e");
@@ -409,6 +430,19 @@ void StatusOverlayWindow::refreshThemeStyle(bool repeatRunning, bool macroRunnin
         .arg((repeatRunning ? activeDot : idleDot).name(QColor::HexArgb)));
     macroIndicator_->setStyleSheet(QString("border-radius: 7px; background: %1;")
         .arg((macroRunning ? activeDot : idleDot).name(QColor::HexArgb)));
+
+    if (gateBadge_) {
+        const bool dark = Fluent::Theme::isDarkMode();
+        gateBadge_->setStyleSheet(QString(
+            "QLabel { background: %1; border: 1px solid %2; border-radius: 7px;"
+            " padding: 1px 7px; color: %3; }")
+            .arg(dark ? QColor(255, 159, 26, 52).name(QColor::HexArgb)
+                      : QColor(255, 159, 26, 40).name(QColor::HexArgb),
+                 dark ? QColor(255, 159, 26, 128).name(QColor::HexArgb)
+                      : QColor(255, 159, 26, 116).name(QColor::HexArgb),
+                 dark ? QColor(255, 236, 200, 240).name(QColor::HexArgb)
+                      : QColor(122, 79, 0, 240).name(QColor::HexArgb)));
+    }
 
     const QColor buttonBg = Fluent::Theme::isDarkMode()
         ? withAlpha(palette.accentSubtle, 120)

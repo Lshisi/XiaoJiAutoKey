@@ -48,6 +48,7 @@ signals:
     void macroRenameRequested();
     void macroDeleteRequested();
     void macroEnabledToggled(bool enabled);
+    void shareRequested();
 
     // Control
     void startStopClicked();
@@ -91,6 +92,7 @@ private:
     FluentButton* macroAddBtn_;
     FluentButton* macroRenameBtn_;
     FluentButton* macroDeleteBtn_;
+    FluentButton* macroShareBtn_ = nullptr;
     QLabel* macroEnabledLabel_ = nullptr;
     FluentSwitch* macroEnabledSwitch_ = nullptr;
 

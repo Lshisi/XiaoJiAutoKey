@@ -75,6 +75,10 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     macroDeleteBtn_->setFixedSize(28, 28);
     macroDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
     profileRow->addWidget(macroDeleteBtn_);
+    macroShareBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE72D)), this);  // share icon
+    macroShareBtn_->setFixedSize(28, 28);
+    macroShareBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileRow->addWidget(macroShareBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);
 
@@ -243,6 +247,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     connect(macroAddBtn_, &QPushButton::clicked, this, &MacroPage::macroAddRequested);
     connect(macroRenameBtn_, &QPushButton::clicked, this, &MacroPage::macroRenameRequested);
     connect(macroDeleteBtn_, &QPushButton::clicked, this, &MacroPage::macroDeleteRequested);
+    connect(macroShareBtn_, &QPushButton::clicked, this, &MacroPage::shareRequested);
     connect(macroEnabledSwitch_, &FluentSwitch::toggled, this, &MacroPage::macroEnabledToggled);
 
     connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {

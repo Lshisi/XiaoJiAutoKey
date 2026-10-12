@@ -4,6 +4,7 @@
 #include "../components/FactionMenu.h"
 #include "../components/FluentButton.h"
 #include "../components/FluentCard.h"
+#include "../components/FluentSwitch.h"
 #include "FactionTheme.h"
 
 #include <QButtonGroup>
@@ -188,6 +189,42 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 
     panelLayout->addWidget(makeDivider(panel));
 
+    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u751f\u6548\u8303\u56f4"), panel));
+    auto* gameGateRow = new QHBoxLayout();
+    gameGateRow->setContentsMargins(0, 0, 0, 0);
+    auto* gameGateLabel = new QLabel(QString::fromWCharArray(L"\u4ec5\u6e38\u620f\u5ba2\u6237\u7aef\u524d\u53f0\u65f6\u751f\u6548"), panel);
+    gameGateLabel->setFont(Fluent::Typography::body());
+    gameGateRow->addWidget(gameGateLabel);
+    gameGateRow->addStretch();
+    gameGateSwitch_ = new FluentSwitch(panel);
+    gameGateRow->addWidget(gameGateSwitch_);
+    panelLayout->addLayout(gameGateRow);
+
+    gameGateDescLabel_ = new QLabel(QString::fromWCharArray(
+        L"\u79bb\u5f00\u5251\u7f513\u65d7\u8230\u7aef / \u65e0\u754c / \u7f18\u8d77\u7b49\u5ba2\u6237\u7aef\u65f6\uff0c"
+        L"\u81ea\u52a8\u6682\u505c\u8fde\u53d1\u4e0e\u5b8f\u5e76\u91ca\u653e\u6309\u952e\uff1b\u5207\u56de\u6e38\u620f\u540e\u81ea\u52a8\u6062\u590d\u3002"), panel);
+    gameGateDescLabel_->setFont(Fluent::Typography::caption());
+    gameGateDescLabel_->setWordWrap(true);
+    gameGateDescLabel_->setPalette(mutedPalette(gameGateDescLabel_));
+    panelLayout->addWidget(gameGateDescLabel_);
+
+    auto* gameProcessRow = new QHBoxLayout();
+    gameProcessRow->setContentsMargins(0, 0, 0, 0);
+    gameProcessRow->setSpacing(8);
+    gameProcessButton_ = new FluentButton(FluentButton::Secondary,
+        QString::fromWCharArray(L"\u7ba1\u7406\u6e38\u620f\u8fdb\u7a0b..."), panel);
+    gameProcessButton_->setFixedHeight(26);
+    gameProcessRow->addWidget(gameProcessButton_);
+    gameProcessRow->addStretch();
+    panelLayout->addLayout(gameProcessRow);
+    gameProcessHintLabel_ = new QLabel(QString::fromWCharArray(
+        L"\u5df2\u5185\u7f6e\u8bc6\u522b JX3Client \u7cfb\u5ba2\u6237\u7aef\uff0c\u53ef\u989d\u5916\u6dfb\u52a0\u6a21\u62df\u5668\u7b49\u8fdb\u7a0b"), panel);
+    gameProcessHintLabel_->setFont(Fluent::Typography::caption());
+    gameProcessHintLabel_->setWordWrap(true);
+    gameProcessHintLabel_->setPalette(mutedPalette(gameProcessHintLabel_));
+    panelLayout->addWidget(gameProcessHintLabel_);
+    panelLayout->addWidget(makeDivider(panel));
+
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u72b6\u6001\u6d6e\u7a97"), panel));
     auto* opacityRow = new QHBoxLayout();
     auto* opacityLabel = new QLabel(QString::fromWCharArray(L"\u80cc\u666f\u900f\u660e\u5ea6"), panel);
@@ -270,6 +307,8 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(value) + "%");
         emit statusOverlayOpacityChanged(value);
     });
+    connect(gameGateSwitch_, &FluentSwitch::toggled, this, &SettingsPage::gameGateEnabledChanged);
+    connect(gameProcessButton_, &QPushButton::clicked, this, &SettingsPage::gameGateProcessesEditRequested);
     connect(factionButton_, &QPushButton::clicked, this, &SettingsPage::showFactionMenu);
 
     applyPageTheme();
@@ -281,6 +320,14 @@ void SettingsPage::setConfig(const AppConfig& config) {
     statusOverlayOpacitySlider_->setValue(config.statusOverlayOpacity);
     statusOverlayOpacitySlider_->blockSignals(false);
     if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(config.statusOverlayOpacity) + "%");
+    setGameGateEnabled(config.gameGateEnabled);
+}
+
+void SettingsPage::setGameGateEnabled(bool enabled) {
+    if (!gameGateSwitch_) return;
+    gameGateSwitch_->blockSignals(true);
+    gameGateSwitch_->setChecked(enabled);
+    gameGateSwitch_->blockSignals(false);
 }
 
 void SettingsPage::setHotkeyText(const QString&) {}
@@ -368,6 +415,10 @@ void SettingsPage::applyPageTheme() {
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name()));
     }
+    // 生效范围分区的说明文字跟随主题刷新
+    if (gameGateDescLabel_) gameGateDescLabel_->setPalette(mutedPalette(gameGateDescLabel_));
+    if (gameProcessHintLabel_) gameProcessHintLabel_->setPalette(mutedPalette(gameProcessHintLabel_));
+    if (gameGateSwitch_) gameGateSwitch_->update();
 }
 
 bool SettingsPage::eventFilter(QObject* watched, QEvent* event) {

@@ -125,6 +125,13 @@ std::optional<std::uint64_t> GetUInt64Field(const jsonlite::Object& object, cons
     return std::nullopt;
 }
 
+std::optional<double> GetDoubleField(const jsonlite::Object& object, const std::string& key) {
+    const auto it = object.find(key);
+    if (it == object.end()) return std::nullopt;
+    if (const auto* value = it->second.AsNumber()) return *value;
+    return std::nullopt;
+}
+
 std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
     std::vector<KeyBinding> result;
     const auto bindingsIt = object.find("bindings");
@@ -152,6 +159,17 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         else if (mode == "sequence") binding.mode = RepeatMode::Sequence;
         else binding.mode = RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
+        if (const auto clickIt = entry->find("clickPos"); clickIt != entry->end()) {
+            if (const auto* clickObj = clickIt->second.AsObject()) {
+                if (GetStringField(*clickObj, "mode").value_or("") == "fixed") {
+                    binding.clickPos.fixedPosition = true;
+                    if (const auto x = GetDoubleField(*clickObj, "x")) binding.clickPos.anchorX = *x;
+                    if (const auto y = GetDoubleField(*clickObj, "y")) binding.clickPos.anchorY = *y;
+                    binding.clickPos.anchorX = std::clamp(binding.clickPos.anchorX, 0.0, 1.0);
+                    binding.clickPos.anchorY = std::clamp(binding.clickPos.anchorY, 0.0, 1.0);
+                }
+            }
+        }
         result.push_back(binding);
     }
     return result;
@@ -227,6 +245,13 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("mode", std::string(mode));
         entry.emplace("delayMs", b.delayMs);
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
+        if (b.key.device == InputDevice::Mouse && b.clickPos.IsFixed()) {
+            jsonlite::Object clickObj;
+            clickObj.emplace("mode", std::string("fixed"));
+            clickObj.emplace("x", std::clamp(b.clickPos.anchorX, 0.0, 1.0));
+            clickObj.emplace("y", std::clamp(b.clickPos.anchorY, 0.0, 1.0));
+            entry.emplace("clickPos", std::move(clickObj));
+        }
         arr.emplace_back(std::move(entry));
     }
     return arr;
@@ -305,6 +330,22 @@ AppConfig ConfigStore::Load() const {
         config.backgroundAutoRun = *backgroundAutoRun;
     if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
         config.beepEnabled = *beep;
+    if (const auto gameGate = GetBoolField(*object, "gameGateEnabled"); gameGate.has_value())
+        config.gameGateEnabled = *gameGate;
+    {
+        const auto processesIt = object->find("gameGateProcesses");
+        if (processesIt != object->end()) {
+            if (const auto* processes = processesIt->second.AsArray()) {
+                for (const auto& item : *processes) {
+                    if (const auto* name = item.AsString()) {
+                        if (!name->empty() && name->size() <= 260) {
+                            config.gameGateProcesses.push_back(*name);
+                        }
+                    }
+                }
+            }
+        }
+    }
     if (const auto showRepeat = GetBoolField(*object, "statusOverlayShowRepeat"); showRepeat.has_value())
         config.statusOverlayShowRepeat = *showRepeat;
     if (const auto showMacro = GetBoolField(*object, "statusOverlayShowMacro"); showMacro.has_value())
@@ -473,6 +514,14 @@ bool ConfigStore::Save(
     // Global settings
     root.emplace("backgroundAutoRun", config.backgroundAutoRun);
     root.emplace("beepEnabled", config.beepEnabled);
+    root.emplace("gameGateEnabled", config.gameGateEnabled);
+    if (!config.gameGateProcesses.empty()) {
+        jsonlite::Array processes;
+        for (const auto& name : config.gameGateProcesses) {
+            processes.emplace_back(name);
+        }
+        root.emplace("gameGateProcesses", std::move(processes));
+    }
     root.emplace("statusOverlayShowRepeat", config.statusOverlayShowRepeat);
     root.emplace("statusOverlayShowMacro", config.statusOverlayShowMacro);
     root.emplace("statusOverlayLocked", config.statusOverlayLocked);

@@ -36,7 +36,8 @@ public:
     ControllerResult deleteBinding(std::uint64_t id);
     ControllerResult setBindingEnabled(std::uint64_t id, bool enabled);
     ControllerResult upsertBinding(std::optional<std::uint64_t> bindingId,
-        const KeyDescriptor& key, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode);
+        const KeyDescriptor& key, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
+        const ClickPosition& clickPos = ClickPosition{});
 
     ControllerResult addPauseKey(const KeyDescriptor& key);
     ControllerResult deletePauseKey(int index);

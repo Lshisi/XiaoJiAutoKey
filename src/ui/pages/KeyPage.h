@@ -67,6 +67,7 @@ signals:
     void profileRenameRequested();
     void profileDeleteRequested();
     void profileEnabledToggled(bool enabled);
+    void shareRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -118,6 +119,7 @@ private:
     FluentButton* profileAddBtn_;
     FluentButton* profileRenameBtn_;
     FluentButton* profileDeleteBtn_;
+    FluentButton* profileShareBtn_ = nullptr;
     QLabel* profileEnabledLabel_ = nullptr;
     FluentSwitch* profileEnabledSwitch_ = nullptr;
     bool profileEnabled_ = true;

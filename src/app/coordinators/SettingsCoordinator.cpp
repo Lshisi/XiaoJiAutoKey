@@ -1,7 +1,10 @@
 #include "coordinators/SettingsCoordinator.h"
 
 #include "FactionTheme.h"
+#include "dialogs/GameProcessDialog.h"
 #include "ui/pages/SettingsPage.h"
+
+#include <QStringList>
 
 SettingsCoordinator::SettingsCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -27,6 +30,28 @@ void SettingsCoordinator::bind(Context context) {
     });
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
+    });
+    connect(context_.page, &SettingsPage::gameGateEnabledChanged, this, [this](bool enabled) {
+        context_.config->gameGateEnabled = enabled;
+        if (context_.saveConfig) context_.saveConfig();
+        if (context_.applyGameGate) context_.applyGameGate();
+    });
+    connect(context_.page, &SettingsPage::gameGateProcessesEditRequested, this, [this]() {
+        QStringList initial;
+        for (const auto& name : context_.config->gameGateProcesses) {
+            initial.push_back(QString::fromStdString(name));
+        }
+        GameProcessDialog dialog(initial, context_.window);
+        if (dialog.exec() != QDialog::Accepted) {
+            return;
+        }
+        std::vector<std::string> updated;
+        for (const auto& name : dialog.processes()) {
+            updated.push_back(name.toStdString());
+        }
+        context_.config->gameGateProcesses = std::move(updated);
+        if (context_.saveConfig) context_.saveConfig();
+        if (context_.applyGameGate) context_.applyGameGate();
     });
 }
 

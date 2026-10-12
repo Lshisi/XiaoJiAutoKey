@@ -43,6 +43,9 @@ public:
 
     void StopAll();
 
+    // 前台门控挂起：暂停注入并抬起当前按下的键，保留循环进度。
+    void SetSuspended(bool suspended);
+
     [[nodiscard]] bool HasActiveMacro() const;
     [[nodiscard]] bool IsRunning(std::uint64_t macroId) const;
     [[nodiscard]] MacroStatus GetStatus(std::uint64_t macroId) const;
@@ -59,6 +62,7 @@ private:
     InputDriver& driver_;
 
     std::atomic<bool> exit_{false};
+    std::atomic<bool> suspended_{false};
     std::thread worker_;
     PrecisionWaiter waiter_;
 

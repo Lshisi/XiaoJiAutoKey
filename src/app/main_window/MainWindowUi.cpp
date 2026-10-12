@@ -88,7 +88,16 @@ void MainWindow::setupUi() {
         [this](bool enabled) { config_.statusOverlayShowRepeat = enabled; },
         [this]() { return macroController_.activeMacro(); },
         [this]() { return activeInputDriverReady(); },
-        [this]() { showDdUnavailableMessage(); }
+        [this]() { showDdUnavailableMessage(); },
+        &gameWatcher_,
+        [this]() { return inputDriver_.SupportsMouseMove(); }
+    });
+
+    connect(view_.keyPage(), &KeyPage::shareRequested, this, [this]() {
+        openShareDialog(false);
+    });
+    connect(view_.macroPage(), &MacroPage::shareRequested, this, [this]() {
+        openShareDialog(true);
     });
 
     profileCoordinator_.bind(ProfileCoordinator::Context{
@@ -162,7 +171,8 @@ void MainWindow::setupUi() {
             refreshStatusOverlay();
         },
         [this]() { refreshStatusOverlay(); },
-        [this]() { captureCoordinator_.startMainHotkeyCapture(); }
+        [this]() { captureCoordinator_.startMainHotkeyCapture(); },
+        [this]() { applyGameGateSettings(); }
     });
     driverCoordinator_.bind(DriverCoordinator::Context{
         view_.driverPage(),

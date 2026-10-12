@@ -39,6 +39,7 @@ set(MOC_HEADERS
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/ShareDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
     include/app/widgets/StatusOverlayWindow.h
@@ -77,15 +78,18 @@ set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
 
 set(CORE_SOURCES
     src/core/AppTypes.cpp
+    src/core/ClickPositioning.cpp
     src/core/ConfigStore.cpp
     src/core/DdDriver.cpp
     src/core/FactionTheme.cpp
+    src/core/ForegroundWatcher.cpp
     src/core/InputDriverRouter.cpp
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
     src/core/Ch552UsbDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
+    src/core/ShareCodec.cpp
 )
 
 set(UI_COMPONENT_SOURCES
@@ -170,11 +174,16 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/ConfigConfirmDialog.h
     include/app/dialogs/ConfigNameDialog.h
     include/app/dialogs/CloseConfirmDialog.h
+    include/app/dialogs/GameProcessDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/ShareDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
+    include/core/ClickPositioning.h
+    include/core/ForegroundWatcher.h
+    include/core/ShareCodec.h
     include/core/MacroEngine.h
     include/core/InputDriver.h
     include/core/InputDriverRouter.h
@@ -216,9 +225,11 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/dialogs/DialogChrome.cpp
     src/app/dialogs/BindingEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp
+    src/app/dialogs/GameProcessDialog.cpp
     src/app/dialogs/KeyCaptureDialogBase.cpp
     src/app/dialogs/MacroStepDialog.cpp
     src/app/dialogs/PauseKeyDialog.cpp
+    src/app/dialogs/ShareDialog.cpp
     src/app/dialogs/SoundSettingsDialog.cpp
     src/app/dialogs/StatusOverlaySettingsDialog.cpp
     ${CORE_SOURCES}

@@ -67,6 +67,17 @@ bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
     return ReleaseForwardedKeyLocked(encoded);
 }
 
+bool InputDriverRouter::SendMouseMove(int deltaX, int deltaY, InputSource src) {
+    (void)src;  // 光标移动是瞬态操作，不参与按键所有权仲裁。
+    std::lock_guard lock(mutex_);
+    return driver_ && driver_->SendMouseMove(deltaX, deltaY, src);
+}
+
+bool InputDriverRouter::SupportsMouseMove() const {
+    std::lock_guard lock(mutex_);
+    return driver_ && driver_->SupportsMouseMove();
+}
+
 void InputDriverRouter::SetSourceActiveKeys(InputSource src, const std::vector<KeyDescriptor>& keys) {
     if (!IsArbitratedSource(src)) return;
 

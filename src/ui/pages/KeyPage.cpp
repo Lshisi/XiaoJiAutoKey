@@ -117,6 +117,10 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     profileDeleteBtn_->setFixedSize(28, 28);
     profileDeleteBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
     profileRow->addWidget(profileDeleteBtn_);
+    profileShareBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE72D)), this);  // share icon
+    profileShareBtn_->setFixedSize(28, 28);
+    profileShareBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileRow->addWidget(profileShareBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);
 
@@ -356,6 +360,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     connect(profileAddBtn_, &QPushButton::clicked, this, &KeyPage::profileAddRequested);
     connect(profileRenameBtn_, &QPushButton::clicked, this, &KeyPage::profileRenameRequested);
     connect(profileDeleteBtn_, &QPushButton::clicked, this, &KeyPage::profileDeleteRequested);
+    connect(profileShareBtn_, &QPushButton::clicked, this, &KeyPage::shareRequested);
     connect(profileEnabledSwitch_, &FluentSwitch::toggled, this, &KeyPage::profileEnabledToggled);
 
     connect(table_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {

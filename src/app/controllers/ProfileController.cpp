@@ -236,12 +236,14 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
 }
 
 ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> bindingId,
-    const KeyDescriptor& key, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode) {
+    const KeyDescriptor& key, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
+    const ClickPosition& clickPos) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
+    const ClickPosition effectiveClickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
 
     for (const auto& binding : profile->bindings) {
         if (binding.key != key || binding.mode != mode) continue;
@@ -278,6 +280,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
                 binding.delayMs = delayMs;
                 binding.enabled = enabled;
                 binding.suppressMixedMode = suppressMixedMode;
+                binding.clickPos = effectiveClickPos;
                 return ControllerResult::success();
             }
         }
@@ -291,6 +294,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     binding.delayMs = delayMs;
     binding.enabled = enabled;
     binding.suppressMixedMode = suppressMixedMode;
+    binding.clickPos = effectiveClickPos;
     profile->bindings.push_back(binding);
     return ControllerResult::success();
 }

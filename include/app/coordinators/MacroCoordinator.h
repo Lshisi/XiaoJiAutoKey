@@ -38,6 +38,8 @@ public:
         std::function<ControllerResult()> validateActiveConfig;
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
+        std::function<void()> importConfig;
+        std::function<bool()> driverSupportsMouseMove;
     };
 
     explicit MacroCoordinator(QObject* parent = nullptr);

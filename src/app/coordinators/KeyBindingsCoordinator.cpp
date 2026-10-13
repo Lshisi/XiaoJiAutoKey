@@ -234,7 +234,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         }
     }
 
-    BindingEditDialog dialog(existing, kDefaultDelayMs, context_.gameWindows,
+    BindingEditDialog dialog(existing, kDefaultDelayMs,
         context_.driverSupportsMouseMove, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;

@@ -4,14 +4,10 @@
 
 #include <functional>
 
-class FluentButton;
+class ClickPositionGroup;
 class FluentComboBox;
 class FluentLineEdit;
 class FluentSwitch;
-class GameWindowProvider;
-class QLabel;
-class QRadioButton;
-class QTimer;
 
 struct BindingEditResult {
     KeyDescriptor key;
@@ -28,7 +24,6 @@ class BindingEditDialog : public KeyCaptureDialogBase {
 public:
     BindingEditDialog(std::optional<BindingEditResult> existing,
         int defaultDelayMs,
-        GameWindowProvider* gameWindows,
         std::function<bool()> driverSupportsMouseMove,
         QWidget* parent = nullptr);
 
@@ -36,14 +31,9 @@ public:
 
     [[nodiscard]] BindingEditResult editResult() const;
 
-private slots:
-    void advancePickCountdown();
-
 private:
     void updateMixedModeSuppressionVisible();
     void updateClickPosSectionVisible();
-    void beginPickPosition();
-    void finishPickPosition();
 
     FluentComboBox* modeCombo_ = nullptr;
     FluentLineEdit* delayEdit_ = nullptr;
@@ -51,16 +41,7 @@ private:
     QWidget* mixedModeSuppressionRow_ = nullptr;
     FluentSwitch* mixedModeSuppressionSwitch_ = nullptr;
 
-    QWidget* clickPosGroup_ = nullptr;
-    QRadioButton* clickFollowRadio_ = nullptr;
-    QRadioButton* clickFixedRadio_ = nullptr;
-    FluentButton* pickPosBtn_ = nullptr;
-    QLabel* pickPosLabel_ = nullptr;
-    QLabel* clickPosHintLabel_ = nullptr;
-    QTimer* pickTimer_ = nullptr;
-    int pickCountdown_ = 0;
+    ClickPositionGroup* clickPosGroup_ = nullptr;
 
-    GameWindowProvider* gameWindows_ = nullptr;
     std::function<bool()> driverSupportsMouseMove_;
-    ClickPosition clickPos_;
 };

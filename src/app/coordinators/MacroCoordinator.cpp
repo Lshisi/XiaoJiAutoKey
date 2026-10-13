@@ -190,7 +190,7 @@ void MacroCoordinator::onMacroEnabledToggled(bool enabled) {
 void MacroCoordinator::onMacroAddStep() {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
 
-    MacroStepDialog dialog(std::nullopt, context_.parent);
+    MacroStepDialog dialog(std::nullopt, context_.driverSupportsMouseMove, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -203,7 +203,7 @@ void MacroCoordinator::onMacroAddStep() {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-    auto result = context_.controller->addStep(editResult.key, editResult.delayAfterMs);
+    auto result = context_.controller->addStep(editResult.key, editResult.delayAfterMs, editResult.clickPos);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
@@ -219,7 +219,8 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
     if (!macro || stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) return;
     const auto& step = macro->steps[stepIndex];
 
-    MacroStepDialog dialog(MacroStepEditResult{step.key, step.delayAfterMs}, context_.parent);
+    MacroStepDialog dialog(MacroStepEditResult{step.key, step.delayAfterMs, step.clickPos},
+        context_.driverSupportsMouseMove, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -232,7 +233,7 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-    auto result = context_.controller->updateStep(stepIndex, editResult.key, editResult.delayAfterMs);
+    auto result = context_.controller->updateStep(stepIndex, editResult.key, editResult.delayAfterMs, editResult.clickPos);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;

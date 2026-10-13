@@ -89,15 +89,14 @@ void MainWindow::setupUi() {
         [this]() { return macroController_.activeMacro(); },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        &gameWatcher_,
         [this]() { return inputDriver_.SupportsMouseMove(); }
     });
 
     connect(view_.keyPage(), &KeyPage::shareRequested, this, [this]() {
-        openShareDialog(false);
+        openExportProfileDialog();
     });
     connect(view_.macroPage(), &MacroPage::shareRequested, this, [this]() {
-        openShareDialog(true);
+        openExportMacroDialog();
     });
 
     profileCoordinator_.bind(ProfileCoordinator::Context{

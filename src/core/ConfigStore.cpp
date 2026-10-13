@@ -220,6 +220,17 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                         step.delayAfterMs = std::max(
                             GetIntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs),
                             kMinDelayMs);
+                        if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
+                            if (const auto* clickObj = clickIt->second.AsObject()) {
+                                if (GetStringField(*clickObj, "mode").value_or("") == "fixed") {
+                                    step.clickPos.fixedPosition = true;
+                                    if (const auto x = GetDoubleField(*clickObj, "x")) step.clickPos.anchorX = *x;
+                                    if (const auto y = GetDoubleField(*clickObj, "y")) step.clickPos.anchorY = *y;
+                                    step.clickPos.anchorX = std::clamp(step.clickPos.anchorX, 0.0, 1.0);
+                                    step.clickPos.anchorY = std::clamp(step.clickPos.anchorY, 0.0, 1.0);
+                                }
+                            }
+                        }
                         if (step.key.IsValid()) macro.steps.push_back(step);
                     }
                 }
@@ -282,6 +293,13 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
             jsonlite::Object stepObj;
             stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
             stepObj.emplace("delayAfterMs", step.delayAfterMs);
+            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+                jsonlite::Object clickObj;
+                clickObj.emplace("mode", std::string("fixed"));
+                clickObj.emplace("x", std::clamp(step.clickPos.anchorX, 0.0, 1.0));
+                clickObj.emplace("y", std::clamp(step.clickPos.anchorY, 0.0, 1.0));
+                stepObj.emplace("clickPos", std::move(clickObj));
+            }
             steps.emplace_back(std::move(stepObj));
         }
         entry.emplace("steps", std::move(steps));

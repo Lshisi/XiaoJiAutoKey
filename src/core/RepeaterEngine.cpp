@@ -1,5 +1,7 @@
 ﻿#include "RepeaterEngine.h"
 
+#include "ClickPositioning.h"
+
 #include <algorithm>
 
 namespace {
@@ -100,10 +102,6 @@ void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
 void RepeaterEngine::SetSuspended(bool suspended) {
     waiter_.Wake();
     suspended_.store(suspended);
-}
-
-void RepeaterEngine::SetGameWindowProvider(GameWindowProvider* provider) {
-    gameWindows_ = provider;
 }
 
 bool RepeaterEngine::IsPauseActive() const {
@@ -689,8 +687,8 @@ void RepeaterEngine::WorkerLoop() {
                     driver_.SendUp(key, InputSource::Repeater);
                 }
                 for (const auto& [key, clickPos] : presses) {
-                    if (key.device == InputDevice::Mouse && clickPos.IsFixed() && gameWindows_ != nullptr) {
-                        if (const auto point = ResolveClickAnchorScreenPoint(clickPos, gameWindows_)) {
+                    if (key.device == InputDevice::Mouse && clickPos.IsFixed()) {
+                        if (const auto point = ResolveClickAnchorScreenPoint(clickPos)) {
                             MoveCursorToScreenPoint(driver_, point->x, point->y);
                         }
                     }

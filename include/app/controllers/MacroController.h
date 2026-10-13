@@ -25,8 +25,10 @@ public:
 
     ControllerResult setActiveMacroEnabled(bool enabled);
 
-    ControllerResult addStep(const KeyDescriptor& key, int delayAfterMs);
-    ControllerResult updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs);
+    ControllerResult addStep(const KeyDescriptor& key, int delayAfterMs,
+        const ClickPosition& clickPos = {});
+    ControllerResult updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs,
+        const ClickPosition& clickPos = {});
     ControllerResult deleteStep(int stepIndex);
     ControllerResult moveStep(int fromIndex, int toIndex);
     ControllerResult addPauseKey(const KeyDescriptor& key);

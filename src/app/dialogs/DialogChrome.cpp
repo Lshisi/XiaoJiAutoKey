@@ -17,23 +17,43 @@
 namespace {
 constexpr int kRadius = 10;
 
-void centerDialogOnParent(QDialog* dialog) {
-    if (!dialog) return;
-
+// 弹窗的可见边界：父窗口矩形 ∩ 所在屏幕工作区。
+// 主窗口做过原生窗口 / DPI 几何同步，Qt 侧 frameGeometry 可能大于实际可见区域，
+// 单纯按父窗口居中会把弹窗推到窗口底部甚至屏幕外；取交集后异常几何自动退化为屏幕工作区。
+QRect dialogBounds(const QDialog* dialog) {
     QWidget* anchor = dialog->parentWidget();
     anchor = anchor ? anchor->window() : QApplication::activeWindow();
-    if (anchor == dialog) anchor = nullptr;
+    if (anchor == const_cast<QDialog*>(dialog)) anchor = nullptr;
 
     QScreen* screen = anchor && anchor->screen() ? anchor->screen() : dialog->screen();
     if (!screen) screen = QApplication::primaryScreen();
-    if (!screen) return;
+    if (!screen) return {};
 
     const QRect available = screen->availableGeometry();
     const QRect anchorRect = anchor && anchor->isVisible() ? anchor->frameGeometry() : available;
-    QPoint topLeft = anchorRect.center() - QPoint(dialog->width() / 2, dialog->height() / 2);
-    topLeft.setX(qBound(available.left(), topLeft.x(), available.right() - dialog->width() + 1));
-    topLeft.setY(qBound(available.top(), topLeft.y(), available.bottom() - dialog->height() + 1));
-    dialog->move(topLeft);
+    const QRect bounds = anchorRect.intersected(available);
+    return bounds.isValid() ? bounds : available;
+}
+
+QPoint clampedTopLeft(const QRect& bounds, const QPoint& topLeft, const QSize& size) {
+    QPoint result = topLeft;
+    result.setX(qBound(bounds.left(), result.x(),
+        qMax(bounds.left(), bounds.right() - size.width() + 1)));
+    result.setY(qBound(bounds.top(), result.y(),
+        qMax(bounds.top(), bounds.bottom() - size.height() + 1)));
+    return result;
+}
+
+void centerDialogOnParent(QDialog* dialog) {
+    if (!dialog) return;
+
+    const QRect bounds = dialogBounds(dialog);
+    if (!bounds.isValid()) return;
+
+    const QPoint center = bounds.center();
+    dialog->move(clampedTopLeft(bounds,
+        QPoint(center.x() - dialog->width() / 2, center.y() - dialog->height() / 2),
+        dialog->size()));
 }
 
 class DialogPositioner final : public QObject {
@@ -54,6 +74,23 @@ private:
     QDialog* dialog_ = nullptr;
     bool centered_ = false;
 };
+}
+
+void DialogChrome::clampWithinScreen(QDialog* dialog, const QPoint& preferredCenter) {
+    if (!dialog || !dialog->isVisible()) return;
+
+    const QRect bounds = dialogBounds(dialog);
+    if (!bounds.isValid()) return;
+
+    // 尺寸动态变化（如录了鼠标键长高）：围绕改尺寸前的中心对称生长并钳回可见区域，
+    // 避免只向下生长把底部顶到窗口边缘。注意必须在 setFixedSize 之前取中心传入，
+    // 否则 frameGeometry 已经是“旧左上角 + 新尺寸”，等价于钉住左上角往下长。
+    const QPoint center = preferredCenter.isNull()
+        ? dialog->frameGeometry().center()
+        : preferredCenter;
+    dialog->move(clampedTopLeft(bounds,
+        QPoint(center.x() - dialog->width() / 2, center.y() - dialog->height() / 2),
+        dialog->size()));
 }
 
 void DialogChrome::apply(QDialog* dialog) {

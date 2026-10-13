@@ -356,8 +356,7 @@ bool MainWindow::Initialize() {
     engineStateCoordinator_.startThreads();
     engineStateCoordinator_.applyBindings();
     engineStateCoordinator_.applyMacros();
-    // 前台门控：监视游戏客户端窗口，并给引擎提供固定点位锚定。
-    engine_.SetGameWindowProvider(&gameWatcher_);
+    // 前台门控：监视游戏客户端窗口，按设置里的“生效范围”挂起 / 恢复引擎。
     gameWatcher_.SetCallback([this](bool gameForeground) {
         QMetaObject::invokeMethod(this, [this, gameForeground]() {
             onGameForegroundChanged(gameForeground);

@@ -1,5 +1,7 @@
 #include "MacroEngine.h"
 
+#include "ClickPositioning.h"
+
 #include <algorithm>
 #include <chrono>
 
@@ -218,8 +220,13 @@ void MacroEngine::QueueCurrentRelease(const MacroRuntime& rt, std::vector<KeyDes
 }
 
 void MacroEngine::WorkerLoop() {
+    struct PendingSend {
+        KeyDescriptor key;
+        bool down = false;
+        ClickPosition clickPos;  // 仅鼠标步骤 down 时使用
+    };
     while (!exit_.load()) {
-        std::vector<std::pair<KeyDescriptor, bool>> toSend;  // key, isDown
+        std::vector<PendingSend> toSend;
         std::optional<std::chrono::steady_clock::time_point> nextWake;
 
         {
@@ -238,7 +245,7 @@ void MacroEngine::WorkerLoop() {
                         const auto now = Now();
                         const auto& step = rt.config.steps[rt.currentStep];
                         if (step.key.IsValid()) {
-                            toSend.push_back({step.key, false});
+                            toSend.push_back({step.key, false, {}});
                         }
                         rt.keyDown = false;
                         rt.lastUpTime = now;
@@ -254,7 +261,7 @@ void MacroEngine::WorkerLoop() {
                     if (now - rt.keyDownTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
                         const auto& step = rt.config.steps[rt.currentStep];
                         if (step.key.IsValid()) {
-                            toSend.push_back({step.key, false});  // up
+                            toSend.push_back({step.key, false, {}});  // up
                         }
                         rt.keyDown = false;
                         rt.lastUpTime = now;
@@ -293,7 +300,8 @@ void MacroEngine::WorkerLoop() {
                 if (!rt.waitingDelay && !rt.keyDown && rt.currentStep < static_cast<int>(rt.config.steps.size())) {
                     const auto& step = rt.config.steps[rt.currentStep];
                     if (step.key.IsValid()) {
-                        toSend.push_back({step.key, true});  // down
+                        toSend.push_back({step.key, true,
+                            step.key.device == InputDevice::Mouse ? step.clickPos : ClickPosition{}});  // down
                     }
                     rt.keyDown = true;
                     rt.keyDownTime = now;
@@ -319,11 +327,16 @@ void MacroEngine::WorkerLoop() {
         }
 
         // 在锁外发送按键
-        for (const auto& [key, down] : toSend) {
-            if (down) {
-                driver_.SendDown(key, InputSource::Macro);
+        for (const auto& send : toSend) {
+            if (send.down) {
+                if (send.key.device == InputDevice::Mouse && send.clickPos.IsFixed()) {
+                    if (const auto point = ResolveClickAnchorScreenPoint(send.clickPos)) {
+                        MoveCursorToScreenPoint(driver_, point->x, point->y);
+                    }
+                }
+                driver_.SendDown(send.key, InputSource::Macro);
             } else {
-                driver_.SendUp(key, InputSource::Macro);
+                driver_.SendUp(send.key, InputSource::Macro);
             }
         }
 

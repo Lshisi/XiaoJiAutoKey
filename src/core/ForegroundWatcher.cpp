@@ -5,10 +5,10 @@
 
 namespace {
 
-constexpr UINT_PTR kPollTimerId = 1;
 constexpr UINT kPollIntervalMs = 200;
 // 离开游戏时的确认窗口：切换动画、登录器弹窗等造成的短暂失焦不算。
-constexpr DWORD kLeaveDebounceMs = 250;
+// 前台变化已由 WinEvent 事件即时通知，这里只容忍极短的焦点抖动。
+constexpr DWORD kLeaveDebounceMs = 100;
 
 std::wstring ToLowerWide(std::wstring text) {
     std::transform(text.begin(), text.end(), text.begin(),
@@ -79,7 +79,6 @@ bool ForegroundWatcher::Start() {
     }
     exit_.store(false);
     gameForeground_.store(false);
-    gameHwnd_.store(nullptr);
     pendingLeaveTick_ = 0;
     thread_ = std::thread(&ForegroundWatcher::ThreadMain, this);
     return true;
@@ -87,6 +86,10 @@ bool ForegroundWatcher::Start() {
 
 void ForegroundWatcher::Stop() {
     exit_.store(true);
+    if (threadId_ != 0) {
+        // 唤醒可能阻塞在 GetMessage 上的 watcher 线程，让循环立刻检查退出标志。
+        ::PostThreadMessageW(threadId_, WM_NULL, 0, 0);
+    }
     if (thread_.joinable()) {
         thread_.join();
     }
@@ -106,31 +109,23 @@ bool ForegroundWatcher::IsGameForeground() const noexcept {
     return gameForeground_.load();
 }
 
-bool ForegroundWatcher::TryGetGameClientRect(RECT& outRect) const {
-    const HWND window = gameHwnd_.load();
-    if (window == nullptr || !::IsWindow(window)) {
-        return false;
-    }
-
-    RECT client{};
-    if (!::GetClientRect(window, &client)) {
-        return false;
-    }
-    POINT topLeft{0, 0};
-    if (!::ClientToScreen(window, &topLeft)) {
-        return false;
-    }
-
-    outRect.left = topLeft.x;
-    outRect.top = topLeft.y;
-    outRect.right = topLeft.x + client.right;
-    outRect.bottom = topLeft.y + client.bottom;
-    return true;
-}
+ForegroundWatcher* ForegroundWatcher::activeInstance_ = nullptr;
 
 void ForegroundWatcher::ThreadMain() {
-    // 轮询式检测：200ms 一次，足够门控使用，且不依赖 WinEventHook 的静态回填。
-    ::SetTimer(nullptr, kPollTimerId, kPollIntervalMs, nullptr);
+    threadId_ = ::GetCurrentThreadId();
+    activeInstance_ = this;
+
+    // 前台切换即时感知：事件回调在本线程的消息循环里分发，切换瞬间即完成判定。
+    // 进游戏零延迟恢复；离开游戏只留 kLeaveDebounceMs 的焦点抖动容忍。
+    winEventHook_ = ::SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr,
+        &ForegroundWatcher::WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+
+    // 轮询只作为安全网：事件钩子安装失败或个别全屏切换漏发事件时兜底。
+    // 注意：hwnd 为 NULL 时 Windows 会忽略传入的定时器 ID、自行分配新 ID，
+    // 匹配 WM_TIMER 和 KillTimer 都必须用 SetTimer 的返回值。
+    pollTimerId_ = ::SetTimer(nullptr, 0, kPollIntervalMs, nullptr);
+    debounceTimerId_ = 0;
 
     MSG message{};
     while (!exit_.load()) {
@@ -138,7 +133,12 @@ void ForegroundWatcher::ThreadMain() {
         if (hasMessage <= 0) {
             break;
         }
-        if (message.message == WM_TIMER && message.wParam == kPollTimerId) {
+        if (pollTimerId_ != 0 && message.message == WM_TIMER && message.wParam == pollTimerId_) {
+            EvaluateForeground();
+            continue;
+        }
+        if (debounceTimerId_ != 0 && message.message == WM_TIMER && message.wParam == debounceTimerId_) {
+            CancelLeaveDebounceTimer();
             EvaluateForeground();
             continue;
         }
@@ -146,7 +146,23 @@ void ForegroundWatcher::ThreadMain() {
         ::DispatchMessageW(&message);
     }
 
-    ::KillTimer(nullptr, kPollTimerId);
+    CancelLeaveDebounceTimer();
+    if (pollTimerId_ != 0) {
+        ::KillTimer(nullptr, pollTimerId_);
+        pollTimerId_ = 0;
+    }
+    if (winEventHook_ != nullptr) {
+        ::UnhookWinEvent(winEventHook_);
+        winEventHook_ = nullptr;
+    }
+    activeInstance_ = nullptr;
+    threadId_ = 0;
+}
+
+void CALLBACK ForegroundWatcher::WinEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+    if (activeInstance_ != nullptr) {
+        activeInstance_->EvaluateForeground();
+    }
 }
 
 void ForegroundWatcher::EvaluateForeground() {
@@ -167,7 +183,8 @@ void ForegroundWatcher::EvaluateForeground() {
         || MatchesCustomProcess(processName, rules.customProcesses);
     if (matched) {
         pendingLeaveTick_ = 0;
-        SetResult(true, foreground);
+        CancelLeaveDebounceTimer();
+        SetResult(true);
         return;
     }
 
@@ -175,6 +192,8 @@ void ForegroundWatcher::EvaluateForeground() {
         const DWORD now = ::GetTickCount();
         if (pendingLeaveTick_ == 0) {
             pendingLeaveTick_ = now;
+            // 到点即复查：一次性精确定时器，不依赖安全网轮询的间隔。
+            ArmLeaveDebounceTimer();
             return;
         }
         if (now - pendingLeaveTick_ < kLeaveDebounceMs) {
@@ -182,12 +201,24 @@ void ForegroundWatcher::EvaluateForeground() {
         }
     }
     pendingLeaveTick_ = 0;
-    SetResult(false, nullptr);
+    SetResult(false);
 }
 
-void ForegroundWatcher::SetResult(bool gameForeground, HWND gameWindow) {
-    // 即使前台状态没变，也要跟踪最新的游戏窗口句柄（多开切换时锚点跟随前台）。
-    gameHwnd_.store(gameWindow);
+void ForegroundWatcher::ArmLeaveDebounceTimer() {
+    if (debounceTimerId_ != 0) {
+        return;
+    }
+    debounceTimerId_ = ::SetTimer(nullptr, 0, kLeaveDebounceMs + 20, nullptr);
+}
+
+void ForegroundWatcher::CancelLeaveDebounceTimer() {
+    if (debounceTimerId_ != 0) {
+        ::KillTimer(nullptr, debounceTimerId_);
+        debounceTimerId_ = 0;
+    }
+}
+
+void ForegroundWatcher::SetResult(bool gameForeground) {
     const bool changed = gameForeground_.load() != gameForeground;
     gameForeground_.store(gameForeground);
     if (!changed) {

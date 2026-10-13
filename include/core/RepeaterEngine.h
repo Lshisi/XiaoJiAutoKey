@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "ClickPositioning.h"
 #include "InputDriver.h"
 #include "PrecisionWaiter.h"
 
@@ -67,8 +66,6 @@ public:
 
     // 前台门控挂起：暂停注入并释放已按下的键，但保留开关状态；恢复后继续。
     void SetSuspended(bool suspended);
-    // 固定点位点击锚定用的游戏窗口来源。
-    void SetGameWindowProvider(GameWindowProvider* provider);
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
@@ -94,7 +91,6 @@ private:
     std::atomic<bool> exit_{false};
     std::atomic<bool> running_{false};
     std::atomic<bool> suspended_{false};
-    GameWindowProvider* gameWindows_ = nullptr;
     std::atomic<std::uint64_t> runGeneration_{0};
     std::thread worker_;
     PrecisionWaiter waiter_;

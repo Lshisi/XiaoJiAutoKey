@@ -52,6 +52,8 @@ set(MOC_HEADERS
     src/ui/components/FluentSwitch.h
     src/ui/components/FluentTable.h
     src/ui/components/FluentTitleBar.h
+    src/ui/components/ClickPositionGroup.h
+    src/ui/components/ScreenPointPicker.h
     src/ui/pages/KeyPage.h
     src/ui/pages/MacroPage.h
     src/ui/pages/DriverPage.h
@@ -106,6 +108,8 @@ set(UI_COMPONENT_SOURCES
     src/ui/components/FluentComboBox.cpp
     src/ui/components/FluentTable.cpp
     src/ui/components/DraggableTable.cpp
+    src/ui/components/ClickPositionGroup.cpp
+    src/ui/components/ScreenPointPicker.cpp
 )
 
 set(UI_PAGE_SOURCES
@@ -130,6 +134,8 @@ set(UI_COMPONENT_HEADERS
     src/ui/components/FluentComboBox.h
     src/ui/components/FluentTable.h
     src/ui/components/DraggableTable.h
+    src/ui/components/ClickPositionGroup.h
+    src/ui/components/ScreenPointPicker.h
 )
 
 set(UI_PAGE_HEADERS

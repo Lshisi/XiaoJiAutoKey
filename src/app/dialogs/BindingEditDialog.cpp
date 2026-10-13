@@ -1,46 +1,31 @@
 #include "dialogs/BindingEditDialog.h"
 
-#include "ClickPositioning.h"
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentComboBox.h"
+#include "ui/components/ClickPositionGroup.h"
 #include "ui/components/FluentLineEdit.h"
 #include "ui/components/FluentSwitch.h"
 #include "ui/styles/DesignTokens.h"
 
-#include <QCursor>
-#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
-#include <QRadioButton>
-#include <QScreen>
-#include <QTimer>
 #include <QVBoxLayout>
-
-#include <algorithm>
 
 namespace {
 
 constexpr int kDialogBaseHeight = 250;
 constexpr int kClickGroupExtraHeight = 168;
 
-QString AnchorText(double x, double y, bool relativeToGame) {
-    return QString::fromWCharArray(relativeToGame
-            ? L"\u5df2\u62fe\u53d6: \u6e38\u620f\u7a97\u53e3\u5185 (%1%, %2%)"
-            : L"\u5df2\u62fe\u53d6: \u4e3b\u5c4f\u5e55 (%1%, %2%)")
-        .arg(QString::number(x * 100.0, 'f', 1), QString::number(y * 100.0, 'f', 1));
-}
-
 }  // namespace
 
 BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs,
-    GameWindowProvider* gameWindows, std::function<bool()> driverSupportsMouseMove, QWidget* parent)
+    std::function<bool()> driverSupportsMouseMove, QWidget* parent)
     : KeyCaptureDialogBase(parent),
-      gameWindows_(gameWindows),
       driverSupportsMouseMove_(std::move(driverSupportsMouseMove)) {
     setPrimaryMouseButtonsAllowed(true);
 
@@ -120,52 +105,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     layout->addLayout(formLayout);
 
     // ── 点击位置（仅鼠标键显示）──
-    clickPosGroup_ = new QWidget(this);
-    auto* groupLayout = new QVBoxLayout(clickPosGroup_);
-    groupLayout->setContentsMargins(0, 0, 0, 0);
-    groupLayout->setSpacing(6);
-
-    auto* groupTitle = new QLabel(QString::fromWCharArray(L"\u70b9\u51fb\u4f4d\u7f6e"), clickPosGroup_);
-    groupTitle->setFont(Fluent::Typography::caption());
-    QPalette groupTitlePalette = groupTitle->palette();
-    groupTitlePalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    groupTitle->setPalette(groupTitlePalette);
-    groupLayout->addWidget(groupTitle);
-
-    clickFollowRadio_ = new QRadioButton(QString::fromWCharArray(L"\u8ddf\u968f\u9f20\u6807\u5f53\u524d\u4f4d\u7f6e"), clickPosGroup_);
-    clickFollowRadio_->setFont(Fluent::Typography::body());
-    clickFollowRadio_->setFixedHeight(22);
-    clickFollowRadio_->setChecked(true);
-    groupLayout->addWidget(clickFollowRadio_);
-
-    auto* fixedRow = new QHBoxLayout();
-    fixedRow->setContentsMargins(0, 0, 0, 0);
-    fixedRow->setSpacing(8);
-    clickFixedRadio_ = new QRadioButton(QString::fromWCharArray(L"\u56fa\u5b9a\u70b9\u4f4d"), clickPosGroup_);
-    clickFixedRadio_->setFont(Fluent::Typography::body());
-    clickFixedRadio_->setFixedHeight(22);
-    fixedRow->addWidget(clickFixedRadio_);
-    pickPosBtn_ = new FluentButton(FluentButton::Secondary,
-        QString::fromWCharArray(L"\u62fe\u53d6\u5750\u6807"), clickPosGroup_);
-    pickPosBtn_->setFixedHeight(24);
-    fixedRow->addWidget(pickPosBtn_);
-    fixedRow->addStretch();
-    groupLayout->addLayout(fixedRow);
-
-    pickPosLabel_ = new QLabel(QString::fromWCharArray(L"\u672a\u62fe\u53d6"), clickPosGroup_);
-    pickPosLabel_->setFont(Fluent::Typography::caption());
-    QPalette pickPalette = pickPosLabel_->palette();
-    pickPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    pickPosLabel_->setPalette(pickPalette);
-    groupLayout->addWidget(pickPosLabel_);
-
-    clickPosHintLabel_ = new QLabel(clickPosGroup_);
-    clickPosHintLabel_->setFont(Fluent::Typography::caption());
-    clickPosHintLabel_->setWordWrap(true);
-    QPalette hintPalette = clickPosHintLabel_->palette();
-    hintPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
-    clickPosHintLabel_->setPalette(hintPalette);
-    groupLayout->addWidget(clickPosHintLabel_);
+    clickPosGroup_ = new ClickPositionGroup(driverSupportsMouseMove_, this);
     layout->addWidget(clickPosGroup_);
 
     layout->addStretch();
@@ -195,7 +135,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
         delayEdit_->setText(QString::number(existing->delayMs));
         enabledSwitch_->setChecked(existing->enabled);
         mixedModeSuppressionSwitch_->setChecked(existing->mode != RepeatMode::Hold || !existing->suppressMixedMode);
-        clickPos_ = existing->clickPos;
+        clickPosGroup_->setValue(existing->clickPos);
     } else {
         modeCombo_->setCurrentIndex(0);
         delayEdit_->setText(QString::number(defaultDelayMs));
@@ -204,10 +144,6 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     }
     updateMixedModeSuppressionVisible();
     updateClickPosSectionVisible();
-
-    pickTimer_ = new QTimer(this);
-    pickTimer_->setInterval(1000);
-    connect(pickTimer_, &QTimer::timeout, this, &BindingEditDialog::advancePickCountdown);
 
     bool delayClearedOnClick = false;
     connect(delayEdit_, &FluentLineEdit::clicked, this, [this, delayClearedOnClick]() mutable {
@@ -222,9 +158,6 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     });
     connect(this, &KeyCaptureDialogBase::keyAccepted, this, [this]() {
         updateClickPosSectionVisible();
-    });
-    connect(pickPosBtn_, &QPushButton::clicked, this, [this]() {
-        beginPickPosition();
     });
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         if (!capturedKey().has_value() || !capturedKey()->IsValid()) {
@@ -265,10 +198,7 @@ BindingEditResult BindingEditDialog::editResult() const {
     value.delayMs = delayEdit_->text().toInt();
     value.enabled = enabledSwitch_->isChecked();
     value.suppressMixedMode = value.mode == RepeatMode::Hold && !mixedModeSuppressionSwitch_->isChecked();
-    value.clickPos = value.key.device == InputDevice::Mouse ? clickPos_ : ClickPosition{};
-    if (value.clickPos.IsFixed() && !(clickFixedRadio_ && clickFixedRadio_->isChecked())) {
-        value.clickPos = ClickPosition{};
-    }
+    value.clickPos = value.key.device == InputDevice::Mouse ? clickPosGroup_->value() : ClickPosition{};
     return value;
 }
 
@@ -282,101 +212,10 @@ void BindingEditDialog::updateClickPosSectionVisible() {
     if (!clickPosGroup_) return;
     const auto key = capturedKey();
     const bool isMouse = key.has_value() && key->device == InputDevice::Mouse;
+    const QPoint centerBefore = frameGeometry().center();
     clickPosGroup_->setVisible(isMouse);
     setFixedSize(DialogChrome::bindingEditorWidth,
         kDialogBaseHeight + (isMouse ? kClickGroupExtraHeight : 0));
-
-    const bool supported = driverSupportsMouseMove_ ? driverSupportsMouseMove_() : false;
-    if (clickFixedRadio_) {
-        clickFixedRadio_->setEnabled(supported);
-    }
-    if (pickPosBtn_) {
-        pickPosBtn_->setEnabled(supported && clickFixedRadio_ && clickFixedRadio_->isChecked());
-    }
-    if (clickPosHintLabel_) {
-        clickPosHintLabel_->setText(supported
-            ? QString::fromWCharArray(
-                L"\u56fa\u5b9a\u70b9\u4f4d\u6309\u6e38\u620f\u7a97\u53e3\u6bd4\u4f8b\u8bb0\u5f55\uff0c"
-                L"\u5207\u6362\u5206\u8fa8\u7387\u6216\u79fb\u52a8\u7a97\u53e3\u540e\u81ea\u52a8\u6362\u7b97\u3002")
-            : QString::fromWCharArray(
-                L"\u5f53\u524d\u9a71\u52a8\u4e0d\u652f\u6301\u9f20\u6807\u79fb\u52a8\uff0c"
-                L"\u65e0\u6cd5\u4f7f\u7528\u56fa\u5b9a\u70b9\u4f4d\u3002"));
-    }
-    if (clickPos_.IsFixed() && pickPosLabel_) {
-        pickPosLabel_->setText(AnchorText(clickPos_.anchorX, clickPos_.anchorY, true));
-    }
-    if (clickFollowRadio_ && clickFixedRadio_) {
-        // 单选框始终反映当前存储状态；驱动不支持时固定项为禁用态，
-        // 已有固定点位不会被清掉。
-        if (clickPos_.IsFixed()) {
-            clickFixedRadio_->setChecked(true);
-        } else {
-            clickFollowRadio_->setChecked(true);
-        }
-    }
-    if (clickFixedRadio_) {
-        disconnect(clickFixedRadio_, nullptr, nullptr, nullptr);
-        connect(clickFixedRadio_, &QRadioButton::toggled, this, [this](bool checked) {
-            if (pickPosBtn_) {
-                pickPosBtn_->setEnabled(checked && driverSupportsMouseMove_ && driverSupportsMouseMove_());
-            }
-            if (!checked) {
-                clickPos_.fixedPosition = false;
-            }
-        });
-    }
-}
-
-void BindingEditDialog::beginPickPosition() {
-    if (pickTimer_ && !pickTimer_->isActive()) {
-        pickCountdown_ = 3;
-        if (pickPosBtn_) {
-            pickPosBtn_->setText(QString::number(pickCountdown_) + QString("..."));
-            pickPosBtn_->setEnabled(false);
-        }
-        pickTimer_->start();
-    }
-}
-
-void BindingEditDialog::advancePickCountdown() {
-    if (!pickTimer_) return;
-    --pickCountdown_;
-    if (pickCountdown_ > 0) {
-        if (pickPosBtn_) pickPosBtn_->setText(QString::number(pickCountdown_) + QString("..."));
-        return;
-    }
-    pickTimer_->stop();
-    finishPickPosition();
-}
-
-void BindingEditDialog::finishPickPosition() {
-    const QPoint pos = QCursor::pos();
-    double x = 0.5;
-    double y = 0.5;
-    bool relativeToGame = false;
-
-    RECT rect{};
-    if (gameWindows_ != nullptr && gameWindows_->TryGetGameClientRect(rect)
-        && rect.right > rect.left && rect.bottom > rect.top) {
-        x = static_cast<double>(pos.x() - rect.left) / static_cast<double>(rect.right - rect.left);
-        y = static_cast<double>(pos.y() - rect.top) / static_cast<double>(rect.bottom - rect.top);
-        relativeToGame = true;
-    } else if (QScreen* screen = QGuiApplication::primaryScreen()) {
-        const QRect geometry = screen->geometry();
-        if (geometry.width() > 0 && geometry.height() > 0) {
-            x = static_cast<double>(pos.x() - geometry.left()) / static_cast<double>(geometry.width());
-            y = static_cast<double>(pos.y() - geometry.top()) / static_cast<double>(geometry.height());
-        }
-    }
-
-    clickPos_.fixedPosition = true;
-    clickPos_.anchorX = std::clamp(x, 0.0, 1.0);
-    clickPos_.anchorY = std::clamp(y, 0.0, 1.0);
-    if (pickPosLabel_) {
-        pickPosLabel_->setText(AnchorText(clickPos_.anchorX, clickPos_.anchorY, relativeToGame));
-    }
-    if (pickPosBtn_) {
-        pickPosBtn_->setText(QString::fromWCharArray(L"\u62fe\u53d6\u5750\u6807"));
-        pickPosBtn_->setEnabled(true);
-    }
+    DialogChrome::clampWithinScreen(this, centerBefore);
+    clickPosGroup_->applyDriverSupport();
 }

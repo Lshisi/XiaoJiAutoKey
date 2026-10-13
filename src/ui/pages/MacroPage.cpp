@@ -467,6 +467,13 @@ void MacroPage::refreshTable() {
         // Key name
         auto* keyItem = new QTableWidgetItem(QString::fromStdWString(GetKeyDisplayName(step.key)));
         keyItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+            keyItem->setText(keyItem->text() + QString::fromWCharArray(L" \u25c9"));
+            keyItem->setToolTip(QString::fromWCharArray(
+                L"\u56fa\u5b9a\u70b9\u4f4d: \u5c4f\u5e55\u5185 (%1%, %2%)")
+                .arg(QString::number(step.clickPos.anchorX * 100.0, 'f', 1),
+                    QString::number(step.clickPos.anchorY * 100.0, 'f', 1)));
+        }
         table_->setItem(i, 1, keyItem);
 
         // Delay

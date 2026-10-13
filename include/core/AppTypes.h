@@ -84,6 +84,7 @@ enum class MacroTriggerMode {
 struct MacroStep {
     KeyDescriptor key;
     int delayAfterMs = kDefaultDelayMs;
+    ClickPosition clickPos;  // 仅鼠标键使用
 };
 
 struct MacroConfig {

@@ -251,6 +251,13 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             jsonlite::Object stepObj;
             stepObj.emplace("key", EncodeKey(step.key));
             stepObj.emplace("delayAfterMs", ClampDelay(step.delayAfterMs));
+            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+                jsonlite::Object clickObj;
+                clickObj.emplace("mode", std::string("fixed"));
+                clickObj.emplace("x", std::clamp(step.clickPos.anchorX, 0.0, 1.0));
+                clickObj.emplace("y", std::clamp(step.clickPos.anchorY, 0.0, 1.0));
+                stepObj.emplace("clickPos", std::move(clickObj));
+            }
             steps.emplace_back(std::move(stepObj));
         }
         entry.emplace("steps", std::move(steps));
@@ -390,6 +397,19 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             MacroStep step;
                             step.key = *key;
                             step.delayAfterMs = ClampDelay(IntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs));
+                            if (step.key.device == InputDevice::Mouse) {
+                                if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
+                                    if (const auto* clickObj = clickIt->second.AsObject()) {
+                                        if (StringField(*clickObj, "mode").value_or("") == "fixed") {
+                                            step.clickPos.fixedPosition = true;
+                                            step.clickPos.anchorX = std::clamp(
+                                                NumberField(*clickObj, "x").value_or(0.5), 0.0, 1.0);
+                                            step.clickPos.anchorY = std::clamp(
+                                                NumberField(*clickObj, "y").value_or(0.5), 0.0, 1.0);
+                                        }
+                                    }
+                                }
+                            }
                             macro.steps.push_back(step);
                         }
                     }
@@ -744,6 +764,11 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
         std::string steps;
         for (const auto& step : macro.steps) {
             steps += " " + EncodeKey(step.key) + "+" + std::to_string(ClampDelay(step.delayAfterMs));
+            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+                // 固定点位后缀 @x%,y%；旧版本解析到延迟即止，可安全忽略
+                steps += "@" + PercentValue(std::clamp(step.clickPos.anchorX, 0.0, 1.0))
+                    + "," + PercentValue(std::clamp(step.clickPos.anchorY, 0.0, 1.0));
+            }
         }
         if (!steps.empty()) {
             out += std::string(kTokenSteps) + ":" + steps + "\n";
@@ -888,9 +913,26 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 if (plus == std::string::npos) continue;
                 auto key = DecodeKey(token.substr(0, plus));
                 if (!key.has_value()) continue;
+                const std::string delayPart = token.substr(plus + 1);
                 MacroStep step;
                 step.key = *key;
-                step.delayAfterMs = ClampDelay(std::atoi(token.substr(plus + 1).c_str()));
+                step.delayAfterMs = ClampDelay(std::atoi(delayPart.c_str()));
+                const auto at = delayPart.find('@');
+                if (at != std::string::npos && step.key.device == InputDevice::Mouse) {
+                    const std::string pointPart = delayPart.substr(at + 1);
+                    const auto comma = pointPart.find(',');
+                    if (comma != std::string::npos) {
+                        char* xEnd = nullptr;
+                        char* yEnd = nullptr;
+                        const double x = std::strtod(pointPart.substr(0, comma).c_str(), &xEnd);
+                        const double y = std::strtod(pointPart.substr(comma + 1).c_str(), &yEnd);
+                        if (xEnd != pointPart.substr(0, comma).c_str() && yEnd != pointPart.substr(comma + 1).c_str()) {
+                            step.clickPos.fixedPosition = true;
+                            step.clickPos.anchorX = std::clamp(x, 0.0, 1.0);
+                            step.clickPos.anchorY = std::clamp(y, 0.0, 1.0);
+                        }
+                    }
+                }
                 currentMacro->steps.push_back(step);
             }
             continue;

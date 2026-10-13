@@ -153,7 +153,8 @@ ControllerResult MacroController::validateTriggerKey(const MacroConfig& macro, c
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::addStep(const KeyDescriptor& key, int delayAfterMs) {
+ControllerResult MacroController::addStep(const KeyDescriptor& key, int delayAfterMs,
+    const ClickPosition& clickPos) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
@@ -161,11 +162,16 @@ ControllerResult MacroController::addStep(const KeyDescriptor& key, int delayAft
     if (!validation.ok) return validation;
 
     delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
-    macro->steps.push_back({key, delayAfterMs});
+    MacroStep step;
+    step.key = key;
+    step.delayAfterMs = delayAfterMs;
+    step.clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
+    macro->steps.push_back(std::move(step));
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs) {
+ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor& key, int delayAfterMs,
+    const ClickPosition& clickPos) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
     if (stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) {
@@ -178,6 +184,7 @@ ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor&
     delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
     macro->steps[stepIndex].key = key;
     macro->steps[stepIndex].delayAfterMs = delayAfterMs;
+    macro->steps[stepIndex].clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
     return ControllerResult::success();
 }
 

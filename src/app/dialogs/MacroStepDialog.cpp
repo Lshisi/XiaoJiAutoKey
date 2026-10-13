@@ -3,6 +3,7 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
+#include "ui/components/ClickPositionGroup.h"
 #include "ui/components/FluentLineEdit.h"
 #include "ui/styles/DesignTokens.h"
 
@@ -12,14 +13,23 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QWidget* parent)
+namespace {
+
+constexpr int kDialogBaseHeight = 250;
+constexpr int kClickGroupExtraHeight = 168;
+
+}  // namespace
+
+MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
+    std::function<bool()> driverSupportsMouseMove,
+    QWidget* parent)
     : KeyCaptureDialogBase(parent) {
     setPrimaryMouseButtonsAllowed(true);
 
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(DialogChrome::macroStepEditorWidth, DialogChrome::macroStepEditorHeight);
+    setFixedSize(DialogChrome::macroStepEditorWidth, kDialogBaseHeight);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(24, 18, 24, 18);
@@ -57,6 +67,11 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     formLayout->addWidget(delayEdit_, 1, 1);
     layout->addLayout(formLayout);
 
+    // ── 点击位置（仅鼠标键显示）──
+    clickPosGroup_ = new ClickPositionGroup(std::move(driverSupportsMouseMove), this);
+    clickPosGroup_->setVisible(false);
+    layout->addWidget(clickPosGroup_);
+
     layout->addStretch();
 
     auto* btnRow = new QHBoxLayout();
@@ -73,9 +88,15 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing, QW
     if (existing.has_value()) {
         setCapturedKey(existing->key);
         delayEdit_->setText(QString::number(existing->delayAfterMs));
+        clickPosGroup_->setValue(existing->clickPos);
     } else {
         delayEdit_->setText(QString::number(kDefaultDelayMs));
     }
+    updateClickPosSectionVisible();
+
+    connect(this, &KeyCaptureDialogBase::keyAccepted, this, [this]() {
+        updateClickPosSectionVisible();
+    });
 
     bool delayClearedOnClick = false;
     connect(delayEdit_, &FluentLineEdit::clicked, this, [this, delayClearedOnClick]() mutable {
@@ -108,5 +129,18 @@ MacroStepEditResult MacroStepDialog::editResult() const {
     bool ok = false;
     value.delayAfterMs = delayEdit_->text().toInt(&ok);
     if (!ok || value.delayAfterMs < kMinDelayMs) value.delayAfterMs = kDefaultDelayMs;
+    value.clickPos = value.key.device == InputDevice::Mouse ? clickPosGroup_->value() : ClickPosition{};
     return value;
+}
+
+void MacroStepDialog::updateClickPosSectionVisible() {
+    if (!clickPosGroup_) return;
+    const auto key = capturedKey();
+    const bool isMouse = key.has_value() && key->device == InputDevice::Mouse;
+    const QPoint centerBefore = frameGeometry().center();
+    clickPosGroup_->setVisible(isMouse);
+    setFixedSize(DialogChrome::macroStepEditorWidth,
+        kDialogBaseHeight + (isMouse ? kClickGroupExtraHeight : 0));
+    DialogChrome::clampWithinScreen(this, centerBefore);
+    clickPosGroup_->applyDriverSupport();
 }

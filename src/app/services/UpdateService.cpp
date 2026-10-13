@@ -373,7 +373,7 @@ void UpdateService::checkForUpdate() {
         DWORD status = 0;
         QString error;
         if (!fetchUrl(QString::fromLatin1(kReleasesApiUrl), nullptr, &body, &status, &error)) {
-            emit checkFinished(false, error, false, QString(), QString());
+            emit checkFinished(false, error, false, QString(), QString(), QString());
             return;
         }
 
@@ -382,12 +382,13 @@ void UpdateService::checkForUpdate() {
         if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
             emit checkFinished(false,
                 QString::fromWCharArray(L"\u7ebf\u4e0a\u7248\u672c\u4fe1\u606f\u89e3\u6790\u5931\u8d25"),
-                false, QString(), QString());
+                false, QString(), QString(), QString());
             return;
         }
 
         QString bestVersion;
         QString bestAssetUrl;
+        QString bestNotes;
         for (const QJsonValue& releaseValue : document.array()) {
             const QJsonObject release = releaseValue.toObject();
             const QString version = normalizedVersion(
@@ -399,6 +400,8 @@ void UpdateService::checkForUpdate() {
                 continue;
             }
             bestVersion = version;
+            // 发行版描述即用户可读的更新日志。
+            bestNotes = release.value(QStringLiteral("body")).toString().trimmed();
             // Prefer an attached zip asset; Gitee also lists auto-generated
             // source archives, which are not usable update packages.
             bestAssetUrl.clear();
@@ -419,17 +422,17 @@ void UpdateService::checkForUpdate() {
         if (bestVersion.isEmpty()) {
             emit checkFinished(true,
                 QString::fromWCharArray(L"\u7ebf\u4e0a\u6682\u65e0\u53d1\u5e03\u7248\u672c"),
-                false, QString(), QString());
+                false, QString(), QString(), QString());
             return;
         }
         if (!isVersionNewer(bestVersion, QString::fromLatin1(APP_VERSION))) {
             emit checkFinished(true,
                 QString::fromWCharArray(L"\u5df2\u662f\u6700\u65b0\u7248\u672c"),
-                false, bestVersion, QString());
+                false, bestVersion, QString(), QString());
             return;
         }
         emit checkFinished(true, QString::fromWCharArray(L"\u53d1\u73b0\u65b0\u7248\u672c"),
-            true, bestVersion, bestAssetUrl);
+            true, bestVersion, bestAssetUrl, bestNotes);
     });
 }
 

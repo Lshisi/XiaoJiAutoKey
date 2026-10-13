@@ -43,6 +43,7 @@ set(MOC_HEADERS
     include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
+    include/app/dialogs/UpdateDialog.h
     include/app/widgets/StatusOverlayWindow.h
     src/ui/components/DraggableTable.h
     src/ui/components/FluentButton.h
@@ -190,6 +191,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
+    include/app/dialogs/UpdateDialog.h
     include/core/ClickPositioning.h
     include/core/ForegroundWatcher.h
     include/core/ShareCodec.h
@@ -243,6 +245,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/dialogs/ShareImportDialog.cpp
     src/app/dialogs/SoundSettingsDialog.cpp
     src/app/dialogs/StatusOverlaySettingsDialog.cpp
+    src/app/dialogs/UpdateDialog.cpp
     ${CORE_SOURCES}
     ${UI_COMPONENT_SOURCES}
     ${UI_COMPONENT_HEADERS}

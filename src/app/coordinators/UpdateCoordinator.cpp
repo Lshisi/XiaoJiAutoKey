@@ -1,5 +1,7 @@
 #include "coordinators/UpdateCoordinator.h"
 
+#include "dialogs/AppMessageDialog.h"
+#include "dialogs/UpdateDialog.h"
 #include "services/UpdateService.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/pages/KeyPage.h"
@@ -20,36 +22,22 @@ void UpdateCoordinator::bind(Context context) {
         context_.updateService->checkForUpdate();
     });
 
-    connect(context_.aboutPage, &AboutPage::downloadUpdateRequested, this,
-        [this](const QString& assetUrl) {
-            if (assetUrl.isEmpty()) {
-                // The release has no attached package; fall back to the
-                // release page so the user can update manually.
-                QDesktopServices::openUrl(QUrl(UpdateService::releasePageUrl()));
-                return;
-            }
-            context_.aboutPage->setDownloading();
-            context_.updateService->downloadAndStageUpdate(assetUrl, latestKnownVersion_);
-        });
-
-    connect(context_.aboutPage, &AboutPage::restartForUpdateRequested, this, [this]() {
-        if (stagedDir_.isEmpty()) {
-            return;
-        }
-        if (context_.applyStagedUpdate) {
-            context_.applyStagedUpdate(stagedDir_);
-        }
+    // 「下载并安装」/「立即重启更新」：打开更新弹窗，细节都在弹窗里完成。
+    connect(context_.aboutPage, &AboutPage::updateActionRequested, this, [this]() {
+        openUpdateDialog();
     });
 
     connect(context_.updateService, &UpdateService::checkFinished, this,
         [this](bool ok, const QString& message, bool hasUpdate,
-            const QString& latestVersion, const QString& assetUrl) {
-            handleCheckFinished(ok, message, hasUpdate, latestVersion, assetUrl);
+            const QString& latestVersion, const QString& assetUrl, const QString& notes) {
+            handleCheckFinished(ok, message, hasUpdate, latestVersion, assetUrl, notes);
         });
 
     connect(context_.updateService, &UpdateService::downloadProgress, this,
         [this](qint64 received, qint64 total) {
-            context_.aboutPage->showDownloadProgress(received, total);
+            if (updateDialog_) {
+                updateDialog_->setDownloadProgress(received, total);
+            }
         });
 
     connect(context_.updateService, &UpdateService::stageFinished, this,
@@ -57,9 +45,17 @@ void UpdateCoordinator::bind(Context context) {
             if (ok) {
                 stagedDir_ = stagingDir;
                 context_.aboutPage->setUpdateStaged();
+                if (updateDialog_) {
+                    updateDialog_->setStagedReady();
+                }
             } else {
                 stagedDir_.clear();
-                context_.aboutPage->setUpdateError(message);
+                if (updateDialog_) {
+                    updateDialog_->setDownloadError(message);
+                } else {
+                    AppMessageDialog::warning(context_.aboutPage,
+                        QString::fromWCharArray(L"\u66f4\u65b0\u5931\u8d25"), message);
+                }
             }
         });
 
@@ -86,13 +82,17 @@ void UpdateCoordinator::restoreBadgeFromConfig() {
 }
 
 void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, bool hasUpdate,
-    const QString& latestVersion, const QString& assetUrl) {
+    const QString& latestVersion, const QString& assetUrl, const QString& notes) {
     if (!ok) {
-        context_.aboutPage->setUpdateError(message);
+        context_.aboutPage->setUpdateIdle();
+        AppMessageDialog::warning(context_.aboutPage,
+            QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0\u5931\u8d25"), message);
         return;
     }
     if (!hasUpdate) {
         latestKnownVersion_.clear();
+        pendingAssetUrl_.clear();
+        pendingNotes_.clear();
         if (context_.config && !context_.config->latestKnownVersion.empty()) {
             context_.config->latestKnownVersion.clear();
             if (context_.saveConfig) {
@@ -107,6 +107,8 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
     }
 
     latestKnownVersion_ = latestVersion;
+    pendingAssetUrl_ = assetUrl;
+    pendingNotes_ = notes;
     if (context_.config) {
         context_.config->latestKnownVersion = latestVersion.toStdString();
         if (context_.saveConfig) {
@@ -116,5 +118,68 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
     if (context_.keyPage) {
         context_.keyPage->setUpdateBadge(latestVersion);
     }
-    context_.aboutPage->setUpdateAvailable(latestVersion, assetUrl);
+    context_.aboutPage->setUpdateAvailable(latestVersion, !assetUrl.isEmpty());
+    // 发现新版本：直接弹出更新窗口，展示日志并等待确认。
+    openUpdateDialog();
+}
+
+void UpdateCoordinator::openUpdateDialog() {
+    if (latestKnownVersion_.isEmpty()) {
+        return;
+    }
+    if (updateDialog_) {
+        updateDialog_->raise();
+        updateDialog_->activateWindow();
+        return;
+    }
+
+    auto* dialog = new UpdateDialog(latestKnownVersion_, pendingNotes_,
+        !pendingAssetUrl_.isEmpty(), context_.aboutPage);
+    updateDialog_ = dialog;
+    if (!stagedDir_.isEmpty()) {
+        dialog->setStagedReady();
+    }
+
+    connect(dialog, &UpdateDialog::confirmRequested, this, [this, dialog]() {
+        if (pendingAssetUrl_.isEmpty()) {
+            // The release has no attached package; fall back to the
+            // release page so the user can update manually.
+            QDesktopServices::openUrl(QUrl(UpdateService::releasePageUrl()));
+            dialog->reject();
+            return;
+        }
+        context_.aboutPage->setUpdateBusy();
+        dialog->beginDownload();
+        context_.updateService->downloadAndStageUpdate(pendingAssetUrl_, latestKnownVersion_);
+    });
+
+    connect(dialog, &UpdateDialog::restartRequested, this, [this]() {
+        if (stagedDir_.isEmpty()) {
+            return;
+        }
+        if (context_.applyStagedUpdate) {
+            context_.applyStagedUpdate(stagedDir_);
+        }
+    });
+
+    connect(dialog, &QDialog::finished, this, [this]() {
+        // 弹窗关闭后，关于页按钮反映当前进度：已就绪 → 立即重启更新，
+        // 否则回到「下载并安装」，点一下就能重新打开弹窗。
+        if (stagedDir_.isEmpty()) {
+            if (!latestKnownVersion_.isEmpty()) {
+                context_.aboutPage->setUpdateAvailable(latestKnownVersion_,
+                    !pendingAssetUrl_.isEmpty());
+            } else {
+                context_.aboutPage->setUpdateIdle();
+            }
+        } else {
+            context_.aboutPage->setUpdateStaged();
+        }
+    });
+
+    dialog->exec();
+    dialog->deleteLater();
+    if (updateDialog_ == dialog) {
+        updateDialog_ = nullptr;
+    }
 }

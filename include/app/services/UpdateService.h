@@ -40,13 +40,17 @@ public:
     // directory). Safe to call on every startup; performs no network access.
     static void cleanupPreviousUpdateArtifacts();
 
+    // 启动时的同步清理可能因旧进程尚未退出、文件被杀软短暂占用而失败。
+    // 在后台定时重试删除 .old.exe，直到成功或超时；不阻塞界面。
+    static void retryOldExeCleanupInBackground(QObject* context);
+
     [[nodiscard]] static bool isVersionNewer(const QString& candidate, const QString& reference);
     [[nodiscard]] static QString normalizedVersion(const QString& version);
     [[nodiscard]] static QString releasePageUrl();
 
 signals:
     void checkFinished(bool ok, const QString& message, bool hasUpdate,
-        const QString& latestVersion, const QString& assetUrl);
+        const QString& latestVersion, const QString& assetUrl, const QString& notes);
     void downloadProgress(qint64 received, qint64 total);
     void stageFinished(bool ok, const QString& message, const QString& stagingDir);
 

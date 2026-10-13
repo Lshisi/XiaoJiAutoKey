@@ -4,7 +4,6 @@
 
 class QScrollArea;
 class QLabel;
-class QProgressBar;
 class FluentButton;
 
 class AboutPage : public QWidget {
@@ -15,44 +14,41 @@ public:
     void updateThemeColors();
     void refreshIcon();
 
-    // Update card state. The page never touches the network itself; all
-    // states are driven by UpdateCoordinator in response to user actions.
+    // 更新卡片状态。页面自身从不联网，所有状态由 UpdateCoordinator
+    // 在用户操作后驱动；下载 / 重启等细节都在更新弹窗里完成。
     void setUpdateIdle();
     void setChecking();
     void setNoUpdate();
-    void setUpdateAvailable(const QString& latestVersion, const QString& assetUrl);
-    void setDownloading();
-    void showDownloadProgress(qint64 received, qint64 total);
+    void setUpdateAvailable(const QString& latestVersion, bool hasAsset);
+    void setUpdateBusy();
     void setUpdateStaged();
-    void setUpdateError(const QString& message);
 
 protected:
     void showEvent(QShowEvent* event) override;
 
 signals:
+    // 「检查更新」按钮（空闲态）。
     void checkUpdateRequested();
-    void downloadUpdateRequested(const QString& assetUrl);
-    void restartForUpdateRequested();
+    // 「下载并安装」/「立即重启更新」按钮：打开更新弹窗。
+    void updateActionRequested();
 
 private:
-    enum class UpdateStatusKind {
-        Info,
-        Accent,
-        Error,
+    enum class UpdateButtonState {
+        Idle,
+        Checking,
+        NoUpdate,
+        Available,
+        Busy,
+        Staged,
     };
 
-    void setUpdateStatus(const QString& text, UpdateStatusKind kind);
-    void applyUpdateCardStyles();
+    void applyUpdateBadgeStyle();
 
     QScrollArea* scrollArea_ = nullptr;
     QLabel* iconLabel_ = nullptr;
     QLabel* versionValueLabel_ = nullptr;
+    QLabel* updateBadgeLabel_ = nullptr;
     FluentButton* checkUpdateBtn_ = nullptr;
-    QLabel* updateStatusLabel_ = nullptr;
-    FluentButton* downloadUpdateBtn_ = nullptr;
-    QProgressBar* downloadProgressBar_ = nullptr;
-    QLabel* downloadProgressLabel_ = nullptr;
-    FluentButton* restartUpdateBtn_ = nullptr;
-    UpdateStatusKind updateStatusKind_ = UpdateStatusKind::Info;
-    QString pendingAssetUrl_;
+    UpdateButtonState buttonState_ = UpdateButtonState::Idle;
+    QString latestVersion_;
 };

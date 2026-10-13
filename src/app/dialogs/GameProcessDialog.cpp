@@ -81,6 +81,7 @@ GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidge
 
     processCombo_ = new FluentComboBox(this);
     processCombo_->setFixedHeight(28);
+    processCombo_->setSearchable(true);
     root->addWidget(processCombo_);
 
     auto* addRow = new QHBoxLayout();
@@ -95,9 +96,10 @@ GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidge
     root->addLayout(addRow);
 
     listWidget_ = new QListWidget(this);
-    listWidget_->setFixedHeight(180);
+    listWidget_->setMinimumHeight(180);
+    listWidget_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     refreshListTheme();
-    root->addWidget(listWidget_);
+    root->addWidget(listWidget_, 1);
 
     root->addStretch();
 
@@ -115,7 +117,7 @@ GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidge
     root->addLayout(buttons);
 
     for (const auto& name : processes_) {
-        listWidget_->addItem(name);
+        appendRow(name);
     }
 
     connect(addBtn, &QPushButton::clicked, this, [this]() {
@@ -131,7 +133,7 @@ GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidge
 QStringList GameProcessDialog::processes() const {
     QStringList result;
     for (int i = 0; i < listWidget_->count(); ++i) {
-        const QString name = listWidget_->item(i)->text().trimmed();
+        const QString name = listWidget_->item(i)->data(Qt::UserRole).toString().trimmed();
         if (!name.isEmpty()) {
             result.push_back(name);
         }
@@ -144,12 +146,46 @@ void GameProcessDialog::addProcess(const QString& name) {
         return;
     }
     for (int i = 0; i < listWidget_->count(); ++i) {
-        if (listWidget_->item(i)->text() == name) {
+        if (listWidget_->item(i)->data(Qt::UserRole).toString() == name) {
             return;
         }
     }
-    listWidget_->addItem(name);
+    appendRow(name);
     processEdit_->clear();
+}
+
+void GameProcessDialog::appendRow(const QString& name) {
+    // 进程名放在 UserRole，条目本身不设 text，避免 itemWidget 的行标签与
+    // 委托默认绘制的文本叠在一起。
+    auto* item = new QListWidgetItem();
+    item->setData(Qt::UserRole, name);
+    item->setSizeHint(QSize(0, 32));
+    listWidget_->addItem(item);
+
+    auto* row = new QWidget();
+    auto* rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(8, 0, 6, 0);
+    rowLayout->setSpacing(6);
+
+    auto* nameLabel = new QLabel(name, row);
+    nameLabel->setFont(Fluent::Typography::body());
+    nameLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    rowLayout->addWidget(nameLabel, 1);
+
+    auto* removeButton = new FluentButton(FluentButton::Icon, QString(QChar(0x00D7)), row);
+    removeButton->setFixedSize(22, 22);
+    removeButton->setAccessibleName(QString::fromWCharArray(L"\u5220\u9664 %1").arg(name));
+    connect(removeButton, &QPushButton::clicked, this, [this, row]() {
+        for (int i = 0; i < listWidget_->count(); ++i) {
+            if (listWidget_->itemWidget(listWidget_->item(i)) == row) {
+                delete listWidget_->takeItem(i);
+                return;
+            }
+        }
+    });
+    rowLayout->addWidget(removeButton, 0, Qt::AlignVCenter);
+
+    listWidget_->setItemWidget(item, row);
 }
 
 void GameProcessDialog::refreshListTheme() {
@@ -159,19 +195,26 @@ void GameProcessDialog::refreshListTheme() {
     listWidget_->setStyleSheet(QString(
         "QListWidget { background: %1; border: 1px solid %2; border-radius: 6px; "
         "color: %3; padding: 4px; }"
-        "QListWidget::item { height: 26px; padding: 2px 6px; border-radius: 4px; }"
+        "QListWidget::item { border-radius: 4px; }"
         "QListWidget::item:hover { background: %4; }"
-        "QListWidget::item:selected { background: %5; color: %3; }")
+        "QListWidget::item:selected { background: %5; }")
         .arg(Fluent::Colors::cardBg().name(),
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name(),
             Fluent::Colors::hoverBg().name(QColor::HexArgb),
             Fluent::Colors::selectedBg().name(QColor::HexArgb)));
-    // 双击条目删除
-    disconnect(listWidget_, nullptr, nullptr, nullptr);
-    connect(listWidget_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
-        delete listWidget_->takeItem(listWidget_->row(item));
-    });
+
+    for (int i = 0; i < listWidget_->count(); ++i) {
+        QWidget* row = listWidget_->itemWidget(listWidget_->item(i));
+        if (!row) {
+            continue;
+        }
+        if (auto* label = row->findChild<QLabel*>()) {
+            QPalette labelPalette = label->palette();
+            labelPalette.setColor(QPalette::WindowText, Fluent::Colors::textPrimary());
+            label->setPalette(labelPalette);
+        }
+    }
 }
 
 void GameProcessDialog::refreshRunningProcesses() {

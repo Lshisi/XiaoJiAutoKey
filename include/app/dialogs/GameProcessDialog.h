@@ -25,6 +25,7 @@ protected:
 
 private:
     void addProcess(const QString& name);
+    void appendRow(const QString& name);
     void refreshListTheme();
     void refreshRunningProcesses();
 

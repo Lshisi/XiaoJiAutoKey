@@ -119,7 +119,8 @@ void MainWindow::setupUi() {
         [this]() {
             pageRefreshCoordinator_.refreshProfiles();
             refreshStatusOverlay();
-        }
+        },
+        [this]() { openImportDialog(); }
     });
 
     connect(view_.macroPage(), &MacroPage::hotkeyEditClicked, this, [this]() {
@@ -157,7 +158,9 @@ void MainWindow::setupUi() {
                 macroController_.activeMacro());
         },
         [this]() { return activeInputDriverReady(); },
-        [this]() { showDdUnavailableMessage(); }
+        [this]() { showDdUnavailableMessage(); },
+        [this]() { openImportDialog(); },
+        [this]() { return inputDriver_.SupportsMouseMove(); }
     });
 
     settingsCoordinator_.bind(SettingsCoordinator::Context{

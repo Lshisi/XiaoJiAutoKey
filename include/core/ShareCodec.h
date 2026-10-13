@@ -34,6 +34,7 @@ public:
     [[nodiscard]] static std::string EncodeShareCode(const SharePayload& payload);
     [[nodiscard]] static std::optional<SharePayload> DecodeShareCode(const std::string& code);
 
+    // 文本配方：人类可读格式，导入导出都支持。
     [[nodiscard]] static std::string EncodeTextRecipe(const SharePayload& payload);
     [[nodiscard]] static std::optional<SharePayload> DecodeTextRecipe(const std::string& text);
 };

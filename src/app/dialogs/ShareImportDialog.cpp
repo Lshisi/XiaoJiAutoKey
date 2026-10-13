@@ -1,18 +1,14 @@
-#include "dialogs/ShareDialog.h"
+#include "dialogs/ShareImportDialog.h"
 
 #include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
-#include "ui/components/FluentComboBox.h"
 #include "ui/styles/DesignTokens.h"
 
-#include <QApplication>
-#include <QClipboard>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QShowEvent>
 #include <QStringList>
 #include <QTextOption>
 #include <QVBoxLayout>
@@ -55,12 +51,11 @@ QString PayloadSummary(const SharePayload& payload) {
 
 }  // namespace
 
-ShareDialog::ShareDialog(Mode initialMode, const ExportData& exportData, QWidget* parent)
-    : QDialog(parent), exportData_(exportData) {
-    setWindowTitle(QString::fromWCharArray(L"\u914d\u7f6e\u5206\u4eab"));
+ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
+    setWindowTitle(QString::fromWCharArray(L"\u5bfc\u5165\u914d\u7f6e"));
     DialogChrome::apply(this);
     setModal(true);
-    setFixedSize(560, 560);
+    setFixedSize(560, 460);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(24, 18, 24, 18);
@@ -75,34 +70,6 @@ ShareDialog::ShareDialog(Mode initialMode, const ExportData& exportData, QWidget
     titleRow->addWidget(DialogChrome::createCloseButton(this));
     root->addLayout(titleRow);
 
-    auto* modeRow = new QHBoxLayout();
-    modeRow->setSpacing(8);
-    auto* modeLabel = new QLabel(QString::fromWCharArray(L"\u6a21\u5f0f:"), this);
-    modeLabel->setFont(Fluent::Typography::body());
-    modeRow->addWidget(modeLabel);
-    modeCombo_ = new FluentComboBox(this);
-    modeCombo_->setFixedHeight(28);
-    modeCombo_->addItem(QString::fromWCharArray(L"\u5bfc\u51fa\u6309\u952e\u65b9\u6848"));
-    modeCombo_->addItem(QString::fromWCharArray(L"\u5bfc\u51fa\u5b8f"));
-    modeCombo_->addItem(QString::fromWCharArray(L"\u5bfc\u5165\u914d\u7f6e"));
-    modeRow->addWidget(modeCombo_, 1);
-    root->addLayout(modeRow);
-
-    auto* optionRow = new QHBoxLayout();
-    optionRow->setSpacing(8);
-    scopeCombo_ = new FluentComboBox(this);
-    scopeCombo_->setFixedHeight(28);
-    scopeCombo_->addItem(QString::fromWCharArray(L"\u5f53\u524d\u65b9\u6848"));
-    scopeCombo_->addItem(QString::fromWCharArray(L"\u5f53\u524d\u5b8f"));
-    scopeCombo_->addItem(QString::fromWCharArray(L"\u5168\u90e8\u5185\u5bb9"));
-    optionRow->addWidget(scopeCombo_, 1);
-    formatCombo_ = new FluentComboBox(this);
-    formatCombo_->setFixedHeight(28);
-    formatCombo_->addItem(QString::fromWCharArray(L"\u5206\u4eab\u7801"));
-    formatCombo_->addItem(QString::fromWCharArray(L"\u6587\u672c\u914d\u65b9"));
-    optionRow->addWidget(formatCombo_, 1);
-    root->addLayout(optionRow);
-
     textEdit_ = new QPlainTextEdit(this);
     textEdit_->setWordWrapMode(QTextOption::WrapAnywhere);
     textEdit_->setStyleSheet(QString(
@@ -112,6 +79,9 @@ ShareDialog::ShareDialog(Mode initialMode, const ExportData& exportData, QWidget
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name(),
             Fluent::Colors::selectedBg().name(QColor::HexArgb)));
+    textEdit_->setPlaceholderText(QString::fromWCharArray(
+        L"\u7c98\u8d34\u5206\u4eab\u7801\uff08XJK1:\u2026\uff09\u6216\u6587\u672c\u914d\u65b9\uff0c"
+        L"\u7136\u540e\u70b9\u51fb\u9884\u89c8"));
     root->addWidget(textEdit_, 1);
 
     statusLabel_ = new QLabel(this);
@@ -120,109 +90,32 @@ ShareDialog::ShareDialog(Mode initialMode, const ExportData& exportData, QWidget
     QPalette statusPalette = statusLabel_->palette();
     statusPalette.setColor(QPalette::WindowText, Fluent::Colors::textSecondary());
     statusLabel_->setPalette(statusPalette);
-    statusLabel_->setText(QString::fromWCharArray(L"\u957f\u5ea6: 0 \u5b57\u7b26"));
     root->addWidget(statusLabel_);
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
-    copyBtn_ = new FluentButton(FluentButton::Secondary,
-        QString::fromWCharArray(L"\u590d\u5236"), this);
-    copyBtn_->setFixedWidth(78);
-    previewBtn_ = new FluentButton(FluentButton::Primary,
+    previewBtn_ = new FluentButton(FluentButton::Secondary,
         QString::fromWCharArray(L"\u9884\u89c8"), this);
     previewBtn_->setFixedWidth(78);
     importBtn_ = new FluentButton(FluentButton::Primary,
         QString::fromWCharArray(L"\u5bfc\u5165"), this);
     importBtn_->setFixedWidth(78);
-    buttons->addWidget(copyBtn_);
+    importBtn_->setEnabled(false);
     buttons->addWidget(previewBtn_);
     buttons->addWidget(importBtn_);
     root->addLayout(buttons);
 
-    switch (initialMode) {
-    case Mode::ExportMacro:
-        modeCombo_->setCurrentIndex(1);
-        break;
-    case Mode::Import:
-        modeCombo_->setCurrentIndex(2);
-        break;
-    case Mode::ExportProfile:
-    default:
-        modeCombo_->setCurrentIndex(0);
-        break;
-    }
-
-    connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
-        refreshMode();
-    });
-    connect(scopeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
-        refreshExport();
-    });
-    connect(formatCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
-        refreshExport();
-    });
-    connect(copyBtn_, &QPushButton::clicked, this, [this]() {
-        QApplication::clipboard()->setText(textEdit_->toPlainText());
-        statusLabel_->setText(QString::fromWCharArray(L"\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f"));
-    });
     connect(previewBtn_, &QPushButton::clicked, this, [this]() {
         previewImport();
     });
     connect(importBtn_, &QPushButton::clicked, this, [this]() {
-        if (!hasImport_) {
-            previewImport();
-        }
         if (hasImport_) {
             accept();
         }
     });
-
-    refreshMode();
 }
 
-void ShareDialog::refreshMode() {
-    importing_ = modeCombo_->currentIndex() == 2;
-    scopeCombo_->setVisible(!importing_);
-    formatCombo_->setVisible(!importing_);
-    copyBtn_->setVisible(!importing_);
-    previewBtn_->setVisible(importing_);
-    importBtn_->setVisible(importing_);
-    importBtn_->setEnabled(false);
-    hasImport_ = false;
-    if (importing_) {
-        textEdit_->setReadOnly(false);
-        textEdit_->clear();
-        textEdit_->setPlaceholderText(QString::fromWCharArray(
-            L"\u7c98\u8d34\u5206\u4eab\u7801\uff08XJK1:\u2026\uff09\u6216\u6587\u672c\u914d\u65b9\uff0c"
-            L"\u7136\u540e\u70b9\u51fb\u9884\u89c8"));
-        statusLabel_->setText(QString());
-    } else {
-        textEdit_->setReadOnly(true);
-        textEdit_->setPlaceholderText(QString());
-        refreshExport();
-    }
-}
-
-void ShareDialog::refreshExport() {
-    const SharePayload* payload = &exportData_.everything;
-    if (scopeCombo_->currentIndex() == 0) {
-        payload = &exportData_.currentProfile;
-    } else if (scopeCombo_->currentIndex() == 1) {
-        payload = &exportData_.currentMacro;
-    }
-
-    QString content;
-    if (formatCombo_->currentIndex() == 0) {
-        content = QString::fromStdString(ShareCodec::EncodeShareCode(*payload));
-    } else {
-        content = QString::fromStdString(ShareCodec::EncodeTextRecipe(*payload));
-    }
-    textEdit_->setPlainText(content);
-    statusLabel_->setText(QString::fromWCharArray(L"\u957f\u5ea6: %1 \u5b57\u7b26")
-        .arg(content.size()));
-}
-
-void ShareDialog::previewImport() {
+void ShareImportDialog::previewImport() {
     hasImport_ = false;
     importBtn_->setEnabled(false);
 
@@ -243,15 +136,11 @@ void ShareDialog::previewImport() {
     statusLabel_->setText(PayloadSummary(importPayload_));
 }
 
-void ShareDialog::paintEvent(QPaintEvent* event) {
+void ShareImportDialog::paintEvent(QPaintEvent* event) {
     DialogChrome::paint(this, event);
 }
 
-void ShareDialog::showEvent(QShowEvent* event) {
-    QDialog::showEvent(event);
-}
-
-void ShareDialog::mousePressEvent(QMouseEvent* event) {
+void ShareImportDialog::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         dragging_ = true;
         dragStartGlobal_ = event->globalPos();
@@ -262,7 +151,7 @@ void ShareDialog::mousePressEvent(QMouseEvent* event) {
     QDialog::mousePressEvent(event);
 }
 
-void ShareDialog::mouseMoveEvent(QMouseEvent* event) {
+void ShareImportDialog::mouseMoveEvent(QMouseEvent* event) {
     if (dragging_ && (event->buttons() & Qt::LeftButton)) {
         move(dragStartFrame_ + event->globalPos() - dragStartGlobal_);
         event->accept();
@@ -271,7 +160,7 @@ void ShareDialog::mouseMoveEvent(QMouseEvent* event) {
     QDialog::mouseMoveEvent(event);
 }
 
-void ShareDialog::mouseReleaseEvent(QMouseEvent* event) {
+void ShareImportDialog::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && dragging_) {
         dragging_ = false;
         event->accept();

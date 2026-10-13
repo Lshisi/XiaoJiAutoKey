@@ -3,7 +3,8 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/DialogChrome.h"
-#include "dialogs/ShareDialog.h"
+#include "dialogs/ShareExportDialog.h"
+#include "dialogs/ShareImportDialog.h"
 #include "FactionTheme.h"
 #include "services/AgentService.h"
 #include "ui/pages/DriverPage.h"
@@ -1342,22 +1343,29 @@ void MainWindow::hookTrayGameGateAction() {
     applyGameGateSettings();
 }
 
-void MainWindow::openShareDialog(bool focusMacro) {
-    ShareDialog::ExportData data;
-    data.currentProfile.faction = config_.faction;
+void MainWindow::openExportProfileDialog() {
+    SharePayload payload;
+    payload.faction = config_.faction;
     if (auto* profile = profileController_.activeProfile()) {
-        data.currentProfile.profiles.push_back(*profile);
+        payload.profiles.push_back(*profile);
     }
-    if (auto* macro = macroController_.activeMacro()) {
-        data.currentMacro.macros.push_back(*macro);
-    }
-    data.everything.faction = config_.faction;
-    data.everything.profiles = config_.profiles;
-    data.everything.macros = config_.macros;
+    ShareExportDialog dialog(
+        QString::fromWCharArray(L"\u5bfc\u51fa\u6309\u952e\u65b9\u6848"), payload, this);
+    dialog.exec();
+}
 
-    ShareDialog dialog(
-        focusMacro ? ShareDialog::Mode::ExportMacro : ShareDialog::Mode::ExportProfile,
-        data, this);
+void MainWindow::openExportMacroDialog() {
+    SharePayload payload;
+    if (auto* macro = macroController_.activeMacro()) {
+        payload.macros.push_back(*macro);
+    }
+    ShareExportDialog dialog(
+        QString::fromWCharArray(L"\u5bfc\u51fa\u5b8f"), payload, this);
+    dialog.exec();
+}
+
+void MainWindow::openImportDialog() {
+    ShareImportDialog dialog(this);
     if (dialog.exec() != QDialog::Accepted || !dialog.hasImport()) {
         return;
     }

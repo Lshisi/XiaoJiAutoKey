@@ -120,6 +120,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     profileShareBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE72D)), this);  // share icon
     profileShareBtn_->setFixedSize(28, 28);
     profileShareBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    profileShareBtn_->setToolTip(QString::fromWCharArray(L"\u5bfc\u51fa\u5f53\u524d\u65b9\u6848"));
     profileRow->addWidget(profileShareBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);

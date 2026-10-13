@@ -78,6 +78,7 @@ MacroPage::MacroPage(QWidget* parent) : QWidget(parent) {
     macroShareBtn_ = new FluentButton(FluentButton::Icon, QString(QChar(0xE72D)), this);  // share icon
     macroShareBtn_->setFixedSize(28, 28);
     macroShareBtn_->setFont(QFont("Segoe MDL2 Assets", 10));
+    macroShareBtn_->setToolTip(QString::fromWCharArray(L"\u5bfc\u51fa\u5f53\u524d\u5b8f"));
     profileRow->addWidget(macroShareBtn_);
     tableCard->contentLayout()->addLayout(profileRow);
     tableCard->contentLayout()->addSpacing(8);

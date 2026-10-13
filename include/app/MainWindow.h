@@ -97,7 +97,9 @@ private:
     bool trayGateHooked_ = false;
 
     // 配置分享
-    void openShareDialog(bool focusMacro);
+    void openExportProfileDialog();
+    void openExportMacroDialog();
+    void openImportDialog();
     void applyImportedSharePayload(const SharePayload& payload);
 
     MainWindowView view_;

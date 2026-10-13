@@ -39,7 +39,8 @@ set(MOC_HEADERS
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
-    include/app/dialogs/ShareDialog.h
+    include/app/dialogs/ShareExportDialog.h
+    include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
     include/app/widgets/StatusOverlayWindow.h
@@ -184,7 +185,8 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
-    include/app/dialogs/ShareDialog.h
+    include/app/dialogs/ShareExportDialog.h
+    include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
     include/app/dialogs/StatusOverlaySettingsDialog.h
     include/core/ClickPositioning.h
@@ -235,7 +237,8 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/dialogs/KeyCaptureDialogBase.cpp
     src/app/dialogs/MacroStepDialog.cpp
     src/app/dialogs/PauseKeyDialog.cpp
-    src/app/dialogs/ShareDialog.cpp
+    src/app/dialogs/ShareExportDialog.cpp
+    src/app/dialogs/ShareImportDialog.cpp
     src/app/dialogs/SoundSettingsDialog.cpp
     src/app/dialogs/StatusOverlaySettingsDialog.cpp
     ${CORE_SOURCES}

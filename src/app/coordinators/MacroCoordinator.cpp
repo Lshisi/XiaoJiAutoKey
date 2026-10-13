@@ -87,7 +87,8 @@ void MacroCoordinator::onMacroAdd() {
         QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5faa\u73af\u540d\u79f0:"),
         QString(),
-        name);
+        name,
+        context_.importConfig);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 

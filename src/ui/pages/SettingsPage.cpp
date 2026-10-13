@@ -16,7 +16,6 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
-#include <QSlider>
 #include <QVBoxLayout>
 
 namespace {
@@ -200,14 +199,6 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     gameGateRow->addWidget(gameGateSwitch_);
     panelLayout->addLayout(gameGateRow);
 
-    gameGateDescLabel_ = new QLabel(QString::fromWCharArray(
-        L"\u79bb\u5f00\u5251\u7f513\u65d7\u8230\u7aef / \u65e0\u754c / \u7f18\u8d77\u7b49\u5ba2\u6237\u7aef\u65f6\uff0c"
-        L"\u81ea\u52a8\u6682\u505c\u8fde\u53d1\u4e0e\u5b8f\u5e76\u91ca\u653e\u6309\u952e\uff1b\u5207\u56de\u6e38\u620f\u540e\u81ea\u52a8\u6062\u590d\u3002"), panel);
-    gameGateDescLabel_->setFont(Fluent::Typography::caption());
-    gameGateDescLabel_->setWordWrap(true);
-    gameGateDescLabel_->setPalette(mutedPalette(gameGateDescLabel_));
-    panelLayout->addWidget(gameGateDescLabel_);
-
     auto* gameProcessRow = new QHBoxLayout();
     gameProcessRow->setContentsMargins(0, 0, 0, 0);
     gameProcessRow->setSpacing(8);
@@ -217,37 +208,19 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
     gameProcessRow->addWidget(gameProcessButton_);
     gameProcessRow->addStretch();
     panelLayout->addLayout(gameProcessRow);
-    gameProcessHintLabel_ = new QLabel(QString::fromWCharArray(
-        L"\u5df2\u5185\u7f6e\u8bc6\u522b JX3Client \u7cfb\u5ba2\u6237\u7aef\uff0c\u53ef\u989d\u5916\u6dfb\u52a0\u6a21\u62df\u5668\u7b49\u8fdb\u7a0b"), panel);
-    gameProcessHintLabel_->setFont(Fluent::Typography::caption());
-    gameProcessHintLabel_->setWordWrap(true);
-    gameProcessHintLabel_->setPalette(mutedPalette(gameProcessHintLabel_));
-    panelLayout->addWidget(gameProcessHintLabel_);
     panelLayout->addWidget(makeDivider(panel));
 
-    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u72b6\u6001\u6d6e\u7a97"), panel));
-    auto* opacityRow = new QHBoxLayout();
-    auto* opacityLabel = new QLabel(QString::fromWCharArray(L"\u80cc\u666f\u900f\u660e\u5ea6"), panel);
-    opacityLabel->setFont(Fluent::Typography::body());
-    opacityRow->addWidget(opacityLabel);
-    opacityRow->addStretch();
-    statusOverlayOpacityValue_ = new QLabel(panel);
-    statusOverlayOpacityValue_->setFont(Fluent::Typography::caption());
-    statusOverlayOpacityValue_->setPalette(mutedPalette(statusOverlayOpacityValue_));
-    opacityRow->addWidget(statusOverlayOpacityValue_);
-    panelLayout->addLayout(opacityRow);
-
-    statusOverlayOpacitySlider_ = new QSlider(Qt::Horizontal, panel);
-    statusOverlayOpacitySlider_->setRange(30, 100);
-    statusOverlayOpacitySlider_->setSingleStep(5);
-    statusOverlayOpacitySlider_->setPageStep(10);
-    panelLayout->addWidget(statusOverlayOpacitySlider_);
-
-    auto* opacityDesc = new QLabel(QString::fromWCharArray(L"\u6570\u503c\u8d8a\u4f4e\u8d8a\u900f\u660e\uff0c\u9501\u5b9a\u6309\u94ae\u5728\u6d6e\u7a97\u53f3\u4e0a\u89d2"), panel);
-    opacityDesc->setFont(Fluent::Typography::caption());
-    opacityDesc->setWordWrap(true);
-    opacityDesc->setPalette(mutedPalette(opacityDesc));
-    panelLayout->addWidget(opacityDesc);
+    panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5f00\u673a\u81ea\u542f"), panel));
+    auto* autoStartRow = new QHBoxLayout();
+    autoStartRow->setContentsMargins(0, 0, 0, 0);
+    auto* autoStartLabel = new QLabel(
+        QString::fromWCharArray(L"\u767b\u5f55 Windows \u540e\u81ea\u52a8\u8fd0\u884c\u5c0f\u53fd"), panel);
+    autoStartLabel->setFont(Fluent::Typography::body());
+    autoStartRow->addWidget(autoStartLabel);
+    autoStartRow->addStretch();
+    autoStartSwitch_ = new FluentSwitch(panel);
+    autoStartRow->addWidget(autoStartSwitch_);
+    panelLayout->addLayout(autoStartRow);
     panelLayout->addWidget(makeDivider(panel));
 
     panelLayout->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u542f\u52a8\u65f6"), panel));
@@ -303,11 +276,8 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
         else if (id == 2) action = CloseAction::Exit;
         emit closeActionChanged(action);
     });
-    connect(statusOverlayOpacitySlider_, &QSlider::valueChanged, this, [this](int value) {
-        if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(value) + "%");
-        emit statusOverlayOpacityChanged(value);
-    });
     connect(gameGateSwitch_, &FluentSwitch::toggled, this, &SettingsPage::gameGateEnabledChanged);
+    connect(autoStartSwitch_, &FluentSwitch::toggled, this, &SettingsPage::autoStartToggled);
     connect(gameProcessButton_, &QPushButton::clicked, this, &SettingsPage::gameGateProcessesEditRequested);
     connect(factionButton_, &QPushButton::clicked, this, &SettingsPage::showFactionMenu);
 
@@ -315,11 +285,7 @@ SettingsPage::SettingsPage(QWidget* parent) : QWidget(parent) {
 }
 
 void SettingsPage::setConfig(const AppConfig& config) {
-    if (!statusOverlayOpacitySlider_) return;
-    statusOverlayOpacitySlider_->blockSignals(true);
-    statusOverlayOpacitySlider_->setValue(config.statusOverlayOpacity);
-    statusOverlayOpacitySlider_->blockSignals(false);
-    if (statusOverlayOpacityValue_) statusOverlayOpacityValue_->setText(QString::number(config.statusOverlayOpacity) + "%");
+    if (!gameGateSwitch_) return;
     setGameGateEnabled(config.gameGateEnabled);
 }
 
@@ -328,6 +294,13 @@ void SettingsPage::setGameGateEnabled(bool enabled) {
     gameGateSwitch_->blockSignals(true);
     gameGateSwitch_->setChecked(enabled);
     gameGateSwitch_->blockSignals(false);
+}
+
+void SettingsPage::setAutoStartEnabled(bool enabled) {
+    if (!autoStartSwitch_) return;
+    autoStartSwitch_->blockSignals(true);
+    autoStartSwitch_->setChecked(enabled);
+    autoStartSwitch_->blockSignals(false);
 }
 
 void SettingsPage::setHotkeyText(const QString&) {}
@@ -406,19 +379,8 @@ void SettingsPage::applyPageTheme() {
             showFallbackFactionBadge(factionPreviewIcon_, faction.name, palette);
         }
     }
-    if (statusOverlayOpacitySlider_) {
-        statusOverlayOpacitySlider_->setStyleSheet(QString(
-            "QSlider::groove:horizontal { height: 4px; background: %2; border-radius: 2px; }"
-            "QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
-            "QSlider::handle:horizontal { background: %3; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
-        ).arg(palette.accent.name(),
-            Fluent::Colors::border().name(QColor::HexArgb),
-            Fluent::Colors::textPrimary().name()));
-    }
-    // 生效范围分区的说明文字跟随主题刷新
-    if (gameGateDescLabel_) gameGateDescLabel_->setPalette(mutedPalette(gameGateDescLabel_));
-    if (gameProcessHintLabel_) gameProcessHintLabel_->setPalette(mutedPalette(gameProcessHintLabel_));
     if (gameGateSwitch_) gameGateSwitch_->update();
+    if (autoStartSwitch_) autoStartSwitch_->update();
 }
 
 bool SettingsPage::eventFilter(QObject* watched, QEvent* event) {

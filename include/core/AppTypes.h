@@ -145,6 +145,8 @@ struct AppConfig {
     int statusOverlayOpacity = 70;
     RepeatOverlayOptions repeatOverlay;
     MacroOverlayOptions macroOverlay;
+    // 开机自启：登录 Windows 后通过 HKCU Run 注册表键自动运行小叽。
+    bool autoStartEnabled = false;
     StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Legacy;

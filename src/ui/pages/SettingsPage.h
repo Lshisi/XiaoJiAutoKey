@@ -10,7 +10,6 @@ class QPushButton;
 class QRadioButton;
 class FluentLineEdit;
 class FluentSwitch;
-class QSlider;
 
 class SettingsPage : public QWidget {
     Q_OBJECT
@@ -24,16 +23,17 @@ public:
     void setFaction(const QString& factionId);
     void setCustomSoundPaths(const QString& onPath, const QString& offPath);
     void setGameGateEnabled(bool enabled);
+    void setAutoStartEnabled(bool enabled);
 
 signals:
     void hotkeyEditClicked();
     void beepToggled(bool enabled);
-    void statusOverlayOpacityChanged(int opacity);
     void startupActionChanged(StartupAction action);
     void closeActionChanged(CloseAction action);
     void factionChanged(const QString& factionId);
     void gameGateEnabledChanged(bool enabled);
     void gameGateProcessesEditRequested();
+    void autoStartToggled(bool enabled);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -46,8 +46,6 @@ private:
     QButtonGroup* startupActionGroup_ = nullptr;
     QButtonGroup* closeActionGroup_ = nullptr;
     QPushButton* factionButton_ = nullptr;
-    QSlider* statusOverlayOpacitySlider_ = nullptr;
-    QLabel* statusOverlayOpacityValue_ = nullptr;
     QLabel* factionPreviewIcon_ = nullptr;
     QLabel* factionPreviewName_ = nullptr;
     QWidget* factionPreviewBar_ = nullptr;
@@ -57,7 +55,6 @@ private:
     QRadioButton* radioMin_ = nullptr;
     QRadioButton* radioExit_ = nullptr;
     FluentSwitch* gameGateSwitch_ = nullptr;
-    QLabel* gameGateDescLabel_ = nullptr;
+    FluentSwitch* autoStartSwitch_ = nullptr;
     QPushButton* gameProcessButton_ = nullptr;
-    QLabel* gameProcessHintLabel_ = nullptr;
 };

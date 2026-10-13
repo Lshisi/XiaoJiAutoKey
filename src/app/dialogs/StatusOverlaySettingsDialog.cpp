@@ -14,6 +14,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QShowEvent>
+#include <QSlider>
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
@@ -24,7 +25,7 @@
 StatusOverlaySettingsDialog::StatusOverlaySettingsDialog(
     const AppConfig& config, bool macroPage, QWidget* parent)
     : QDialog(parent),
-      settings_{config.repeatOverlay, config.macroOverlay} {
+      settings_{config.repeatOverlay, config.macroOverlay, config.statusOverlayOpacity} {
     setWindowTitle(QStringLiteral("\u60ac\u6d6e\u7a97\u8bbe\u7f6e"));
     DialogChrome::apply(this);
     setSizeGripEnabled(true);
@@ -62,6 +63,40 @@ StatusOverlaySettingsDialog::StatusOverlaySettingsDialog(
     addCheck(macro, QStringLiteral("\u5faa\u73af\u6b21\u6570"), &settings_.macro.showLoopCount);
     addCheck(macro, QStringLiteral("\u6682\u505c\u5feb\u6377\u952e"), &settings_.macro.showPauseKeys);
     macro->addStretch();
+
+    auto* general = addPage(QStringLiteral("\u901a\u7528"));
+    auto* opacityRow = new QHBoxLayout();
+    opacityRow->setContentsMargins(0, 0, 0, 0);
+    auto* opacityLabel = new QLabel(QStringLiteral("\u80cc\u666f\u900f\u660e\u5ea6"), general->parentWidget());
+    opacityLabel->setFont(Fluent::Typography::body());
+    opacityRow->addWidget(opacityLabel);
+    opacityRow->addStretch();
+    opacityValue_ = new QLabel(general->parentWidget());
+    opacityValue_->setObjectName(QStringLiteral("overlayOpacityValue"));
+    opacityValue_->setFont(Fluent::Typography::caption());
+    opacityRow->addWidget(opacityValue_);
+    general->addLayout(opacityRow);
+
+    opacitySlider_ = new QSlider(Qt::Horizontal, general->parentWidget());
+    opacitySlider_->setRange(30, 100);
+    opacitySlider_->setSingleStep(5);
+    opacitySlider_->setPageStep(10);
+    opacitySlider_->setValue(settings_.opacity);
+    opacityValue_->setText(QString::number(settings_.opacity) + "%");
+    general->addWidget(opacitySlider_);
+
+    auto* opacityDesc = new QLabel(
+        QStringLiteral("\u6570\u503c\u8d8a\u4f4e\u8d8a\u900f\u660e\uff0c\u9501\u5b9a\u6309\u94ae\u5728\u6d6e\u7a97\u53f3\u4e0a\u89d2"), general->parentWidget());
+    opacityDesc->setObjectName(QStringLiteral("overlayOpacityDesc"));
+    opacityDesc->setFont(Fluent::Typography::caption());
+    opacityDesc->setWordWrap(true);
+    general->addWidget(opacityDesc);
+    general->addStretch();
+
+    connect(opacitySlider_, &QSlider::valueChanged, this, [this](int value) {
+        if (opacityValue_) opacityValue_->setText(QString::number(value) + "%");
+        settings_.opacity = value;
+    });
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
@@ -109,6 +144,7 @@ void StatusOverlaySettingsDialog::refreshVisuals() {
     setPalette(Fluent::Theme::applicationPalette());
     setStyleSheet(QString(
         "QLabel { color: %1; background: transparent; }"
+        "QLabel#overlayOpacityValue, QLabel#overlayOpacityDesc { color: %6; }"
         "QTabWidget::pane { border: 0; background: transparent; }"
         "QTabBar::tab { color: %1; background: transparent; padding: 8px 12px; border-bottom: 2px solid transparent; }"
         "QTabBar::tab:selected { border-bottom-color: %2; }"
@@ -120,11 +156,16 @@ void StatusOverlaySettingsDialog::refreshVisuals() {
         "QScrollBar::handle:vertical:pressed { background: %2; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; border: none; background: none; }"
         "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { width: 0; height: 0; background: none; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
+        "QSlider::groove:horizontal { height: 4px; background: %7; border-radius: 2px; }"
+        "QSlider::sub-page:horizontal { background: %2; border-radius: 2px; }"
+        "QSlider::handle:horizontal { background: %1; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }")
         .arg(Fluent::Colors::textPrimary().name(), faction.accent.name(),
             Fluent::Colors::hoverBg().name(QColor::HexArgb),
             Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
-            Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
+            Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)"),
+            Fluent::Colors::textSecondary().name(),
+            Fluent::Colors::border().name(QColor::HexArgb)));
     for (auto* scroll : findChildren<QScrollArea*>()) {
         scroll->viewport()->setAutoFillBackground(false);
         scroll->viewport()->setStyleSheet(QStringLiteral("background: transparent;"));

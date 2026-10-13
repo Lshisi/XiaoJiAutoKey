@@ -172,9 +172,9 @@ void MainWindow::setupUi() {
             view_.updateFactionVisuals(this);
             refreshStatusOverlay();
         },
-        [this]() { refreshStatusOverlay(); },
         [this]() { captureCoordinator_.startMainHotkeyCapture(); },
-        [this]() { applyGameGateSettings(); }
+        [this]() { applyGameGateSettings(); },
+        [this]() { applyAutoStartSettings(); }
     });
     driverCoordinator_.bind(DriverCoordinator::Context{
         view_.driverPage(),
@@ -274,6 +274,7 @@ void MainWindow::openStatusOverlaySettings(bool macroPage) {
     const auto settings = dialog.settings();
     config_.repeatOverlay = settings.repeat;
     config_.macroOverlay = settings.macro;
+    config_.statusOverlayOpacity = settings.opacity;
     configCoordinator_.save();
     refreshStatusOverlay();
 }

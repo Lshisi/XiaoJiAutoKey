@@ -54,6 +54,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->settingsPage()->setHotkeyText(hotkeyText);
     context_.view->settingsPage()->setStartupAction(context_.config->startupAction);
     context_.view->settingsPage()->setCloseAction(context_.config->closeAction);
+    context_.view->settingsPage()->setAutoStartEnabled(context_.config->autoStartEnabled);
     context_.view->settingsPage()->setFaction(QString::fromStdString(context_.config->faction));
     context_.view->settingsPage()->setCustomSoundPaths(QString(), QString());
 }

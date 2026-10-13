@@ -24,11 +24,6 @@ void SettingsCoordinator::bind(Context context) {
         context_.config->closeAction = action;
         if (context_.saveConfig) context_.saveConfig();
     });
-    connect(context_.page, &SettingsPage::statusOverlayOpacityChanged, this, [this](int opacity) {
-        context_.config->statusOverlayOpacity = opacity;
-        if (context_.saveConfig) context_.saveConfig();
-        if (context_.refreshOverlay) context_.refreshOverlay();
-    });
     connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
     });
@@ -36,6 +31,11 @@ void SettingsCoordinator::bind(Context context) {
         context_.config->gameGateEnabled = enabled;
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyGameGate) context_.applyGameGate();
+    });
+    connect(context_.page, &SettingsPage::autoStartToggled, this, [this](bool enabled) {
+        context_.config->autoStartEnabled = enabled;
+        if (context_.saveConfig) context_.saveConfig();
+        if (context_.applyAutoStart) context_.applyAutoStart();
     });
     connect(context_.page, &SettingsPage::gameGateProcessesEditRequested, this, [this]() {
         QStringList initial;

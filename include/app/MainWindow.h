@@ -29,6 +29,7 @@
 #include "coordinators/EngineStateCoordinator.h"
 #include "coordinators/UpdateCoordinator.h"
 #include "services/AppPaths.h"
+#include "services/AutoStartService.h"
 #include "services/UpdateService.h"
 #include "widgets/StatusOverlayWindow.h"
 
@@ -92,6 +93,8 @@ private:
 
     // 前台门控（仅游戏客户端前台时生效）
     void applyGameGateSettings();
+    // 开机自启（HKCU Run 注册表键）
+    void applyAutoStartSettings();
     void onGameForegroundChanged(bool gameForeground);
     void hookTrayGameGateAction();
     bool trayGateHooked_ = false;

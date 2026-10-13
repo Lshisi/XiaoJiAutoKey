@@ -350,6 +350,8 @@ AppConfig ConfigStore::Load() const {
         config.beepEnabled = *beep;
     if (const auto gameGate = GetBoolField(*object, "gameGateEnabled"); gameGate.has_value())
         config.gameGateEnabled = *gameGate;
+    if (const auto autoStart = GetBoolField(*object, "autoStartEnabled"); autoStart.has_value())
+        config.autoStartEnabled = *autoStart;
     {
         const auto processesIt = object->find("gameGateProcesses");
         if (processesIt != object->end()) {
@@ -533,6 +535,7 @@ bool ConfigStore::Save(
     root.emplace("backgroundAutoRun", config.backgroundAutoRun);
     root.emplace("beepEnabled", config.beepEnabled);
     root.emplace("gameGateEnabled", config.gameGateEnabled);
+    root.emplace("autoStartEnabled", config.autoStartEnabled);
     if (!config.gameGateProcesses.empty()) {
         jsonlite::Array processes;
         for (const auto& name : config.gameGateProcesses) {

@@ -338,6 +338,8 @@ bool MainWindow::Initialize() {
         config_.backgroundAutoRun = false;
         configCoordinator_.save(false, 500);
     }
+    // 开机自启：启动时对齐注册表 Run 键，修正 exe 移动或注册表被清理后的漂移。
+    applyAutoStartSettings();
     soundService_.warmUpToggleSounds(
         config_.customSoundOn,
         config_.customSoundOff,
@@ -1317,6 +1319,11 @@ void MainWindow::applyGameGateSettings() {
         page->setGameGateEnabled(config_.gameGateEnabled);
     }
     onGameForegroundChanged(gameWatcher_.IsGameForeground());
+}
+
+// 开机自启：把注册表 Run 键与配置对齐（开启时写入当前 exe 路径，关闭时删除残留项）。
+void MainWindow::applyAutoStartSettings() {
+    AutoStartService::setEnabled(config_.autoStartEnabled);
 }
 
 void MainWindow::onGameForegroundChanged(bool gameForeground) {

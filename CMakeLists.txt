@@ -173,6 +173,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/view/MainWindowView.h
     include/app/controllers/ProfileController.h
     include/app/services/AppPaths.h
+    include/app/services/AutoStartService.h
     include/app/services/DdRuntimeService.h
     include/app/services/SoundService.h
     include/app/services/UpdateService.h
@@ -223,6 +224,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/view/MainWindowView.cpp
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
+    src/app/services/AutoStartService.cpp
     src/app/services/DdRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/services/UpdateService.cpp

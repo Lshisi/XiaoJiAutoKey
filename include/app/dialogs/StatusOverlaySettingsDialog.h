@@ -5,12 +5,15 @@
 #include <QDialog>
 #include <QPoint>
 
+class QLabel;
+class QSlider;
 class QTabWidget;
 class QVBoxLayout;
 
 struct StatusOverlaySettings {
     RepeatOverlayOptions repeat;
     MacroOverlayOptions macro;
+    int opacity = 70;
 };
 
 class StatusOverlaySettingsDialog : public QDialog {
@@ -35,6 +38,8 @@ private:
 
     StatusOverlaySettings settings_;
     QTabWidget* tabs_ = nullptr;
+    QSlider* opacitySlider_ = nullptr;
+    QLabel* opacityValue_ = nullptr;
     bool dragging_ = false;
     QPoint dragStartGlobal_;
     QPoint dragStartFrame_;

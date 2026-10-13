@@ -288,7 +288,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     mixedModeCheck_ = new FluentCheckBox(QString::fromWCharArray(L"\u6309\u538b\u4f18\u5148"), this);
     mixedModeCheck_->setFont(Fluent::Typography::body());
     mixedSection->addWidget(mixedModeCheck_);
-    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u6309\u538b\u952e\uff0c\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
+    auto* mixedDesc = new QLabel(QString::fromWCharArray(L"\u6309\u4f4f\u65f6\u6682\u505c\u5176\u4ed6\u8fde\u53d1\u3002"), this);
     mixedDesc->setFont(Fluent::Typography::caption());
     mixedDesc->setWordWrap(true);
     QPalette mPal = mixedDesc->palette();
@@ -322,7 +322,7 @@ KeyPage::KeyPage(QWidget* parent) : QWidget(parent) {
     rememberSequencePositionCheck_->setFont(Fluent::Typography::body());
     rememberSequencePositionCheck_->setChecked(true);
     sequenceSection->addWidget(rememberSequencePositionCheck_);
-    auto* sequenceDesc = new QLabel(QString::fromWCharArray(L"\u52fe\u9009\u7eed\u7528\u4e0a\u6b21\uff0c\u53d6\u6d88\u4ece\u5934\u5f00\u59cb\u3002"), mixedCard);
+    auto* sequenceDesc = new QLabel(QString::fromWCharArray(L"\u52fe\u9009\u7eed\u7528\uff0c\u53d6\u6d88\u4ece\u5934\u3002"), mixedCard);
     sequenceDesc->setFont(Fluent::Typography::caption());
     sequenceDesc->setWordWrap(true);
     QPalette sequencePalette = sequenceDesc->palette();

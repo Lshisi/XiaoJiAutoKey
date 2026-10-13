@@ -17,8 +17,9 @@ public:
 
     // Update card state. The page never touches the network itself; all
     // states are driven by UpdateCoordinator in response to user actions.
-    void setUpdateIdle(const QString& message);
+    void setUpdateIdle();
     void setChecking();
+    void setNoUpdate();
     void setUpdateAvailable(const QString& latestVersion, const QString& assetUrl);
     void setDownloading();
     void showDownloadProgress(qint64 received, qint64 total);

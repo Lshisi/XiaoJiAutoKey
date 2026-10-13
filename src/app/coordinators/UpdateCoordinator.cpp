@@ -102,7 +102,7 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
         if (context_.keyPage) {
             context_.keyPage->setUpdateBadge(QString());
         }
-        context_.aboutPage->setUpdateIdle(message);
+        context_.aboutPage->setNoUpdate();
         return;
     }
 

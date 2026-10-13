@@ -17,6 +17,7 @@
 #include <QScrollArea>
 #include <QShowEvent>
 #include <QSizePolicy>
+#include <QTimer>
 #include <QUrl>
 
 namespace {
@@ -74,10 +75,6 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
     appName->setFont(Fluent::Typography::cardTitle());
     appName->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     infoText->addWidget(appName);
-    auto* version = new QLabel(QString("V") + APP_VERSION, infoCard);
-    version->setFont(Fluent::Typography::caption());
-    version->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    infoText->addWidget(version);
     auto* desc = new QLabel(QString::fromWCharArray(L"\u4e00\u4e2a\u8f7b\u91cf\u3001\u9ad8\u6548\u7684\u6309\u952e\u81ea\u52a8\u5316\u5de5\u5177"), infoCard);
     desc->setFont(Fluent::Typography::body());
     desc->setWordWrap(false);
@@ -201,8 +198,7 @@ AboutPage::AboutPage(QWidget* parent) : QWidget(parent) {
         }
     });
 
-    setUpdateIdle(QString::fromWCharArray(
-        L"\u4ec5\u5728\u672c\u9875\u624b\u52a8\u68c0\u67e5\u66f4\u65b0\uff0c\u8f6f\u4ef6\u4e0d\u4f1a\u81ea\u52a8\u8054\u7f51\u68c0\u67e5\u3002"));
+    setUpdateIdle();
     updateThemeColors();
 }
 
@@ -219,6 +215,7 @@ void AboutPage::showEvent(QShowEvent* event) {
 void AboutPage::setUpdateStatus(const QString& text, UpdateStatusKind kind) {
     updateStatusKind_ = kind;
     updateStatusLabel_->setText(text);
+    updateStatusLabel_->setVisible(!text.isEmpty());
     applyUpdateCardStyles();
 }
 
@@ -250,7 +247,7 @@ void AboutPage::applyUpdateCardStyles() {
     }
 }
 
-void AboutPage::setUpdateIdle(const QString& message) {
+void AboutPage::setUpdateIdle() {
     pendingAssetUrl_.clear();
     checkUpdateBtn_->setEnabled(true);
     checkUpdateBtn_->setText(QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0"));
@@ -258,7 +255,7 @@ void AboutPage::setUpdateIdle(const QString& message) {
     restartUpdateBtn_->hide();
     downloadProgressBar_->hide();
     downloadProgressLabel_->hide();
-    setUpdateStatus(message, UpdateStatusKind::Info);
+    setUpdateStatus(QString(), UpdateStatusKind::Info);
 }
 
 void AboutPage::setChecking() {
@@ -268,8 +265,25 @@ void AboutPage::setChecking() {
     restartUpdateBtn_->hide();
     downloadProgressBar_->hide();
     downloadProgressLabel_->hide();
-    setUpdateStatus(QString::fromWCharArray(L"\u6b63\u5728\u68c0\u67e5\u66f4\u65b0\uff0c\u8bf7\u7a0d\u5019..."),
-        UpdateStatusKind::Info);
+    setUpdateStatus(QString(), UpdateStatusKind::Info);
+}
+
+void AboutPage::setNoUpdate() {
+    pendingAssetUrl_.clear();
+    checkUpdateBtn_->setEnabled(false);
+    checkUpdateBtn_->setText(QString::fromWCharArray(L"\u65e0\u66f4\u65b0"));
+    downloadUpdateBtn_->hide();
+    restartUpdateBtn_->hide();
+    downloadProgressBar_->hide();
+    downloadProgressLabel_->hide();
+    setUpdateStatus(QString(), UpdateStatusKind::Info);
+    // Briefly show the result on the button, then offer a fresh check.
+    QTimer::singleShot(3000, this, [this]() {
+        if (!checkUpdateBtn_->isEnabled() &&
+            checkUpdateBtn_->text() == QString::fromWCharArray(L"\u65e0\u66f4\u65b0")) {
+            setUpdateIdle();
+        }
+    });
 }
 
 void AboutPage::setUpdateAvailable(const QString& latestVersion, const QString& assetUrl) {

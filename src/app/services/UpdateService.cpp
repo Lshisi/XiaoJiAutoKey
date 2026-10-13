@@ -45,6 +45,33 @@ QString decodeEntryName(const char* rawName) {
     return local.contains(QChar(0xFFFD)) ? utf8 : local;
 }
 
+// Update-flow diagnostics: the about-page dialog alone cannot carry enough
+// detail to diagnose a failed in-place replace, so key steps also append here.
+void logUpdateDebug(const QString& line) {
+    QFile logFile(QCoreApplication::applicationDirPath() + QStringLiteral("/update-debug.log"));
+    if (!logFile.open(QIODevice::Append | QIODevice::Text)) {
+        return;
+    }
+    logFile.write(line.toUtf8());
+    logFile.write("\n");
+}
+
+// QCoreApplication::applicationDirPath() 在 QApplication 构造之前返回空串，
+// 而启动清理恰好在 main() 里构造之前执行；空路径会让 QDirIterator 退化成
+// 递归扫描当前工作目录（从任务栏启动时是 System32），拖慢启动。这里直接
+// 用 Win32 取 exe 所在目录，任何时机都有效。
+QString executableDirPath() {
+    wchar_t buffer[MAX_PATH + 1] = {};
+    const DWORD length = ::GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) {
+        return QCoreApplication::applicationDirPath();
+    }
+    const QString fullPath = QString::fromWCharArray(buffer, static_cast<int>(length));
+    const int slash = qMax(fullPath.lastIndexOf(QLatin1Char('/')),
+        fullPath.lastIndexOf(QLatin1Char('\\')));
+    return slash > 0 ? fullPath.left(slash) : QString();
+}
+
 struct ExtractEntry {
     mz_uint index = 0;
     QString relativePath;
@@ -546,6 +573,9 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
     };
 
     bool exeCopied = false;
+    // 首个共享冲突出现后，其余被占文件的成因相同（进程内无法释放的句柄），
+    // 直接走暂存路径，避免在 UI 线程上长时间重试等待。
+    bool sawSharingViolation = false;
     QDirIterator it(stagingDir, QDir::Files, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         const QString sourcePath = it.next();
@@ -559,11 +589,52 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
             restoreOldExe();
             return fail(QString::fromWCharArray(L"\u66f4\u65b0\u6587\u4ef6\u5199\u5165\u5931\u8d25: ") + relativePath);
         }
-        if (!::CopyFileW(reinterpret_cast<const wchar_t*>(sourcePath.utf16()),
-                reinterpret_cast<const wchar_t*>(targetPath.utf16()), FALSE)) {
-            restoreOldExe();
-            return fail(QString::fromWCharArray(L"\u66f4\u65b0\u6587\u4ef6\u5199\u5165\u5931\u8d25: ") + relativePath +
-                QString::fromWCharArray(L"\uff0c\u5df2\u6062\u590d\u539f\u7248\u672c"));
+        // Transient holders (engine teardown, AV scans on the freshly staged
+        // files) can hold the target briefly; retry a little before deferring.
+        bool copied = false;
+        DWORD copyError = 0;
+        const int maxAttempts = sawSharingViolation ? 1 : 3;
+        for (int attempt = 0; attempt < maxAttempts && !copied; ++attempt) {
+            if (attempt > 0) {
+                QThread::msleep(150);
+            }
+            if (::CopyFileW(reinterpret_cast<const wchar_t*>(sourcePath.utf16()),
+                    reinterpret_cast<const wchar_t*>(targetPath.utf16()), FALSE)) {
+                copied = true;
+                break;
+            }
+            copyError = ::GetLastError();
+            logUpdateDebug(QStringLiteral("copy failed: ") + relativePath +
+                QStringLiteral(" attempt=") + QString::number(attempt + 1) +
+                QStringLiteral(" error=") + QString::number(static_cast<int>(copyError)));
+        }
+        if (!copied) {
+            // 常驻 MCI 音效设备泄漏的文件句柄在进程内无法释放（设备已注销、
+            // close 无效）。除主程序外的文件遇到共享冲突时改写 .update-pending
+            // 暂存，新实例启动早期（音效加载之前）由 cleanup 换入。
+            const bool isExe = relativePath.compare(
+                QStringLiteral("XiaoJiAutoKey.exe"), Qt::CaseInsensitive) == 0;
+            if (isExe || copyError != ERROR_SHARING_VIOLATION) {
+                restoreOldExe();
+                return fail(QString::fromWCharArray(L"\u66f4\u65b0\u6587\u4ef6\u5199\u5165\u5931\u8d25: ") + relativePath +
+                    QStringLiteral(" (") + QString::fromWCharArray(L"\u9519\u8bef\u4ee3\u7801 ") +
+                    QString::number(static_cast<int>(copyError)) + QStringLiteral(")") +
+                    QString::fromWCharArray(L"\uff0c\u5df2\u6062\u590d\u539f\u7248\u672c"));
+            }
+            const QString pendingPath = targetPath + QStringLiteral(".update-pending");
+            if (!::CopyFileW(reinterpret_cast<const wchar_t*>(sourcePath.utf16()),
+                    reinterpret_cast<const wchar_t*>(pendingPath.utf16()), FALSE)) {
+                const DWORD pendingError = ::GetLastError();
+                logUpdateDebug(QStringLiteral("pending copy failed: ") + relativePath +
+                    QStringLiteral(" error=") + QString::number(static_cast<int>(pendingError)));
+                restoreOldExe();
+                return fail(QString::fromWCharArray(L"\u66f4\u65b0\u6587\u4ef6\u5199\u5165\u5931\u8d25: ") + relativePath +
+                    QStringLiteral(" (") + QString::fromWCharArray(L"\u9519\u8bef\u4ee3\u7801 ") +
+                    QString::number(static_cast<int>(pendingError)) + QStringLiteral(")") +
+                    QString::fromWCharArray(L"\uff0c\u5df2\u6062\u590d\u539f\u7248\u672c"));
+            }
+            logUpdateDebug(QStringLiteral("deferred via pending: ") + relativePath);
+            sawSharingViolation = true;
         }
         if (relativePath.compare(QStringLiteral("XiaoJiAutoKey.exe"), Qt::CaseInsensitive) == 0) {
             exeCopied = true;
@@ -578,8 +649,8 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
 }
 
 void UpdateService::cleanupPreviousUpdateArtifacts() {
-    const QString oldExePath =
-        QCoreApplication::applicationDirPath() + QStringLiteral("/XiaoJiAutoKey.old.exe");
+    const QString exeDir = executableDirPath();
+    const QString oldExePath = exeDir + QStringLiteral("/XiaoJiAutoKey.old.exe");
     for (int attempt = 0; attempt < 10 && QFileInfo::exists(oldExePath); ++attempt) {
         if (QFile::remove(oldExePath)) {
             break;
@@ -587,6 +658,21 @@ void UpdateService::cleanupPreviousUpdateArtifacts() {
         QThread::msleep(200);
     }
     QDir(QDir::temp().filePath(QStringLiteral("XiaoJiAutoKeyUpdate"))).removeRecursively();
+
+    // 换入上次更新时被共享冲突暂存的文件。此时音效尚未加载、旧进程句柄
+    // 已随退出释放，目标文件必定可写；个别失败就留到下次启动再试。
+    const QString pendingSuffix = QStringLiteral(".update-pending");
+    QDirIterator pendingIt(exeDir,
+        QStringList{QStringLiteral("*") + pendingSuffix}, QDir::Files, QDirIterator::Subdirectories);
+    while (pendingIt.hasNext()) {
+        const QString pendingPath = pendingIt.next();
+        const QString targetPath =
+            pendingPath.left(pendingPath.size() - pendingSuffix.size());
+        if (QFile::exists(targetPath) && !QFile::remove(targetPath)) {
+            continue;
+        }
+        QFile::rename(pendingPath, targetPath);
+    }
 }
 
 void UpdateService::retryOldExeCleanupInBackground(QObject* context) {

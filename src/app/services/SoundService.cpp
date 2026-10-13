@@ -5,7 +5,9 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
+#include <fstream>
 #include <queue>
+#include <vector>
 #include <Windows.h>
 #include <mmsystem.h>
 #include <utility>
@@ -93,6 +95,62 @@ void SoundService::closeAlias(const wchar_t* alias) const {
         openAliases_.erase(aliasName);
     }
     closeAliasSync(aliasName);
+}
+
+void SoundService::closeAllAliases() const {
+    // 锁内完成：ensureAliasOpen 的 close+open+insert 是原子段，若在锁外关闭，
+    // 工作线程可能立刻重新 open 再次占住文件；quiesced_ 让随后到达的播放
+    // 请求直接失效，直到 resumePlayback()。
+    std::lock_guard lock(queueMutex_);
+    quiesced_ = true;
+    std::queue<PlayRequest> empty;
+    queue_.swap(empty);
+    // 兜底把固定别名也关一遍：openAliases_ 理论上覆盖所有常驻设备，但只要
+    // 漏掉一个，更新覆盖 audio/ 时 CopyFileW 就会稳定失败。
+    std::vector<std::wstring> names = {
+        L"autokey_toggle_sound",
+        L"autokey_macro_toggle_sound",
+        L"autokey_repeat_on_sound",
+        L"autokey_repeat_off_sound",
+        L"autokey_macro_on_sound",
+        L"autokey_macro_off_sound",
+        L"autokey_preview_sound",
+    };
+    for (const auto& entry : openAliases_) {
+        names.push_back(entry.first);
+    }
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    {
+        std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
+        if (log) {
+            log << "closeAllAliases: map=" << openAliases_.size()
+                << " closing=" << names.size() << "\n";
+        }
+    }
+    {
+        const MCIERROR rc = mciSendStringW(L"close all", nullptr, 0, nullptr);
+        std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
+        if (log) {
+            log << "  close all rc=" << rc << "\n";
+        }
+    }
+    for (const auto& name : names) {
+        const MCIERROR rc = mciSendStringW((L"close " + name).c_str(), nullptr, 0, nullptr);
+        if (rc != 0) {
+            std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
+            if (log) {
+                log << "  close " << std::string(name.begin(), name.end())
+                    << " rc=" << rc << "\n";
+            }
+        }
+    }
+    openAliases_.clear();
+}
+
+void SoundService::resumePlayback() const {
+    std::lock_guard lock(queueMutex_);
+    quiesced_ = false;
 }
 
 void SoundService::warmUpDefaultSounds() const {
@@ -206,14 +264,15 @@ void SoundService::playFileSync(const PlayRequest& request) const {
 }
 
 bool SoundService::ensureAliasOpen(const PlayRequest& request) const {
-    {
-        std::lock_guard lock(queueMutex_);
-        const auto it = openAliases_.find(request.alias);
-        if (it != openAliases_.end() && it->second == request.soundPath) {
-            return true;
-        }
-        openAliases_.erase(request.alias);
+    std::lock_guard lock(queueMutex_);
+    if (quiesced_) {
+        return false;
     }
+    const auto it = openAliases_.find(request.alias);
+    if (it != openAliases_.end() && it->second == request.soundPath) {
+        return true;
+    }
+    openAliases_.erase(request.alias);
 
     closeAliasSync(request.alias);
     // MCI's waveaudio driver does not reliably support the per-alias
@@ -223,11 +282,7 @@ bool SoundService::ensureAliasOpen(const PlayRequest& request) const {
     if (mciSendStringW(openCommand.c_str(), nullptr, 0, nullptr) != 0) {
         return false;
     }
-
-    {
-        std::lock_guard lock(queueMutex_);
-        openAliases_[request.alias] = request.soundPath;
-    }
+    openAliases_[request.alias] = request.soundPath;
     return true;
 }
 

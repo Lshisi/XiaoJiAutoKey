@@ -870,9 +870,13 @@ void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
+    // 常驻 MCI 音效设备占着 audio/ 内置 wav 的句柄，不先释放会锁住更新覆盖。
+    soundService_.closeAllAliases();
 
     QString error;
-    if (!UpdateService::applyStagedUpdate(stagingDir, &error)) {
+    const bool updated = UpdateService::applyStagedUpdate(stagingDir, &error);
+    soundService_.resumePlayback();
+    if (!updated) {
         // Best effort: bring the driver back so the application stays usable.
         if (!loadConfiguredDriver(false)) {
             logDriverUnavailableOnce();

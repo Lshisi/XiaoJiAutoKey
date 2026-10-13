@@ -17,6 +17,8 @@ public:
 
     void playFile(const std::filesystem::path& soundPath, int volume, const wchar_t* alias) const;
     void closeAlias(const wchar_t* alias) const;
+    void closeAllAliases() const;
+    void resumePlayback() const;
     void warmUpDefaultSounds() const;
     void warmUpToggleSounds(
         const std::wstring& repeatOn,
@@ -58,5 +60,6 @@ private:
     mutable std::condition_variable queueCv_;
     mutable std::queue<PlayRequest> queue_;
     mutable bool stopping_ = false;
+    mutable bool quiesced_ = false;
     mutable std::thread worker_;
 };

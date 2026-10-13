@@ -1,6 +1,7 @@
 #include "ClickPositionGroup.h"
 
 #include "ScreenPointPicker.h"
+#include "FactionTheme.h"
 #include "ui/components/FluentButton.h"
 #include "ui/styles/DesignTokens.h"
 
@@ -21,6 +22,27 @@
 #include <vector>
 
 namespace {
+
+// 与 SettingsPage 的单选钮同款：选中态用门派色圆环+圆心，未选中态用卡片底色，
+// 保证深浅色模式下都与弹窗背景对比清晰。
+QString radioThemeStyle() {
+    const QColor accent = FactionTheme::instance().palette().accent;
+    return QString(
+        "QRadioButton { background: transparent; color: %2; spacing: 8px; }"
+        "QRadioButton:disabled { color: %5; }"
+        "QRadioButton::indicator { width: 14px; height: 14px; border-radius: 7px; }"
+        "QRadioButton::indicator:unchecked { background: %3; border: 1px solid %4; }"
+        "QRadioButton::indicator:checked {"
+        "  border: 1px solid %1;"
+        "  background: qradialgradient(cx:0.5, cy:0.5, radius:0.55, fx:0.5, fy:0.5,"
+        "    stop:0 %1, stop:0.42 %1, stop:0.46 %3, stop:1 %3);"
+        "}"
+    ).arg(accent.name(),
+        Fluent::Colors::textPrimary().name(),
+        Fluent::Colors::cardBg().name(),
+        Fluent::Colors::border().name(QColor::HexArgb),
+        Fluent::Colors::textTertiary().name());
+}
 
 // 点位按鼠标所在屏幕的比例记录，与运行时换算保持一致。
 QString AnchorText(double x, double y) {
@@ -97,6 +119,7 @@ ClickPositionGroup::ClickPositionGroup(std::function<bool()> driverSupportsMouse
     followRadio_ = new QRadioButton(QString::fromWCharArray(L"\u8ddf\u968f\u9f20\u6807\u5f53\u524d\u4f4d\u7f6e"), this);
     followRadio_->setFont(Fluent::Typography::body());
     followRadio_->setFixedHeight(22);
+    followRadio_->setStyleSheet(radioThemeStyle());
     followRadio_->setChecked(true);
     layout->addWidget(followRadio_);
 
@@ -106,6 +129,7 @@ ClickPositionGroup::ClickPositionGroup(std::function<bool()> driverSupportsMouse
     fixedRadio_ = new QRadioButton(QString::fromWCharArray(L"\u56fa\u5b9a\u70b9\u4f4d"), this);
     fixedRadio_->setFont(Fluent::Typography::body());
     fixedRadio_->setFixedHeight(22);
+    fixedRadio_->setStyleSheet(radioThemeStyle());
     fixedRow->addWidget(fixedRadio_);
     pickBtn_ = new FluentButton(FluentButton::Secondary,
         QString::fromWCharArray(L"\u62fe\u53d6\u5750\u6807"), this);

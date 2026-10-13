@@ -13,13 +13,6 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-namespace {
-
-constexpr int kDialogBaseHeight = 250;
-constexpr int kClickGroupExtraHeight = 168;
-
-}  // namespace
-
 MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
     std::function<bool()> driverSupportsMouseMove,
     QWidget* parent)
@@ -29,7 +22,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6b65\u9aa4")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(DialogChrome::macroStepEditorWidth, kDialogBaseHeight);
+    setFixedWidth(DialogChrome::macroStepEditorWidth);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(24, 18, 24, 18);
@@ -71,8 +64,6 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
     clickPosGroup_ = new ClickPositionGroup(std::move(driverSupportsMouseMove), this);
     clickPosGroup_->setVisible(false);
     layout->addWidget(clickPosGroup_);
-
-    layout->addStretch();
 
     auto* btnRow = new QHBoxLayout();
     btnRow->addStretch();
@@ -139,8 +130,9 @@ void MacroStepDialog::updateClickPosSectionVisible() {
     const bool isMouse = key.has_value() && key->device == InputDevice::Mouse;
     const QPoint centerBefore = frameGeometry().center();
     clickPosGroup_->setVisible(isMouse);
-    setFixedSize(DialogChrome::macroStepEditorWidth,
-        kDialogBaseHeight + (isMouse ? kClickGroupExtraHeight : 0));
+    // 高度随可见内容自适应，避免写死高度在提示文字与按钮之间堆出大段空白。
+    layout()->activate();
+    setFixedSize(DialogChrome::macroStepEditorWidth, sizeHint().height());
     DialogChrome::clampWithinScreen(this, centerBefore);
     clickPosGroup_->applyDriverSupport();
 }

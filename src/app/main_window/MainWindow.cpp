@@ -376,7 +376,6 @@ bool MainWindow::Initialize() {
     observedScreenDpi_ = currentScreenDpi();
     QTimer::singleShot(250, this, [this]() {
         view_.initializeTray(this);
-        hookTrayGameGateAction();
     });
     return true;
 }
@@ -384,7 +383,6 @@ bool MainWindow::Initialize() {
 void MainWindow::ShowForStartup() {
     if (config_.startupAction == StartupAction::Tray) {
         view_.initializeTray(this);
-        hookTrayGameGateAction();
         hide();
         return;
     }
@@ -1321,11 +1319,6 @@ void MainWindow::applyGameGateSettings() {
     rules.customProcesses = config_.gameGateProcesses;
     gameWatcher_.SetRules(std::move(rules));
 
-    if (auto* action = view_.trayGameGateAction()) {
-        action->blockSignals(true);
-        action->setChecked(config_.gameGateEnabled);
-        action->blockSignals(false);
-    }
     if (auto* page = view_.settingsPage()) {
         page->setGameGateEnabled(config_.gameGateEnabled);
     }
@@ -1342,23 +1335,6 @@ void MainWindow::onGameForegroundChanged(bool gameForeground) {
     engine_.SetSuspended(suspended);
     macroEngine_.SetSuspended(suspended);
     refreshStatusOverlay();
-}
-
-void MainWindow::hookTrayGameGateAction() {
-    if (trayGateHooked_) {
-        return;
-    }
-    auto* action = view_.trayGameGateAction();
-    if (action == nullptr) {
-        return;
-    }
-    trayGateHooked_ = true;
-    connect(action, &QAction::toggled, this, [this](bool checked) {
-        config_.gameGateEnabled = checked;
-        configCoordinator_.save();
-        applyGameGateSettings();
-    });
-    applyGameGateSettings();
 }
 
 void MainWindow::openExportProfileDialog() {

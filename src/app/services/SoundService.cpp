@@ -5,7 +5,6 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
-#include <fstream>
 #include <queue>
 #include <vector>
 #include <Windows.h>
@@ -121,29 +120,9 @@ void SoundService::closeAllAliases() const {
     }
     std::sort(names.begin(), names.end());
     names.erase(std::unique(names.begin(), names.end()), names.end());
-    {
-        std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
-        if (log) {
-            log << "closeAllAliases: map=" << openAliases_.size()
-                << " closing=" << names.size() << "\n";
-        }
-    }
-    {
-        const MCIERROR rc = mciSendStringW(L"close all", nullptr, 0, nullptr);
-        std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
-        if (log) {
-            log << "  close all rc=" << rc << "\n";
-        }
-    }
+    mciSendStringW(L"close all", nullptr, 0, nullptr);
     for (const auto& name : names) {
-        const MCIERROR rc = mciSendStringW((L"close " + name).c_str(), nullptr, 0, nullptr);
-        if (rc != 0) {
-            std::ofstream log(exeDir_ / L"update-debug.log", std::ios::app);
-            if (log) {
-                log << "  close " << std::string(name.begin(), name.end())
-                    << " rc=" << rc << "\n";
-            }
-        }
+        mciSendStringW((L"close " + name).c_str(), nullptr, 0, nullptr);
     }
     openAliases_.clear();
 }

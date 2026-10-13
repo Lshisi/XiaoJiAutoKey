@@ -89,6 +89,7 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
 
     textEdit_ = new QPlainTextEdit(this);
     textEdit_->setReadOnly(true);
+    textEdit_->setContextMenuPolicy(Qt::NoContextMenu);
     textEdit_->setWordWrapMode(QTextOption::WrapAnywhere);
     textEdit_->setStyleSheet(QString(
         "QPlainTextEdit { background: %1; border: 1px solid %2; border-radius: 6px;"

@@ -45,17 +45,6 @@ QString decodeEntryName(const char* rawName) {
     return local.contains(QChar(0xFFFD)) ? utf8 : local;
 }
 
-// Update-flow diagnostics: the about-page dialog alone cannot carry enough
-// detail to diagnose a failed in-place replace, so key steps also append here.
-void logUpdateDebug(const QString& line) {
-    QFile logFile(QCoreApplication::applicationDirPath() + QStringLiteral("/update-debug.log"));
-    if (!logFile.open(QIODevice::Append | QIODevice::Text)) {
-        return;
-    }
-    logFile.write(line.toUtf8());
-    logFile.write("\n");
-}
-
 // QCoreApplication::applicationDirPath() 在 QApplication 构造之前返回空串，
 // 而启动清理恰好在 main() 里构造之前执行；空路径会让 QDirIterator 退化成
 // 递归扫描当前工作目录（从任务栏启动时是 System32），拖慢启动。这里直接
@@ -604,9 +593,6 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
                 break;
             }
             copyError = ::GetLastError();
-            logUpdateDebug(QStringLiteral("copy failed: ") + relativePath +
-                QStringLiteral(" attempt=") + QString::number(attempt + 1) +
-                QStringLiteral(" error=") + QString::number(static_cast<int>(copyError)));
         }
         if (!copied) {
             // 常驻 MCI 音效设备泄漏的文件句柄在进程内无法释放（设备已注销、
@@ -625,15 +611,12 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
             if (!::CopyFileW(reinterpret_cast<const wchar_t*>(sourcePath.utf16()),
                     reinterpret_cast<const wchar_t*>(pendingPath.utf16()), FALSE)) {
                 const DWORD pendingError = ::GetLastError();
-                logUpdateDebug(QStringLiteral("pending copy failed: ") + relativePath +
-                    QStringLiteral(" error=") + QString::number(static_cast<int>(pendingError)));
                 restoreOldExe();
                 return fail(QString::fromWCharArray(L"\u66f4\u65b0\u6587\u4ef6\u5199\u5165\u5931\u8d25: ") + relativePath +
                     QStringLiteral(" (") + QString::fromWCharArray(L"\u9519\u8bef\u4ee3\u7801 ") +
                     QString::number(static_cast<int>(pendingError)) + QStringLiteral(")") +
                     QString::fromWCharArray(L"\uff0c\u5df2\u6062\u590d\u539f\u7248\u672c"));
             }
-            logUpdateDebug(QStringLiteral("deferred via pending: ") + relativePath);
             sawSharingViolation = true;
         }
         if (relativePath.compare(QStringLiteral("XiaoJiAutoKey.exe"), Qt::CaseInsensitive) == 0) {

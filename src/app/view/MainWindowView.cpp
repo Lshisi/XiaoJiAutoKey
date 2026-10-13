@@ -489,8 +489,6 @@ void MainWindowView::initializeTray(QMainWindow* window) {
     trayIcon_ = new QSystemTrayIcon(activityIconActive_ ? activeIcon_ : idleIcon_, window);
     trayMenu_ = new QMenu(window);
     auto* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
-    trayGateAction_ = trayMenu_->addAction(QString::fromWCharArray(L"\u4ec5\u6e38\u620f\u524d\u53f0\u65f6\u751f\u6548"));
-    trayGateAction_->setCheckable(true);
     auto* quitAction = trayMenu_->addAction(QString::fromWCharArray(L"\u9000\u51fa"));
     trayIcon_->setContextMenu(trayMenu_);
     trayIcon_->show();

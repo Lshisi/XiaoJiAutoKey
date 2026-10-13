@@ -7,7 +7,6 @@
 #include <QSystemTrayIcon>
 
 class AboutPage;
-class QAction;
 class FluentSidebar;
 class FluentTitleBar;
 class KeyPage;
@@ -38,7 +37,6 @@ public:
     [[nodiscard]] SettingsPage* settingsPage() const { return settingsPage_; }
     [[nodiscard]] AboutPage* aboutPage() const { return aboutPage_; }
     [[nodiscard]] QSystemTrayIcon* trayIcon() const { return trayIcon_; }
-    [[nodiscard]] QAction* trayGameGateAction() const { return trayGateAction_; }
 
 private:
     FluentSidebar* sidebar_ = nullptr;
@@ -51,7 +49,6 @@ private:
     FluentTitleBar* titleBar_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
-    QAction* trayGateAction_ = nullptr;
     QIcon idleIcon_;
     QIcon activeIcon_;
     bool activityIconActive_ = false;

@@ -16,13 +16,6 @@
 #include <QComboBox>
 #include <QVBoxLayout>
 
-namespace {
-
-constexpr int kDialogBaseHeight = 250;
-constexpr int kClickGroupExtraHeight = 168;
-
-}  // namespace
-
 BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs,
     std::function<bool()> driverSupportsMouseMove, QWidget* parent)
     : KeyCaptureDialogBase(parent),
@@ -32,7 +25,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     setWindowTitle(existing.has_value()
         ? QString::fromWCharArray(L"\u7f16\u8f91\u6309\u952e")
         : QString::fromWCharArray(L"\u6dfb\u52a0\u6309\u952e"));
-    setFixedSize(DialogChrome::bindingEditorWidth, kDialogBaseHeight);
+    setFixedWidth(DialogChrome::bindingEditorWidth);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(28, 18, 28, 20);
@@ -107,8 +100,6 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     // ── 点击位置（仅鼠标键显示）──
     clickPosGroup_ = new ClickPositionGroup(driverSupportsMouseMove_, this);
     layout->addWidget(clickPosGroup_);
-
-    layout->addStretch();
 
     auto* btnRow = new QHBoxLayout();
     btnRow->addStretch();
@@ -214,8 +205,9 @@ void BindingEditDialog::updateClickPosSectionVisible() {
     const bool isMouse = key.has_value() && key->device == InputDevice::Mouse;
     const QPoint centerBefore = frameGeometry().center();
     clickPosGroup_->setVisible(isMouse);
-    setFixedSize(DialogChrome::bindingEditorWidth,
-        kDialogBaseHeight + (isMouse ? kClickGroupExtraHeight : 0));
+    // 高度随可见内容自适应，避免写死高度在提示文字与按钮之间堆出大段空白。
+    layout()->activate();
+    setFixedSize(DialogChrome::bindingEditorWidth, sizeHint().height());
     DialogChrome::clampWithinScreen(this, centerBefore);
     clickPosGroup_->applyDriverSupport();
 }

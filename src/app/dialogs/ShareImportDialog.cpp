@@ -71,6 +71,7 @@ ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
     root->addLayout(titleRow);
 
     textEdit_ = new QPlainTextEdit(this);
+    textEdit_->setContextMenuPolicy(Qt::NoContextMenu);
     textEdit_->setWordWrapMode(QTextOption::WrapAnywhere);
     textEdit_->setStyleSheet(QString(
         "QPlainTextEdit { background: %1; border: 1px solid %2; border-radius: 6px;"

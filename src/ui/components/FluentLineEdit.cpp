@@ -14,6 +14,8 @@ void FluentLineEdit::init() {
     setFont(Fluent::Typography::body());
     setFrame(false);
     setTextMargins(12, 0, 12, 0);
+    // 不弹 Qt 自带的英文右键菜单；复制粘贴走 Ctrl+C/V/X/A 快捷键。
+    setContextMenuPolicy(Qt::NoContextMenu);
 
     focusAnim_ = new QPropertyAnimation(this, "focusProgress", this);
     focusAnim_->setDuration(Fluent::Animation::hoverDuration);

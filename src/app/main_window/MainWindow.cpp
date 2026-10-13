@@ -340,6 +340,9 @@ bool MainWindow::Initialize() {
     }
     // 开机自启：启动时对齐注册表 Run 键，修正 exe 移动或注册表被清理后的漂移。
     applyAutoStartSettings();
+    // 后台兜底清理更新残留的 .old.exe（启动时的同步清理可能因旧进程
+    // 未退出或文件被占用而失败）。
+    UpdateService::retryOldExeCleanupInBackground(this);
     soundService_.warmUpToggleSounds(
         config_.customSoundOn,
         config_.customSoundOff,
@@ -884,7 +887,11 @@ void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
     }
 
     suppressDdUnavailablePrompt_ = true;
-    const QString program = QCoreApplication::applicationFilePath();
+    // 此刻原 exe 已被改名为 .old.exe，必须显式拉起新 exe；
+    // 不能用 applicationFilePath()（若未缓存会解析成改名后的旧程序，
+    // 旧程序会一直锁住 .old.exe 导致清理永远失败）。
+    const QString program = QCoreApplication::applicationDirPath()
+        + QStringLiteral("/XiaoJiAutoKey.exe");
     const QStringList arguments = { QStringLiteral("--restart-wait") };
     if (!QProcess::startDetached(program, arguments, QCoreApplication::applicationDirPath())) {
         AppMessageDialog::warning(

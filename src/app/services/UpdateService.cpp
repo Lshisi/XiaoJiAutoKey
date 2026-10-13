@@ -14,6 +14,7 @@
 #include <QJsonParseError>
 #include <QSaveFile>
 #include <QThread>
+#include <QTimer>
 
 #include <Windows.h>
 #include <winhttp.h>
@@ -586,6 +587,27 @@ void UpdateService::cleanupPreviousUpdateArtifacts() {
         QThread::msleep(200);
     }
     QDir(QDir::temp().filePath(QStringLiteral("XiaoJiAutoKeyUpdate"))).removeRecursively();
+}
+
+void UpdateService::retryOldExeCleanupInBackground(QObject* context) {
+    const QString oldExePath = QCoreApplication::applicationDirPath()
+        + QStringLiteral("/XiaoJiAutoKey.old.exe");
+    if (!QFileInfo::exists(oldExePath)) {
+        return;
+    }
+    auto* timer = new QTimer(context);
+    timer->setInterval(3000);
+    // 最多重试约 3 分钟：覆盖旧进程退出慢、杀软扫描短暂占用文件等情况。
+    int attempts = 0;
+    QObject::connect(timer, &QTimer::timeout, timer,
+        [timer, oldExePath, attempts]() mutable {
+            ++attempts;
+            if (!QFileInfo::exists(oldExePath) || QFile::remove(oldExePath) || attempts >= 60) {
+                timer->stop();
+                timer->deleteLater();
+            }
+        });
+    timer->start();
 }
 
 QString UpdateService::normalizedVersion(const QString& version) {

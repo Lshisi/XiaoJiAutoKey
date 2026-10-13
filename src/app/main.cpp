@@ -273,6 +273,12 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // Remove leftovers from an in-place update (renamed old exe and staging
+    // directory); performs no network access. Must run BEFORE the single
+    // instance check: a launch that hands over to an already-running
+    // instance exits right there and would otherwise never clean up.
+    UpdateService::cleanupPreviousUpdateArtifacts();
+
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
@@ -283,10 +289,6 @@ int main(int argc, char *argv[]) {
     }
 
     HANDLE activateEvent = CreateEventW(nullptr, FALSE, FALSE, kActivateWindowEventName);
-
-    // Remove leftovers from an in-place update (renamed old exe and staging
-    // directory); performs no network access.
-    UpdateService::cleanupPreviousUpdateArtifacts();
 
     PreserveTimerResolution();
     timeBeginPeriod(1);

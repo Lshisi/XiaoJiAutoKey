@@ -13,6 +13,8 @@ public:
     qreal focusProgress() const { return focusProgress_; }
     void setFocusProgress(qreal v);
     void refreshThemeStyle();
+    // 录制框等由程序管理内容的输入框：抑制右键编辑菜单。
+    void setCaptureOnly(bool captureOnly) { captureOnly_ = captureOnly; }
 
 signals:
     void clicked();
@@ -22,9 +24,11 @@ protected:
     void focusInEvent(QFocusEvent* event) override;
     void focusOutEvent(QFocusEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     void init();
     qreal focusProgress_ = 0.0;
+    bool captureOnly_ = false;
     QPropertyAnimation* focusAnim_;
 };

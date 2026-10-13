@@ -40,8 +40,8 @@ void FluentTable::refreshThemeStyle() {
     const QString muted = Fluent::Colors::textSecondary().name();
     const QString divider = Fluent::Colors::divider().name(QColor::HexArgb);
     const QString rowHover = Fluent::Colors::rowHover().name(QColor::HexArgb);
-    const QString scrollHandle = Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)");
-    const QString scrollHandleHover = Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)");
+    const QString scrollQss = Fluent::Styles::scrollBarQss(
+        Fluent::Styles::scrollBarHandle(), Fluent::Styles::scrollBarHandleHover());
     setStyleSheet(QString(
         "QTableWidget {"
         "  background: transparent;"
@@ -68,20 +68,13 @@ void FluentTable::refreshThemeStyle() {
         "  padding: 0 8px;"
         "  font-size: 11px;"
         "}"
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %7; border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: %8; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
     ).arg(palette.accentSoft.name(),
         headerBg,
         text,
         rowHover,
         muted,
-        divider,
-        scrollHandle,
-        scrollHandleHover));
-
+        divider)
+        + scrollQss);
     horizontalHeader()->setStyleSheet(QString(
         "QHeaderView::section {"
         "  background: %1;"

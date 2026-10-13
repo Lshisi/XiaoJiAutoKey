@@ -56,6 +56,7 @@
 - 页面背景必须使用 `Fluent::Colors` / `FactionTheme::palette()` 里的深色模式感知颜色，不能硬编码白色、浅灰或只适合浅色模式的背景。
 - `QScrollArea` 不只设置自身透明，还要确认 `viewport()` 和内部 content widget 不露出默认 `QPalette::Base` 白底。
 - 新增页面或主题刷新入口时，必须接入 `MainWindowView::updateFactionVisuals()` / `refreshRuntimeVisuals()`，确保切换门派、系统主题或运行时刷新后不会残留旧颜色。
+- 所有滚动容器（页面、弹窗、文本框、表格、列表）的滚动条必须使用 `Fluent::Styles::scrollBarQss()` 统一样式（`src/ui/styles/DesignTokens.h`，配色用 `Fluent::Styles::scrollBarHandle()` / `scrollBarHandleHover()`），禁止各处手写滚动条 QSS 或露出系统原生滚动条。
 - 文本、边框、分割线、hover、selected、disabled 状态必须同时检查浅色和深色模式的对比度。
 
 ## 布局和间距

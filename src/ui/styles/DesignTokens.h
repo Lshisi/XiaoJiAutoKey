@@ -172,4 +172,39 @@ namespace Animation {
     constexpr int slideDuration = 200;
 }
 
+namespace Styles {
+    // 全局统一的滚动条配色：深色用白色半透明、浅色用黑色半透明。
+    inline QColor scrollBarHandle() {
+        return Theme::isDarkMode() ? QColor(255, 255, 255, 46) : QColor(0, 0, 0, 31);
+    }
+
+    inline QColor scrollBarHandleHover() {
+        return Theme::isDarkMode() ? QColor(255, 255, 255, 71) : QColor(0, 0, 0, 51);
+    }
+
+    // 全局统一的滚动条样式：6px 圆角细条、透明轨道、无原生箭头。
+    // 所有滚动容器（页面、弹窗、文本框、表格、列表）都必须套用，禁止露出原生滚动条。
+    inline QString scrollBarQss(const QColor& handle, const QColor& hover,
+        const QColor& pressed = QColor(), int minLength = 30) {
+        const auto rgba = [](const QColor& c) {
+            return QStringLiteral("rgba(%1,%2,%3,%4)")
+                .arg(c.red()).arg(c.green()).arg(c.blue())
+                .arg(c.alphaF(), 0, 'f', 3);
+        };
+        QString qss = QStringLiteral(
+            "QScrollBar:vertical { background: transparent; border: none; width: 6px; margin: 0; }"
+            "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: %2px; }"
+            "QScrollBar::handle:vertical:hover { background: %3; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; border: none; background: none; }"
+            "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { width: 0; height: 0; background: none; }"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
+            .arg(rgba(handle)).arg(minLength).arg(rgba(hover));
+        if (pressed.isValid()) {
+            qss += QStringLiteral("QScrollBar::handle:vertical:pressed { background: %1; }")
+                .arg(rgba(pressed));
+        }
+        return qss;
+    }
+}
+
 } // namespace Fluent

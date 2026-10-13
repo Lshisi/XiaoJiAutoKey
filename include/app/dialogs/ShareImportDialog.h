@@ -16,6 +16,9 @@ class ShareImportDialog : public QDialog {
 public:
     explicit ShareImportDialog(QWidget* parent = nullptr);
 
+    // 预填分享内容并立即解析预览（剪贴板检测 / 拖放进入时使用）。
+    void setText(const QString& text);
+
     [[nodiscard]] bool hasImport() const noexcept { return hasImport_; }
     [[nodiscard]] const SharePayload& importedPayload() const noexcept { return importPayload_; }
 
@@ -30,7 +33,7 @@ private:
 
     QPlainTextEdit* textEdit_ = nullptr;
     QLabel* statusLabel_ = nullptr;
-    QPushButton* previewBtn_ = nullptr;
+    QPushButton* pasteBtn_ = nullptr;
     QPushButton* importBtn_ = nullptr;
 
     SharePayload importPayload_;

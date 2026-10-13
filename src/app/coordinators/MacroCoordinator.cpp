@@ -84,11 +84,10 @@ void MacroCoordinator::onMacroAdd() {
     context_.inputHook->setDialogOpen(true);
     QString name;
     const bool ok = ConfigNameDialog::getName(context_.parent,
-        QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af"),
-        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5faa\u73af\u540d\u79f0:"),
+        QString::fromWCharArray(L"\u65b0\u5efa\u5b8f\u73af"),
+        QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u5b8f\u73af\u540d\u79f0:"),
         QString(),
-        name,
-        context_.importConfig);
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 

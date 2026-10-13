@@ -8,6 +8,7 @@
 #include "ui/components/FluentSidebar.h"
 #include "ui/components/FluentTable.h"
 #include "ui/components/FluentTitleBar.h"
+#include "ui/components/ShareImportBanner.h"
 #include "ui/pages/AboutPage.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/KeyPage.h"
@@ -301,14 +302,9 @@ void refreshScrollAreaStyle(QScrollArea* scrollArea) {
         return;
     }
     scrollArea->setStyleSheet(
-        QString("QScrollArea { background: transparent; border: none; }"
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: %2; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
-            .arg(Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
-                Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)")));
+        QString("QScrollArea { background: transparent; border: none; }")
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover()));
     if (auto* content = scrollArea->widget()) {
         content->updateGeometry();
         if (auto* layout = content->layout()) {
@@ -431,6 +427,9 @@ void MainWindowView::setup(QMainWindow* window) {
     rootLayout->addWidget(titleBar_);
     QObject::connect(titleBar_, &FluentTitleBar::minimizeClicked, window, &QMainWindow::showMinimized);
     QObject::connect(titleBar_, &FluentTitleBar::closeClicked, window, &QMainWindow::close);
+
+    // 剪贴板检测到分享配置时的右下角小提示框（浮层，不占布局空间）。
+    shareBanner_ = new ShareImportBanner(window);
 
     auto* bodyLayout = new QHBoxLayout();
     bodyLayout->setContentsMargins(0, 0, 0, 0);
@@ -575,6 +574,9 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     }
     if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
         applyStatusBarTheme(statusBar);
+    }
+    if (shareBanner_) {
+        shareBanner_->applyTheme();
     }
     sidebar_->updateFactionIcon();
     sidebar_->update();

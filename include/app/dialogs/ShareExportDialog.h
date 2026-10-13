@@ -5,6 +5,8 @@
 #include <QDialog>
 #include <QPoint>
 
+#include <functional>
+
 class FluentComboBox;
 class QPlainTextEdit;
 class QLabel;
@@ -15,7 +17,11 @@ class ShareExportDialog : public QDialog {
     Q_OBJECT
 
 public:
-    ShareExportDialog(const QString& title, const SharePayload& payload, QWidget* parent = nullptr);
+    // onCopied 在复制到剪贴板后回调复制内容，供调用方抑制对自己的剪贴板导入提示。
+    ShareExportDialog(const QString& title,
+        const SharePayload& payload,
+        QWidget* parent = nullptr,
+        const std::function<void(const QString&)>& onCopied = {});
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -33,6 +39,7 @@ private:
 
     SharePayload payload_;
     QString summary_;
+    std::function<void(const QString&)> onCopied_;
 
     bool dragging_ = false;
     QPoint dragStartGlobal_;

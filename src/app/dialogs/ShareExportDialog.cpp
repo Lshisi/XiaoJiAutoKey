@@ -3,6 +3,7 @@
 #include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
 #include "ui/components/FluentComboBox.h"
+#include "ui/components/FluentContextMenu.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QApplication>
@@ -53,8 +54,11 @@ QString PayloadSummary(const SharePayload& payload) {
 
 }  // namespace
 
-ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& payload, QWidget* parent)
-    : QDialog(parent), payload_(payload) {
+ShareExportDialog::ShareExportDialog(const QString& title,
+    const SharePayload& payload,
+    QWidget* parent,
+    const std::function<void(const QString&)>& onCopied)
+    : QDialog(parent), payload_(payload), onCopied_(onCopied) {
     setWindowTitle(title);
     DialogChrome::apply(this);
     setModal(true);
@@ -89,7 +93,12 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
 
     textEdit_ = new QPlainTextEdit(this);
     textEdit_->setReadOnly(true);
-    textEdit_->setContextMenuPolicy(Qt::NoContextMenu);
+    textEdit_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(textEdit_, &QPlainTextEdit::customContextMenuRequested, this,
+        [this](const QPoint& pos) {
+            FluentContextMenu::popupForPlainTextEdit(textEdit_,
+                textEdit_->viewport()->mapToGlobal(pos));
+        });
     textEdit_->setWordWrapMode(QTextOption::WrapAnywhere);
     textEdit_->setStyleSheet(QString(
         "QPlainTextEdit { background: %1; border: 1px solid %2; border-radius: 6px;"
@@ -97,7 +106,9 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
         .arg(Fluent::Colors::cardBg().name(),
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name(),
-            Fluent::Colors::selectedBg().name(QColor::HexArgb)));
+            Fluent::Colors::selectedBg().name(QColor::HexArgb))
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover()));
     root->addWidget(textEdit_, 1);
 
     statusLabel_ = new QLabel(this);
@@ -123,8 +134,12 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
         refreshExport();
     });
     connect(copyBtn_, &QPushButton::clicked, this, [this]() {
-        QApplication::clipboard()->setText(textEdit_->toPlainText());
+        const QString content = textEdit_->toPlainText();
+        QApplication::clipboard()->setText(content);
         statusLabel_->setText(QString::fromWCharArray(L"\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f"));
+        if (onCopied_) {
+            onCopied_(content.trimmed());
+        }
     });
 }
 

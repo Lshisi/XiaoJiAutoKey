@@ -2,8 +2,11 @@
 
 #include "dialogs/DialogChrome.h"
 #include "ui/components/FluentButton.h"
+#include "ui/components/FluentContextMenu.h"
 #include "ui/styles/DesignTokens.h"
 
+#include <QApplication>
+#include <QClipboard>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -71,7 +74,12 @@ ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
     root->addLayout(titleRow);
 
     textEdit_ = new QPlainTextEdit(this);
-    textEdit_->setContextMenuPolicy(Qt::NoContextMenu);
+    textEdit_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(textEdit_, &QPlainTextEdit::customContextMenuRequested, this,
+        [this](const QPoint& pos) {
+            FluentContextMenu::popupForPlainTextEdit(textEdit_,
+                textEdit_->viewport()->mapToGlobal(pos));
+        });
     textEdit_->setWordWrapMode(QTextOption::WrapAnywhere);
     textEdit_->setStyleSheet(QString(
         "QPlainTextEdit { background: %1; border: 1px solid %2; border-radius: 6px;"
@@ -79,10 +87,12 @@ ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
         .arg(Fluent::Colors::cardBg().name(),
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name(),
-            Fluent::Colors::selectedBg().name(QColor::HexArgb)));
+            Fluent::Colors::selectedBg().name(QColor::HexArgb))
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover()));
     textEdit_->setPlaceholderText(QString::fromWCharArray(
         L"\u7c98\u8d34\u5206\u4eab\u7801\uff08XJK1:\u2026\uff09\u6216\u6587\u672c\u914d\u65b9\uff0c"
-        L"\u7136\u540e\u70b9\u51fb\u9884\u89c8"));
+        L"\u5185\u5bb9\u8bc6\u522b\u540e\u5373\u53ef\u5bfc\u5165"));
     root->addWidget(textEdit_, 1);
 
     statusLabel_ = new QLabel(this);
@@ -95,19 +105,23 @@ ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
-    previewBtn_ = new FluentButton(FluentButton::Secondary,
-        QString::fromWCharArray(L"\u9884\u89c8"), this);
-    previewBtn_->setFixedWidth(78);
+    pasteBtn_ = new FluentButton(FluentButton::Secondary,
+        QString::fromWCharArray(L"\u7c98\u8d34"), this);
+    pasteBtn_->setFixedWidth(78);
     importBtn_ = new FluentButton(FluentButton::Primary,
         QString::fromWCharArray(L"\u5bfc\u5165"), this);
     importBtn_->setFixedWidth(78);
     importBtn_->setEnabled(false);
-    buttons->addWidget(previewBtn_);
+    buttons->addWidget(pasteBtn_);
     buttons->addWidget(importBtn_);
     root->addLayout(buttons);
 
-    connect(previewBtn_, &QPushButton::clicked, this, [this]() {
+    // 内容变化时即时解析，识别成功即可导入，无需单独点预览。
+    connect(textEdit_, &QPlainTextEdit::textChanged, this, [this]() {
         previewImport();
+    });
+    connect(pasteBtn_, &QPushButton::clicked, this, [this]() {
+        textEdit_->setPlainText(QApplication::clipboard()->text());
     });
     connect(importBtn_, &QPushButton::clicked, this, [this]() {
         if (hasImport_) {
@@ -116,11 +130,25 @@ ShareImportDialog::ShareImportDialog(QWidget* parent) : QDialog(parent) {
     });
 }
 
+void ShareImportDialog::setText(const QString& text) {
+    if (!textEdit_) {
+        return;
+    }
+    textEdit_->setPlainText(text);
+    if (hasImport_ && importBtn_) {
+        importBtn_->setFocus();
+    }
+}
+
 void ShareImportDialog::previewImport() {
     hasImport_ = false;
     importBtn_->setEnabled(false);
 
     const std::string text = textEdit_->toPlainText().trimmed().toStdString();
+    if (text.empty()) {
+        statusLabel_->clear();
+        return;
+    }
     auto payload = ShareCodec::DecodeShareCode(text);
     if (!payload.has_value()) {
         payload = ShareCodec::DecodeTextRecipe(text);

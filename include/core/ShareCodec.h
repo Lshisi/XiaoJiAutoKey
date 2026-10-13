@@ -37,4 +37,8 @@ public:
     // 文本配方：人类可读格式，导入导出都支持。
     [[nodiscard]] static std::string EncodeTextRecipe(const SharePayload& payload);
     [[nodiscard]] static std::optional<SharePayload> DecodeTextRecipe(const std::string& text);
+
+    // 轻量嗅探：文本是否像分享内容（XJK1: 分享码或 XJK-RECIPE 文本配方）。
+    // 只做前缀与长度判断，不解码，用于剪贴板检测和拖放判断。
+    [[nodiscard]] static bool LooksLikeShareText(const std::string& text);
 };

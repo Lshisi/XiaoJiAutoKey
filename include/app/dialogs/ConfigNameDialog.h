@@ -3,19 +3,15 @@
 #include <QDialog>
 #include <QPoint>
 
-#include <functional>
-
 class FluentLineEdit;
 class QPushButton;
 
 class ConfigNameDialog : public QDialog {
 public:
-    // onImport 非空时在按钮行显示「导入」：点击后执行回调并关闭对话框，不返回名称。
     ConfigNameDialog(const QString& title,
         const QString& label,
         const QString& initialName = QString(),
-        QWidget* parent = nullptr,
-        const std::function<void()>& onImport = {});
+        QWidget* parent = nullptr);
 
     [[nodiscard]] QString nameText() const;
 
@@ -23,8 +19,7 @@ public:
         const QString& title,
         const QString& label,
         const QString& initialName,
-        QString& name,
-        const std::function<void()>& onImport = {});
+        QString& name);
 
 protected:
     void paintEvent(QPaintEvent* event) override;

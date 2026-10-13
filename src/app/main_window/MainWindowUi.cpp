@@ -4,11 +4,14 @@
 #include "config/ActiveConfigValidator.h"
 #include "dialogs/StatusOverlaySettingsDialog.h"
 #include "ui/components/FluentSidebar.h"
+#include "ui/components/ShareImportBanner.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/KeyPage.h"
 #include "ui/pages/MacroPage.h"
 #include "ui/pages/SettingsPage.h"
 
+#include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QTimer>
 
@@ -99,6 +102,19 @@ void MainWindow::setupUi() {
         openExportMacroDialog();
     });
 
+    // 剪贴板分享码检测：提示条点击导入、关闭后不再重复提示；
+    // 拖放分享文本到主窗口也可直接进入导入。
+    connect(view_.shareBanner(), &ShareImportBanner::importRequested, this,
+        [this](const QString& text) { openImportDialog(text); });
+    connect(view_.shareBanner(), &ShareImportBanner::dismissed, this,
+        [this](const QString& text) { suppressShareText(text); });
+    connect(QApplication::clipboard(), &QClipboard::dataChanged, this, [this]() {
+        if (isActiveWindow()) {
+            checkClipboardForShareText();
+        }
+    });
+    setAcceptDrops(true);
+
     profileCoordinator_.bind(ProfileCoordinator::Context{
         this,
         view_.keyPage(),
@@ -119,8 +135,7 @@ void MainWindow::setupUi() {
         [this]() {
             pageRefreshCoordinator_.refreshProfiles();
             refreshStatusOverlay();
-        },
-        [this]() { openImportDialog(); }
+        }
     });
 
     connect(view_.macroPage(), &MacroPage::hotkeyEditClicked, this, [this]() {
@@ -159,7 +174,6 @@ void MainWindow::setupUi() {
         },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { openImportDialog(); },
         [this]() { return inputDriver_.SupportsMouseMove(); }
     });
 

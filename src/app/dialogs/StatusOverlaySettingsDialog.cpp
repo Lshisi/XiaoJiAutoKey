@@ -144,28 +144,21 @@ void StatusOverlaySettingsDialog::refreshVisuals() {
     setPalette(Fluent::Theme::applicationPalette());
     setStyleSheet(QString(
         "QLabel { color: %1; background: transparent; }"
-        "QLabel#overlayOpacityValue, QLabel#overlayOpacityDesc { color: %6; }"
+        "QLabel#overlayOpacityValue, QLabel#overlayOpacityDesc { color: %4; }"
         "QTabWidget::pane { border: 0; background: transparent; }"
         "QTabBar::tab { color: %1; background: transparent; padding: 8px 12px; border-bottom: 2px solid transparent; }"
         "QTabBar::tab:selected { border-bottom-color: %2; }"
         "QTabBar::tab:hover { background: %3; }"
         "QScrollArea { background: transparent; border: 0; }"
-        "QScrollBar:vertical { background: transparent; border: none; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %4; border-radius: 3px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: %5; }"
-        "QScrollBar::handle:vertical:pressed { background: %2; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; border: none; background: none; }"
-        "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { width: 0; height: 0; background: none; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }"
-        "QSlider::groove:horizontal { height: 4px; background: %7; border-radius: 2px; }"
+        "QSlider::groove:horizontal { height: 4px; background: %5; border-radius: 2px; }"
         "QSlider::sub-page:horizontal { background: %2; border-radius: 2px; }"
         "QSlider::handle:horizontal { background: %1; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }")
         .arg(Fluent::Colors::textPrimary().name(), faction.accent.name(),
             Fluent::Colors::hoverBg().name(QColor::HexArgb),
-            Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.12)"),
-            Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.2)"),
             Fluent::Colors::textSecondary().name(),
-            Fluent::Colors::border().name(QColor::HexArgb)));
+            Fluent::Colors::border().name(QColor::HexArgb))
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover(), faction.accent));
     for (auto* scroll : findChildren<QScrollArea*>()) {
         scroll->viewport()->setAutoFillBackground(false);
         scroll->viewport()->setStyleSheet(QStringLiteral("background: transparent;"));

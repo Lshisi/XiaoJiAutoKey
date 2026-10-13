@@ -54,6 +54,7 @@ set(MOC_HEADERS
     src/ui/components/FluentSwitch.h
     src/ui/components/FluentTable.h
     src/ui/components/FluentTitleBar.h
+    src/ui/components/ShareImportBanner.h
     src/ui/components/ClickPositionGroup.h
     src/ui/components/ScreenPointPicker.h
     src/ui/pages/KeyPage.h
@@ -106,12 +107,14 @@ set(UI_COMPONENT_SOURCES
     src/ui/components/FluentCard.cpp
     src/ui/components/FluentSwitch.cpp
     src/ui/components/FluentCheckBox.cpp
+    src/ui/components/FluentContextMenu.cpp
     src/ui/components/FluentLineEdit.cpp
     src/ui/components/FluentComboBox.cpp
     src/ui/components/FluentTable.cpp
     src/ui/components/DraggableTable.cpp
     src/ui/components/ClickPositionGroup.cpp
     src/ui/components/ScreenPointPicker.cpp
+    src/ui/components/ShareImportBanner.cpp
 )
 
 set(UI_PAGE_SOURCES
@@ -132,6 +135,7 @@ set(UI_COMPONENT_HEADERS
     src/ui/components/FluentCard.h
     src/ui/components/FluentSwitch.h
     src/ui/components/FluentCheckBox.h
+    src/ui/components/FluentContextMenu.h
     src/ui/components/FluentLineEdit.h
     src/ui/components/FluentComboBox.h
     src/ui/components/FluentTable.h

@@ -971,3 +971,22 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
     }
     return payload;
 }
+
+bool ShareCodec::LooksLikeShareText(const std::string& text) {
+    if (text.empty() || text.size() > kMaxRecipeChars) {
+        return false;
+    }
+    static const std::string kSharePrefix = "XJK1:";
+    std::string line = Trimmed(text);
+    if (line.empty()) {
+        return false;
+    }
+    if (line.compare(0, kSharePrefix.size(), kSharePrefix) == 0) {
+        return line.size() >= 8 && line.size() <= kMaxShareCodeChars;
+    }
+    const std::size_t lineEnd = line.find('\n');
+    if (lineEnd != std::string::npos) {
+        line = Trimmed(line.substr(0, lineEnd));
+    }
+    return line == kRecipeMagic;
+}

@@ -13,6 +13,7 @@ class KeyPage;
 class MacroPage;
 class DriverPage;
 class SettingsPage;
+class ShareImportBanner;
 
 class MainWindowView {
 public:
@@ -31,6 +32,7 @@ public:
     [[nodiscard]] bool isRepeatPageActive() const;
 
     [[nodiscard]] FluentSidebar* sidebar() const { return sidebar_; }
+    [[nodiscard]] ShareImportBanner* shareBanner() const { return shareBanner_; }
     [[nodiscard]] KeyPage* keyPage() const { return keyPage_; }
     [[nodiscard]] MacroPage* macroPage() const { return macroPage_; }
     [[nodiscard]] DriverPage* driverPage() const { return driverPage_; }
@@ -41,6 +43,7 @@ public:
 private:
     FluentSidebar* sidebar_ = nullptr;
     QStackedWidget* pageStack_ = nullptr;
+    ShareImportBanner* shareBanner_ = nullptr;
     KeyPage* keyPage_ = nullptr;
     MacroPage* macroPage_ = nullptr;
     DriverPage* driverPage_ = nullptr;

@@ -7,6 +7,7 @@
 #include "dialogs/ShareImportDialog.h"
 #include "FactionTheme.h"
 #include "services/AgentService.h"
+#include "ui/components/ShareImportBanner.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/SettingsPage.h"
 #include "ui/styles/DesignTokens.h"
@@ -14,11 +15,15 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QDialog>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QEvent>
 #include <QFont>
 #include <QLabel>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QProcess>
@@ -933,6 +938,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
+    view_.shareBanner()->repositionToHost();
 }
 
 bool MainWindow::event(QEvent* event) {
@@ -940,10 +946,46 @@ bool MainWindow::event(QEvent* event) {
     case QEvent::ScreenChangeInternal:
         refreshIfScreenDpiChanged();
         break;
+    case QEvent::ActivationChange:
+        if (isActiveWindow()) {
+            checkClipboardForShareText();
+        }
+        break;
     default:
         break;
     }
     return QMainWindow::event(event);
+}
+
+// 拖入的文本只要是分享内容就接受，直接进入导入预览。
+bool MainWindow::acceptShareTextDrag(const QMimeData* mimeData) {
+    return mimeData != nullptr && mimeData->hasText()
+        && ShareCodec::LooksLikeShareText(mimeData->text().trimmed().toStdString());
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (acceptShareTextDrag(event->mimeData())) {
+        event->acceptProposedAction();
+        return;
+    }
+    QMainWindow::dragEnterEvent(event);
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent* event) {
+    if (acceptShareTextDrag(event->mimeData())) {
+        event->acceptProposedAction();
+        return;
+    }
+    QMainWindow::dragMoveEvent(event);
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+    if (acceptShareTextDrag(event->mimeData())) {
+        event->acceptProposedAction();
+        openImportDialog(event->mimeData()->text());
+        return;
+    }
+    QMainWindow::dropEvent(event);
 }
 
 bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
@@ -1344,7 +1386,8 @@ void MainWindow::openExportProfileDialog() {
         payload.profiles.push_back(*profile);
     }
     ShareExportDialog dialog(
-        QString::fromWCharArray(L"\u5bfc\u51fa\u6309\u952e\u65b9\u6848"), payload, this);
+        QString::fromWCharArray(L"\u5bfc\u51fa\u6309\u952e\u65b9\u6848"), payload, this,
+        [this](const QString& text) { suppressShareText(text); });
     dialog.exec();
 }
 
@@ -1354,16 +1397,58 @@ void MainWindow::openExportMacroDialog() {
         payload.macros.push_back(*macro);
     }
     ShareExportDialog dialog(
-        QString::fromWCharArray(L"\u5bfc\u51fa\u5b8f"), payload, this);
+        QString::fromWCharArray(L"\u5bfc\u51fa\u5b8f"), payload, this,
+        [this](const QString& text) { suppressShareText(text); });
     dialog.exec();
 }
 
-void MainWindow::openImportDialog() {
+bool MainWindow::isShareTextSuppressed(const QString& text) const {
+    return suppressedShareTexts_.contains(text);
+}
+
+void MainWindow::suppressShareText(const QString& text) {
+    if (text.isEmpty()) {
+        return;
+    }
+    suppressedShareTexts_.removeAll(text);
+    suppressedShareTexts_.prepend(text);
+    while (suppressedShareTexts_.size() > 16) {
+        suppressedShareTexts_.removeLast();
+    }
+}
+
+void MainWindow::openImportDialog(const QString& shareText) {
+    view_.shareBanner()->hideBanner();
+    const QString trimmed = shareText.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    // 为这段内容弹过导入窗口就不再重复提示（无论之后导入、取消还是解析失败）。
+    suppressShareText(trimmed);
     ShareImportDialog dialog(this);
+    dialog.setText(shareText);
     if (dialog.exec() != QDialog::Accepted || !dialog.hasImport()) {
         return;
     }
     applyImportedSharePayload(dialog.importedPayload());
+}
+
+// 只在窗口激活或激活状态下剪贴板变化时嗅探前缀，不做后台剪贴板监控。
+void MainWindow::checkClipboardForShareText() {
+    if (QApplication::activeModalWidget() != nullptr) {
+        return;
+    }
+    const QString text = QApplication::clipboard()->text().trimmed();
+    if (text.isEmpty() || !ShareCodec::LooksLikeShareText(text.toStdString())) {
+        return;
+    }
+    if (isShareTextSuppressed(text)) {
+        return;
+    }
+    if (view_.shareBanner()->shareText() == text) {
+        return;
+    }
+    view_.shareBanner()->showForText(text);
 }
 
 void MainWindow::applyImportedSharePayload(const SharePayload& payload) {

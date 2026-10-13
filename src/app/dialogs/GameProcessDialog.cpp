@@ -202,7 +202,9 @@ void GameProcessDialog::refreshListTheme() {
             Fluent::Colors::border().name(QColor::HexArgb),
             Fluent::Colors::textPrimary().name(),
             Fluent::Colors::hoverBg().name(QColor::HexArgb),
-            Fluent::Colors::selectedBg().name(QColor::HexArgb)));
+            Fluent::Colors::selectedBg().name(QColor::HexArgb))
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover()));
 
     for (int i = 0; i < listWidget_->count(); ++i) {
         QWidget* row = listWidget_->itemWidget(listWidget_->item(i));

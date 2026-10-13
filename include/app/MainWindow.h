@@ -34,7 +34,10 @@
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
+#include <QStringList>
 #include <QTimer>
+
+class QMimeData;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -49,6 +52,9 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     bool event(QEvent* event) override;
     bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
@@ -100,7 +106,12 @@ private:
     // 配置分享
     void openExportProfileDialog();
     void openExportMacroDialog();
-    void openImportDialog();
+    void openImportDialog(const QString& shareText);
+    void checkClipboardForShareText();
+    bool acceptShareTextDrag(const QMimeData* mimeData);
+    // 已提示/已处理过的分享内容本次运行不再重复提示（含导出复制、取消导入的内容）。
+    bool isShareTextSuppressed(const QString& text) const;
+    void suppressShareText(const QString& text);
     void applyImportedSharePayload(const SharePayload& payload);
 
     MainWindowView view_;
@@ -156,5 +167,7 @@ private:
     std::wstring driverStatusNote_;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;
+    // 剪贴板导入提示抑制记录（新内容在前，超出上限淘汰最旧的）。
+    QStringList suppressedShareTexts_;
 
 };

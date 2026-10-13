@@ -15,8 +15,7 @@
 ConfigNameDialog::ConfigNameDialog(const QString& title,
     const QString& label,
     const QString& initialName,
-    QWidget* parent,
-    const std::function<void()>& onImport)
+    QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(title);
     DialogChrome::apply(this);
@@ -49,17 +48,6 @@ ConfigNameDialog::ConfigNameDialog(const QString& title,
 
     auto* buttons = new QHBoxLayout();
     buttons->addStretch();
-    if (onImport) {
-        auto* importButton = new FluentButton(FluentButton::Secondary,
-            QString::fromWCharArray(L"\u5bfc\u5165"), this);
-        importButton->setFixedWidth(78);
-        buttons->addWidget(importButton);
-        buttons->addSpacing(8);
-        connect(importButton, &QPushButton::clicked, this, [this, onImport]() {
-            onImport();
-            reject();
-        });
-    }
     auto* cancelButton = new FluentButton(FluentButton::Secondary, QString::fromWCharArray(L"\u53d6\u6d88"), this);
     okButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u786e\u5b9a"), this);
     cancelButton->setFixedWidth(78);
@@ -89,9 +77,8 @@ bool ConfigNameDialog::getName(QWidget* parent,
     const QString& title,
     const QString& label,
     const QString& initialName,
-    QString& name,
-    const std::function<void()>& onImport) {
-    ConfigNameDialog dialog(title, label, initialName, parent, onImport);
+    QString& name) {
+    ConfigNameDialog dialog(title, label, initialName, parent);
     if (dialog.exec() != QDialog::Accepted) {
         return false;
     }

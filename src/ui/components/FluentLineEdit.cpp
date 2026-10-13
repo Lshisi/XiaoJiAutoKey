@@ -1,7 +1,9 @@
 #include "FluentLineEdit.h"
+#include "FluentContextMenu.h"
 #include "../styles/DesignTokens.h"
 #include "FactionTheme.h"
 
+#include <QContextMenuEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
@@ -14,8 +16,6 @@ void FluentLineEdit::init() {
     setFont(Fluent::Typography::body());
     setFrame(false);
     setTextMargins(12, 0, 12, 0);
-    // 不弹 Qt 自带的英文右键菜单；复制粘贴走 Ctrl+C/V/X/A 快捷键。
-    setContextMenuPolicy(Qt::NoContextMenu);
 
     focusAnim_ = new QPropertyAnimation(this, "focusProgress", this);
     focusAnim_->setDuration(Fluent::Animation::hoverDuration);
@@ -68,6 +68,17 @@ void FluentLineEdit::focusOutEvent(QFocusEvent* event) {
 void FluentLineEdit::mousePressEvent(QMouseEvent* event) {
     QLineEdit::mousePressEvent(event);
     if (event->button() == Qt::LeftButton) emit clicked();
+}
+
+void FluentLineEdit::contextMenuEvent(QContextMenuEvent* event) {
+    // 录制框（captureOnly）内容只由录制逻辑写入，不提供右键菜单；
+    // 其余输入框弹全局风格的中文编辑菜单，替代 Qt 原生英文菜单。
+    if (captureOnly_) {
+        event->accept();
+        return;
+    }
+    FluentContextMenu::popupForLineEdit(this, event->globalPos());
+    event->accept();
 }
 
 void FluentLineEdit::paintEvent(QPaintEvent* event) {

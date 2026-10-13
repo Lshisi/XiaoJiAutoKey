@@ -9,7 +9,7 @@ class FluentButton;
 class QLabel;
 class QRadioButton;
 
-// 「点击位置」设置组：跟随鼠标当前位置 / 固定点位（全屏点击拾取 / 取当前光标）。
+// 「点击位置」设置组：跟随鼠标当前位置 / 固定点位（全屏点击拾取）。
 // 供按键编辑弹窗与宏步骤编辑弹窗共用；仅鼠标键时由调用方控制显示。
 class ClickPositionGroup : public QWidget {
     Q_OBJECT
@@ -40,7 +40,6 @@ private:
     QRadioButton* followRadio_ = nullptr;
     QRadioButton* fixedRadio_ = nullptr;
     FluentButton* pickBtn_ = nullptr;
-    FluentButton* currentPosBtn_ = nullptr;
     QLabel* pickedLabel_ = nullptr;
     QLabel* hintLabel_ = nullptr;
 };

@@ -6,7 +6,6 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <QApplication>
-#include <QCursor>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -135,10 +134,6 @@ ClickPositionGroup::ClickPositionGroup(std::function<bool()> driverSupportsMouse
         QString::fromWCharArray(L"\u62fe\u53d6\u5750\u6807"), this);
     pickBtn_->setFixedHeight(24);
     fixedRow->addWidget(pickBtn_);
-    currentPosBtn_ = new FluentButton(FluentButton::Secondary,
-        QString::fromWCharArray(L"\u53d6\u5f53\u524d\u4f4d\u7f6e"), this);
-    currentPosBtn_->setFixedHeight(24);
-    fixedRow->addWidget(currentPosBtn_);
     fixedRow->addStretch();
     layout->addLayout(fixedRow);
 
@@ -158,9 +153,6 @@ ClickPositionGroup::ClickPositionGroup(std::function<bool()> driverSupportsMouse
     layout->addWidget(hintLabel_);
 
     connect(pickBtn_, &QPushButton::clicked, this, &ClickPositionGroup::beginPick);
-    connect(currentPosBtn_, &QPushButton::clicked, this, [this]() {
-        applyPick(QCursor::pos());
-    });
     connect(fixedRadio_, &QRadioButton::toggled, this, [this](bool checked) {
         refreshPickButtonsEnabled();
         if (!checked) {
@@ -238,5 +230,4 @@ void ClickPositionGroup::refreshPickButtonsEnabled() {
     const bool supported = driverSupportsMouseMove_ && driverSupportsMouseMove_();
     const bool fixed = fixedRadio_ && fixedRadio_->isChecked();
     pickBtn_->setEnabled(supported && fixed);
-    currentPosBtn_->setEnabled(supported && fixed);
 }

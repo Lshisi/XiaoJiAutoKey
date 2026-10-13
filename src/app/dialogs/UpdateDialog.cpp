@@ -237,18 +237,9 @@ void UpdateDialog::refreshVisuals() {
     // 滚动条是懒创建、懒上样式的：挂在祖先上的样式表在首次显示时可能来不及
     // 作用到它（表现为系统原生滚动条）。直接把样式设到滚动条控件本身，
     // 并在 showEvent 里再刷新一次，保证打开即生效。
-    const QString scrollHandleColor = Fluent::Theme::isDarkMode()
-        ? QStringLiteral("rgba(255,255,255,0.18)")
-        : QStringLiteral("rgba(0,0,0,0.12)");
     if (auto* scrollBar = notesScroll_->verticalScrollBar()) {
-        scrollBar->setStyleSheet(QString(
-            "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-            "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
-            "QScrollBar::handle:vertical:hover { background: %1; }"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; border: none; background: none; }"
-            "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { width: 0; height: 0; background: none; }"
-            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
-            .arg(scrollHandleColor));
+        scrollBar->setStyleSheet(Fluent::Styles::scrollBarQss(
+            Fluent::Styles::scrollBarHandle(), Fluent::Styles::scrollBarHandle()));
     }
     // 下载中显示中性提示，失败显示错误色，其余用主题强调色。
     QColor statusColor = accent;

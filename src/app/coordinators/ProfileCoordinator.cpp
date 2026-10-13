@@ -63,8 +63,7 @@ void ProfileCoordinator::onProfileAdd() {
         QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e"),
         QString::fromWCharArray(L"\u8bf7\u8f93\u5165\u914d\u7f6e\u540d\u79f0:"),
         QString(),
-        name,
-        context_.importConfig);
+        name);
     context_.inputHook->setDialogOpen(false);
     if (!ok || name.trimmed().isEmpty()) return;
 

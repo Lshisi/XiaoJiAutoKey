@@ -61,6 +61,7 @@ void KeyCaptureDialogBase::setCaptureEditor(FluentLineEdit* editor) {
     keyEdit_ = editor;
     keyEdit_->installEventFilter(this);
     keyEdit_->setReadOnly(true);
+    keyEdit_->setCaptureOnly(true);
     connect(keyEdit_, &FluentLineEdit::clicked, this, [this]() {
         if (keyEdit_) keyEdit_->setText(QString::fromWCharArray(L"\u5f55\u5236\u4e2d"));
         emit keyCaptureRequested();

@@ -132,15 +132,10 @@ AppMessageDialog::AppMessageDialog(Kind kind,
     scrollArea->setStyleSheet(QString(
         "QScrollArea { background: %1; border: none; }"
         "QScrollArea > QWidget { background: %1; }"
-        "QWidget#messageContainer { background: %1; }"
-        "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %2; border-radius: 3px; min-height: 22px; }"
-        "QScrollBar::handle:vertical:hover { background: %3; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }")
-        .arg(Fluent::Colors::cardBg().name(QColor::HexArgb),
-             Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.18)") : QStringLiteral("rgba(0,0,0,0.16)"),
-             Fluent::Theme::isDarkMode() ? QStringLiteral("rgba(255,255,255,0.28)") : QStringLiteral("rgba(0,0,0,0.24)")));
+        "QWidget#messageContainer { background: %1; }")
+        .arg(Fluent::Colors::cardBg().name(QColor::HexArgb))
+        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
+            Fluent::Styles::scrollBarHandleHover(), QColor(), 22));
     constexpr int dialogWidth = 400;
     constexpr int messageWidth = 300;
     const int messageHeight = QFontMetrics(messageLabel->font()).boundingRect(

@@ -206,20 +206,9 @@ void MainWindow::setupUi() {
     });
     driverSelfCheckCoordinator_.bind(DriverSelfCheckCoordinator::Context{
         this,
-        &ddRuntimeService_,
         &config_,
         [this]() { return activeInputDriverReady(); },
         [this]() { return ddRuntimeService_.Inspect(driver_); },
-        [this]() {
-            DdDriver stagedDriver;
-            std::wstring error;
-            return loadLegacyDriverInto(stagedDriver, &error);
-        },
-        [this]() { return loadConfiguredDriver(true); },
-        [this](DriverMode mode) { return switchDriverMode(mode); },
-        [this]() { return rebootComputer(); },
-        [this]() { refreshDriverStatusUi(); },
-        [this]() { configCoordinator_.save(); },
         [this](bool open) { inputHook_.setDialogOpen(open); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {

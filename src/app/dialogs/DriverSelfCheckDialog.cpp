@@ -65,13 +65,7 @@ DriverSelfCheckDialog::DriverSelfCheckDialog(QWidget* parent) : QDialog(parent) 
     bodyScroll_->setWidget(bodyLabel_);
     root->addWidget(bodyScroll_, 1);
 
-    // ── 执行阶段文案与进度 ──
-    statusLabel_ = new QLabel(this);
-    statusLabel_->setFont(Fluent::Typography::body());
-    statusLabel_->setWordWrap(true);
-    statusLabel_->hide();
-    root->addWidget(statusLabel_);
-
+    // ── 检测中进度 ──
     progressBar_ = new QProgressBar(this);
     progressBar_->setTextVisible(false);
     progressBar_->setFixedHeight(6);
@@ -93,7 +87,6 @@ void DriverSelfCheckDialog::beginCheck() {
     headingLabel_->setText(QString::fromWCharArray(L"\u6b63\u5728\u68c0\u6d4b\u9a71\u52a8\u73af\u5883..."));
     bodyLabel_->setText(QString::fromWCharArray(
         L"\u6b63\u5728\u68c0\u67e5\u9a71\u52a8\u8fd0\u884c\u72b6\u6001\u4e0e Windows \u5185\u6838\u9694\u79bb\u8bbe\u7f6e\uff0c\u8bf7\u7a0d\u5019\u3002"));
-    statusLabel_->hide();
     progressBar_->setRange(0, 0);
     progressBar_->setValue(0);
     progressBar_->show();
@@ -121,43 +114,8 @@ void DriverSelfCheckDialog::setConclusion(const Conclusion& conclusion) {
     }
     headingLabel_->setText(conclusion.heading);
     bodyLabel_->setText(conclusion.bodyHtml);
-    statusLabel_->hide();
     progressBar_->hide();
     rebuildActionButtons(conclusion.actions);
-    setBusy(false);
-    refreshVisuals();
-}
-
-void DriverSelfCheckDialog::beginExecute(const QString& title) {
-    severity_ = Severity::Info;
-    severityColor_ = FactionTheme::instance().palette().accent;
-    headingLabel_->setText(title);
-    bodyLabel_->clear();
-    statusLabel_->setText(QString::fromWCharArray(L"\u6b63\u5728\u51c6\u5907..."));
-    statusLabel_->show();
-    progressBar_->setRange(0, 0);
-    progressBar_->setValue(0);
-    progressBar_->show();
-    rebuildActionButtons({});
-    setBusy(true);
-    refreshVisuals();
-}
-
-void DriverSelfCheckDialog::setExecuteMessage(const QString& message) {
-    if (statusLabel_) statusLabel_->setText(message);
-}
-
-void DriverSelfCheckDialog::finishExecute(bool ok, const QString& resultHtml,
-    const QVector<QPair<Action, QString>>& actions) {
-    severity_ = ok ? Severity::Ok : Severity::Danger;
-    severityColor_ = ok ? Fluent::Colors::success() : Fluent::Colors::danger();
-    headingLabel_->setText(ok
-        ? QString::fromWCharArray(L"\u64cd\u4f5c\u5df2\u5b8c\u6210")
-        : QString::fromWCharArray(L"\u64cd\u4f5c\u672a\u5b8c\u6210"));
-    bodyLabel_->setText(resultHtml);
-    statusLabel_->hide();
-    progressBar_->hide();
-    rebuildActionButtons(actions);
     setBusy(false);
     refreshVisuals();
 }
@@ -205,9 +163,6 @@ void DriverSelfCheckDialog::refreshVisuals() {
         scrollBar->setStyleSheet(Fluent::Styles::scrollBarQss(
             Fluent::Styles::scrollBarHandle(), Fluent::Styles::scrollBarHandle()));
     }
-    statusLabel_->setStyleSheet(
-        QString("QLabel { color: %1; background: transparent; border: none; }")
-            .arg(Fluent::Colors::textSecondary().name(QColor::HexArgb)));
     progressBar_->setStyleSheet(
         QString("QProgressBar { background: %1; border: none; border-radius: 3px; }"
                 "QProgressBar::chunk { background: %2; border-radius: 3px; }")

@@ -2,7 +2,6 @@
 
 #include "dialogs/AppMessageDialog.h"
 
-#include <QMetaObject>
 #include <QThread>
 
 #include <Windows.h>
@@ -135,7 +134,8 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
         }
         body << QString::fromWCharArray(
             L"<b>\u6b64\u65f6\u5378\u8f7d/\u91cd\u88c5 DD\u3001\u5207\u6362 HID \u5747\u65e0\u6548</b>"
-            L"\u2014\u2014\u5b83\u4eec\u540c\u5c5e\u4f1a\u88ab\u62e6\u622a\u7684\u9a71\u52a8\u3002");
+            L"\u2014\u2014\u5b83\u4eec\u540c\u5c5e\u4f1a\u88ab\u62e6\u622a\u7684\u9a71\u52a8\uff0c"
+            L"\u8bf7\u5148\u6309\u4ee5\u4e0b\u6b65\u9aa4\u5173\u95ed\u62e6\u622a\uff1a");
         body << kSecuritySteps;
         conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
         conclusion.actions = {
@@ -167,23 +167,12 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
             body << QString::fromWCharArray(
                 L"\u5f53\u524d\u4f7f\u7528 USB \u6a21\u5f0f\uff0c\u4f46\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u8bbe\u5907\u3002"
                 L"\u8bf7\u786e\u8ba4 CH552 \u8bbe\u5907\u5df2\u63d2\u5165\uff0c\u53ef\u5c1d\u8bd5\u66f4\u6362 USB \u53e3\u540e\u91cd\u65b0\u81ea\u68c0\u3002");
-            conclusion.actions = closeActions();
-        } else if (snapshot.mode == DriverMode::Hid) {
-            body << QString::fromWCharArray(
-                L"\u5f53\u524d\u4f7f\u7528 HID \u9a71\u52a8\uff0c\u4f46\u672a\u80fd\u52a0\u8f7d\u3002"
-                L"\u53ef\u80fd\u662f\u9a71\u52a8\u670d\u52a1\u6216\u8bbe\u5907\u672a\u5c31\u7eea\u3002");
-            if (!snapshot.status.lastError.empty()) {
-                body << QString::fromWCharArray(L"\u9519\u8bef\u4fe1\u606f\uff1a")
-                    + QString::fromStdWString(snapshot.status.lastError).toHtmlEscaped();
-            }
-            conclusion.actions = {
-                {Action::ReinstallHid, QString::fromWCharArray(L"\u91cd\u88c5 HID \u9a71\u52a8")},
-                {Action::SwitchToDd, QString::fromWCharArray(L"\u5207\u6362\u5230 DD")},
-            };
         } else {
-            body << QString::fromWCharArray(
-                L"\u5f53\u524d\u4f7f\u7528 DD \u9a71\u52a8\uff0c\u4f46\u672a\u80fd\u52a0\u8f7d\u3002"
-                L"\u53ef\u80fd\u662f\u9a71\u52a8\u670d\u52a1/\u8bbe\u5907\u5f02\u5e38\u6216\u6587\u4ef6\u7f3a\u5931\u3002");
+            body << QString::fromWCharArray(L"\u5f53\u524d\u4f7f\u7528 ")
+                + modeText(snapshot.mode)
+                + QString::fromWCharArray(
+                    L" \u9a71\u52a8\uff0c\u4f46\u672a\u80fd\u52a0\u8f7d\u3002"
+                    L"\u8bf7\u5148\u91cd\u542f\u7535\u8111\uff0c\u91cd\u542f\u540e\u6253\u5f00\u5c0f\u9e21\u8fde\u53d1\u4f1a\u81ea\u52a8\u8865\u88c5\u9a71\u52a8\u3002");
             if (!snapshot.status.lastError.empty()) {
                 body << QString::fromWCharArray(L"\u9519\u8bef\u4fe1\u606f\uff1a")
                     + QString::fromStdWString(snapshot.status.lastError).toHtmlEscaped();
@@ -191,13 +180,18 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
             if (snapshot.guards.vulnerableBlocklistEnabled) {
                 body << QString::fromWCharArray(
                     L"\u63d0\u793a\uff1a\u6613\u53d7\u653b\u51fb\u7684\u9a71\u52a8\u7a0b\u5e8f\u963b\u6b62\u5217\u8868\u5904\u4e8e\u5f00\u542f\u72b6\u6001\uff0c"
-                    L"\u82e5\u4fee\u590d\u65e0\u6548\uff0c\u53ef\u6309\u4e0b\u65b9\u6b65\u9aa4\u5173\u95ed\u540e\u91cd\u542f\uff1a<br>")
+                    L"\u82e5\u91cd\u542f\u540e\u4ecd\u4e0d\u53ef\u7528\uff0c\u53ef\u6309\u4e0b\u65b9\u6b65\u9aa4\u5173\u95ed\u540e\u518d\u91cd\u542f\uff1a<br>")
                     + kSecuritySteps;
+                conclusion.actions = {
+                    {Action::OpenSecurityCenter, QString::fromWCharArray(L"\u6253\u5f00 Windows \u5b89\u5168\u4e2d\u5fc3")},
+                    {Action::None, QString::fromWCharArray(L"\u5173\u95ed")},
+                };
+            } else {
+                body << QString::fromWCharArray(
+                    L"\u82e5\u91cd\u542f\u540e\u4ecd\u4e0d\u53ef\u7528\uff0c\u53ef\u5728\u9a71\u52a8\u7ba1\u7406\u9875\u5207\u6362\u9a71\u52a8\u6a21\u5f0f\uff0c"
+                    L"\u6216\u524d\u5f80\u5f00\u6e90\u4ed3\u5e93\u53cd\u9988\u3002");
+                conclusion.actions = closeActions();
             }
-            conclusion.actions = {
-                {Action::RepairDd, QString::fromWCharArray(L"\u4fee\u590d DD \u9a71\u52a8")},
-                {Action::SwitchToHid, QString::fromWCharArray(L"\u5378\u8f7d DD \u5e76\u5207\u6362 HID")},
-            };
         }
         conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
         return conclusion;
@@ -212,198 +206,17 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
 }
 
 void DriverSelfCheckCoordinator::handleAction(DriverSelfCheckDialog* dialog, Action action) {
-    switch (action) {
-    case Action::OpenSecurityCenter:
-        if (!openSecurityCenter()) {
-            AppMessageDialog::warning(dialog,
-                QString::fromWCharArray(L"\u65e0\u6cd5\u6253\u5f00\u8bbe\u7f6e"),
-                QString::fromWCharArray(
-                    L"\u8bf7\u624b\u52a8\u6253\u5f00\uff1a\u5f00\u59cb\u83dc\u5355\u641c\u7d22\u300cWindows \u5b89\u5168\u4e2d\u5fc3\u300d"
-                    L"\u2192 \u8bbe\u5907\u5b89\u5168\u6027 \u2192 \u5185\u6838\u9694\u79bb\u8be6\u7ec6\u4fe1\u606f\u3002"));
-        }
-        break;
-    case Action::RepairDd:
-        executeRepairDd(dialog);
-        break;
-    case Action::SwitchToHid:
-        executeSwitchToHid(dialog);
-        break;
-    case Action::ReinstallHid:
-        executeReinstallHid(dialog);
-        break;
-    case Action::SwitchToDd:
+    if (action != Action::OpenSecurityCenter) {
         dialog->close();
-        if (context_.switchDriverMode) context_.switchDriverMode(DriverMode::Legacy);
-        break;
-    case Action::RebootComputer:
-        if (context_.rebootComputer && context_.rebootComputer()) {
-            dialog->close();
-        } else {
-            AppMessageDialog::warning(dialog,
-                QString::fromWCharArray(L"\u91cd\u542f\u5931\u8d25"),
-                QString::fromWCharArray(L"\u65e0\u6cd5\u81ea\u52a8\u91cd\u542f\u7535\u8111\uff0c\u8bf7\u624b\u52a8\u91cd\u542f\u3002"));
-        }
-        break;
-    case Action::None:
-    default:
-        dialog->close();
-        break;
+        return;
     }
-}
-
-void DriverSelfCheckCoordinator::executeRepairDd(DriverSelfCheckDialog* dialog) {
-    dialog->beginExecute(QString::fromWCharArray(L"\u6b63\u5728\u4fee\u590d DD \u9a71\u52a8"));
-    const QPointer<DriverSelfCheckDialog> dialogPtr(dialog);
-    struct Result {
-        bool ok = false;
-        std::wstring message;
-    };
-    const auto result = std::make_shared<Result>();
-    auto* thread = QThread::create([this, result]() {
-        result->ok = context_.runtimeService->RepairEmbeddedInfDriver(
-            [this]() { return context_.legacyDriverLoadable(); }, &result->message);
-    });
-    thread->setParent(this);
-    connect(thread, &QThread::finished, this, [this, dialogPtr, thread, result]() {
-        thread->deleteLater();
-        if (!dialogPtr) return;
-        auto* activeDialog = dialogPtr.data();
-        bool loaded = false;
-        if (result->ok && context_.reloadConfiguredDriver) {
-            loaded = context_.reloadConfiguredDriver();
-        }
-        if (context_.refreshStatus) context_.refreshStatus();
-        logRepair(QStringLiteral("repair_dd"), result->ok && loaded,
-            QString::fromStdWString(result->message));
-        if (result->ok && loaded) {
-            activeDialog->finishExecute(true,
-                QString::fromWCharArray(
-                    L"DD \u9a71\u52a8\u4fee\u590d\u6210\u529f\uff0c\u5df2\u91cd\u65b0\u52a0\u8f7d\u9a71\u52a8\u3002"
-                    L"<br>\u53ef\u4ee5\u5173\u95ed\u672c\u7a97\u53e3\u6b63\u5e38\u4f7f\u7528\u4e86\u3002"),
-                closeActions());
-        } else {
-            activeDialog->finishExecute(false,
-                QString::fromWCharArray(L"\u4fee\u590d\u672a\u80fd\u5b8c\u6210\uff1a")
-                    + QString::fromStdWString(result->message).toHtmlEscaped()
-                    + QString::fromWCharArray(
-                        L"<br><br>\u53ef\u5c1d\u8bd5\u300c\u5378\u8f7d DD \u5e76\u5207\u6362 HID\u300d\uff0c"
-                        L"\u6216\u91cd\u542f\u7535\u8111\u540e\u518d\u6b21\u81ea\u68c0\u3002"),
-                {{Action::SwitchToHid, QString::fromWCharArray(L"\u5378\u8f7d DD \u5e76\u5207\u6362 HID")},
-                 {Action::None, QString::fromWCharArray(L"\u5173\u95ed")}});
-        }
-    }, Qt::QueuedConnection);
-    thread->start();
-}
-
-void DriverSelfCheckCoordinator::executeSwitchToHid(DriverSelfCheckDialog* dialog) {
-    dialog->beginExecute(QString::fromWCharArray(L"\u6b63\u5728\u5207\u6362\u5230 HID \u9a71\u52a8"));
-    const QPointer<DriverSelfCheckDialog> dialogPtr(dialog);
-    struct ChainResult {
-        bool ddOk = false;
-        std::wstring ddMessage;
-        bool hidOk = false;
-        std::wstring hidMessage;
-    };
-    const auto result = std::make_shared<ChainResult>();
-    auto* thread = QThread::create([this, result, dialogPtr]() {
-        QMetaObject::invokeMethod(this, [this, dialogPtr]() {
-            if (dialogPtr) dialogPtr->setExecuteMessage(QString::fromWCharArray(
-                L"\u6b63\u5728\u5378\u8f7d DD \u9a71\u52a8\uff08\u53ef\u80fd\u9700\u8981\u4e00\u4e24\u5206\u949f\uff09..."));
-        }, Qt::QueuedConnection);
-        result->ddOk = context_.runtimeService->UninstallEmbeddedInfDriver(&result->ddMessage);
-        QMetaObject::invokeMethod(this, [this, dialogPtr]() {
-            if (dialogPtr) dialogPtr->setExecuteMessage(QString::fromWCharArray(L"\u6b63\u5728\u5b89\u88c5 HID \u9a71\u52a8..."));
-        }, Qt::QueuedConnection);
-        result->hidOk = context_.runtimeService->InstallEmbeddedHidDriver(&result->hidMessage);
-    });
-    thread->setParent(this);
-    connect(thread, &QThread::finished, this, [this, dialogPtr, thread, result]() {
-        thread->deleteLater();
-        if (!dialogPtr) return;
-        auto* activeDialog = dialogPtr.data();
-        if (result->ddOk && result->hidOk) {
-            context_.config->driverMode = DriverMode::Hid;
-            if (context_.saveConfig) context_.saveConfig();
-            if (context_.reloadConfiguredDriver) context_.reloadConfiguredDriver();
-            if (context_.refreshStatus) context_.refreshStatus();
-            logRepair(QStringLiteral("switch_to_hid"), true,
-                QString::fromStdWString(result->ddMessage) + QStringLiteral(" | ")
-                    + QString::fromStdWString(result->hidMessage));
-            activeDialog->finishExecute(true,
-                QString::fromWCharArray(
-                    L"DD \u5df2\u63d0\u4ea4\u5378\u8f7d\uff0cHID \u5df2\u5b89\u88c5\u5e76\u8bbe\u4e3a\u5f53\u524d\u9a71\u52a8\u3002"
-                    L"<br>\u8bf7\u91cd\u542f\u7535\u8111\u5b8c\u6210\u6e05\u7406\u4e0e\u5207\u6362\uff0c"
-                    L"\u91cd\u542f\u540e\u6253\u5f00\u5c0f\u9e21\u8fde\u53d1\u5373\u53ef\u6b63\u5e38\u4f7f\u7528\u3002"),
-                {{Action::RebootComputer, QString::fromWCharArray(L"\u7acb\u5373\u91cd\u542f\u7535\u8111")},
-                 {Action::None, QString::fromWCharArray(L"\u7a0d\u540e\u91cd\u542f")}});
-            return;
-        }
-        logRepair(QStringLiteral("switch_to_hid"), false,
-            QString::fromStdWString(result->ddMessage) + QStringLiteral(" | ")
-                + QString::fromStdWString(result->hidMessage));
-        const bool ddStepFailed = !result->ddOk;
-        activeDialog->finishExecute(false,
-            (ddStepFailed
-                    ? QString::fromWCharArray(L"DD \u5378\u8f7d\u672a\u5b8c\u5168\u5b8c\u6210\uff1a")
-                          + QString::fromStdWString(result->ddMessage).toHtmlEscaped()
-                    : QString::fromWCharArray(L"DD \u5df2\u63d0\u4ea4\u5378\u8f7d\uff0c\u4f46 HID \u5b89\u88c5\u672a\u5b8c\u6210\uff1a")
-                          + QString::fromStdWString(result->hidMessage).toHtmlEscaped())
-                + QString::fromWCharArray(
-                    L"<br><br>\u5efa\u8bae\u91cd\u542f\u7535\u8111\u540e\u518d\u6b21\u81ea\u68c0\uff1b"
-                    L"\u82e5\u4ecd\u5931\u8d25\uff0c\u53ef\u524d\u5f80\u5f00\u6e90\u4ed3\u5e93\u53cd\u9988\u3002"),
-            {{Action::RebootComputer, QString::fromWCharArray(L"\u7acb\u5373\u91cd\u542f\u7535\u8111")},
-             {Action::None, QString::fromWCharArray(L"\u5173\u95ed")}});
-    }, Qt::QueuedConnection);
-    thread->start();
-}
-
-void DriverSelfCheckCoordinator::executeReinstallHid(DriverSelfCheckDialog* dialog) {
-    dialog->beginExecute(QString::fromWCharArray(L"\u6b63\u5728\u91cd\u88c5 HID \u9a71\u52a8"));
-    const QPointer<DriverSelfCheckDialog> dialogPtr(dialog);
-    struct Result {
-        bool ok = false;
-        std::wstring message;
-    };
-    const auto result = std::make_shared<Result>();
-    auto* thread = QThread::create([this, result]() {
-        result->ok = context_.runtimeService->InstallEmbeddedHidDriver(&result->message);
-    });
-    thread->setParent(this);
-    connect(thread, &QThread::finished, this, [this, dialogPtr, thread, result]() {
-        thread->deleteLater();
-        if (!dialogPtr) return;
-        auto* activeDialog = dialogPtr.data();
-        bool loaded = false;
-        if (result->ok && context_.reloadConfiguredDriver) {
-            loaded = context_.reloadConfiguredDriver();
-        }
-        if (context_.refreshStatus) context_.refreshStatus();
-        logRepair(QStringLiteral("reinstall_hid"), result->ok && loaded,
-            QString::fromStdWString(result->message));
-        if (result->ok && loaded) {
-            activeDialog->finishExecute(true,
-                QString::fromWCharArray(L"HID \u9a71\u52a8\u5df2\u91cd\u65b0\u5b89\u88c5\u5e76\u52a0\u8f7d\u3002"),
-                closeActions());
-        } else {
-            activeDialog->finishExecute(false,
-                QString::fromWCharArray(L"HID \u5b89\u88c5\u672a\u5b8c\u6210\uff1a")
-                    + QString::fromStdWString(result->message).toHtmlEscaped()
-                    + QString::fromWCharArray(L"<br><br>\u5efa\u8bae\u91cd\u542f\u7535\u8111\u540e\u518d\u6b21\u81ea\u68c0\u3002"),
-                {{Action::RebootComputer, QString::fromWCharArray(L"\u7acb\u5373\u91cd\u542f\u7535\u8111")},
-                 {Action::None, QString::fromWCharArray(L"\u5173\u95ed")}});
-        }
-    }, Qt::QueuedConnection);
-    thread->start();
-}
-
-void DriverSelfCheckCoordinator::logRepair(const QString& action, bool ok, const QString& detail) {
-    if (!context_.runtimeService) return;
-    std::wstring line = L"action=" + action.toStdWString();
-    line += ok ? L" ok=true" : L" ok=false";
-    if (!detail.isEmpty()) {
-        line += L" detail=" + detail.toStdWString();
+    if (!openSecurityCenter()) {
+        AppMessageDialog::warning(dialog,
+            QString::fromWCharArray(L"\u65e0\u6cd5\u6253\u5f00\u8bbe\u7f6e"),
+            QString::fromWCharArray(
+                L"\u8bf7\u624b\u52a8\u6253\u5f00\uff1a\u5f00\u59cb\u83dc\u5355\u641c\u7d22\u300cWindows \u5b89\u5168\u4e2d\u5fc3\u300d"
+                L"\u2192 \u8bbe\u5907\u5b89\u5168\u6027 \u2192 \u5185\u6838\u9694\u79bb\u8be6\u7ec6\u4fe1\u606f\u3002"));
     }
-    context_.runtimeService->LogRuntimeError(L"driver-repair.log", line);
 }
 
 bool DriverSelfCheckCoordinator::openSecurityCenter() {

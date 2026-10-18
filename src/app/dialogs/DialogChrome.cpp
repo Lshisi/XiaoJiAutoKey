@@ -44,16 +44,20 @@ QPoint clampedTopLeft(const QRect& bounds, const QPoint& topLeft, const QSize& s
     return result;
 }
 
+// QRect::center() 定义为 (left+right)/2（整除），反推左上角必须用 (size-1)/2 才能精确还原；
+// 若用 size/2，偶数宽高的弹窗每调用一次就会向左/上漂移 1px，录制时按键事件连发会导致窗口持续左移。
+QPoint topLeftForCenter(const QPoint& center, const QSize& size) {
+    return QPoint(center.x() - (size.width() - 1) / 2,
+        center.y() - (size.height() - 1) / 2);
+}
+
 void centerDialogOnParent(QDialog* dialog) {
     if (!dialog) return;
 
     const QRect bounds = dialogBounds(dialog);
     if (!bounds.isValid()) return;
 
-    const QPoint center = bounds.center();
-    dialog->move(clampedTopLeft(bounds,
-        QPoint(center.x() - dialog->width() / 2, center.y() - dialog->height() / 2),
-        dialog->size()));
+    dialog->move(clampedTopLeft(bounds, topLeftForCenter(bounds.center(), dialog->size()), dialog->size()));
 }
 
 class DialogPositioner final : public QObject {
@@ -88,9 +92,7 @@ void DialogChrome::clampWithinScreen(QDialog* dialog, const QPoint& preferredCen
     const QPoint center = preferredCenter.isNull()
         ? dialog->frameGeometry().center()
         : preferredCenter;
-    dialog->move(clampedTopLeft(bounds,
-        QPoint(center.x() - dialog->width() / 2, center.y() - dialog->height() / 2),
-        dialog->size()));
+    dialog->move(clampedTopLeft(bounds, topLeftForCenter(center, dialog->size()), dialog->size()));
 }
 
 void DialogChrome::apply(QDialog* dialog) {

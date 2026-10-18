@@ -2,6 +2,7 @@
 #include "ConfigStore.h"
 #include "DdDriver.h"
 #include "services/AppPaths.h"
+#include "services/CodeIntegrityInspector.h"
 #include "services/DdRuntimeService.h"
 #include "services/UpdateService.h"
 #include "ui/styles/DesignTokens.h"
@@ -243,6 +244,17 @@ int main(int argc, char *argv[]) {
         WriteText(reportText, "loaded_runtime_kind", RuntimeKindText(driver.GetRuntimeKind()));
         WriteBool(reportText, "driver_ready", driver.IsReady());
         WriteText(reportText, "driver_last_error", ToUtf8Line(driver.GetLastError()));
+
+        const auto guards = CodeIntegrityInspector::Inspect(true);
+        WriteBool(reportText, "guard_memory_integrity_running", guards.memoryIntegrityRunning);
+        WriteBool(reportText, "guard_memory_integrity_configured", guards.memoryIntegrityConfigured);
+        WriteBool(reportText, "guard_vulnerable_blocklist_enabled", guards.vulnerableBlocklistEnabled);
+        WriteText(reportText, "guard_smart_app_control_state", std::to_string(guards.smartAppControlState));
+        for (const auto& block : guards.recentBlocks) {
+            WriteText(reportText, "guard_block_event",
+                ToUtf8Line(block.timeText + L" " + block.fileName
+                    + L" event=" + std::to_wstring(block.eventId)));
+        }
 
         const std::string reportContent = reportText.str();
         std::ofstream report(appPaths.logsDir() / "driver-diagnose.log", std::ios::binary | std::ios::trunc);

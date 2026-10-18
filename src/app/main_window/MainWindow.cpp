@@ -7,6 +7,7 @@
 #include "dialogs/ShareImportDialog.h"
 #include "FactionTheme.h"
 #include "services/AgentService.h"
+#include "services/CodeIntegrityInspector.h"
 #include "ui/components/ShareImportBanner.h"
 #include "ui/pages/DriverPage.h"
 #include "ui/pages/SettingsPage.h"
@@ -283,6 +284,7 @@ MainWindow::MainWindow(QWidget* parent)
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr),
+      driverSelfCheckCoordinator_(this),
       updateService_(this),
       updateCoordinator_(this) {
     runtimeVisualRefreshTimer_.setSingleShot(true);
@@ -355,6 +357,12 @@ bool MainWindow::Initialize() {
         config_.macroSoundOff);
     if (!loadConfiguredDriver()) {
         logDriverUnavailableOnce();
+        // 命中“驱动加载失败 + 内存完整性运行中”的实锤根因时，等主窗口首次显示后
+        // 自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
+        if (!suppressDdUnavailablePrompt_ &&
+            CodeIntegrityInspector::Inspect(false).memoryIntegrityRunning) {
+            pendingSelfCheckPrompt_ = true;
+        }
     }
     usbHeartbeatTimer_.start();
     try {
@@ -686,6 +694,21 @@ void MainWindow::refreshDriverStatusUi() {
     if (config_.driverMode == DriverMode::Usb) detail << L"USB";
     else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
     detail << L"\n";
+    // 内核隔离轻量检测（不含事件日志），让驱动页直接可见拦截根因。
+    const auto guards = CodeIntegrityInspector::Inspect(false);
+    detail << L"\u5185\u6838\u9694\u79bb: ";
+    if (guards.memoryIntegrityRunning) {
+        detail << (activeInputDriverReady()
+                ? L"\u5185\u5b58\u5b8c\u6574\u6027 \u8fd0\u884c\u4e2d\uff08\u5efa\u8bae\u5173\u95ed\uff09"
+                : L"\u5185\u5b58\u5b8c\u6574\u6027 \u8fd0\u884c\u4e2d\uff08\u6b63\u5728\u62e6\u622a\u9a71\u52a8\u52a0\u8f7d\uff09");
+    } else if (guards.memoryIntegrityConfigured) {
+        detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u5df2\u5f00\u542f\uff08\u7b49\u5f85\u91cd\u542f\u751f\u6548\uff09";
+    } else {
+        detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u5173\u95ed";
+    }
+    detail << L"\uff0c\u963b\u6b62\u5217\u8868 " << (guards.vulnerableBlocklistEnabled ? L"\u5f00\u542f" : L"\u5173\u95ed");
+    if (guards.smartAppControlState == 1) detail << L"\uff0c\u667a\u80fd\u5e94\u7528\u63a7\u5236 \u5f00\u542f";
+    detail << L"\n";
     detail << L"\n";
     const bool usbCommunicationReady = ch552Driver_.IsReady();
     const std::wstring usbPortName = usbCommunicationReady
@@ -939,6 +962,18 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     view_.shareBanner()->repositionToHost();
+}
+
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    if (!pendingSelfCheckPrompt_) {
+        return;
+    }
+    pendingSelfCheckPrompt_ = false;
+    // 先让主窗口完成首帧渲染，再弹自检向导，避免开屏即模态。
+    QTimer::singleShot(250, this, [this]() {
+        driverSelfCheckCoordinator_.open();
+    });
 }
 
 bool MainWindow::event(QEvent* event) {
@@ -1546,5 +1581,11 @@ void MainWindow::logDriverUnavailableOnce() {
              << L"inf_mouse_device="
              << (status.infMouseDeviceStarted && status.infMouseDeviceBound) << L"\n"
              << L"status_note=" << (driverStatusNote_.empty() ? L"(none)" : driverStatusNote_) << L"\n";
+    // 内核隔离轻量检测：售后拿到日志即可直接看到“连发无效”的最常见根因。
+    const auto guards = CodeIntegrityInspector::Inspect(false);
+    errorLog << L"guard_hvci_running=" << guards.memoryIntegrityRunning << L"\n"
+             << L"guard_hvci_configured=" << guards.memoryIntegrityConfigured << L"\n"
+             << L"guard_vulnerable_blocklist=" << guards.vulnerableBlocklistEnabled << L"\n"
+             << L"guard_smart_app_control=" << guards.smartAppControlState << L"\n";
     ddRuntimeService_.LogRuntimeError(L"dd-runtime.log", errorLog.str());
 }

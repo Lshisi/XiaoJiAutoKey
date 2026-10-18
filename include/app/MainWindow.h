@@ -27,6 +27,7 @@
 #include "coordinators/CloseCoordinator.h"
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
+#include "coordinators/DriverSelfCheckCoordinator.h"
 #include "coordinators/UpdateCoordinator.h"
 #include "services/AppPaths.h"
 #include "services/AutoStartService.h"
@@ -52,6 +53,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void showEvent(QShowEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragMoveEvent(QDragMoveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
@@ -135,6 +137,7 @@ private:
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;
     DriverCoordinator driverCoordinator_;
+    DriverSelfCheckCoordinator driverSelfCheckCoordinator_;
     SettingsCoordinator settingsCoordinator_;
     ProfileCoordinator profileCoordinator_;
     MacroCoordinator macroCoordinator_;
@@ -164,6 +167,8 @@ private:
     bool suppressDdUnavailablePrompt_ = false;
     bool driverUnavailableLogged_ = false;
     bool driverStatusFallback_ = false;
+    // 启动时命中“驱动加载失败 + 内存完整性运行中”的实锤根因，待主窗口首次显示后自动打开自检向导。
+    bool pendingSelfCheckPrompt_ = false;
     std::wstring driverStatusNote_;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;

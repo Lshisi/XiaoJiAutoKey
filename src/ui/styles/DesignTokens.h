@@ -98,6 +98,7 @@ namespace Colors {
 
     inline QColor danger()         { return Theme::isDarkMode() ? QColor(0xFF, 0x99, 0x9A) : QColor(0xD1, 0x34, 0x38); }
     inline QColor success()        { return Theme::isDarkMode() ? QColor(0x6C, 0xD7, 0x6C) : QColor(0x10, 0x7C, 0x10); }
+    inline QColor warning()        { return Theme::isDarkMode() ? QColor(0xFF, 0xC8, 0x84) : QColor(0x8A, 0x5A, 0x00); }
 
     inline QColor border()         { return Theme::isDarkMode() ? QColor(255, 255, 255, 30) : QColor(0, 0, 0, 20); }
     inline QColor divider()        { return Theme::isDarkMode() ? QColor(255, 255, 255, 22) : QColor(0, 0, 0, 15); }

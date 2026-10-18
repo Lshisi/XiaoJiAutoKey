@@ -51,10 +51,12 @@ QString compactDriverDetails(const QString& details) {
     QString ch552Device;
     QString usbConnection;
     QString usbFirmware;
+    QString kernelIsolation;
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        if (trimmed.startsWith(QString::fromWCharArray(L"\u5185\u6838\u9694\u79bb:"))) kernelIsolation = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QStringLiteral("DD64.dll:"))) dd64 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u952e\u76d8\u670d\u52a1:"))) infKeyboardService = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u9f20\u6807\u670d\u52a1:"))) infMouseService = trimmed.section(QLatin1Char(':'), 1).trimmed();
@@ -71,6 +73,11 @@ QString compactDriverDetails(const QString& details) {
     }
 
     QStringList sections;
+    // 内核隔离是驱动失效的最常见根因，置顶展示。
+    if (!kernelIsolation.isEmpty()) {
+        sections.push_back(QString::fromWCharArray(L"\u5185\u6838\u9694\u79bb"));
+        sections.push_back(kernelIsolation);
+    }
     const auto pairOk = [](const QString& a, const QString& b, const QString& okText) {
         return !a.isEmpty() && !b.isEmpty() && a == okText && b == okText;
     };
@@ -223,6 +230,9 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
     statusTitleRow->setSpacing(8);
     statusTitleRow->addWidget(makeSectionTitle(QString::fromWCharArray(L"\u5f53\u524d\u72b6\u6001"), panel));
     statusTitleRow->addStretch();
+    selfCheckButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u4e00\u952e\u81ea\u68c0"), panel);
+    selfCheckButton_->setFixedWidth(91);
+    statusTitleRow->addWidget(selfCheckButton_);
     uninstallDdButton_ = new FluentButton(FluentButton::Primary, QString::fromWCharArray(L"\u5378\u8f7d DD"), panel);
     uninstallDdButton_->setFixedWidth(91);
     uninstallDdButton_->hide();
@@ -277,6 +287,9 @@ DriverPage::DriverPage(QWidget* parent) : QWidget(parent) {
         if (!driverModeCombo_ || index < 0) return;
         emit driverModeChanged(static_cast<DriverMode>(driverModeCombo_->itemData(index).toInt()));
     });
+    connect(selfCheckButton_, &QPushButton::clicked, this, [this]() {
+        emit selfCheckRequested();
+    });
     connect(uninstallDdButton_, &QPushButton::clicked, this, [this]() {
         emit uninstallDriverRequested(DriverMode::Legacy);
     });
@@ -292,6 +305,7 @@ void DriverPage::updateThemeColors() {
     if (driverModeCombo_) {
         driverModeCombo_->refreshThemeStyle();
     }
+    if (selfCheckButton_) selfCheckButton_->refreshMetrics();
     if (uninstallDdButton_) uninstallDdButton_->refreshMetrics();
     if (uninstallHidButton_) uninstallHidButton_->refreshMetrics();
     update();
@@ -325,6 +339,7 @@ void DriverPage::setDriverActions(bool ddInstalled, bool hidInstalled) {
 
 void DriverPage::setBusy(bool busy) {
     if (driverModeCombo_) driverModeCombo_->setEnabled(!busy);
+    if (selfCheckButton_) selfCheckButton_->setEnabled(!busy);
     if (uninstallDdButton_) uninstallDdButton_->setEnabled(!busy);
     if (uninstallHidButton_) uninstallHidButton_->setEnabled(!busy);
 }

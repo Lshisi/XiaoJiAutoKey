@@ -25,6 +25,7 @@ signals:
     void driverModeChanged(DriverMode mode);
     void refreshRequested();
     void uninstallDriverRequested(DriverMode mode);
+    void selfCheckRequested();
 
 private:
     void applyTheme();
@@ -33,6 +34,7 @@ private:
     QLabel* statusSummaryValue_ = nullptr;
     QTextEdit* summaryDetailValue_ = nullptr;
     QWidget* summaryPanel_ = nullptr;
+    FluentButton* selfCheckButton_ = nullptr;
     FluentButton* uninstallDdButton_ = nullptr;
     FluentButton* uninstallHidButton_ = nullptr;
 };

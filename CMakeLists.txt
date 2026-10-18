@@ -33,8 +33,10 @@ set(MOC_HEADERS
     include/app/coordinators/CloseCoordinator.h
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
+    include/app/coordinators/DriverSelfCheckCoordinator.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
+    include/app/dialogs/DriverSelfCheckDialog.h
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
@@ -171,6 +173,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/coordinators/CloseCoordinator.h
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
+    include/app/coordinators/DriverSelfCheckCoordinator.h
     include/app/coordinators/UpdateCoordinator.h
     include/app/controllers/MacroController.h
     include/app/widgets/StatusOverlayWindow.h
@@ -179,6 +182,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/controllers/ProfileController.h
     include/app/services/AppPaths.h
     include/app/services/AutoStartService.h
+    include/app/services/CodeIntegrityInspector.h
     include/app/services/DdRuntimeService.h
     include/app/services/SoundService.h
     include/app/services/UpdateService.h
@@ -186,6 +190,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/ConfigConfirmDialog.h
     include/app/dialogs/ConfigNameDialog.h
+    include/app/dialogs/DriverSelfCheckDialog.h
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/GameProcessDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
@@ -220,6 +225,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/coordinators/CloseCoordinator.cpp
     src/app/coordinators/ConfigCoordinator.cpp
     src/app/coordinators/EngineStateCoordinator.cpp
+    src/app/coordinators/DriverSelfCheckCoordinator.cpp
     src/app/coordinators/UpdateCoordinator.cpp
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
@@ -231,6 +237,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
     src/app/services/AutoStartService.cpp
+    src/app/services/CodeIntegrityInspector.cpp
     src/app/services/DdRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/services/UpdateService.cpp
@@ -239,6 +246,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/dialogs/ConfigConfirmDialog.cpp
     src/app/dialogs/ConfigNameDialog.cpp
     src/app/dialogs/DialogChrome.cpp
+    src/app/dialogs/DriverSelfCheckDialog.cpp
     src/app/dialogs/BindingEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp
     src/app/dialogs/GameProcessDialog.cpp

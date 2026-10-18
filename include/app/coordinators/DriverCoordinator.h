@@ -31,6 +31,8 @@ public:
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;
         std::function<void(bool)> setDialogOpen;
+        // 打开驱动自检向导（DriverSelfCheckCoordinator::open）。
+        std::function<void()> openSelfCheck;
     };
 
     explicit DriverCoordinator(QObject* parent = nullptr);

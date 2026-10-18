@@ -77,6 +77,9 @@ private:
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool ensureHidDriverInstalledForSwitch();
     void logDriverUnavailableOnce();
+    // 任何“驱动不可用”的触发点（启动失败/切换失败/热键撞上死驱动）自动打开一次自检向导，
+    // 不区分根因——向导内部会做诊断分诊。
+    void openSelfCheckAfterDriverFailure();
     void refreshDriverStatusUi();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     void prepareDriverUninstall(DriverMode mode);
@@ -167,8 +170,10 @@ private:
     bool suppressDdUnavailablePrompt_ = false;
     bool driverUnavailableLogged_ = false;
     bool driverStatusFallback_ = false;
-    // 启动时命中“驱动加载失败 + 内存完整性运行中”的实锤根因，待主窗口首次显示后自动打开自检向导。
+    // 启动时驱动加载失败，待主窗口首次显示后自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
     bool pendingSelfCheckPrompt_ = false;
+    // 每次运行只自动弹一次自检向导，避免反复失败时打扰。
+    bool selfCheckAutoOpened_ = false;
     std::wstring driverStatusNote_;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;

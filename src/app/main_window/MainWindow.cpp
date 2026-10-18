@@ -357,10 +357,9 @@ bool MainWindow::Initialize() {
         config_.macroSoundOff);
     if (!loadConfiguredDriver()) {
         logDriverUnavailableOnce();
-        // 命中“驱动加载失败 + 内存完整性运行中”的实锤根因时，等主窗口首次显示后
-        // 自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
-        if (!suppressDdUnavailablePrompt_ &&
-            CodeIntegrityInspector::Inspect(false).memoryIntegrityRunning) {
+        // 驱动加载失败不区分根因，等主窗口首次显示后自动打开自检向导
+        // （驻托盘启动则推迟到用户打开主窗口时）；根因由向导内部诊断分诊。
+        if (!suppressDdUnavailablePrompt_) {
             pendingSelfCheckPrompt_ = true;
         }
     }
@@ -788,6 +787,7 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
 
     if (mode == DriverMode::Hid && !ensureHidDriverInstalledForSwitch()) {
         refreshDriverStatusUi();
+        openSelfCheckAfterDriverFailure();
         return DriverCoordinator::SwitchResult::Canceled;
     }
 
@@ -800,6 +800,7 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
                 driverStatusNote_ += L" DD \u9519\u8bef: " + legacyError;
             }
             refreshDriverStatusUi();
+            openSelfCheckAfterDriverFailure();
             return DriverCoordinator::SwitchResult::Failed;
         }
     }
@@ -970,6 +971,7 @@ void MainWindow::showEvent(QShowEvent* event) {
         return;
     }
     pendingSelfCheckPrompt_ = false;
+    selfCheckAutoOpened_ = true;
     // 先让主窗口完成首帧渲染，再弹自检向导，避免开屏即模态。
     QTimer::singleShot(250, this, [this]() {
         driverSelfCheckCoordinator_.open();
@@ -1552,6 +1554,19 @@ void MainWindow::showDdUnavailableMessage() {
     }
 
     logDriverUnavailableOnce();
+    // 启停热键/启动按钮撞上不可用驱动：弹一次自检向导，替代完全静默。
+    openSelfCheckAfterDriverFailure();
+}
+
+void MainWindow::openSelfCheckAfterDriverFailure() {
+    if (selfCheckAutoOpened_) {
+        return;
+    }
+    selfCheckAutoOpened_ = true;
+    // 延迟到当前事件循环结束，让安装/切换的进度弹窗先收尾、热键处理先返回，再弹自检向导。
+    QTimer::singleShot(0, this, [this]() {
+        driverSelfCheckCoordinator_.open();
+    });
 }
 
 void MainWindow::logDriverUnavailableOnce() {

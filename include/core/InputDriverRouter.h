@@ -33,10 +33,12 @@ private:
     static bool IsArbitratedSource(InputSource src) noexcept;
     static std::uint64_t EncodeKey(const KeyDescriptor& key) noexcept;
     static KeyDescriptor DecodeKey(std::uint64_t encoded) noexcept;
+    static std::uint64_t ArbitrationDiagKey(std::uint64_t encoded, InputSource src) noexcept;
     SourceState& StateFor(InputSource src);
     const SourceState& StateFor(InputSource src) const;
     void RecomputeOwnersLocked();
     bool ReleaseForwardedKeyLocked(std::uint64_t encoded);
+    void NoteArbitrationSkipLocked(std::uint64_t encoded, InputSource src, const char* reason);
 
     mutable std::mutex mutex_;
     InputDriver* driver_ = nullptr;
@@ -45,4 +47,6 @@ private:
     std::uint64_t nextActivationOrder_ = 1;
     std::unordered_map<std::uint64_t, InputSource> owners_;
     std::unordered_map<std::uint64_t, InputSource> forwardedDown_;
+    // 仲裁跳过诊断：记录每个 (key, source) 首次被静默跳过，恢复正常注入后清除，避免高频刷日志。
+    std::unordered_set<std::uint64_t> arbitrationSkipDiag_;
 };

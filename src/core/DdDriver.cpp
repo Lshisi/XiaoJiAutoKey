@@ -1,11 +1,14 @@
 #include "DdDriver.h"
 
+#include "DiagLog.h"
+
 #include <SetupAPI.h>
 #include <hidsdi.h>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdio>
 #include <cwctype>
 #include <cstdint>
 #include <filesystem>
@@ -693,6 +696,7 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
         const bool result = SendMouseDown(key.code);
         if (result) RegisterPress(key);
         --simulateDepth_;
+        NoteMouseInjectResult(key, true, result);
         if (!result && trackInjected) RollbackInjected(key, true);
         return result;
     }
@@ -723,6 +727,7 @@ bool DdDriver::SendUp(const KeyDescriptor& key, InputSource src) {
         const bool result = SendMouseUp(key.code);
         if (result) RegisterRelease(key);
         --simulateDepth_;
+        NoteMouseInjectResult(key, false, result);
         if (!result && trackInjected) RollbackInjected(key, false);
         return result;
     }
@@ -781,6 +786,7 @@ void DdDriver::ClearAllStates() {
     pressedKeys_.clear();
     selfInjected_.clear();
     simulateDepth_.store(0);
+    mouseInjectFailDiag_.clear();
 }
 
 bool DdDriver::SendKeyboardTap(std::uint32_t vk) {
@@ -945,6 +951,9 @@ bool DdDriver::EnsureHidMouseHandleLocked() {
     }
 
     bool opened = false;
+    int matchedInterfaces = 0;
+    int capsRejected = 0;
+    DWORD lastCreateError = 0;
     for (DWORD index = 0; !opened; ++index) {
         SP_DEVICE_INTERFACE_DATA interfaceData{};
         interfaceData.cbSize = sizeof(interfaceData);
@@ -980,6 +989,7 @@ bool DdDriver::EnsureHidMouseHandleLocked() {
         if (!IsDdxoftHidDevicePath(detailData->DevicePath)) {
             continue;
         }
+        ++matchedInterfaces;
 
         HANDLE handle = ::CreateFileW(
             detailData->DevicePath,
@@ -990,10 +1000,12 @@ bool DdDriver::EnsureHidMouseHandleLocked() {
             FILE_ATTRIBUTE_NORMAL,
             nullptr);
         if (handle == INVALID_HANDLE_VALUE) {
+            lastCreateError = ::GetLastError();
             continue;
         }
 
         if (!HasDdxoftHidOutputReport(handle)) {
+            ++capsRejected;
             ::CloseHandle(handle);
             continue;
         }
@@ -1004,7 +1016,20 @@ bool DdDriver::EnsureHidMouseHandleLocked() {
     }
 
     ::SetupDiDestroyDeviceInfoList(deviceInfo);
-    return opened;
+    if (opened) {
+        hidMouseOpenDiagLogged_ = false;
+        return true;
+    }
+
+    if (!hidMouseOpenDiagLogged_) {
+        hidMouseOpenDiagLogged_ = true;
+        char line[160] = {};
+        std::snprintf(line, sizeof(line),
+            "HID mouse handle open failed: matched=%d capsRejected=%d createError=%lu",
+            matchedInterfaces, capsRejected, lastCreateError);
+        DiagLog::Write(line);
+    }
+    return false;
 }
 
 bool DdDriver::WriteHidMouseReportLocked(int deltaX, int deltaY) {
@@ -1036,6 +1061,25 @@ void DdDriver::CloseHidMouseHandleLocked() {
         ::CloseHandle(hidMouseHandle_);
         hidMouseHandle_ = INVALID_HANDLE_VALUE;
     }
+}
+
+void DdDriver::NoteMouseInjectResult(const KeyDescriptor& key, bool down, bool ok) {
+    const auto diagKey = (EncodeKey(key) << 1) | (down ? 0u : 1u);
+    if (ok) {
+        mouseInjectFailDiag_.erase(diagKey);
+        return;
+    }
+    if (mouseInjectFailDiag_.count(diagKey) > 0) {
+        return;
+    }
+    mouseInjectFailDiag_.insert(diagKey);
+
+    char line[160] = {};
+    std::snprintf(line, sizeof(line), "mouse %s inject failed: vk=%u runtime=%s",
+        down ? "down" : "up",
+        key.code,
+        runtimeKind_ == RuntimeKind::Hid ? "hid" : "dd");
+    DiagLog::Write(line);
 }
 
 void DdDriver::RegisterPress(const KeyDescriptor& key) {

@@ -1,12 +1,16 @@
 #include "InputDriverRouter.h"
 
+#include "DiagLog.h"
+
 #include <chrono>
+#include <cstdio>
 #include <thread>
 
 void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
     driver_ = driver;
     forwardedDown_.clear();
+    arbitrationSkipDiag_.clear();
 }
 
 InputDriver* InputDriverRouter::CurrentDriver() const noexcept {
@@ -40,17 +44,27 @@ bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
     const auto owner = owners_.find(encoded);
     if (state.activeKeys.count(encoded) == 0
         || (owner != owners_.end() && owner->second != src)) {
+        NoteArbitrationSkipLocked(encoded, src,
+            state.activeKeys.count(encoded) == 0
+                ? "key not in source active set"
+                : "owner lost to other source");
         return true;
     }
 
+    const auto diagKey = ArbitrationDiagKey(encoded, src);
+
     const auto forwarded = forwardedDown_.find(encoded);
     if (forwarded != forwardedDown_.end()) {
-        if (forwarded->second == src) return true;
+        if (forwarded->second == src) {
+            arbitrationSkipDiag_.erase(diagKey);
+            return true;
+        }
         if (!ReleaseForwardedKeyLocked(encoded)) return false;
     }
 
     if (!driver_->SendDown(key, src)) return false;
     forwardedDown_[encoded] = src;
+    arbitrationSkipDiag_.erase(diagKey);
     return true;
 }
 
@@ -139,6 +153,10 @@ std::uint64_t InputDriverRouter::EncodeKey(const KeyDescriptor& key) noexcept {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
 }
 
+std::uint64_t InputDriverRouter::ArbitrationDiagKey(std::uint64_t encoded, InputSource src) noexcept {
+    return (encoded << 1) | (src == InputSource::Repeater ? 0u : 1u);
+}
+
 KeyDescriptor InputDriverRouter::DecodeKey(std::uint64_t encoded) noexcept {
     return {
         (encoded >> 32) != 0 ? InputDevice::Mouse : InputDevice::Keyboard,
@@ -190,4 +208,21 @@ bool InputDriverRouter::ReleaseForwardedKeyLocked(std::uint64_t encoded) {
     if (!driver_ || !driver_->SendUp(DecodeKey(encoded), forwarded->second)) return false;
     forwardedDown_.erase(forwarded);
     return true;
+}
+
+void InputDriverRouter::NoteArbitrationSkipLocked(std::uint64_t encoded, InputSource src, const char* reason) {
+    const auto diagKey = ArbitrationDiagKey(encoded, src);
+    if (arbitrationSkipDiag_.count(diagKey) > 0) {
+        return;
+    }
+    arbitrationSkipDiag_.insert(diagKey);
+
+    const KeyDescriptor key = DecodeKey(encoded);
+    char line[160] = {};
+    std::snprintf(line, sizeof(line), "%s SendDown skipped (%s): %s:%u -> not injected",
+        src == InputSource::Repeater ? "repeater" : "macro",
+        reason,
+        key.device == InputDevice::Mouse ? "mouse" : "keyboard",
+        key.code);
+    DiagLog::Write(line);
 }

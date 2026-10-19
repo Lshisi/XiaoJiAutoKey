@@ -88,6 +88,7 @@ set(CORE_SOURCES
     src/core/ClickPositioning.cpp
     src/core/ConfigStore.cpp
     src/core/DdDriver.cpp
+    src/core/DiagLog.cpp
     src/core/FactionTheme.cpp
     src/core/ForegroundWatcher.cpp
     src/core/InputDriverRouter.cpp
@@ -202,6 +203,7 @@ add_executable(XiaoJiAutoKey WIN32
     include/app/dialogs/StatusOverlaySettingsDialog.h
     include/app/dialogs/UpdateDialog.h
     include/core/ClickPositioning.h
+    include/core/DiagLog.h
     include/core/ForegroundWatcher.h
     include/core/ShareCodec.h
     include/core/MacroEngine.h

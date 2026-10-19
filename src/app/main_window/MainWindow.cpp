@@ -475,8 +475,25 @@ bool MainWindow::loadLegacyDriver() {
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
-    ensureLegacyDdInfInstalled();
-    const bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    if (!ensureLegacyDdInfInstalled()) {
+        return false;
+    }
+
+    bool loaded = driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+    if (!loaded) {
+        // Resume can leave the INF services reporting ready while the runtime
+        // handles are still stale. The repair helper probes the runtime first,
+        // then refreshes or rebuilds the device instances only when needed.
+        std::wstring repairMessage;
+        loaded = ddRuntimeService_.RepairEmbeddedInfDriver(
+            [this]() {
+                return driver_.LoadFromDirectory(appPaths_.exeDir(), false);
+            },
+            &repairMessage);
+        if (!loaded && !repairMessage.empty()) {
+            driverStatusNote_ = repairMessage;
+        }
+    }
     if (loaded) {
         inputDriver_.SetDriver(&driver_);
     }
@@ -565,15 +582,29 @@ bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* erro
         return false;
     }
 
-    if (!targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
-        if (errorMessage) {
-            *errorMessage = targetDriver.GetLastError();
-        }
-        targetDriver.ReleaseAll();
-        targetDriver.Unload();
-        return false;
+    if (targetDriver.LoadFromDirectory(appPaths_.exeDir(), false)) {
+        return true;
     }
-    return true;
+
+    std::wstring repairMessage;
+    if (ddRuntimeService_.RepairEmbeddedInfDriver(
+            [&targetDriver, this]() {
+                return targetDriver.LoadFromDirectory(appPaths_.exeDir(), false);
+            },
+            &repairMessage)) {
+        return true;
+    }
+
+    if (errorMessage) {
+        *errorMessage = targetDriver.GetLastError();
+        if (!repairMessage.empty()) {
+            if (!errorMessage->empty()) *errorMessage += L"; ";
+            *errorMessage += repairMessage;
+        }
+    }
+    targetDriver.ReleaseAll();
+    targetDriver.Unload();
+    return false;
 }
 
 bool MainWindow::canLoadCh552UsbDriver(std::wstring* errorMessage) {

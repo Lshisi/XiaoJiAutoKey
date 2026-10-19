@@ -1779,13 +1779,19 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
     std::wstringstream message;
     bool repaired = false;
     int repairedVariant = -1;
-    const QString uniqueToken = QString::fromStdWString(
-        std::to_wstring(GetCurrentProcessId()) + L"-repair-" +
-        std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
+    // 每次尝试用全新目录：dc64.exe 退出后可能仍被杀软或子进程短暂占用，
+    // 复用同一目录会在重试时因无法覆盖文件而跳过真正的删设备重建步骤。
+    int attempt = 0;
+    const auto freshToken = [&attempt]() {
+        return QString::fromStdWString(
+            std::to_wstring(GetCurrentProcessId()) + L"-repair-" +
+            std::to_wstring(static_cast<unsigned long long>(GetTickCount64())) +
+            L"-" + std::to_wstring(++attempt));
+    };
 
     for (const int variant : variants) {
         message << L"variant " << variant << L": repair begin (refresh existing devices)\n";
-        InstallInfVariant(variant, pnputilPath, uniqueToken, false, &message);
+        InstallInfVariant(variant, pnputilPath, freshToken(), false, &message);
         if (readinessProbe && readinessProbe()) {
             repaired = true;
             repairedVariant = variant;
@@ -1795,7 +1801,7 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
         message << L"variant " << variant << L": readiness probe after refresh -> failed\n";
 
         message << L"variant " << variant << L": repair retry (remove stale devices)\n";
-        InstallInfVariant(variant, pnputilPath, uniqueToken, true, &message);
+        InstallInfVariant(variant, pnputilPath, freshToken(), true, &message);
         if (readinessProbe && readinessProbe()) {
             repaired = true;
             repairedVariant = variant;

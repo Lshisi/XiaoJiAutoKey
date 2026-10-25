@@ -68,6 +68,7 @@ config.json
 
 # Local assistant settings
 .claude/settings.local.json
+.zcode/
 
 # Local timestamp authority artifacts
 _tsa/

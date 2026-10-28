@@ -19,7 +19,7 @@
 #include <QStringList>
 #include <QStyleFactory>
 #include <QTimer>
-#include <QtPlugin>
+#include <QQuickStyle>
 
 #include <Windows.h>
 #include <mmsystem.h>
@@ -33,10 +33,6 @@
 #ifndef PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION
 #define PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION 0x4
 #endif
-
-// Static Qt plugin imports
-Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin)
 
 #pragma comment(lib, "winmm.lib")
 
@@ -53,7 +49,8 @@ protected:
             const auto* keyEvent = static_cast<QKeyEvent*>(event);
             if (keyEvent->key() == Qt::Key_Space) {
                 // Claim Space before Qt resolves shortcuts, even when entering text.
-                if (event->type() != QEvent::ShortcutOverride && isEditableTextTarget(watched)) {
+                if (event->type() != QEvent::ShortcutOverride &&
+                    (isEditableTextTarget(watched) || isEditableTextTarget(QGuiApplication::focusObject()))) {
                     return QObject::eventFilter(watched, event);
                 }
                 event->accept();
@@ -65,6 +62,10 @@ protected:
 
 private:
     static bool isEditableTextTarget(QObject* target) {
+        if (!target) return false;
+        if (target->inherits("QQuickTextInput") || target->inherits("QQuickTextEdit")) {
+            return !target->property("readOnly").toBool();
+        }
         if (auto* edit = qobject_cast<QLineEdit*>(target)) {
             return edit->isEnabled() && !edit->isReadOnly();
         }
@@ -305,9 +306,8 @@ int main(int argc, char *argv[]) {
     PreserveTimerResolution();
     timeBeginPeriod(1);
 
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QApplication app(argc, argv);
     SpaceInputFilter spaceInputFilter;

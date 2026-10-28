@@ -2,10 +2,10 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D4.svg)](#从源码构建)
-[![Qt](https://img.shields.io/badge/Qt-5.15-41CD52.svg)](#从源码构建)
+[![Qt](https://img.shields.io/badge/Qt-6.8%2B-41CD52.svg)](#从源码构建)
 [![Release](https://img.shields.io/badge/下载-Gitee%20Releases-brightgreen.svg)](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases)
 
-基于 Qt 5 + DD 驱动的 Windows 按键连发工具。支持键盘和鼠标按键的自动连发与宏循环，提供剑三门派主题的中文界面，单文件绿色免安装，可静驻系统托盘。
+基于 Qt 6 + QML 的 Windows 按键连发工具。支持键盘和鼠标按键的自动连发与宏循环，提供剑三门派主题的中文界面，单文件绿色免安装，可静驻系统托盘。
 
 ## 目录
 
@@ -93,21 +93,36 @@
 
 - Windows 10/11
 - Visual Studio 2022（MSVC，含 CMake 组件）
-- Qt 5.15（推荐静态编译版，如 `C:\Qt\5.15.2-static`；动态版本亦可）
+- Qt 6.8 或更新版本，包含 Qt QML、Qt Quick、Qt Quick Controls、Qt Quick Widgets、Qt SVG、Qt Shader Tools
+- 发布包使用静态 Qt，安装路径由 `CMAKE_PREFIX_PATH` 指定，不再使用旧 Qt 构建目录
 
 ### 编译
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
+cmake -S . -B build-qt6 -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:\Qt\6-static"
+cmake --build build-qt6 --config Release
 ```
 
-输出：`build/Release/XiaoJiAutoKey.exe`（静态 Qt 构建为单文件 exe，无需额外 DLL）
+输出：`build-qt6/Release/XiaoJiAutoKey.exe`（QML 组件编译并嵌入 exe，不需要额外分发 QML 文件）。
+
+需要自行编译静态 Qt 时，在 VS2022 x64 Native Tools 命令行中准备 CMake、Ninja、Python 和 Qt 6.8+ 完整源码，再执行：
+
+```powershell
+.\scripts\build-static-qt.ps1 -QtSourceDir "C:\Qt\6-src" -InstallDir "C:\Qt\6-static"
+```
+
+主窗口标题栏、五个页面、剪贴板分享提示条、状态悬浮窗和悬浮窗锁定按钮均使用 QML。标题栏保留原有拖动、最小化和关闭确认；分享提示条保留点击导入、关闭抑制和 8 秒自动隐藏，位置随窗口尺寸自动调整。原生窗口负责 Windows 消息、托盘、鼠标穿透和 DPI 协调。悬浮窗以单个着色器绘制通透底、弧面轮廓、交互高光和阴影；不采集桌面或游戏画面，不包含背景实时折射，也不是苹果原生 Liquid Glass 材质。调整透明度只影响玻璃底，不会使文字一起变淡。
+
+按键录制、配置命名与确认、退出确认、悬浮窗设置、音效、进程管理、导入导出、更新、驱动自检和卸载进度等自定义弹窗的内容与控件均使用 QML；`QDialog` 仅承载原生窗口、模态和屏幕约束，系统文件选择器保留原生交互。按键引擎及配置格式不变。
+
+旧 Widgets 自绘控件和菜单实现已移除。当前是 QML 自绘界面与原生宿主组合，不是纯 `QQuickWindow` 应用；系统托盘菜单、文件选择器和 Qt 初始化前的单实例提示继续使用原生实现。
+
+弹窗玻璃使用小叽自身 QML 界面的内存快照，打开弹窗及主题、DPI 刷新时取样，经双向模糊和边缘折射生成背景；拖动时更新取样区域，不采集桌面或游戏画面，也不保存、上传快照。材质算法改编自 [OverShifted/LiquidGlass](https://github.com/OverShifted/LiquidGlass)，移除了演示中的噪点和光晕。MIT 版权与许可见 [third_party/liquid-glass/LICENSE](third_party/liquid-glass/LICENSE)，同时嵌入 exe，可在“关于软件 → 开源许可”查看。
 
 ### 打包发布
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath "C:\Qt\6-static"
 ```
 
 打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音和 DD/HID 运行库；打包脚本会自动排除 `config.json`。
@@ -167,7 +182,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
 项目按职责拆成三层：
 
 - **core**：纯业务和底层能力——`AppTypes`、`ConfigStore`、`DdDriver`、`InputDriverRouter`、`RepeaterEngine`、`MacroEngine`
-- **ui**：Qt Widgets 页面和 Fluent 风格组件——`KeyPage`、`MacroPage`、`DriverPage`、`SettingsPage`、`AboutPage` 及 `Fluent*` 组件
+- **qml**：标题栏、主页面、分享提示条、悬浮窗、自定义弹窗及共用控件，统一布局、门派强调色和克制的玻璃材质
+- **ui**：C++ 界面模型、设计令牌与取点窗口的原生宿主
 - **app**：应用层装配和协调——主窗口、全局输入 hook、controller、coordinator、dialog、service
 
 `MainWindow` 只负责应用启动、UI 接线、hook 启动和关闭事件协调，具体功能拆分到独立模块：
@@ -197,7 +213,7 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 ## 目录结构
 
 ```
-├── CMakeLists.txt          # CMake 构建配置，Qt5 依赖
+├── CMakeLists.txt          # CMake 构建配置，Qt 6 / QML 模块
 ├── AGENTS.md               # 构建/发布流程约束说明
 ├── include/
 │   ├── app/                # 应用层：主窗口、coordinator、dialog、service、输入 hook
@@ -205,7 +221,8 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 ├── src/
 │   ├── app/                # 应用层实现（main.cpp、main_window/、coordinators/ 等）
 │   ├── core/               # 核心层实现
-│   └── ui/                 # 页面、Fluent 组件、设计令牌
+│   ├── qml/                # QML 页面与共用控件
+│   └── ui/                 # C++ 页面模型、原生组件、设计令牌
 ├── assets/                 # 图标、音频、门派图标、使用说明
 ├── firmware/               # 硬件桥接固件（RP2040 Pico / CH552）
 │   ├── pico/               # 基于 Pico SDK + TinyUSB 的 USB 复合设备固件

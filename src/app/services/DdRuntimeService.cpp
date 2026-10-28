@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QString>
 #include <QTextStream>
+#include <QStringConverter>
 
 #include <algorithm>
 #include <chrono>
@@ -177,7 +178,7 @@ void AppendLog(const std::filesystem::path& logsDir, const wchar_t* fileName, co
     }
 
     QTextStream stream(&logFile);
-    stream.setCodec("UTF-8");
+    stream.setEncoding(QStringConverter::Utf8);
     stream << "[" << QString::fromWCharArray(timeBuffer) << "]\n"
            << QString::fromStdWString(message) << "\n";
     stream.flush();

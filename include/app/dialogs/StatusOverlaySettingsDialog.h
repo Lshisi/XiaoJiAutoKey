@@ -1,46 +1,13 @@
 #pragma once
-
 #include "AppTypes.h"
-
-#include <QDialog>
-#include <QPoint>
-
-class QLabel;
-class QSlider;
-class QTabWidget;
-class QVBoxLayout;
-
-struct StatusOverlaySettings {
-    RepeatOverlayOptions repeat;
-    MacroOverlayOptions macro;
-    int opacity = 70;
-};
-
-class StatusOverlaySettingsDialog : public QDialog {
+#include "dialogs/QmlDialog.h"
+struct StatusOverlaySettings { RepeatOverlayOptions repeat; MacroOverlayOptions macro; int opacity = 70; };
+class StatusOverlaySettingsDialog : public QmlDialog {
     Q_OBJECT
-
 public:
     StatusOverlaySettingsDialog(const AppConfig& config, bool macroPage, QWidget* parent);
-    [[nodiscard]] StatusOverlaySettings settings() const;
-    void refreshVisuals();
-
+    StatusOverlaySettings settings() const;
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    void showEvent(QShowEvent* event) override;
-    bool event(QEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-
-private:
-    QVBoxLayout* addPage(const QString& title);
-    void addCheck(QVBoxLayout* layout, const QString& text, bool* value);
-
-    StatusOverlaySettings settings_;
-    QTabWidget* tabs_ = nullptr;
-    QSlider* opacitySlider_ = nullptr;
-    QLabel* opacityValue_ = nullptr;
-    bool dragging_ = false;
-    QPoint dragStartGlobal_;
-    QPoint dragStartFrame_;
+    void handleAction(const QString& action, const QVariant& value) override;
+    void editField(const QString& field, const QVariant& value) override;
 };

@@ -3,8 +3,8 @@
 #include "dialogs/SoundSettingsDialog.h"
 #include "input/GlobalInputHook.h"
 #include "services/SoundService.h"
-#include "ui/pages/KeyPage.h"
-#include "ui/pages/MacroPage.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
 
 #include <QDialog>
 #include <Windows.h>
@@ -14,10 +14,10 @@ SoundCoordinator::SoundCoordinator(QObject* parent) : QObject(parent) {}
 void SoundCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (context_.keyPage) {
-        connect(context_.keyPage, &KeyPage::soundSettingsClicked, this, &SoundCoordinator::openSettings);
+        connect(context_.keyPage, &KeyPageModel::soundSettingsClicked, this, &SoundCoordinator::openSettings);
     }
     if (context_.macroPage) {
-        connect(context_.macroPage, &MacroPage::soundSettingsClicked, this, &SoundCoordinator::openSettings);
+        connect(context_.macroPage, &MacroPageModel::soundSettingsClicked, this, &SoundCoordinator::openSettings);
     }
 }
 

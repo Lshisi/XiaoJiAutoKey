@@ -52,17 +52,16 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
-    void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragMoveEvent(QDragMoveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     bool event(QEvent* event) override;
-    bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
-    void setupUi();
+    bool setupUi();
     void setupHooks();
     void refreshStatusOverlay();
     void openStatusOverlaySettings(bool macroPage);

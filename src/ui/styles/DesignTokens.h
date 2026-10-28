@@ -83,6 +83,13 @@ namespace Theme {
 }
 
 namespace Colors {
+    inline QColor workspaceBg()    { return Theme::isDarkMode() ? QColor("#17191c") : QColor("#f3f4f6"); }
+    inline QColor workspacePanel() { return Theme::isDarkMode() ? QColor("#22252a") : QColor("#ffffff"); }
+    inline QColor workspaceField() { return Theme::isDarkMode() ? QColor("#292d33") : QColor("#ffffff"); }
+    inline QColor workspaceLine()  { return Theme::isDarkMode() ? QColor("#373c44") : QColor("#e6e8ec"); }
+    inline QColor workspaceText()  { return Theme::isDarkMode() ? QColor("#edf0f4") : QColor("#24282f"); }
+    inline QColor workspaceMuted() { return Theme::isDarkMode() ? QColor("#a9b1bc") : QColor("#737a84"); }
+    inline QColor overlayTextSecondary() { return Theme::isDarkMode() ? QColor("#d3d9e1") : QColor("#353d49"); }
     inline QColor primary()        { return QColor(0x00, 0x78, 0xD4); }
     inline QColor primaryHover()   { return QColor(0x10, 0x6E, 0xBE); }
     inline QColor primaryPressed() { return QColor(0x00, 0x5A, 0x9E); }
@@ -149,15 +156,15 @@ namespace Typography {
 }
 
 namespace Spacing {
-    constexpr int pageMargin    = 16;
-    constexpr int cardGap       = 12;
-    constexpr int cardPadding   = 14;
-    constexpr int cardRadius    = 8;
-    constexpr int buttonRadius  = 6;
-    constexpr int inputRadius   = 6;
-    constexpr int dialogRadius  = 12;
+    constexpr int pageMargin    = 20;
+    constexpr int cardGap       = 16;
+    constexpr int cardPadding   = 16;
+    constexpr int cardRadius    = 13;
+    constexpr int buttonRadius  = 8;
+    constexpr int inputRadius   = 8;
+    constexpr int dialogRadius  = 18;
     constexpr int sidebarWidth  = 130;
-    constexpr int titleBarHeight = 34;
+    constexpr int titleBarHeight = 44;
     constexpr int buttonHeight  = 32;
     constexpr int inputHeight   = 32;
     constexpr int navItemSize   = 56;

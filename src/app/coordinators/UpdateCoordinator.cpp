@@ -3,8 +3,8 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/UpdateDialog.h"
 #include "services/UpdateService.h"
-#include "ui/pages/AboutPage.h"
-#include "ui/pages/KeyPage.h"
+#include "ui/models/AboutPageModel.h"
+#include "ui/models/KeyPageModel.h"
 
 #include <QDesktopServices>
 #include <QUrl>
@@ -17,13 +17,13 @@ void UpdateCoordinator::bind(Context context) {
         return;
     }
 
-    connect(context_.aboutPage, &AboutPage::checkUpdateRequested, this, [this]() {
+    connect(context_.aboutPage, &AboutPageModel::checkUpdateRequested, this, [this]() {
         context_.aboutPage->setChecking();
         context_.updateService->checkForUpdate();
     });
 
     // 「下载并安装」/「立即重启更新」：打开更新弹窗，细节都在弹窗里完成。
-    connect(context_.aboutPage, &AboutPage::updateActionRequested, this, [this]() {
+    connect(context_.aboutPage, &AboutPageModel::updateActionRequested, this, [this]() {
         openUpdateDialog();
     });
 
@@ -53,13 +53,13 @@ void UpdateCoordinator::bind(Context context) {
                 if (updateDialog_) {
                     updateDialog_->setDownloadError(message);
                 } else {
-                    AppMessageDialog::warning(context_.aboutPage,
+                    AppMessageDialog::warning(context_.parent,
                         QString::fromWCharArray(L"\u66f4\u65b0\u5931\u8d25"), message);
                 }
             }
         });
 
-    connect(context_.keyPage, &KeyPage::updateBadgeClicked, this, [this]() {
+    connect(context_.keyPage, &KeyPageModel::updateBadgeClicked, this, [this]() {
         if (context_.navigateToAbout) {
             context_.navigateToAbout();
         }
@@ -85,7 +85,7 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
     const QString& latestVersion, const QString& assetUrl, const QString& notes) {
     if (!ok) {
         context_.aboutPage->setUpdateIdle();
-        AppMessageDialog::warning(context_.aboutPage,
+        AppMessageDialog::warning(context_.parent,
             QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0\u5931\u8d25"), message);
         return;
     }
@@ -134,7 +134,7 @@ void UpdateCoordinator::openUpdateDialog() {
     }
 
     auto* dialog = new UpdateDialog(latestKnownVersion_, pendingNotes_,
-        !pendingAssetUrl_.isEmpty(), context_.aboutPage);
+        !pendingAssetUrl_.isEmpty(), context_.parent);
     updateDialog_ = dialog;
     if (!stagedDir_.isEmpty()) {
         dialog->setStagedReady();

@@ -6,7 +6,7 @@
 #include <QObject>
 #include <functional>
 
-class DriverPage;
+class DriverPageModel;
 class QWidget;
 
 class DriverCoordinator : public QObject {
@@ -20,7 +20,7 @@ public:
     };
 
     struct Context {
-        DriverPage* page = nullptr;
+        DriverPageModel* page = nullptr;
         AppConfig* config = nullptr;
         DdRuntimeService* runtimeService = nullptr;
         QWidget* parentWidget = nullptr;

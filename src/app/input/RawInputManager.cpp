@@ -193,7 +193,7 @@ bool RawInputManager::isMouseActive() const noexcept {
     return mouseActive_;
 }
 
-bool RawInputManager::handleNativeMessage(MSG* message, long* result) {
+bool RawInputManager::handleNativeMessage(MSG* message, qintptr* result) {
     if ((!keyboardActive_ && !mouseActive_) || !message || message->message != WM_INPUT) {
         return false;
     }

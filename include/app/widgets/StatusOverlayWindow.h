@@ -2,22 +2,25 @@
 
 #include "AppTypes.h"
 
-#include <QPoint>
-#include <QStringList>
+#include <QPointF>
+#include <QPointer>
+#include <QVariantMap>
 #include <QWidget>
 
-class QLabel;
-class QPushButton;
+class QQuickWidget;
 class QScreen;
-class QWindow;
 struct RepeaterStatus;
 struct MacroStatus;
 
 class StatusOverlayWindow : public QWidget {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap overlayState READ overlayState NOTIFY overlayStateChanged)
+    Q_PROPERTY(QPointF lightPosition READ lightPosition NOTIFY lightPositionChanged)
 
 public:
     explicit StatusOverlayWindow(QWidget* parent = nullptr);
+    ~StatusOverlayWindow() override;
+    bool initialize(QWidget* dialogParent);
 
     void setOverlayEnabled(bool enabled);
     void setGameGatePaused(bool paused);
@@ -27,8 +30,13 @@ public:
         const MacroConfig* macro,
         const RepeaterStatus& repeat,
         const MacroStatus& macroStatus);
+    QVariantMap overlayState() const { return overlayState_; }
+    QPointF lightPosition() const { return lightPosition_; }
+    Q_INVOKABLE void toggleLock();
 
 signals:
+    void overlayStateChanged();
+    void lightPositionChanged();
     void positionChanged(const QPoint& position);
     void lockChanged(bool locked);
     void keyConfigRequested();
@@ -38,16 +46,17 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
+    void leaveEvent(QEvent* event) override;
     void showEvent(QShowEvent* event) override;
     bool event(QEvent* event) override;
-    bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
     void bindDpiRefreshSignals();
-    void refreshThemeStyle(bool repeatRunning, bool macroRunning);
     void setLocked(bool locked);
     void setOverlayOpacity(int opacity);
+    void setLightPosition(const QPointF& position);
+    void setStateValue(const QString& key, const QVariant& value);
     void syncLockButton();
     void syncTopMostOrder();
     void applyClickThrough();
@@ -56,31 +65,20 @@ private:
     QPoint boundedPosition(const QPoint& position) const;
     void moveToConfiguredPosition(const AppConfig& config);
     void applyVisibleState();
-    int currentScreenDpi() const;
-    void setDisplayLines(QLabel* label, const QStringList& lines);
     void refreshTextLayout();
 
-    QLabel* repeatIndicator_ = nullptr;
-    QLabel* macroIndicator_ = nullptr;
-    QLabel* gateBadge_ = nullptr;
-    QLabel* titleLabel_ = nullptr;
-    QLabel* repeatTitleLabel_ = nullptr;
-    QLabel* repeatHotkeyLabel_ = nullptr;
-    QLabel* macroTitleLabel_ = nullptr;
-    QLabel* macroHotkeyLabel_ = nullptr;
-    QWidget* repeatBlock_ = nullptr;
-    QWidget* macroBlock_ = nullptr;
-    QPushButton* lockButton_ = nullptr;
+    QQuickWidget* quickWidget_ = nullptr;
+    QQuickWidget* lockQuickWidget_ = nullptr;
     QWidget* lockButtonWindow_ = nullptr;
+    QVariantMap overlayState_;
+    QPointF lightPosition_{0.25, 0.08};
+    QPointer<QScreen> boundScreen_;
     bool overlayEnabled_ = false;
     bool locked_ = false;
     bool gameGatePaused_ = false;
-    int opacity_ = 70;
     bool dragging_ = false;
     bool positionInitialized_ = false;
-    QWindow* boundWindowHandle_ = nullptr;
-    QScreen* boundScreen_ = nullptr;
-    int observedDpi_ = 0;
+    int opacity_ = 70;
     QPoint dragStartGlobal_;
     QPoint dragStartWindow_;
 };

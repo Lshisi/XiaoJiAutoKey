@@ -3,7 +3,7 @@
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
-#include "ui/pages/KeyPage.h"
+#include "ui/models/KeyPageModel.h"
 #include "view/MainWindowView.h"
 
 EngineStateCoordinator::EngineStateCoordinator(QObject* parent) : QObject(parent) {}

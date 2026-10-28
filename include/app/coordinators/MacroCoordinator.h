@@ -10,7 +10,7 @@
 class GlobalInputHook;
 class MacroController;
 class MacroEngine;
-class MacroPage;
+class MacroPageModel;
 class QWidget;
 class KeyCaptureDialogBase;
 
@@ -20,7 +20,7 @@ class MacroCoordinator : public QObject {
 public:
     struct Context {
         QWidget* parent = nullptr;
-        MacroPage* page = nullptr;
+        MacroPageModel* page = nullptr;
         MacroController* controller = nullptr;
         MacroEngine* engine = nullptr;
         GlobalInputHook* inputHook = nullptr;

@@ -2,18 +2,17 @@
 
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
-#include "dialogs/DialogChrome.h"
+#include "dialogs/QmlDialog.h"
 #include "dialogs/ShareExportDialog.h"
 #include "dialogs/ShareImportDialog.h"
 #include "FactionTheme.h"
 #include "services/AgentService.h"
 #include "services/CodeIntegrityInspector.h"
-#include "ui/components/ShareImportBanner.h"
-#include "ui/pages/DriverPage.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/ShareImportBannerModel.h"
+#include "ui/models/DriverPageModel.h"
+#include "ui/models/SettingsPageModel.h"
 #include "ui/styles/DesignTokens.h"
 
-#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -23,19 +22,13 @@
 #include <QDropEvent>
 #include <QEvent>
 #include <QFont>
-#include <QLabel>
 #include <QMimeData>
-#include <QMouseEvent>
-#include <QPaintEvent>
 #include <QProcess>
-#include <QProgressBar>
-#include <QResizeEvent>
 #include <QScreen>
 #include <QString>
 #include <QThread>
 #include <QTimer>
 #include <QtGlobal>
-#include <QVBoxLayout>
 #include <QWindow>
 #include <Windows.h>
 #include <Dbt.h>
@@ -177,96 +170,22 @@ struct HidInstallResult {
     std::wstring message;
 };
 
-class DriverProgressDialog final : public QDialog {
+class DriverProgressDialog final : public QmlDialog {
 public:
     DriverProgressDialog(const QString& title, const QString& message, QWidget* parent)
-        : QDialog(parent) {
+        : QmlDialog(parent) {
         setWindowTitle(title);
-        DialogChrome::apply(this);
-        setModal(true);
         setWindowModality(Qt::ApplicationModal);
-        setFixedSize(420, 168);
-
-        auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(24, 20, 24, 20);
-        root->setSpacing(12);
-
-        auto* titleLabel = new QLabel(title, this);
-        titleLabel->setFont(Fluent::Typography::cardTitle());
-        titleLabel->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
-        root->addWidget(titleLabel);
-
-        messageLabel_ = new QLabel(message, this);
-        messageLabel_->setFont(Fluent::Typography::body());
-        messageLabel_->setWordWrap(true);
-        messageLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textSecondary().name()));
-        root->addWidget(messageLabel_);
-
-        progressBar_ = new QProgressBar(this);
-        progressBar_->setRange(0, 100);
-        progressBar_->setValue(8);
-        progressBar_->setTextVisible(true);
-        progressBar_->setFixedHeight(22);
-        progressBar_->setStyleSheet(QString(
-            "QProgressBar { border: 1px solid %1; border-radius: 6px; background: %2; color: %3; text-align: center; }"
-            "QProgressBar::chunk { border-radius: 5px; background: %4; }")
-            .arg(Fluent::Colors::border().name(QColor::HexArgb),
-                 Fluent::Colors::sidebarBg().name(),
-                 Fluent::Colors::textPrimary().name(),
-                 Fluent::Colors::primary().name()));
-        root->addWidget(progressBar_);
-
-        connect(&timer_, &QTimer::timeout, this, [this]() {
-            if (!progressBar_) return;
-            const int current = progressBar_->value();
-            progressBar_->setValue(qMin(current < 60 ? current + 3 : current + 1, 92));
-        });
-        timer_.start(260);
+        present("DialogReport.qml", {{"heading", QString()}, {"body", message}, {"bodyRich", false},
+            {"status", QString()}, {"severity", 0}, {"progressVisible", true},
+            {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()},
+            {"closeAllowed", false}}, QSize(480, 300), true);
     }
-
     void markFinished(const QString& message) {
-        timer_.stop();
-        if (progressBar_) progressBar_->setValue(100);
-        if (messageLabel_) messageLabel_->setText(message);
+        setValue("progressVisible", false);
+        setMessage(message);
     }
-
-    void setMessage(const QString& message) {
-        if (messageLabel_) messageLabel_->setText(message);
-    }
-
-protected:
-    void closeEvent(QCloseEvent* event) override {
-        if (event) event->ignore();
-    }
-
-    void reject() override {}
-
-    void paintEvent(QPaintEvent* event) override {
-        DialogChrome::paint(this, event);
-    }
-
-    void mousePressEvent(QMouseEvent* event) override {
-        if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
-        QDialog::mousePressEvent(event);
-    }
-
-    void mouseMoveEvent(QMouseEvent* event) override {
-        if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
-        QDialog::mouseMoveEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override {
-        if (DialogChrome::mouseRelease(event, dragging_)) return;
-        QDialog::mouseReleaseEvent(event);
-    }
-
-private:
-    QLabel* messageLabel_ = nullptr;
-    QProgressBar* progressBar_ = nullptr;
-    QTimer timer_;
-    bool dragging_ = false;
-    QPoint dragStartGlobal_;
-    QPoint dragStartFrame_;
+    void setMessage(const QString& message) { setValue("body", message); }
 };
 
 }
@@ -322,7 +241,7 @@ MainWindow::~MainWindow() {
 }
 
 bool MainWindow::Initialize() {
-    setupUi();
+    if (!setupUi()) return false;
     registerUsbDeviceNotifications();
     std::wstring agentError;
     if (!AgentService::Uninstall(&agentError)) {
@@ -991,11 +910,6 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
     return QMainWindow::eventFilter(watched, event);
 }
 
-void MainWindow::resizeEvent(QResizeEvent* event) {
-    QMainWindow::resizeEvent(event);
-    view_.shareBanner()->repositionToHost();
-}
-
 void MainWindow::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
     if (!pendingSelfCheckPrompt_) {
@@ -1056,7 +970,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
     QMainWindow::dropEvent(event);
 }
 
-bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result) {
+bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
     Q_UNUSED(eventType)
 #ifdef Q_OS_WIN
     auto* msg = static_cast<MSG*>(message);

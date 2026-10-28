@@ -21,7 +21,7 @@ public:
 
     [[nodiscard]] bool isActive() const noexcept;
     [[nodiscard]] bool isMouseActive() const noexcept;
-    bool handleNativeMessage(MSG* message, long* result);
+    bool handleNativeMessage(MSG* message, qintptr* result);
 
 signals:
     void keyboardChanged(KeyDescriptor key, bool pressed);

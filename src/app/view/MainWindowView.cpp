@@ -1,31 +1,31 @@
 #include "view/MainWindowView.h"
-#include "dialogs/StatusOverlaySettingsDialog.h"
+#include "dialogs/AppMessageDialog.h"
+#include <QQmlContext>
+#include <QQmlError>
+#include <QQuickWidget>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QMainWindow>
+#include <QMenu>
+#include <QUrl>
 
-#include "ui/components/FluentButton.h"
-#include "ui/components/FluentCard.h"
-#include "ui/components/FluentComboBox.h"
-#include "ui/components/FluentLineEdit.h"
-#include "ui/components/FluentSidebar.h"
-#include "ui/components/FluentTable.h"
-#include "ui/components/FluentTitleBar.h"
-#include "ui/components/ShareImportBanner.h"
-#include "ui/pages/AboutPage.h"
-#include "ui/pages/DriverPage.h"
-#include "ui/pages/KeyPage.h"
-#include "ui/pages/MacroPage.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/ShareImportBannerModel.h"
+#include "ui/models/AboutPageModel.h"
+#include "ui/models/DriverPageModel.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
+#include "ui/models/SettingsPageModel.h"
 #include "ui/styles/DesignTokens.h"
+#include "ui/styles/QmlTheme.h"
+#include "dialogs/QmlDialog.h"
 #include "FactionTheme.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QCursor>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QLayout>
-#include <QPushButton>
-#include <QPixmap>
-#include <QScrollArea>
 #include <QScreen>
 #include <QStyle>
 #include <QTimer>
@@ -38,42 +38,7 @@ constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
 
 QColor appShellColor() {
-    return Fluent::Theme::isDarkMode() ? QColor(0x20, 0x20, 0x20) : QColor(0xF3, 0xF5, 0xF8);
-}
-
-QColor mixColor(const QColor& a, const QColor& b, double t, int alpha = -1) {
-    const double clamped = qBound(0.0, t, 1.0);
-    QColor out(
-        static_cast<int>(a.red() + (b.red() - a.red()) * clamped),
-        static_cast<int>(a.green() + (b.green() - a.green()) * clamped),
-        static_cast<int>(a.blue() + (b.blue() - a.blue()) * clamped)
-    );
-    out.setAlpha(alpha >= 0 ? alpha : static_cast<int>(a.alpha() + (b.alpha() - a.alpha()) * clamped));
-    return out;
-}
-
-QString statusBarStyleSheet() {
-    const auto palette = FactionTheme::instance().palette();
-    const QColor base = appShellColor();
-    const QColor fill = mixColor(base, palette.accent, Fluent::Theme::isDarkMode() ? 0.035 : 0.025);
-    QColor divider = mixColor(Fluent::Colors::divider(), palette.accentBorder, Fluent::Theme::isDarkMode() ? 0.12 : 0.14);
-    divider.setAlpha(Fluent::Theme::isDarkMode() ? 42 : 24);
-
-    return QString(
-        "QWidget#appStatusBar {"
-        "  background: %1;"
-        "  border-top: 1px solid %2;"
-        "  border-bottom-left-radius: 10px;"
-        "  border-bottom-right-radius: 10px;"
-        "}")
-        .arg(fill.name(QColor::HexArgb),
-            divider.name(QColor::HexArgb));
-}
-
-void applyStatusBarTheme(QWidget* statusBar) {
-    if (statusBar) {
-        statusBar->setStyleSheet(statusBarStyleSheet());
-    }
+    return Fluent::Colors::workspaceBg();
 }
 
 QRect currentAvailableGeometry() {
@@ -87,8 +52,8 @@ QRect currentAvailableGeometry() {
 }
 
 QSize scaledInitialWindowSize(const QRect& available) {
-    constexpr int baseWidth = 780;
-    constexpr int baseHeight = 560;
+    constexpr int baseWidth = 1000;
+    constexpr int baseHeight = 720;
     constexpr int baseScreenWidth = 1920;
     constexpr int baseScreenHeight = 1080;
 
@@ -100,7 +65,7 @@ QSize scaledInitialWindowSize(const QRect& available) {
     const int scaledWidth = static_cast<int>(baseWidth * widthSizeScale + 0.5);
     const int scaledHeight = baseHeight + static_cast<int>(extraHeight * 0.18 + 0.5);
     const int maxWidth = qMax(720, available.width() - 80);
-    const int maxHeight = qMin(qMax(560, available.height() - 80), 700);
+    const int maxHeight = qMin(qMax(560, available.height() - 80), 760);
 
     return QSize(
         qBound(780, scaledWidth, maxWidth),
@@ -253,400 +218,184 @@ void bindScreenChangeResize(QMainWindow* window) {
     });
 }
 
-void refreshLabelPalette(QLabel* label) {
-    if (!label || label->text().isEmpty()) {
-        return;
-    }
-    if (!label->pixmap(Qt::ReturnByValue).isNull() || label->movie()) {
-        return;
-    }
-
-    QPalette palette = label->palette();
-    const QColor current = palette.color(QPalette::WindowText);
-    const auto isSameColor = [](const QColor& a, const QColor& b) {
-        return a.red() == b.red() && a.green() == b.green() && a.blue() == b.blue();
-    };
-    const bool wasTertiary =
-        isSameColor(current, QColor(0x90, 0x90, 0x90)) ||
-        isSameColor(current, QColor(0x9A, 0x9A, 0x9A));
-    const bool wasSecondary =
-        isSameColor(current, QColor(0x60, 0x60, 0x60)) ||
-        isSameColor(current, QColor(0xC8, 0xC8, 0xC8));
-
-    const QColor color = wasTertiary ? Fluent::Colors::textTertiary()
-        : wasSecondary ? Fluent::Colors::textSecondary()
-                       : Fluent::Colors::textPrimary();
-    for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
-        palette.setColor(group, QPalette::WindowText, color);
-        palette.setColor(group, QPalette::Text, color);
-    }
-    label->setPalette(palette);
-    label->setAutoFillBackground(false);
-    label->updateGeometry();
-    label->update();
 }
 
-void refreshSeparatorWidget(QWidget* widget) {
-    if (!widget || widget->minimumHeight() != 1 || widget->maximumHeight() != 1) {
-        return;
-    }
-    if (!widget->styleSheet().contains(QStringLiteral("background"), Qt::CaseInsensitive)) {
-        return;
-    }
-    widget->setStyleSheet(QString("background: %1;")
-        .arg(Fluent::Colors::divider().name(QColor::HexArgb)));
+MainWindowView::~MainWindowView() {
+    delete quickWidget_;
 }
 
-void refreshScrollAreaStyle(QScrollArea* scrollArea) {
-    if (!scrollArea || scrollArea->styleSheet().isEmpty()) {
-        return;
-    }
-    scrollArea->setStyleSheet(
-        QString("QScrollArea { background: transparent; border: none; }")
-        + Fluent::Styles::scrollBarQss(Fluent::Styles::scrollBarHandle(),
-            Fluent::Styles::scrollBarHandleHover()));
-    if (auto* content = scrollArea->widget()) {
-        content->updateGeometry();
-        if (auto* layout = content->layout()) {
-            layout->invalidate();
-        }
-        QTimer::singleShot(0, content, [content]() {
-            if (auto* layout = content->layout()) {
-                layout->activate();
-            }
-            content->updateGeometry();
-            content->update();
-        });
-    }
-    scrollArea->updateGeometry();
-    if (auto* viewport = scrollArea->viewport()) {
-        viewport->update();
-    }
-}
-
-void refreshKnownWidget(QWidget* widget) {
-    if (auto* card = qobject_cast<FluentCard*>(widget)) {
-        card->refreshThemeStyle();
-    }
-    if (auto* titleBar = qobject_cast<FluentTitleBar*>(widget)) {
-        titleBar->refreshThemeStyle();
-    }
-    if (auto* sidebar = qobject_cast<FluentSidebar*>(widget)) {
-        sidebar->updateFactionIcon();
-    }
-    if (auto* button = qobject_cast<FluentButton*>(widget)) {
-        button->refreshMetrics();
-    }
-    if (auto* combo = qobject_cast<FluentComboBox*>(widget)) {
-        combo->refreshThemeStyle();
-    }
-    if (auto* lineEdit = qobject_cast<FluentLineEdit*>(widget)) {
-        lineEdit->refreshThemeStyle();
-    }
-    if (auto* table = qobject_cast<FluentTable*>(widget)) {
-        table->refreshThemeStyle();
-    }
-    if (auto* scrollArea = qobject_cast<QScrollArea*>(widget)) {
-        refreshScrollAreaStyle(scrollArea);
-    }
-    if (auto* label = qobject_cast<QLabel*>(widget)) {
-        refreshLabelPalette(label);
-    }
-    refreshSeparatorWidget(widget);
-}
-
-void refreshWidgetTree(QWidget* widget) {
-    if (!widget) {
-        return;
-    }
-
-    refreshKnownWidget(widget);
-    widget->ensurePolished();
-    if (auto* style = widget->style()) {
-        style->unpolish(widget);
-        style->polish(widget);
-    }
-    widget->updateGeometry();
-    if (auto* layout = widget->layout()) {
-        layout->invalidate();
-        layout->activate();
-    }
-    widget->update();
-
-    const auto children = widget->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
-    for (auto* child : children) {
-        refreshWidgetTree(child);
-    }
-}
-
-}
-
-MainWindowView::~MainWindowView() = default;
-
-void MainWindowView::setup(QMainWindow* window) {
-    window->setWindowTitle(QString::fromWCharArray(L"\u5c0f\u53fd\u6309\u952e"));
+bool MainWindowView::setup(QMainWindow* window) {
+    window_ = window;
+    window->setWindowTitle(tr("小叽按键"));
+    connect(window, &QMainWindow::windowTitleChanged, this, &MainWindowView::titleChanged);
     idleIcon_ = QIcon(":/assets/icon.png");
     activeIcon_ = QIcon(":/assets/icon-active.png");
-    activityIconActive_ = false;
     qApp->setWindowIcon(idleIcon_);
     window->setWindowIcon(idleIcon_);
     window->setWindowFlags((window->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowMaximizeButtonHint);
-    window->setAttribute(Qt::WA_TranslucentBackground, true);
-    window->setAutoFillBackground(false);
-    QPalette windowPalette = window->palette();
-    windowPalette.setColor(QPalette::Window, appShellColor());
-    window->setPalette(windowPalette);
-
-    applyScreenAwareWindowSize(window, nullptr, true);
+    window->setAttribute(Qt::WA_TranslucentBackground);
     window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
+    applyScreenAwareWindowSize(window, nullptr, true);
     bindScreenChangeResize(window);
 
-    auto* centralWidget = new QWidget(window);
-    centralWidget->setObjectName("mainWindowRoot");
-    centralWidget->setAttribute(Qt::WA_StyledBackground, true);
-    centralWidget->setAutoFillBackground(false);
-    QPalette centralPalette = centralWidget->palette();
-    centralPalette.setColor(QPalette::Window, appShellColor());
-    centralWidget->setPalette(centralPalette);
-    centralWidget->setStyleSheet(QString(
-        "QWidget#mainWindowRoot {"
-        "  background: %1;"
-        "  border: none;"
-        "  border-radius: 10px;"
-        "}")
-        .arg(appShellColor().name()));
-    window->setCentralWidget(centralWidget);
+    keyPage_ = new KeyPageModel(this);
+    macroPage_ = new MacroPageModel(this);
+    driverPage_ = new DriverPageModel(this);
+    settingsPage_ = new SettingsPageModel(this);
+    aboutPage_ = new AboutPageModel(this);
 
-    auto* rootLayout = new QVBoxLayout(centralWidget);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
-    rootLayout->setSpacing(0);
-
-    titleBar_ = new FluentTitleBar(window);
-    titleBar_->setTitle(window->windowTitle());
-    titleBar_->setIcon(idleIcon_);
-    rootLayout->addWidget(titleBar_);
-    QObject::connect(titleBar_, &FluentTitleBar::minimizeClicked, window, &QMainWindow::showMinimized);
-    QObject::connect(titleBar_, &FluentTitleBar::closeClicked, window, &QMainWindow::close);
-
-    // 剪贴板检测到分享配置时的右下角小提示框（浮层，不占布局空间）。
-    shareBanner_ = new ShareImportBanner(window);
-
-    auto* bodyLayout = new QHBoxLayout();
-    bodyLayout->setContentsMargins(0, 0, 0, 0);
-    bodyLayout->setSpacing(0);
-
-    sidebar_ = new FluentSidebar(window);
-    sidebar_->addNavItem(QStringLiteral("keys"), QString::fromWCharArray(L"\u6309\u952e\u8fde\u53d1"), "keys");
-    sidebar_->addNavItem(QStringLiteral("macro"), QString::fromWCharArray(L"\u5faa\u73af\u8fde\u53d1"), "macro");
-    sidebar_->addNavItem(QStringLiteral("driver"), QString::fromWCharArray(L"\u9a71\u52a8\u7ba1\u7406"), "driver");
-    sidebar_->addNavItem(QStringLiteral("settings"), QString::fromWCharArray(L"\u5168\u5c40\u8bbe\u7f6e"), "settings");
-    sidebar_->addNavItem(QStringLiteral("about"), QString::fromWCharArray(L"\u5173\u4e8e\u8f6f\u4ef6"), "about");
-    sidebar_->setCurrentPage("keys");
-    bodyLayout->addWidget(sidebar_);
-
-    pageStack_ = new QStackedWidget(window);
-    keyPage_ = new KeyPage(window);
-    macroPage_ = new MacroPage(window);
-    driverPage_ = new DriverPage(window);
-    settingsPage_ = new SettingsPage(window);
-    aboutPage_ = new AboutPage(window);
-    pageStack_->addWidget(keyPage_);
-    pageStack_->addWidget(macroPage_);
-    pageStack_->addWidget(driverPage_);
-    pageStack_->addWidget(settingsPage_);
-    pageStack_->addWidget(aboutPage_);
-    pageStack_->setCurrentWidget(keyPage_);
-    bodyLayout->addWidget(pageStack_, 1);
-    rootLayout->addLayout(bodyLayout, 1);
-
-    auto* statusBar = new QWidget(window);
-    statusBar->setObjectName("appStatusBar");
-    statusBar->setFixedHeight(24);
-    applyStatusBarTheme(statusBar);
-    auto* statusLayout = new QHBoxLayout(statusBar);
-    statusLayout->setContentsMargins(12, 0, 12, 0);
-    auto* versionLabel = new QLabel(QString("V") + QString(APP_VERSION), statusBar);
-    versionLabel->setFont(Fluent::Typography::smallText());
-    QPalette statusPalette = versionLabel->palette();
-    statusPalette.setColor(QPalette::WindowText, Fluent::Colors::textTertiary());
-    versionLabel->setPalette(statusPalette);
-    statusLayout->addWidget(versionLabel);
-    statusLayout->addStretch();
-    auto* authorLabel = new QLabel(QString::fromWCharArray(L"By\uff1a\u9f99\u864e-\u95fb\u6210\u753b"), statusBar);
-    authorLabel->setFont(Fluent::Typography::smallText());
-    authorLabel->setPalette(statusPalette);
-    statusLayout->addWidget(authorLabel);
-    rootLayout->addWidget(statusBar);
-
+    auto* central = new QWidget(window);
+    central->setObjectName("mainWindowRoot");
+    window->setCentralWidget(central);
+    auto* layout = new QVBoxLayout(central);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    shareBanner_ = new ShareImportBannerModel(this);
+    quickWidget_ = new QQuickWidget(central);
+    quickWidget_->setObjectName(QStringLiteral("mainQuickView"));
+    quickWidget_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    quickWidget_->setFocusPolicy(Qt::StrongFocus);
+    quickWidget_->setClearColor(Qt::transparent);
+    quickWidget_->setAcceptDrops(false);
+    auto* context = quickWidget_->rootContext();
+    context->setContextProperty("appView", this);
+    context->setContextProperty("keyPageModel", keyPage_);
+    context->setContextProperty("macroPageModel", macroPage_);
+    context->setContextProperty("driverPageModel", driverPage_);
+    context->setContextProperty("settingsPageModel", settingsPage_);
+    context->setContextProperty("aboutPageModel", aboutPage_);
+    context->setContextProperty("shareBannerModel", shareBanner_);
+    updateFactionVisuals(window);
+    quickWidget_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/Main.qml")));
+    if (quickWidget_->status() != QQuickWidget::Ready) {
+        QStringList errors;
+        for (const auto& error : quickWidget_->errors()) errors.push_back(error.toString());
+        AppMessageDialog::warning(window, tr("QML 界面加载失败"), errors.join(QLatin1Char('\n')));
+        return false;
+    }
+    layout->addWidget(quickWidget_, 1);
+    connect(aboutPage_, &AboutPageModel::usageGuideRequested, window, [window]() {
+        const QString path = QDir(QApplication::applicationDirPath()).filePath(QStringLiteral("使用说明.mhtml"));
+        if (!QFileInfo::exists(path)) {
+            AppMessageDialog::warning(window, tr("无法打开使用说明"), tr("未找到使用说明文件，请重新解压完整发布包。"));
+        } else if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+            AppMessageDialog::warning(window, tr("无法打开使用说明"), tr("请确认系统已为 MHTML 文件配置可用的浏览器。"));
+        }
+    });
+    connect(aboutPage_, &AboutPageModel::licenseRequested, window, [window]() {
+        QFile license(QStringLiteral(":/licenses/LICENSE"));
+        if (!license.open(QIODevice::ReadOnly)) {
+            AppMessageDialog::warning(window, tr("无法读取开源许可"), license.errorString());
+            return;
+        }
+        AppMessageDialog::information(window, tr("第三方开源许可"),
+            QStringLiteral("LiquidGlass\nhttps://github.com/OverShifted/LiquidGlass\n\n")
+                + QString::fromUtf8(license.readAll()));
+    });
+    return true;
 }
 
 void MainWindowView::initializeTray(QMainWindow* window) {
-    if (trayIcon_ || !window) {
-        return;
-    }
-
+    if (trayIcon_ || !window) return;
     trayIcon_ = new QSystemTrayIcon(activityIconActive_ ? activeIcon_ : idleIcon_, window);
     trayMenu_ = new QMenu(window);
-    auto* showAction = trayMenu_->addAction(QString::fromWCharArray(L"\u663e\u793a\u4e3b\u7a97\u53e3"));
-    auto* quitAction = trayMenu_->addAction(QString::fromWCharArray(L"\u9000\u51fa"));
+    auto* showAction = trayMenu_->addAction(tr("显示主窗口"));
+    auto* quitAction = trayMenu_->addAction(tr("退出"));
     trayIcon_->setContextMenu(trayMenu_);
     trayIcon_->show();
-    QObject::connect(showAction, &QAction::triggered, window, [window]() {
+    connect(showAction, &QAction::triggered, window, [window]() {
         window->showNormal();
+        window->raise();
         window->activateWindow();
     });
-    QObject::connect(quitAction, &QAction::triggered, window, [this]() {
+    connect(quitAction, &QAction::triggered, window, [this]() {
         hideTrayIcon();
         qApp->quit();
     });
-    QObject::connect(trayIcon_, &QSystemTrayIcon::activated, window,
-        [window](QSystemTrayIcon::ActivationReason reason) {
-            if (reason == QSystemTrayIcon::DoubleClick) {
-                window->showNormal();
-                window->activateWindow();
-            }
-        });
+    connect(trayIcon_, &QSystemTrayIcon::activated, window, [window](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::DoubleClick) {
+            window->showNormal();
+            window->raise();
+            window->activateWindow();
+        }
+    });
 }
 
 void MainWindowView::navigateTo(const QString& pageId) {
-    if (pageId == "keys") pageStack_->setCurrentWidget(keyPage_);
-    else if (pageId == "macro") pageStack_->setCurrentWidget(macroPage_);
-    else if (pageId == "driver") pageStack_->setCurrentWidget(driverPage_);
-    else if (pageId == "settings") pageStack_->setCurrentWidget(settingsPage_);
-    else if (pageId == "about") pageStack_->setCurrentWidget(aboutPage_);
+    if (currentPage_ == pageId) return;
+    currentPage_ = pageId;
+    emit currentPageChanged();
 }
 
-void MainWindowView::showRepeatPage() {
-    pageStack_->setCurrentWidget(keyPage_);
-    sidebar_->setCurrentPage("keys");
+void MainWindowView::selectPage(const QString& pageId) {
+    if (pageId != "keys" && pageId != "macro" && pageId != "driver" && pageId != "settings" && pageId != "about") return;
+    emit pageSelected(pageId);
 }
 
-void MainWindowView::showMacroPage() {
-    pageStack_->setCurrentWidget(macroPage_);
-    sidebar_->setCurrentPage("macro");
+void MainWindowView::selectFaction(const QString& factionId) {
+    if (FactionTheme::instance().find(factionId)) emit factionSelected(factionId);
 }
 
-bool MainWindowView::isRepeatPageActive() const {
-    return pageStack_->currentWidget() == keyPage_;
+void MainWindowView::startWindowMove() {
+    if (window_ && window_->windowHandle()) window_->windowHandle()->startSystemMove();
+}
+
+void MainWindowView::minimizeWindow() { if (window_) window_->showMinimized(); }
+void MainWindowView::closeWindow() { if (window_) window_->close(); }
+QString MainWindowView::title() const { return window_ ? window_->windowTitle() : QString(); }
+QString MainWindowView::activityIcon() const {
+    return activityIconActive_ ? QStringLiteral("qrc:/assets/icon-active.png") : QStringLiteral("qrc:/assets/icon.png");
+}
+
+void MainWindowView::showRepeatPage() { navigateTo(QStringLiteral("keys")); }
+void MainWindowView::showMacroPage() { navigateTo(QStringLiteral("macro")); }
+bool MainWindowView::isRepeatPageActive() const { return currentPage_ == QStringLiteral("keys"); }
+QString MainWindowView::version() const { return QString::fromLatin1(APP_VERSION); }
+
+QVariantList MainWindowView::factions() const {
+    QVariantList values;
+    for (const auto& faction : FactionTheme::instance().factions()) {
+        values.push_back(QVariantMap{{"id", faction.id}, {"name", faction.name}});
+    }
+    return values;
 }
 
 void MainWindowView::updateActivityIcons(QMainWindow* window, bool repeatRunning, bool macroRunning) {
-    if (!window) {
-        return;
-    }
-
     const bool active = repeatRunning || macroRunning;
-    if (idleIcon_.isNull()) {
-        idleIcon_ = QIcon(":/assets/icon.png");
-    }
-    if (activeIcon_.isNull()) {
-        activeIcon_ = QIcon(":/assets/icon-active.png");
-    }
-
-    if (activityIconActive_ == active) {
-        return;
-    }
-
+    if (activityIconActive_ == active) return;
     activityIconActive_ = active;
-    if (titleBar_) {
-        titleBar_->setIcon(active ? activeIcon_ : idleIcon_);
-    }
-    if (trayIcon_) {
-        trayIcon_->setIcon(active ? activeIcon_ : idleIcon_);
-    }
+    const QIcon& icon = active ? activeIcon_ : idleIcon_;
+    window->setWindowIcon(icon);
+    emit activityIconChanged();
+    if (trayIcon_) trayIcon_->setIcon(icon);
 }
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
-    QPalette windowPalette = window->palette();
-    windowPalette.setColor(QPalette::Window, appShellColor());
-    window->setPalette(windowPalette);
-    if (window->centralWidget()) {
-        QPalette centralPalette = window->centralWidget()->palette();
-        centralPalette.setColor(QPalette::Window, appShellColor());
-        window->centralWidget()->setPalette(centralPalette);
-        window->centralWidget()->setStyleSheet(QString(
-            "QWidget#mainWindowRoot {"
-            "  background: %1;"
-            "  border: none;"
-            "  border-radius: 10px;"
-            "}")
-            .arg(appShellColor().name()));
-    }
-    if (auto* statusBar = window->findChild<QWidget*>("appStatusBar")) {
-        applyStatusBarTheme(statusBar);
-    }
-    if (shareBanner_) {
-        shareBanner_->applyTheme();
-    }
-    sidebar_->updateFactionIcon();
-    sidebar_->update();
-    for (auto* child : sidebar_->findChildren<QWidget*>()) child->update();
-    keyPage_->updateThemeColors();
-    keyPage_->update();
-    macroPage_->updateThemeColors();
-    driverPage_->updateThemeColors();
-    settingsPage_->setFaction(FactionTheme::instance().current().id);
-    aboutPage_->updateThemeColors();
-    for (auto* dialog : window->findChildren<StatusOverlaySettingsDialog*>()) dialog->refreshVisuals();
+    const auto& faction = FactionTheme::instance().current();
+    theme_ = Fluent::qmlTheme();
+    emit themeChanged();
+    QPalette palette = window->palette();
+    palette.setColor(QPalette::Window, appShellColor());
+    window->setPalette(palette);
+    window->centralWidget()->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; border-radius: 10px; }").arg(appShellColor().name()));
+    if (settingsPage_) settingsPage_->setFaction(faction.id);
+    for (auto* dialog : window->findChildren<QmlDialog*>()) dialog->refreshVisuals();
     window->update();
 }
 
 void MainWindowView::refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged, bool refreshThemeColors, int nativeDpi) {
-    if (!window) {
-        return;
-    }
-
-    if (refreshThemeColors) {
-        updateFactionVisuals(window);
-    } else {
-        QPalette windowPalette = window->palette();
-        windowPalette.setColor(QPalette::Window, appShellColor());
-        window->setPalette(windowPalette);
-        if (window->centralWidget()) {
-            QPalette centralPalette = window->centralWidget()->palette();
-            centralPalette.setColor(QPalette::Window, appShellColor());
-            window->centralWidget()->setPalette(centralPalette);
-        }
-    }
-
+    if (!window) return;
+    if (refreshThemeColors) updateFactionVisuals(window);
     if (dpiChanged) {
-        QScreen* screen = nullptr;
-        if (auto* handle = window->windowHandle()) {
-            screen = handle->screen();
-        }
-        window->setMinimumSize(kBaseWindowWidth, kBaseWindowHeight);
-        keepWindowWithinAvailableGeometry(window, screen, nativeDpi, false);
-        if (aboutPage_) aboutPage_->refreshIcon();
+        auto* handle = window->windowHandle();
+        keepWindowWithinAvailableGeometry(window, handle ? handle->screen() : nullptr, nativeDpi, false);
     }
-
-    if (auto* central = window->centralWidget()) {
-        refreshWidgetTree(central);
-        if (dpiChanged) {
-            refreshLayoutTree(central, true);
-        }
-    }
-
-    for (auto* dialog : window->findChildren<StatusOverlaySettingsDialog*>()) dialog->refreshVisuals();
-
-    updateActivityIcons(window, activityIconActive_, false);
-
-    if (auto* handle = window->windowHandle()) {
-        handle->requestUpdate();
-    }
+    if (window->centralWidget()) refreshLayoutTree(window->centralWidget(), true);
+    for (auto* dialog : window->findChildren<QmlDialog*>()) dialog->refreshVisuals();
+    if (quickWidget_) quickWidget_->update();
+    if (auto* handle = window->windowHandle()) handle->requestUpdate();
     window->updateGeometry();
     window->update();
-
-    if (dpiChanged) {
-        QTimer::singleShot(0, window, [window]() {
-            runDeferredLayoutPass(window, true);
-        });
-        QTimer::singleShot(180, window, [window]() {
-            runDeferredLayoutPass(window, true);
-        });
-        QTimer::singleShot(360, window, [window]() {
-            runDeferredLayoutPass(window, true);
-        });
-    }
 }
 
 void MainWindowView::hideTrayIcon() {

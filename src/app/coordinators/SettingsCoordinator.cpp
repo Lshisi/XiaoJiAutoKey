@@ -2,7 +2,7 @@
 
 #include "FactionTheme.h"
 #include "dialogs/GameProcessDialog.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/SettingsPageModel.h"
 
 #include <QMainWindow>
 #include <QStringList>
@@ -13,31 +13,34 @@ void SettingsCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (!context_.page || !context_.config) return;
 
-    connect(context_.page, &SettingsPage::hotkeyEditClicked, this, [this]() {
+    connect(context_.page, &SettingsPageModel::hotkeyEditClicked, this, [this]() {
         if (context_.editHotkey) context_.editHotkey();
     });
-    connect(context_.page, &SettingsPage::startupActionChanged, this, [this](StartupAction action) {
+    connect(context_.page, &SettingsPageModel::startupActionChanged, this, [this](StartupAction action) {
         context_.config->startupAction = action;
+        context_.page->setStartupAction(action);
         if (context_.saveConfig) context_.saveConfig();
     });
-    connect(context_.page, &SettingsPage::closeActionChanged, this, [this](CloseAction action) {
+    connect(context_.page, &SettingsPageModel::closeActionChanged, this, [this](CloseAction action) {
         context_.config->closeAction = action;
+        context_.page->setCloseAction(action);
         if (context_.saveConfig) context_.saveConfig();
     });
-    connect(context_.page, &SettingsPage::factionChanged, this, [this](const QString& factionId) {
+    connect(context_.page, &SettingsPageModel::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
     });
-    connect(context_.page, &SettingsPage::gameGateEnabledChanged, this, [this](bool enabled) {
+    connect(context_.page, &SettingsPageModel::gameGateEnabledChanged, this, [this](bool enabled) {
         context_.config->gameGateEnabled = enabled;
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyGameGate) context_.applyGameGate();
     });
-    connect(context_.page, &SettingsPage::autoStartToggled, this, [this](bool enabled) {
+    connect(context_.page, &SettingsPageModel::autoStartToggled, this, [this](bool enabled) {
         context_.config->autoStartEnabled = enabled;
+        context_.page->setAutoStartEnabled(enabled);
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyAutoStart) context_.applyAutoStart();
     });
-    connect(context_.page, &SettingsPage::gameGateProcessesEditRequested, this, [this]() {
+    connect(context_.page, &SettingsPageModel::gameGateProcessesEditRequested, this, [this]() {
         QStringList initial;
         for (const auto& name : context_.config->gameGateProcesses) {
             initial.push_back(QString::fromStdString(name));

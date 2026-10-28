@@ -1,31 +1,27 @@
 #pragma once
-
 #include <QDialog>
-#include <QPoint>
-
-class QLabel;
-
-// 全屏点击式坐标拾取：覆盖整个虚拟桌面，十字光标 + 跟随光标的坐标提示，
-// 左键确认、右键 / Esc 取消。
+#include <QVariantMap>
+#include <optional>
+class QQuickWidget;
 class ScreenPointPicker : public QDialog {
     Q_OBJECT
-
+    Q_PROPERTY(QVariantMap hintState READ hintState NOTIFY hintChanged)
 public:
     explicit ScreenPointPicker(QWidget* parent = nullptr);
-
-    [[nodiscard]] QPoint pickedPos() const noexcept { return pickedPos_; }
-
+    ~ScreenPointPicker() override;
+    QPoint pickedPos() const noexcept { return pickedPos_; }
+    QVariantMap hintState() const { return hintState_; }
+    static std::optional<QPoint> pick(QWidget* host);
+signals:
+    void hintChanged();
 protected:
     void showEvent(QShowEvent* event) override;
-    void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
-
 private:
-    // 把提示标签挪到光标旁（贴边翻转）并刷新坐标文本。
     void refreshHint();
-
-    QLabel* tip_ = nullptr;
+    QQuickWidget* quick_ = nullptr;
+    QVariantMap hintState_;
     QPoint pickedPos_;
 };

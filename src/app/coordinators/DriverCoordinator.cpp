@@ -2,20 +2,11 @@
 
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
-#include "dialogs/DialogChrome.h"
-#include "ui/pages/DriverPage.h"
-#include "ui/styles/DesignTokens.h"
+#include "dialogs/QmlDialog.h"
+#include "ui/models/DriverPageModel.h"
 
-#include <QCloseEvent>
-#include <QDialog>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QMouseEvent>
-#include <QPaintEvent>
-#include <QProgressBar>
 #include <QThread>
 #include <QTimer>
-#include <QVBoxLayout>
 
 #include <memory>
 #include <QPointer>
@@ -31,104 +22,22 @@ QString driverName(DriverMode mode) {
     return mode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
 }
 
-class DriverUninstallProgressDialog final : public QDialog {
+class DriverUninstallProgressDialog final : public QmlDialog {
 public:
-    explicit DriverUninstallProgressDialog(DriverMode mode, QWidget* parent)
-        : QDialog(parent) {
+    explicit DriverUninstallProgressDialog(DriverMode mode, QWidget* parent) : QmlDialog(parent) {
         const QString name = driverName(mode);
-        setWindowTitle(name + QString::fromWCharArray(L" \u5378\u8f7d"));
-        DialogChrome::apply(this);
-        setModal(true);
+        setWindowTitle(tr("%1 驱动卸载").arg(name));
         setWindowModality(Qt::ApplicationModal);
-        setFixedSize(420, 168);
-
-        auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(24, 20, 24, 20);
-        root->setSpacing(12);
-
-        auto* titleLabel = new QLabel(QString::fromWCharArray(L"\u6b63\u5728\u540e\u53f0\u5378\u8f7d ") + name, this);
-        titleLabel->setFont(Fluent::Typography::cardTitle());
-        titleLabel->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textPrimary().name()));
-        root->addWidget(titleLabel);
-
-        messageLabel_ = new QLabel(QString::fromWCharArray(L"\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\uff0c\u5378\u8f7d\u5b8c\u6210\u540e\u5c06\u5c1d\u8bd5\u91cd\u542f\u7535\u8111\u3002"), this);
-        messageLabel_->setFont(Fluent::Typography::body());
-        messageLabel_->setWordWrap(true);
-        messageLabel_->setStyleSheet(QString("color: %1;").arg(Fluent::Colors::textSecondary().name()));
-        root->addWidget(messageLabel_);
-
-        progressBar_ = new QProgressBar(this);
-        progressBar_->setRange(0, 100);
-        progressBar_->setValue(6);
-        progressBar_->setTextVisible(true);
-        progressBar_->setFixedHeight(22);
-        progressBar_->setStyleSheet(QString(
-            "QProgressBar { border: 1px solid %1; border-radius: 6px; background: %2; color: %3; text-align: center; }"
-            "QProgressBar::chunk { border-radius: 5px; background: %4; }")
-            .arg(Fluent::Colors::border().name(QColor::HexArgb),
-                 Fluent::Colors::sidebarBg().name(),
-                 Fluent::Colors::textPrimary().name(),
-                 Fluent::Colors::primary().name()));
-        root->addWidget(progressBar_);
-
-        connect(&timer_, &QTimer::timeout, this, [this]() {
-            if (!progressBar_) return;
-            const int current = progressBar_->value();
-            const int next = current < 55 ? current + 3 : (current < 86 ? current + 1 : current);
-            progressBar_->setValue(qMin(next, 90));
-        });
-        timer_.start(260);
+        present("DialogReport.qml", {{"heading", tr("正在后台卸载 %1").arg(name)},
+            {"body", tr("请勿关闭程序，卸载完成后将尝试重启电脑。")}, {"bodyRich", false},
+            {"status", QString()}, {"severity", 0}, {"progressVisible", true},
+            {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()},
+            {"closeAllowed", false}}, QSize(480, 300), true);
     }
-
     void markFinished() {
-        timer_.stop();
-        if (progressBar_) progressBar_->setValue(100);
-        if (messageLabel_) {
-            messageLabel_->setText(QString::fromWCharArray(L"\u5378\u8f7d\u5b8c\u6210\uff0c\u6b63\u5728\u5904\u7406\u540e\u7eed\u72b6\u6001..."));
-        }
+        setValue("progressVisible", false);
+        setValue("status", tr("卸载已完成，正在处理后续状态…"));
     }
-
-protected:
-    void closeEvent(QCloseEvent* event) override {
-        if (event) event->ignore();
-    }
-
-    void reject() override {}
-
-    void keyPressEvent(QKeyEvent* event) override {
-        if (event && event->key() == Qt::Key_Escape) {
-            event->ignore();
-            return;
-        }
-        QDialog::keyPressEvent(event);
-    }
-
-    void paintEvent(QPaintEvent* event) override {
-        DialogChrome::paint(this, event);
-    }
-
-    void mousePressEvent(QMouseEvent* event) override {
-        if (DialogChrome::mousePress(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
-        QDialog::mousePressEvent(event);
-    }
-
-    void mouseMoveEvent(QMouseEvent* event) override {
-        if (DialogChrome::mouseMove(this, event, dragging_, dragStartGlobal_, dragStartFrame_)) return;
-        QDialog::mouseMoveEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override {
-        if (DialogChrome::mouseRelease(event, dragging_)) return;
-        QDialog::mouseReleaseEvent(event);
-    }
-
-private:
-    QLabel* messageLabel_ = nullptr;
-    QProgressBar* progressBar_ = nullptr;
-    QTimer timer_;
-    bool dragging_ = false;
-    QPoint dragStartGlobal_;
-    QPoint dragStartFrame_;
 };
 }
 
@@ -138,7 +47,7 @@ void DriverCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (!context_.page || !context_.config) return;
 
-    connect(context_.page, &DriverPage::driverModeChanged, this, [this](DriverMode mode) {
+    connect(context_.page, &DriverPageModel::driverModeChanged, this, [this](DriverMode mode) {
         if (!context_.config || !context_.switchDriverMode) return;
         const auto result = context_.switchDriverMode(mode);
         if (result == SwitchResult::Failed) {
@@ -150,15 +59,15 @@ void DriverCoordinator::bind(Context context) {
         if (context_.refreshStatus) context_.refreshStatus();
     });
 
-    connect(context_.page, &DriverPage::refreshRequested, this, [this]() {
+    connect(context_.page, &DriverPageModel::refreshRequested, this, [this]() {
         if (context_.refreshStatus) context_.refreshStatus();
     });
 
-    connect(context_.page, &DriverPage::selfCheckRequested, this, [this]() {
+    connect(context_.page, &DriverPageModel::selfCheckRequested, this, [this]() {
         if (context_.openSelfCheck) context_.openSelfCheck();
     });
 
-    connect(context_.page, &DriverPage::uninstallDriverRequested, this, [this](DriverMode mode) {
+    connect(context_.page, &DriverPageModel::uninstallDriverRequested, this, [this](DriverMode mode) {
         if (mode == DriverMode::Usb) {
             return;
         }

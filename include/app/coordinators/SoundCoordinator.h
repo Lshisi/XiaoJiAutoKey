@@ -7,8 +7,8 @@
 #include <functional>
 
 class GlobalInputHook;
-class KeyPage;
-class MacroPage;
+class KeyPageModel;
+class MacroPageModel;
 class SoundService;
 class QWidget;
 
@@ -18,8 +18,8 @@ class SoundCoordinator : public QObject {
 public:
     struct Context {
         QWidget* parent = nullptr;
-        KeyPage* keyPage = nullptr;
-        MacroPage* macroPage = nullptr;
+        KeyPageModel* keyPage = nullptr;
+        MacroPageModel* macroPage = nullptr;
         AppConfig* config = nullptr;
         SoundService* service = nullptr;
         GlobalInputHook* inputHook = nullptr;

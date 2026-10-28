@@ -1,26 +1,34 @@
 #pragma once
 
-#include <QMainWindow>
 #include <QIcon>
-#include <QMenu>
-#include <QStackedWidget>
+#include <QObject>
+#include <QPointer>
 #include <QSystemTrayIcon>
+#include <QVariantMap>
 
-class AboutPage;
-class FluentSidebar;
-class FluentTitleBar;
-class KeyPage;
-class MacroPage;
-class DriverPage;
-class SettingsPage;
-class ShareImportBanner;
+class QMainWindow;
+class QMenu;
+class QQuickWidget;
+class AboutPageModel;
+class KeyPageModel;
+class MacroPageModel;
+class DriverPageModel;
+class SettingsPageModel;
+class ShareImportBannerModel;
 
-class MainWindowView {
+class MainWindowView : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString currentPage READ currentPage NOTIFY currentPageChanged)
+    Q_PROPERTY(QVariantMap theme READ theme NOTIFY themeChanged)
+    Q_PROPERTY(QVariantList factions READ factions CONSTANT)
+    Q_PROPERTY(QString version READ version CONSTANT)
+    Q_PROPERTY(QString title READ title NOTIFY titleChanged)
+    Q_PROPERTY(QString activityIcon READ activityIcon NOTIFY activityIconChanged)
+
 public:
-    ~MainWindowView();
-    void setup(QMainWindow* window);
+    ~MainWindowView() override;
+    bool setup(QMainWindow* window);
     void initializeTray(QMainWindow* window);
-
     void navigateTo(const QString& pageId);
     void showRepeatPage();
     void showMacroPage();
@@ -29,30 +37,49 @@ public:
     void refreshRuntimeVisuals(QMainWindow* window, bool dpiChanged, bool refreshThemeColors, int nativeDpi = 0);
     void hideTrayIcon();
 
-    [[nodiscard]] bool isRepeatPageActive() const;
+    QString currentPage() const { return currentPage_; }
+    QVariantMap theme() const { return theme_; }
+    QVariantList factions() const;
+    QString version() const;
+    QString title() const;
+    QString activityIcon() const;
+    bool isRepeatPageActive() const;
+    Q_INVOKABLE void selectPage(const QString& pageId);
+    Q_INVOKABLE void selectFaction(const QString& factionId);
+    Q_INVOKABLE void startWindowMove();
+    Q_INVOKABLE void minimizeWindow();
+    Q_INVOKABLE void closeWindow();
 
-    [[nodiscard]] FluentSidebar* sidebar() const { return sidebar_; }
-    [[nodiscard]] ShareImportBanner* shareBanner() const { return shareBanner_; }
-    [[nodiscard]] KeyPage* keyPage() const { return keyPage_; }
-    [[nodiscard]] MacroPage* macroPage() const { return macroPage_; }
-    [[nodiscard]] DriverPage* driverPage() const { return driverPage_; }
-    [[nodiscard]] SettingsPage* settingsPage() const { return settingsPage_; }
-    [[nodiscard]] AboutPage* aboutPage() const { return aboutPage_; }
-    [[nodiscard]] QSystemTrayIcon* trayIcon() const { return trayIcon_; }
+    ShareImportBannerModel* shareBanner() const { return shareBanner_; }
+    KeyPageModel* keyPage() const { return keyPage_; }
+    MacroPageModel* macroPage() const { return macroPage_; }
+    DriverPageModel* driverPage() const { return driverPage_; }
+    SettingsPageModel* settingsPage() const { return settingsPage_; }
+    AboutPageModel* aboutPage() const { return aboutPage_; }
+    QSystemTrayIcon* trayIcon() const { return trayIcon_; }
+
+signals:
+    void currentPageChanged();
+    void themeChanged();
+    void titleChanged();
+    void activityIconChanged();
+    void pageSelected(const QString& pageId);
+    void factionSelected(const QString& factionId);
 
 private:
-    FluentSidebar* sidebar_ = nullptr;
-    QStackedWidget* pageStack_ = nullptr;
-    ShareImportBanner* shareBanner_ = nullptr;
-    KeyPage* keyPage_ = nullptr;
-    MacroPage* macroPage_ = nullptr;
-    DriverPage* driverPage_ = nullptr;
-    SettingsPage* settingsPage_ = nullptr;
-    AboutPage* aboutPage_ = nullptr;
-    FluentTitleBar* titleBar_ = nullptr;
+    QQuickWidget* quickWidget_ = nullptr;
+    QPointer<QMainWindow> window_;
+    ShareImportBannerModel* shareBanner_ = nullptr;
+    KeyPageModel* keyPage_ = nullptr;
+    MacroPageModel* macroPage_ = nullptr;
+    DriverPageModel* driverPage_ = nullptr;
+    SettingsPageModel* settingsPage_ = nullptr;
+    AboutPageModel* aboutPage_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
     QIcon idleIcon_;
     QIcon activeIcon_;
     bool activityIconActive_ = false;
+    QString currentPage_ = QStringLiteral("keys");
+    QVariantMap theme_;
 };

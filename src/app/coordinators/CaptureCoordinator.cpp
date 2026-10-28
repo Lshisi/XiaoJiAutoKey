@@ -8,9 +8,9 @@
 #include "input/GlobalInputHook.h"
 #include "input/InputKeyUtils.h"
 #include "input/RawInputManager.h"
-#include "ui/pages/KeyPage.h"
-#include "ui/pages/MacroPage.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
+#include "ui/models/SettingsPageModel.h"
 
 #include <QMetaObject>
 #include <QPointer>

@@ -7,7 +7,7 @@
 #include <functional>
 
 class GlobalInputHook;
-class KeyPage;
+class KeyPageModel;
 class MacroController;
 class MacroEngine;
 class ProfileController;
@@ -20,7 +20,7 @@ class ProfileCoordinator : public QObject {
 public:
     struct Context {
         QWidget* parent = nullptr;
-        KeyPage* page = nullptr;
+        KeyPageModel* page = nullptr;
         AppConfig* config = nullptr;
         ProfileController* profileController = nullptr;
         MacroController* macroController = nullptr;

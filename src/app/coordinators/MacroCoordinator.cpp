@@ -9,7 +9,7 @@
 #include "dialogs/PauseKeyDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
-#include "ui/pages/MacroPage.h"
+#include "ui/models/MacroPageModel.h"
 
 #include <QDialog>
 
@@ -19,23 +19,23 @@ void MacroCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (!context_.page) return;
 
-    connect(context_.page, &MacroPage::macroSwitched, this, &MacroCoordinator::onMacroSwitched);
-    connect(context_.page, &MacroPage::macroAddRequested, this, &MacroCoordinator::onMacroAdd);
-    connect(context_.page, &MacroPage::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
-    connect(context_.page, &MacroPage::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
-    connect(context_.page, &MacroPage::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
-    connect(context_.page, &MacroPage::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
-    connect(context_.page, &MacroPage::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
-    connect(context_.page, &MacroPage::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
-    connect(context_.page, &MacroPage::stepMoveRequested, this, &MacroCoordinator::onMacroMoveStep);
-    connect(context_.page, &MacroPage::startStopClicked, this, &MacroCoordinator::onMacroStartStopClicked);
-    connect(context_.page, &MacroPage::hotkeyClearClicked, this, &MacroCoordinator::onMacroHotkeyClearClicked);
-    connect(context_.page, &MacroPage::modeChanged, this, &MacroCoordinator::onMacroModeChanged);
-    connect(context_.page, &MacroPage::loopCountChanged, this, &MacroCoordinator::onMacroLoopCountChanged);
-    connect(context_.page, &MacroPage::beepToggled, this, &MacroCoordinator::onMacroBeepToggled);
-    connect(context_.page, &MacroPage::statusOverlayToggled, this, &MacroCoordinator::onStatusOverlayToggled);
-    connect(context_.page, &MacroPage::pauseKeyAddClicked, this, &MacroCoordinator::onPauseKeyAdd);
-    connect(context_.page, &MacroPage::pauseKeyDeleteClicked, this, &MacroCoordinator::onPauseKeyDelete);
+    connect(context_.page, &MacroPageModel::macroSwitched, this, &MacroCoordinator::onMacroSwitched);
+    connect(context_.page, &MacroPageModel::macroAddRequested, this, &MacroCoordinator::onMacroAdd);
+    connect(context_.page, &MacroPageModel::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
+    connect(context_.page, &MacroPageModel::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
+    connect(context_.page, &MacroPageModel::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
+    connect(context_.page, &MacroPageModel::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
+    connect(context_.page, &MacroPageModel::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
+    connect(context_.page, &MacroPageModel::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
+    connect(context_.page, &MacroPageModel::stepMoveRequested, this, &MacroCoordinator::onMacroMoveStep);
+    connect(context_.page, &MacroPageModel::startStopClicked, this, &MacroCoordinator::onMacroStartStopClicked);
+    connect(context_.page, &MacroPageModel::hotkeyClearClicked, this, &MacroCoordinator::onMacroHotkeyClearClicked);
+    connect(context_.page, &MacroPageModel::modeChanged, this, &MacroCoordinator::onMacroModeChanged);
+    connect(context_.page, &MacroPageModel::loopCountChanged, this, &MacroCoordinator::onMacroLoopCountChanged);
+    connect(context_.page, &MacroPageModel::beepToggled, this, &MacroCoordinator::onMacroBeepToggled);
+    connect(context_.page, &MacroPageModel::statusOverlayToggled, this, &MacroCoordinator::onStatusOverlayToggled);
+    connect(context_.page, &MacroPageModel::pauseKeyAddClicked, this, &MacroCoordinator::onPauseKeyAdd);
+    connect(context_.page, &MacroPageModel::pauseKeyDeleteClicked, this, &MacroCoordinator::onPauseKeyDelete);
 }
 
 void MacroCoordinator::pollRunningState() {
@@ -311,6 +311,7 @@ void MacroCoordinator::onMacroModeChanged(int modeIndex) {
     if (!context_.controller) return;
     auto result = context_.controller->setTriggerMode(modeIndex == 1 ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle);
     if (!result.ok) return;
+    context_.page->setMode(modeIndex == 1 ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle);
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
 }
@@ -319,6 +320,7 @@ void MacroCoordinator::onMacroLoopCountChanged(int count) {
     if (!context_.controller) return;
     auto result = context_.controller->setLoopCount(count);
     if (!result.ok) return;
+    context_.page->setLoopCount(count);
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
 }

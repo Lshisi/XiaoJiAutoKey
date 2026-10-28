@@ -8,7 +8,7 @@
 #include <optional>
 
 class KeyCaptureDialogBase;
-class KeyPage;
+class KeyPageModel;
 class ProfileController;
 class RepeaterEngine;
 class QWidget;
@@ -19,7 +19,7 @@ class KeyBindingsCoordinator : public QObject {
 public:
     struct Context {
         QWidget* parent = nullptr;
-        KeyPage* page = nullptr;
+        KeyPageModel* page = nullptr;
         ProfileController* controller = nullptr;
         RepeaterEngine* engine = nullptr;
         std::function<void(KeyCaptureDialogBase&)> runKeyCaptureDialog;

@@ -1,46 +1,17 @@
 #pragma once
-
-#include <QDialog>
-#include <QPoint>
+#include "dialogs/QmlDialog.h"
 #include <string>
-
 class SoundService;
-class FluentLineEdit;
-class QLabel;
-
-struct SoundSettingsResult {
-    std::wstring soundOn;
-    std::wstring soundOff;
-    int volume = 100;
-};
-
-class SoundSettingsDialog : public QDialog {
+struct SoundSettingsResult { std::wstring soundOn; std::wstring soundOff; int volume = 100; };
+class SoundSettingsDialog : public QmlDialog {
     Q_OBJECT
-
 public:
-    SoundSettingsDialog(
-        SoundService& soundService,
-        bool macroMode,
-        SoundSettingsResult initial,
-        QWidget* parent = nullptr);
-
-    [[nodiscard]] SoundSettingsResult settings() const;
-
+    SoundSettingsDialog(SoundService& soundService, bool macroMode, SoundSettingsResult initial, QWidget* parent = nullptr);
+    SoundSettingsResult settings() const;
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-
+    void handleAction(const QString& action, const QVariant& value) override;
+    void editField(const QString& field, const QVariant& value) override;
 private:
-    void addSoundRow(const QString& labelText, QString* pathValue, bool running);
-
     SoundService& soundService_;
     bool macroMode_ = false;
-    QString soundOnPath_;
-    QString soundOffPath_;
-    int soundVolume_ = 100;
-    bool dragging_ = false;
-    QPoint dragStartGlobal_;
-    QPoint dragStartFrame_;
 };

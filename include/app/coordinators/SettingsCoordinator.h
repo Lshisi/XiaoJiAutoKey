@@ -7,14 +7,14 @@
 #include <functional>
 
 class QMainWindow;
-class SettingsPage;
+class SettingsPageModel;
 
 class SettingsCoordinator : public QObject {
     Q_OBJECT
 
 public:
     struct Context {
-        SettingsPage* page = nullptr;
+        SettingsPageModel* page = nullptr;
         AppConfig* config = nullptr;
         QMainWindow* window = nullptr;
         std::function<void()> saveConfig;

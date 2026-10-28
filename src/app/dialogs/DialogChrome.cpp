@@ -1,22 +1,12 @@
 #include "dialogs/DialogChrome.h"
 
-#include "ui/components/FluentButton.h"
-#include "ui/styles/DesignTokens.h"
-
 #include <QApplication>
 #include <QDialog>
 #include <QEvent>
-#include <QFont>
-#include <QMouseEvent>
 #include <QObject>
-#include <QPainter>
-#include <QPainterPath>
-#include <QPushButton>
 #include <QScreen>
 
 namespace {
-constexpr int kRadius = 10;
-
 // 弹窗的可见边界：父窗口矩形 ∩ 所在屏幕工作区。
 // 主窗口做过原生窗口 / DPI 几何同步，Qt 侧 frameGeometry 可能大于实际可见区域，
 // 单纯按父窗口居中会把弹窗推到窗口底部甚至屏幕外；取交集后异常几何自动退化为屏幕工作区。
@@ -100,59 +90,4 @@ void DialogChrome::apply(QDialog* dialog) {
     dialog->setWindowFlags((dialog->windowFlags() | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dialog->setAttribute(Qt::WA_TranslucentBackground, true);
     dialog->installEventFilter(new DialogPositioner(dialog));
-}
-
-QPushButton* DialogChrome::createCloseButton(QDialog* dialog) {
-    auto* closeBtn = new FluentButton(FluentButton::Icon, QString(QChar(0x00D7)), dialog);
-    QFont closeFont = Fluent::Typography::body();
-    closeFont.setPointSize(13);
-    closeBtn->setFont(closeFont);
-    closeBtn->setFixedSize(28, 28);
-    closeBtn->setAccessibleName(QString::fromWCharArray(L"\u5173\u95ed"));
-    QObject::connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::reject);
-    return closeBtn;
-}
-
-void DialogChrome::paint(QDialog* dialog, QPaintEvent*) {
-    if (!dialog) return;
-    QPainter painter(dialog);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-
-    const qreal borderWidth = Fluent::Painting::alignedStrokeWidth(1.0, dialog->devicePixelRatioF());
-    QPainterPath path;
-    path.addRoundedRect(Fluent::Painting::alignedStrokeRect(dialog->rect(), borderWidth), kRadius, kRadius);
-    painter.fillPath(path, Fluent::Colors::cardBg());
-    painter.setPen(QPen(Fluent::Colors::cardBorder(), borderWidth));
-    painter.drawPath(path);
-}
-
-bool DialogChrome::mousePress(QDialog* dialog,
-    QMouseEvent* event,
-    bool& dragging,
-    QPoint& dragStartGlobal,
-    QPoint& dragStartFrame) {
-    if (!dialog || !event || event->button() != Qt::LeftButton) return false;
-    dragging = true;
-    dragStartGlobal = event->globalPos();
-    dragStartFrame = dialog->frameGeometry().topLeft();
-    event->accept();
-    return true;
-}
-
-bool DialogChrome::mouseMove(QDialog* dialog,
-    QMouseEvent* event,
-    bool dragging,
-    const QPoint& dragStartGlobal,
-    const QPoint& dragStartFrame) {
-    if (!dialog || !event || !dragging || !(event->buttons() & Qt::LeftButton)) return false;
-    dialog->move(dragStartFrame + event->globalPos() - dragStartGlobal);
-    event->accept();
-    return true;
-}
-
-bool DialogChrome::mouseRelease(QMouseEvent* event, bool& dragging) {
-    if (!event || event->button() != Qt::LeftButton || !dragging) return false;
-    dragging = false;
-    event->accept();
-    return true;
 }

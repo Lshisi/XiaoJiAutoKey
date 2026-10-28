@@ -1,129 +1,116 @@
 #include "ScreenPointPicker.h"
-
 #include "ui/styles/DesignTokens.h"
-
+#include <QApplication>
 #include <QCursor>
 #include <QGuiApplication>
 #include <QKeyEvent>
-#include <QLabel>
 #include <QMouseEvent>
-#include <QPainter>
-#include <QRect>
+#include <QPointer>
+#include <QQmlContext>
+#include <QQmlError>
+#include <QQuickWidget>
 #include <QScreen>
+#include <QShowEvent>
+#include <QSurfaceFormat>
+#include <QStringList>
+#include <QUrl>
+#include <QVBoxLayout>
+#include <utility>
+#include <vector>
 
 namespace {
-
-// 提示标签与光标的间距。
-constexpr int kTipOffset = 18;
-
-QRect ScreenGeometryAt(const QPoint& pos) {
-    if (QScreen* screen = QGuiApplication::screenAt(pos)) {
-        return screen->geometry();
-    }
-    if (QScreen* screen = QGuiApplication::primaryScreen()) {
-        return screen->geometry();
-    }
-    return {};
+bool isStatusOverlay(const QWidget* widget) {
+    return widget && qstrcmp(widget->metaObject()->className(), "StatusOverlayWindow") == 0;
 }
-
-}  // namespace
-
+std::vector<std::pair<QPointer<QWidget>, qreal>> fadeAppWindows(QWidget* host) {
+    std::vector<std::pair<QPointer<QWidget>, qreal>> faded;
+    const auto fade = [&faded](QWidget* widget) {
+        if (!widget || !widget->isVisible() || widget->windowOpacity() <= 0) return;
+        for (const auto& item : faded) if (item.first == widget) return;
+        faded.emplace_back(widget, widget->windowOpacity());
+        widget->setWindowOpacity(0);
+    };
+    fade(host);
+    if (host && host->parentWidget()) fade(host->parentWidget()->window());
+    for (auto* top : QApplication::topLevelWidgets())
+        if (isStatusOverlay(top) || (top->parentWidget() && isStatusOverlay(top->parentWidget()->window()))) fade(top);
+    return faded;
+}
+}
 ScreenPointPicker::ScreenPointPicker(QWidget* parent) : QDialog(parent) {
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
     setFocusPolicy(Qt::StrongFocus);
     setCursor(Qt::CrossCursor);
     setMouseTracking(true);
-
-    tip_ = new QLabel(this);
-    tip_->setFont(Fluent::Typography::caption());
-    tip_->setStyleSheet(QString(
-        "QLabel { background: %1; color: %2; border: 1px solid %3;"
-        " border-radius: 6px; padding: 6px 10px; }")
-        .arg(QColor(32, 32, 32, 235).name(QColor::HexArgb),
-            QColor(245, 245, 245).name(QColor::HexArgb),
-            QColor(255, 255, 255, 60).name(QColor::HexArgb)));
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    quick_ = new QQuickWidget(this);
+    QSurfaceFormat format = quick_->format();
+    format.setAlphaBufferSize(8);
+    quick_->setFormat(format);
+    quick_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    quick_->setClearColor(Qt::transparent);
+    quick_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    quick_->setFocusPolicy(Qt::NoFocus);
+    layout->addWidget(quick_);
+    quick_->rootContext()->setContextProperty("pickerModel", this);
+    refreshHint();
+    quick_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/PointPicker.qml")));
+    if (quick_->status() != QQuickWidget::Ready) {
+        QStringList errors;
+        for (const auto& error : quick_->errors()) errors << error.toString();
+        qFatal("QML point picker failed: %s", qPrintable(errors.join(QLatin1Char('\n'))));
+    }
 }
-
+ScreenPointPicker::~ScreenPointPicker() { delete quick_; }
+std::optional<QPoint> ScreenPointPicker::pick(QWidget* host) {
+    auto faded = fadeAppWindows(host);
+    ScreenPointPicker picker;
+    const bool accepted = picker.exec() == QDialog::Accepted;
+    const QPoint point = picker.pickedPos();
+    for (auto& [widget, opacity] : faded) if (widget) widget->setWindowOpacity(opacity);
+    if (host) host->activateWindow();
+    return accepted ? std::optional<QPoint>(point) : std::nullopt;
+}
 void ScreenPointPicker::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
-
-    // 覆盖整个虚拟桌面，任意显示器上都能拾取。
     QRect united;
-    const auto screens = QGuiApplication::screens();
-    for (QScreen* screen : screens) {
-        united = united.united(screen->geometry());
-    }
-    if (!united.isValid() && QGuiApplication::primaryScreen()) {
-        united = QGuiApplication::primaryScreen()->geometry();
-    }
-    if (united.isValid()) {
-        setGeometry(united);
-    }
+    for (const auto* screen : QGuiApplication::screens()) united = united.united(screen->geometry());
+    if (united.isValid()) setGeometry(united);
     activateWindow();
     setFocus();
     refreshHint();
 }
-
-void ScreenPointPicker::paintEvent(QPaintEvent* event) {
-    QDialog::paintEvent(event);
-    QPainter painter(this);
-    // 轻微压暗整屏，提示当前处于拾取模式。
-    painter.fillRect(rect(), QColor(0, 0, 0, 38));
-}
-
 void ScreenPointPicker::refreshHint() {
-    const QPoint pos = QCursor::pos();
-    const QRect geometry = ScreenGeometryAt(pos);
-
+    const QPoint global = QCursor::pos();
+    const auto* screen = QGuiApplication::screenAt(global);
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    const QRect geometry = screen ? screen->geometry() : QRect();
+    const QPoint local = mapFromGlobal(global);
+    const QPoint origin = mapFromGlobal(geometry.topLeft());
     QString coords;
     if (geometry.width() > 0 && geometry.height() > 0) {
-        const double rx = static_cast<double>(pos.x() - geometry.left()) / geometry.width();
-        const double ry = static_cast<double>(pos.y() - geometry.top()) / geometry.height();
-        coords = QString::fromWCharArray(L"\u5c4f\u5e55\u5185 (%1%, %2%)    %3, %4")
-            .arg(QString::number(rx * 100.0, 'f', 1),
-                QString::number(ry * 100.0, 'f', 1),
-                QString::number(pos.x()),
-                QString::number(pos.y()));
+        coords = tr("屏幕内：%1%，%2%    %3, %4")
+            .arg(100.0 * (global.x() - geometry.left()) / geometry.width(), 0, 'f', 1)
+            .arg(100.0 * (global.y() - geometry.top()) / geometry.height(), 0, 'f', 1)
+            .arg(global.x()).arg(global.y());
     }
-
-    tip_->setText(QString::fromWCharArray(
-        L"\u5de6\u952e\u9009\u62e9\u4f4d\u7f6e \u00b7 \u53f3\u952e / Esc \u53d6\u6d88\n") + coords);
-    tip_->adjustSize();
-
-    QPoint topLeft = pos + QPoint(kTipOffset, kTipOffset);
-    if (topLeft.x() + tip_->width() > geometry.right()) {
-        topLeft.setX(pos.x() - kTipOffset - tip_->width());
-    }
-    if (topLeft.y() + tip_->height() > geometry.bottom()) {
-        topLeft.setY(pos.y() - kTipOffset - tip_->height());
-    }
-    tip_->move(topLeft);
+    hintState_ = {{"text", tr("左键选择位置 · 右键 / Esc 取消\n%1").arg(coords)}, {"x", local.x()}, {"y", local.y()},
+        {"right", origin.x() + geometry.width()}, {"bottom", origin.y() + geometry.height()},
+        {"screenWidth", geometry.width()}, {"surface", Fluent::Colors::workspacePanel()},
+        {"textColor", Fluent::Colors::workspaceText()}, {"border", Fluent::Colors::workspaceLine()},
+        {"fontFamily", Fluent::Typography::fontFamily()}};
+    emit hintChanged();
 }
-
-void ScreenPointPicker::mouseMoveEvent(QMouseEvent* event) {
-    refreshHint();
-    QDialog::mouseMoveEvent(event);
-}
-
+void ScreenPointPicker::mouseMoveEvent(QMouseEvent* event) { refreshHint(); QDialog::mouseMoveEvent(event); }
 void ScreenPointPicker::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
-        pickedPos_ = QCursor::pos();
-        accept();
-        return;
-    }
-    if (event->button() == Qt::RightButton) {
-        reject();
-        return;
-    }
-    QDialog::mousePressEvent(event);
+    if (event->button() == Qt::LeftButton) { pickedPos_ = QCursor::pos(); accept(); }
+    else if (event->button() == Qt::RightButton) reject();
+    else QDialog::mousePressEvent(event);
 }
-
 void ScreenPointPicker::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) {
-        reject();
-        return;
-    }
-    QDialog::keyPressEvent(event);
+    if (event->key() == Qt::Key_Escape) reject();
+    else QDialog::keyPressEvent(event);
 }

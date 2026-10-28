@@ -6,7 +6,7 @@
 #include "dialogs/BindingEditDialog.h"
 #include "dialogs/PauseKeyDialog.h"
 #include "RepeaterEngine.h"
-#include "ui/pages/KeyPage.h"
+#include "ui/models/KeyPageModel.h"
 
 #include <QDialog>
 
@@ -16,22 +16,22 @@ void KeyBindingsCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (!context_.page) return;
 
-    connect(context_.page, &KeyPage::addRequested, this, &KeyBindingsCoordinator::onAddBinding);
-    connect(context_.page, &KeyPage::editRequested, this, &KeyBindingsCoordinator::onEditBinding);
-    connect(context_.page, &KeyPage::deleteRequested, this, &KeyBindingsCoordinator::onDeleteBinding);
-    connect(context_.page, &KeyPage::enableToggled, this, &KeyBindingsCoordinator::onEnableToggled);
-    connect(context_.page, &KeyPage::startStopClicked, this, &KeyBindingsCoordinator::onStartClicked);
-    connect(context_.page, &KeyPage::hotkeyEditClicked, this, &KeyBindingsCoordinator::onHotkeyEditClicked);
-    connect(context_.page, &KeyPage::hotkeyClearClicked, this, &KeyBindingsCoordinator::onHotkeyClearClicked);
-    connect(context_.page, &KeyPage::beepToggled, this, &KeyBindingsCoordinator::onBeepToggled);
-    connect(context_.page, &KeyPage::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
-    connect(context_.page, &KeyPage::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
-    connect(context_.page, &KeyPage::wasdProtectionToggled, this, &KeyBindingsCoordinator::onWasdProtectionToggled);
-    connect(context_.page, &KeyPage::rememberSequencePositionChanged, this, &KeyBindingsCoordinator::onRememberSequencePositionChanged);
-    connect(context_.page, &KeyPage::sequenceSwitchKeyAddClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyAdd);
-    connect(context_.page, &KeyPage::sequenceSwitchKeyDeleteClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyDelete);
-    connect(context_.page, &KeyPage::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
-    connect(context_.page, &KeyPage::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
+    connect(context_.page, &KeyPageModel::addRequested, this, &KeyBindingsCoordinator::onAddBinding);
+    connect(context_.page, &KeyPageModel::editRequested, this, &KeyBindingsCoordinator::onEditBinding);
+    connect(context_.page, &KeyPageModel::deleteRequested, this, &KeyBindingsCoordinator::onDeleteBinding);
+    connect(context_.page, &KeyPageModel::enableToggled, this, &KeyBindingsCoordinator::onEnableToggled);
+    connect(context_.page, &KeyPageModel::startStopClicked, this, &KeyBindingsCoordinator::onStartClicked);
+    connect(context_.page, &KeyPageModel::hotkeyEditClicked, this, &KeyBindingsCoordinator::onHotkeyEditClicked);
+    connect(context_.page, &KeyPageModel::hotkeyClearClicked, this, &KeyBindingsCoordinator::onHotkeyClearClicked);
+    connect(context_.page, &KeyPageModel::beepToggled, this, &KeyBindingsCoordinator::onBeepToggled);
+    connect(context_.page, &KeyPageModel::statusOverlayToggled, this, &KeyBindingsCoordinator::onStatusOverlayToggled);
+    connect(context_.page, &KeyPageModel::mixedModeToggled, this, &KeyBindingsCoordinator::onMixedModeToggled);
+    connect(context_.page, &KeyPageModel::wasdProtectionToggled, this, &KeyBindingsCoordinator::onWasdProtectionToggled);
+    connect(context_.page, &KeyPageModel::rememberSequencePositionChanged, this, &KeyBindingsCoordinator::onRememberSequencePositionChanged);
+    connect(context_.page, &KeyPageModel::sequenceSwitchKeyAddClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyAdd);
+    connect(context_.page, &KeyPageModel::sequenceSwitchKeyDeleteClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyDelete);
+    connect(context_.page, &KeyPageModel::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
+    connect(context_.page, &KeyPageModel::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
 }
 
 void KeyBindingsCoordinator::onAddBinding() {
@@ -86,6 +86,7 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
     }
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
+    context_.page->setBindings(context_.controller->activeProfile()->bindings);
 }
 
 void KeyBindingsCoordinator::onStartClicked() {
@@ -144,6 +145,7 @@ void KeyBindingsCoordinator::onMixedModeToggled(bool enabled) {
     auto result = context_.controller->setMixedMode(enabled);
     if (!result.ok) return;
     context_.engine->SetMixedMode(enabled);
+    context_.page->setMixedMode(enabled);
     if (context_.saveConfig) context_.saveConfig();
 }
 
@@ -152,6 +154,7 @@ void KeyBindingsCoordinator::onWasdProtectionToggled(bool enabled) {
     auto result = context_.controller->setWasdProtection(enabled);
     if (!result.ok) return;
     context_.engine->SetWasdProtection(enabled);
+    context_.page->setWasdProtection(enabled);
     if (context_.saveConfig) context_.saveConfig();
 }
 
@@ -163,6 +166,7 @@ void KeyBindingsCoordinator::onRememberSequencePositionChanged(bool enabled) {
     }
     const auto result = context_.controller->setRememberSequencePosition(enabled);
     if (!result.ok) return;
+    context_.page->setRememberSequencePosition(enabled);
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
 }

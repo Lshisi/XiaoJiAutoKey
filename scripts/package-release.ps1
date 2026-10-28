@@ -1,5 +1,6 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [Parameter(Mandatory = $true)][string]$QtPrefixPath
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,23 +18,18 @@ if (-not $processPath) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $cmake = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
-$qtCandidates = @(
-    "C:\Qt\5.15.2-static",
-    "D:\Qt\5.15.2-static",
-    "D:\software\anaconda\Library"
-)
-$qtPrefixPath = $qtCandidates | Where-Object {
-    Test-Path (Join-Path $_ "lib\cmake\Qt5\Qt5Config.cmake")
-} | Select-Object -First 1
-
 if (-not (Test-Path $cmake)) {
     throw "cmake.exe not found: $cmake"
 }
-if (-not $qtPrefixPath) {
-    throw "Qt5Config.cmake not found. Checked: $($qtCandidates -join ', ')"
+$qtPrefixPath = (Resolve-Path $QtPrefixPath).Path
+if (-not (Test-Path (Join-Path $qtPrefixPath "lib\cmake\Qt6\Qt6Config.cmake"))) {
+    throw "Qt 6 prefix not found: $qtPrefixPath"
+}
+if (Test-Path (Join-Path $qtPrefixPath "bin\Qt6Core.dll")) {
+    throw "The release package requires static Qt 6. Build it with scripts/build-static-qt.ps1."
 }
 
-$buildDir = Join-Path $repoRoot "build"
+$buildDir = Join-Path $repoRoot "build-qt6"
 $distDir = Join-Path $repoRoot "dist"
 $packageName = "XiaoJiAutoKey"
 $packageDir = Join-Path $distDir $packageName
@@ -92,64 +88,6 @@ if (Test-Path $usageGuideSrc) {
     Copy-Item $usageGuideSrc (Join-Path $packageDir $usageGuideName) -Force
 } else {
     Write-Warning "usage guide not found: $usageGuideSrc"
-}
-
-# Check if this is a static Qt build by looking for Qt DLL dependencies
-$exeFile = Join-Path $packageDir "XiaoJiAutoKey.exe"
-$exeBytes = [System.IO.File]::ReadAllText($exeFile, [System.Text.Encoding]::GetEncoding(28591))
-$isStatic = -not ($exeBytes -match "Qt5Core_conda\.dll|Qt5Core\.dll")
-
-# For dynamic builds, deploy Qt DLLs
-if (-not $isStatic) {
-    # qt.conf - tell Qt to look for plugins in exe directory
-    $qtConfPath = Join-Path $packageDir "qt.conf"
-    Set-Content -LiteralPath $qtConfPath -Value @('[Paths]', 'Plugins = .') -Encoding UTF8
-
-    # Deploy Qt DLLs manually (Anaconda Qt uses _conda suffix)
-    $qtBinDir = "D:\software\anaconda\Library\bin"
-    $qtPluginsDir = "D:\software\anaconda\Library\plugins"
-
-    $qtDlls = @("Qt5Core_conda.dll", "Qt5Gui_conda.dll", "Qt5Widgets_conda.dll", "Qt5Svg_conda.dll")
-
-    Write-Host "Copying Qt DLLs..."
-    foreach ($dll in $qtDlls) {
-        $src = Join-Path $qtBinDir $dll
-        if (Test-Path $src) {
-            Copy-Item $src (Join-Path $packageDir $dll) -Force
-            Write-Host "  Copied $dll"
-        } else {
-            Write-Warning "Qt DLL not found: $src"
-        }
-    }
-
-    # platforms plugin
-    $platformsDst = Join-Path $packageDir "platforms"
-    New-Item -ItemType Directory -Path $platformsDst -Force | Out-Null
-    $qwindowsSrc = Join-Path $qtPluginsDir "platforms\qwindows.dll"
-    if (Test-Path $qwindowsSrc) {
-        Copy-Item $qwindowsSrc (Join-Path $platformsDst "qwindows.dll") -Force
-        Write-Host "  Copied platforms\qwindows.dll"
-    } else {
-        Write-Warning "qwindows.dll not found at $qwindowsSrc"
-    }
-
-    # imageformats plugin
-    $imageformatsSrc = Join-Path $qtPluginsDir "imageformats"
-    if (Test-Path $imageformatsSrc) {
-        $imageformatsDst = Join-Path $packageDir "imageformats"
-        New-Item -ItemType Directory -Path $imageformatsDst -Force | Out-Null
-        Copy-Item (Join-Path $imageformatsSrc "*") $imageformatsDst -Recurse -Force
-    }
-
-    # styles plugin
-    $stylesSrc = Join-Path $qtPluginsDir "styles"
-    if (Test-Path $stylesSrc) {
-        $stylesDst = Join-Path $packageDir "styles"
-        New-Item -ItemType Directory -Path $stylesDst -Force | Out-Null
-        Copy-Item (Join-Path $stylesSrc "*") $stylesDst -Recurse -Force
-    }
-} else {
-    Write-Host "Static Qt build detected - no Qt DLLs needed!"
 }
 
 # Built-in audio files (WAV only)

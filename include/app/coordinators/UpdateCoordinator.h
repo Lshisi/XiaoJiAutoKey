@@ -7,10 +7,11 @@
 #include <QString>
 #include <functional>
 
-class AboutPage;
-class KeyPage;
+class AboutPageModel;
+class KeyPageModel;
 class UpdateDialog;
 class UpdateService;
+class QWidget;
 
 // Wires the about page update card, the update dialog, the key page update
 // badge and the update service together. Checks only ever run in response to
@@ -20,8 +21,9 @@ class UpdateCoordinator : public QObject {
 
 public:
     struct Context {
-        AboutPage* aboutPage = nullptr;
-        KeyPage* keyPage = nullptr;
+        QWidget* parent = nullptr;
+        AboutPageModel* aboutPage = nullptr;
+        KeyPageModel* keyPage = nullptr;
         UpdateService* updateService = nullptr;
         AppConfig* config = nullptr;
         std::function<void()> saveConfig;

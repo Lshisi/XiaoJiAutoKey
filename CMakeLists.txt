@@ -6,18 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_AUTOMOC OFF)
+set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF)
-set(CMAKE_AUTORCC OFF)
+set(CMAKE_AUTORCC ON)
 
-# Static Qt path (single exe output):
-set(CMAKE_PREFIX_PATH "C:/Qt/5.15.2-static" ${CMAKE_PREFIX_PATH})
-# Dynamic Qt path (Anaconda) - uncomment if you need dynamic build:
-# set(CMAKE_PREFIX_PATH "D:/software/anaconda/Library" ${CMAKE_PREFIX_PATH})
-
-find_package(Qt5 COMPONENTS Core Gui Widgets Svg REQUIRED)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2 ShaderTools)
+qt_standard_project_setup(REQUIRES 6.8)
 
 set(MOC_HEADERS
+    include/app/dialogs/QmlDialog.h
+    include/app/view/MainWindowView.h
+    src/ui/models/PageModel.h
     include/app/MainWindow.h
     include/app/input/GlobalInputHook.h
     include/app/input/RawInputManager.h
@@ -47,29 +46,16 @@ set(MOC_HEADERS
     include/app/dialogs/StatusOverlaySettingsDialog.h
     include/app/dialogs/UpdateDialog.h
     include/app/widgets/StatusOverlayWindow.h
-    src/ui/components/DraggableTable.h
-    src/ui/components/FluentButton.h
-    src/ui/components/FluentCard.h
-    src/ui/components/FluentComboBox.h
-    src/ui/components/FluentLineEdit.h
-    src/ui/components/FluentSidebar.h
-    src/ui/components/FluentSwitch.h
-    src/ui/components/FluentTable.h
-    src/ui/components/FluentTitleBar.h
-    src/ui/components/ShareImportBanner.h
-    src/ui/components/ClickPositionGroup.h
     src/ui/components/ScreenPointPicker.h
-    src/ui/pages/KeyPage.h
-    src/ui/pages/MacroPage.h
-    src/ui/pages/DriverPage.h
-    src/ui/pages/SettingsPage.h
-    src/ui/pages/AboutPage.h
+    src/ui/models/KeyPageModel.h
+    src/ui/models/MacroPageModel.h
+    src/ui/models/DriverPageModel.h
+    src/ui/models/SettingsPageModel.h
+    src/ui/models/AboutPageModel.h
+    src/ui/models/ShareImportBannerModel.h
     include/app/coordinators/UpdateCoordinator.h
     include/app/services/UpdateService.h
 )
-
-qt5_wrap_cpp(MOC_SOURCES ${MOC_HEADERS})
-qt5_add_resources(RESOURCE_SOURCES resources.qrc)
 
 set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
 set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
@@ -101,61 +87,32 @@ set(CORE_SOURCES
 )
 
 set(UI_COMPONENT_SOURCES
-    src/ui/components/FactionMenu.cpp
-    src/ui/components/FactionIcon.cpp
-    src/ui/components/FluentPopupMenu.cpp
-    src/ui/components/FluentTitleBar.cpp
-    src/ui/components/FluentSidebar.cpp
-    src/ui/components/FluentButton.cpp
-    src/ui/components/FluentCard.cpp
-    src/ui/components/FluentSwitch.cpp
-    src/ui/components/FluentCheckBox.cpp
-    src/ui/components/FluentContextMenu.cpp
-    src/ui/components/FluentLineEdit.cpp
-    src/ui/components/FluentComboBox.cpp
-    src/ui/components/FluentTable.cpp
-    src/ui/components/DraggableTable.cpp
-    src/ui/components/ClickPositionGroup.cpp
     src/ui/components/ScreenPointPicker.cpp
-    src/ui/components/ShareImportBanner.cpp
 )
 
-set(UI_PAGE_SOURCES
-    src/ui/pages/KeyPage.cpp
-    src/ui/pages/MacroPage.cpp
-    src/ui/pages/DriverPage.cpp
-    src/ui/pages/SettingsPage.cpp
-    src/ui/pages/AboutPage.cpp
+set(UI_MODEL_SOURCES
+    src/ui/models/KeyPageModel.cpp
+    src/ui/models/MacroPageModel.cpp
+    src/ui/models/DriverPageModel.cpp
+    src/ui/models/SettingsPageModel.cpp
+    src/ui/models/AboutPageModel.cpp
+    src/ui/models/ShareImportBannerModel.cpp
 )
 
 set(UI_COMPONENT_HEADERS
-    src/ui/components/FactionMenu.h
-    src/ui/components/FactionIcon.h
-    src/ui/components/FluentPopupMenu.h
-    src/ui/components/FluentTitleBar.h
-    src/ui/components/FluentSidebar.h
-    src/ui/components/FluentButton.h
-    src/ui/components/FluentCard.h
-    src/ui/components/FluentSwitch.h
-    src/ui/components/FluentCheckBox.h
-    src/ui/components/FluentContextMenu.h
-    src/ui/components/FluentLineEdit.h
-    src/ui/components/FluentComboBox.h
-    src/ui/components/FluentTable.h
-    src/ui/components/DraggableTable.h
-    src/ui/components/ClickPositionGroup.h
     src/ui/components/ScreenPointPicker.h
 )
 
-set(UI_PAGE_HEADERS
-    src/ui/pages/KeyPage.h
-    src/ui/pages/MacroPage.h
-    src/ui/pages/DriverPage.h
-    src/ui/pages/SettingsPage.h
-    src/ui/pages/AboutPage.h
+set(UI_MODEL_HEADERS
+    src/ui/models/ShareImportBannerModel.h
+    src/ui/models/KeyPageModel.h
+    src/ui/models/MacroPageModel.h
+    src/ui/models/DriverPageModel.h
+    src/ui/models/SettingsPageModel.h
+    src/ui/models/AboutPageModel.h
 )
 
-add_executable(XiaoJiAutoKey WIN32
+qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/input/GlobalInputHook.h
     include/app/input/InputKeyUtils.h
     include/app/input/RawInputManager.h
@@ -245,6 +202,7 @@ add_executable(XiaoJiAutoKey WIN32
     src/app/services/UpdateService.cpp
     src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
+    src/app/dialogs/QmlDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
     src/app/dialogs/ConfigNameDialog.cpp
     src/app/dialogs/DialogChrome.cpp
@@ -263,16 +221,91 @@ add_executable(XiaoJiAutoKey WIN32
     ${CORE_SOURCES}
     ${UI_COMPONENT_SOURCES}
     ${UI_COMPONENT_HEADERS}
-    ${UI_PAGE_SOURCES}
-    ${UI_PAGE_HEADERS}
-    ${MOC_SOURCES}
-    ${RESOURCE_SOURCES}
+    ${UI_MODEL_SOURCES}
+    ${UI_MODEL_HEADERS}
+    ${MOC_HEADERS}
+    resources.qrc
     # miniz (public domain / MIT) - used to unpack downloaded update archives.
     third_party/miniz/miniz.c
     third_party/miniz/miniz_tdef.c
     third_party/miniz/miniz_tinfl.c
     third_party/miniz/miniz_zip.c
     app.rc
+)
+
+set(QML_FILES
+    src/qml/Main.qml
+    src/qml/Theme.qml
+    src/qml/AppShell.qml
+    src/qml/TitleBar.qml
+    src/qml/CaptionButton.qml
+    src/qml/ShareImportBanner.qml
+    src/qml/QuietLabel.qml
+    src/qml/QuietHeading.qml
+    src/qml/ActionButton.qml
+    src/qml/IconButton.qml
+    src/qml/QuietCheck.qml
+    src/qml/QuietCombo.qml
+    src/qml/QuietNumber.qml
+    src/qml/QuietScrollBar.qml
+    src/qml/QuietCard.qml
+    src/qml/FactionPicker.qml
+    src/qml/ProfileToolbar.qml
+    src/qml/RunPanel.qml
+    src/qml/HotkeyPanel.qml
+    src/qml/RepeatOptions.qml
+    src/qml/MacroOptions.qml
+    src/qml/ShortcutBar.qml
+    src/qml/BindingRow.qml
+    src/qml/MacroStepRow.qml
+    src/qml/KeyWorkspace.qml
+    src/qml/KeyPage.qml
+    src/qml/MacroPage.qml
+    src/qml/DriverPage.qml
+    src/qml/SettingsPage.qml
+    src/qml/AboutPage.qml
+    src/qml/LiquidGlass.qml
+    src/qml/OverlayWindow.qml
+    src/qml/OverlayStatusBlock.qml
+    src/qml/OverlayLock.qml
+    src/qml/DialogShell.qml
+    src/qml/DialogGlass.qml
+    src/qml/DialogMessage.qml
+    src/qml/DialogName.qml
+    src/qml/DialogClose.qml
+    src/qml/DialogKeyEditor.qml
+    src/qml/DialogOverlaySettings.qml
+    src/qml/DialogSound.qml
+    src/qml/DialogProcesses.qml
+    src/qml/DialogShare.qml
+    src/qml/DialogReport.qml
+    src/qml/PointPicker.qml
+    src/qml/QuietTextField.qml
+    src/qml/QuietTextArea.qml
+    src/qml/TextEditMenu.qml
+    src/qml/QuietMenuItem.qml
+    src/qml/QuietSlider.qml
+    src/qml/QuietProgress.qml
+)
+foreach(qml_file IN LISTS QML_FILES)
+    get_filename_component(qml_name "${qml_file}" NAME)
+    set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")
+endforeach()
+set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+qt_add_qml_module(XiaoJiAutoKey
+    URI XiaoJi.UI
+    RESOURCE_PREFIX /qt/qml
+    QML_FILES ${QML_FILES}
+)
+qt_add_shaders(XiaoJiAutoKey overlay_material
+    PREFIX /shaders
+    BASE src/qml/shaders
+    FILES src/qml/shaders/liquid-glass.frag src/qml/shaders/glass-blur.frag src/qml/shaders/glass-refract.frag
+)
+qt_add_resources(XiaoJiAutoKey third_party_notices
+    PREFIX /licenses
+    BASE third_party/liquid-glass
+    FILES third_party/liquid-glass/LICENSE
 )
 
 target_include_directories(XiaoJiAutoKey PRIVATE
@@ -292,7 +325,7 @@ target_include_directories(XiaoJiAutoKey PRIVATE
     src/ui
     src/ui/styles
     src/ui/components
-    src/ui/pages
+    src/ui/models
     third_party/miniz
 )
 
@@ -305,8 +338,12 @@ target_compile_definitions(XiaoJiAutoKey PRIVATE
 )
 
 target_link_libraries(XiaoJiAutoKey PRIVATE
-    Qt5::Widgets
-    Qt5::Svg
+    Qt6::Widgets
+    Qt6::Svg
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickWidgets
+    Qt6::QuickControls2
     shlwapi
     winmm
     winhttp
@@ -410,3 +447,5 @@ add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
         "$<TARGET_FILE_DIR:XiaoJiAutoKey>/DD64.dll"
     COMMENT "Removing legacy DD DLLs from the executable root directory"
 )
+
+qt_finalize_executable(XiaoJiAutoKey)

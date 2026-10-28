@@ -9,7 +9,7 @@
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
-#include "ui/pages/KeyPage.h"
+#include "ui/models/KeyPageModel.h"
 
 ProfileCoordinator::ProfileCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -17,11 +17,11 @@ void ProfileCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (!context_.page) return;
 
-    connect(context_.page, &KeyPage::profileSwitched, this, &ProfileCoordinator::onProfileSwitched);
-    connect(context_.page, &KeyPage::profileAddRequested, this, &ProfileCoordinator::onProfileAdd);
-    connect(context_.page, &KeyPage::profileRenameRequested, this, &ProfileCoordinator::onProfileRename);
-    connect(context_.page, &KeyPage::profileDeleteRequested, this, &ProfileCoordinator::onProfileDelete);
-    connect(context_.page, &KeyPage::profileEnabledToggled, this, &ProfileCoordinator::onProfileEnabledToggled);
+    connect(context_.page, &KeyPageModel::profileSwitched, this, &ProfileCoordinator::onProfileSwitched);
+    connect(context_.page, &KeyPageModel::profileAddRequested, this, &ProfileCoordinator::onProfileAdd);
+    connect(context_.page, &KeyPageModel::profileRenameRequested, this, &ProfileCoordinator::onProfileRename);
+    connect(context_.page, &KeyPageModel::profileDeleteRequested, this, &ProfileCoordinator::onProfileDelete);
+    connect(context_.page, &KeyPageModel::profileEnabledToggled, this, &ProfileCoordinator::onProfileEnabledToggled);
 }
 
 void ProfileCoordinator::switchToProfile(std::uint64_t profileId) {

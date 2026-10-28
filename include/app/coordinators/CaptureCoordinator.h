@@ -8,12 +8,12 @@
 
 class GlobalInputHook;
 class KeyCaptureDialogBase;
-class KeyPage;
+class KeyPageModel;
 class MacroController;
-class MacroPage;
+class MacroPageModel;
 class ProfileController;
 class RawInputManager;
-class SettingsPage;
+class SettingsPageModel;
 class QWidget;
 
 class CaptureCoordinator : public QObject {
@@ -24,9 +24,9 @@ public:
 
     struct Context {
         QWidget* parent = nullptr;
-        KeyPage* keyPage = nullptr;
-        MacroPage* macroPage = nullptr;
-        SettingsPage* settingsPage = nullptr;
+        KeyPageModel* keyPage = nullptr;
+        MacroPageModel* macroPage = nullptr;
+        SettingsPageModel* settingsPage = nullptr;
         ProfileController* profileController = nullptr;
         MacroController* macroController = nullptr;
         GlobalInputHook* inputHook = nullptr;

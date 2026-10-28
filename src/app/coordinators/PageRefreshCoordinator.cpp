@@ -3,11 +3,10 @@
 #include "FactionTheme.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
-#include "ui/components/FluentSidebar.h"
-#include "ui/pages/AboutPage.h"
-#include "ui/pages/KeyPage.h"
-#include "ui/pages/MacroPage.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/AboutPageModel.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
+#include "ui/models/SettingsPageModel.h"
 #include "view/MainWindowView.h"
 
 PageRefreshCoordinator::PageRefreshCoordinator(QObject* parent) : QObject(parent) {}
@@ -41,14 +40,12 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setRememberSequencePosition(profile->rememberSequencePosition);
     context_.view->keyPage()->setSequenceSwitchKey(profile->sequenceSwitchKey);
     context_.view->keyPage()->setPauseKeys(profile->pauseKeys);
-    context_.view->keyPage()->updateThemeColors();
 
     refreshProfiles();
     refreshMacro();
 
     context_.view->macroPage()->setBeepEnabled(context_.config->macroBeepEnabled);
     context_.view->macroPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowMacro);
-    context_.view->macroPage()->updateThemeColors();
 
     context_.view->settingsPage()->setConfig(*context_.config);
     context_.view->settingsPage()->setHotkeyText(hotkeyText);
@@ -56,7 +53,6 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->settingsPage()->setCloseAction(context_.config->closeAction);
     context_.view->settingsPage()->setAutoStartEnabled(context_.config->autoStartEnabled);
     context_.view->settingsPage()->setFaction(QString::fromStdString(context_.config->faction));
-    context_.view->settingsPage()->setCustomSoundPaths(QString(), QString());
 }
 
 void PageRefreshCoordinator::refreshProfiles() {

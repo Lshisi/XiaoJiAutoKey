@@ -1,5 +1,6 @@
 # Build output
 build/
+build-qt6/
 dist/
 firmware/pico/build/
 firmware/ch552/build/

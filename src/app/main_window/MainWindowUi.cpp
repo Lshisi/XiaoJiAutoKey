@@ -3,23 +3,23 @@
 #include "FactionTheme.h"
 #include "config/ActiveConfigValidator.h"
 #include "dialogs/StatusOverlaySettingsDialog.h"
-#include "ui/components/FluentSidebar.h"
-#include "ui/components/ShareImportBanner.h"
-#include "ui/pages/DriverPage.h"
-#include "ui/pages/KeyPage.h"
-#include "ui/pages/MacroPage.h"
-#include "ui/pages/SettingsPage.h"
+#include "ui/models/ShareImportBannerModel.h"
+#include "ui/models/DriverPageModel.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
+#include "ui/models/SettingsPageModel.h"
 
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QTimer>
 
-void MainWindow::setupUi() {
-    view_.setup(this);
-    connect(view_.keyPage(), &KeyPage::statusOverlaySettingsClicked, this,
+bool MainWindow::setupUi() {
+    if (!view_.setup(this)) return false;
+    if (!statusOverlay_.initialize(this)) return false;
+    connect(view_.keyPage(), &KeyPageModel::statusOverlaySettingsClicked, this,
         [this]() { openStatusOverlaySettings(false); });
-    connect(view_.macroPage(), &MacroPage::statusOverlaySettingsClicked, this,
+    connect(view_.macroPage(), &MacroPageModel::statusOverlaySettingsClicked, this,
         [this]() { openStatusOverlaySettings(true); });
     engineStateCoordinator_.bind(EngineStateCoordinator::Context{
         &view_,
@@ -50,6 +50,7 @@ void MainWindow::setupUi() {
     });
 
     updateCoordinator_.bind(UpdateCoordinator::Context{
+        this,
         view_.aboutPage(),
         view_.keyPage(),
         &updateService_,
@@ -57,18 +58,17 @@ void MainWindow::setupUi() {
         [this]() { configCoordinator_.save(); },
         [this](const QString& stagingDir) { applyStagedUpdateAndRestart(stagingDir); },
         [this]() {
-            view_.sidebar()->setCurrentPage(QStringLiteral("about"));
             view_.navigateTo(QStringLiteral("about"));
         }
     });
 
-    connect(view_.sidebar(), &FluentSidebar::pageSelected, this, [this](const QString& pageId) {
+    connect(&view_, &MainWindowView::pageSelected, this, [this](const QString& pageId) {
         view_.navigateTo(pageId);
         if (pageId == QStringLiteral("driver")) {
             QTimer::singleShot(0, this, [this]() { refreshDriverStatusUi(); });
         }
     });
-    connect(view_.sidebar(), &FluentSidebar::factionSelected, this, [this](const QString& factionId) {
+    connect(&view_, &MainWindowView::factionSelected, this, [this](const QString& factionId) {
         settingsCoordinator_.setFaction(factionId);
     });
 
@@ -95,18 +95,18 @@ void MainWindow::setupUi() {
         [this]() { return inputDriver_.SupportsMouseMove(); }
     });
 
-    connect(view_.keyPage(), &KeyPage::shareRequested, this, [this]() {
+    connect(view_.keyPage(), &KeyPageModel::shareRequested, this, [this]() {
         openExportProfileDialog();
     });
-    connect(view_.macroPage(), &MacroPage::shareRequested, this, [this]() {
+    connect(view_.macroPage(), &MacroPageModel::shareRequested, this, [this]() {
         openExportMacroDialog();
     });
 
     // 剪贴板分享码检测：提示条点击导入、关闭后不再重复提示；
     // 拖放分享文本到主窗口也可直接进入导入。
-    connect(view_.shareBanner(), &ShareImportBanner::importRequested, this,
+    connect(view_.shareBanner(), &ShareImportBannerModel::importRequested, this,
         [this](const QString& text) { openImportDialog(text); });
-    connect(view_.shareBanner(), &ShareImportBanner::dismissed, this,
+    connect(view_.shareBanner(), &ShareImportBannerModel::dismissed, this,
         [this](const QString& text) { suppressShareText(text); });
     connect(QApplication::clipboard(), &QClipboard::dataChanged, this, [this]() {
         if (isActiveWindow()) {
@@ -138,7 +138,7 @@ void MainWindow::setupUi() {
         }
     });
 
-    connect(view_.macroPage(), &MacroPage::hotkeyEditClicked, this, [this]() {
+    connect(view_.macroPage(), &MacroPageModel::hotkeyEditClicked, this, [this]() {
         captureCoordinator_.startMacroHotkeyCapture();
     });
     macroCoordinator_.bind(MacroCoordinator::Context{
@@ -288,6 +288,7 @@ void MainWindow::setupUi() {
         refreshStatusOverlay();
     });
     macroStateTimer->start(100);
+    return true;
 }
 
 void MainWindow::openStatusOverlaySettings(bool macroPage) {

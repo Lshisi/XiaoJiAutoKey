@@ -66,7 +66,7 @@ Item {
                         required property var modelData
                         required property int index
                         width: list.width
-                        height: 48
+                        height: 40
                         sourceComponent: workspace.macroMode ? stepDelegate : bindingDelegate
                         Component {
                             id: bindingDelegate
@@ -90,18 +90,22 @@ Item {
         }
         ScrollView {
             id: sideScroll
-            Layout.preferredWidth: workspace.width < 700 ? 218 : 244
+            Layout.preferredWidth: workspace.width < 850 ? 218 : 244
             Layout.fillHeight: true
             contentWidth: availableWidth
+            contentHeight: Math.max(sideColumn.implicitHeight, sideScroll.availableHeight)
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ScrollBar.vertical: QuietScrollBar {}
             ColumnLayout {
+                id: sideColumn
                 width: sideScroll.availableWidth
-                spacing: Theme.cardGap
+                height: Math.max(sideColumn.implicitHeight, sideScroll.availableHeight)
+                spacing: 10
                 RunPanel { Layout.fillWidth: true; page: workspace.page }
                 HotkeyPanel { Layout.fillWidth: true; page: workspace.page }
                 Loader {
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
                     sourceComponent: workspace.macroMode ? macroOptions : repeatOptions
                     Component { id: repeatOptions; RepeatOptions { page: workspace.page } }
                     Component { id: macroOptions; MacroOptions { page: workspace.page } }

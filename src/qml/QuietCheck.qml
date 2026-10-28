@@ -4,11 +4,11 @@ import XiaoJi.UI
 
 CheckBox {
     id: control
-    implicitHeight: Math.max(28, contentItem.implicitHeight + 4)
+    implicitHeight: Math.max(22, contentItem.implicitHeight + 4)
     spacing: 8
     padding: 2
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     hoverEnabled: true
     indicator: Rectangle {
         implicitWidth: 16

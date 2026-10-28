@@ -10,7 +10,7 @@ SpinBox {
     to: 2147483647
     editable: true
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     palette.text: Theme.text
     palette.base: Theme.field
     palette.buttonText: Theme.text

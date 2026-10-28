@@ -16,7 +16,7 @@ Rectangle {
             Layout.fillHeight: true
             spacing: 0
             Rectangle {
-                Layout.preferredWidth: shell.width < 850 ? 136 : 156
+                Layout.preferredWidth: 130
                 Layout.fillHeight: true
                 color: Qt.alpha(Theme.surface, 0.76)
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.divider }

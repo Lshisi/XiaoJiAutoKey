@@ -29,8 +29,8 @@ QtObject {
     readonly property int titleBarHeight: colors.titleBarHeight
     readonly property int buttonRadius: colors.buttonRadius
     readonly property int inputRadius: colors.inputRadius
-    readonly property int buttonHeight: 36
-    readonly property int primaryHeight: 40
+    readonly property int buttonHeight: 32
+    readonly property int primaryHeight: 32
     readonly property int iconSize: 32
     readonly property string fontFamily: "Microsoft YaHei UI"
     readonly property string iconFamily: "Segoe MDL2 Assets"

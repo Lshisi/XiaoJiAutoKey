@@ -11,7 +11,7 @@ QuietCard {
     ColumnLayout {
         id: body
         anchors.fill: parent
-        spacing: 12
+        spacing: 10
         QuietHeading { text: qsTr("快捷控制") }
         ActionButton {
             Layout.fillWidth: true

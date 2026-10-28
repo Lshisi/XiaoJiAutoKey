@@ -9,9 +9,8 @@ QuietCard {
     ColumnLayout {
         id: body
         anchors.fill: parent
-        spacing: 9
+        spacing: 7
         QuietHeading { text: qsTr("启动触发") }
-        QuietLabel { text: qsTr("启停快捷键"); color: Theme.muted; font.pixelSize: 12; Layout.topMargin: 4 }
         RowLayout {
             Layout.fillWidth: true
             spacing: 5

@@ -52,8 +52,8 @@ QRect currentAvailableGeometry() {
 }
 
 QSize scaledInitialWindowSize(const QRect& available) {
-    constexpr int baseWidth = 1000;
-    constexpr int baseHeight = 720;
+    constexpr int baseWidth = 780;
+    constexpr int baseHeight = 560;
     constexpr int baseScreenWidth = 1920;
     constexpr int baseScreenHeight = 1080;
 
@@ -65,7 +65,7 @@ QSize scaledInitialWindowSize(const QRect& available) {
     const int scaledWidth = static_cast<int>(baseWidth * widthSizeScale + 0.5);
     const int scaledHeight = baseHeight + static_cast<int>(extraHeight * 0.18 + 0.5);
     const int maxWidth = qMax(720, available.width() - 80);
-    const int maxHeight = qMin(qMax(560, available.height() - 80), 760);
+    const int maxHeight = qMin(qMax(560, available.height() - 80), 700);
 
     return QSize(
         qBound(780, scaledWidth, maxWidth),

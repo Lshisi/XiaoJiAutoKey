@@ -7,13 +7,17 @@ ScrollView {
     id: root
     readonly property QtObject page: driverPageModel
     contentWidth: availableWidth
+    contentHeight: Math.max(pageColumn.implicitHeight, root.availableHeight)
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     ScrollBar.vertical: QuietScrollBar {}
     ColumnLayout {
+        id: pageColumn
         width: root.availableWidth
+        height: Math.max(pageColumn.implicitHeight, root.availableHeight)
         spacing: Theme.cardGap
         QuietCard {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             Layout.margins: Theme.pageMargin
             implicitHeight: body.implicitHeight + topPadding + bottomPadding
             ColumnLayout {

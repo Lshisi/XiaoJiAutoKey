@@ -10,7 +10,7 @@ Item {
     required property int rowIndex
     required property int rowCount
     property real dragOffset: 0
-    implicitHeight: 48
+    implicitHeight: 40
     z: dragHandler.active ? 2 : 0
     transform: Translate { y: dragHandler.active ? root.dragOffset : 0 }
     Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : "transparent" }

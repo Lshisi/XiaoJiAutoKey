@@ -15,7 +15,7 @@ Button {
     topPadding: 6
     bottomPadding: 6
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
     Accessible.name: text.length ? text : hint

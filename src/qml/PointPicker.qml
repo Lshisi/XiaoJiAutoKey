@@ -22,7 +22,7 @@ Rectangle {
             textFormat: Text.PlainText
             color: picker.hint.textColor
             font.family: picker.hint.fontFamily
-            font.pixelSize: 13
+            font.pixelSize: 12
             wrapMode: Text.Wrap
         }
     }

@@ -7,7 +7,7 @@ Item {
     id: root
     required property QtObject page
     required property var entry
-    implicitHeight: 48
+    implicitHeight: 40
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
         anchors.fill: parent

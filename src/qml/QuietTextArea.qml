@@ -17,7 +17,7 @@ ScrollView {
         id: editor
         textFormat: TextEdit.PlainText
         font.family: Theme.fontFamily
-        font.pixelSize: 13
+        font.pixelSize: 12
         color: Theme.text
         placeholderTextColor: Theme.muted
         selectionColor: Theme.accent

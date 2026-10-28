@@ -156,15 +156,15 @@ namespace Typography {
 }
 
 namespace Spacing {
-    constexpr int pageMargin    = 20;
-    constexpr int cardGap       = 16;
-    constexpr int cardPadding   = 16;
+    constexpr int pageMargin    = 16;
+    constexpr int cardGap       = 12;
+    constexpr int cardPadding   = 14;
     constexpr int cardRadius    = 13;
     constexpr int buttonRadius  = 8;
     constexpr int inputRadius   = 8;
     constexpr int dialogRadius  = 18;
     constexpr int sidebarWidth  = 130;
-    constexpr int titleBarHeight = 44;
+    constexpr int titleBarHeight = 34;
     constexpr int buttonHeight  = 32;
     constexpr int inputHeight   = 32;
     constexpr int navItemSize   = 56;

@@ -9,7 +9,7 @@ ComboBox {
     leftPadding: 10
     rightPadding: 28
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     hoverEnabled: true
     ToolTip.visible: hovered && displayText.length > 0
     ToolTip.text: displayText

@@ -6,7 +6,7 @@ MenuItem {
     id: control
     implicitHeight: Math.max(36, contentItem.implicitHeight + 12)
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     contentItem: Text {
         text: control.text
         textFormat: Text.PlainText

@@ -4,9 +4,9 @@ import XiaoJi.UI
 
 TextField {
     id: control
-    implicitHeight: Math.max(36, contentHeight + 14)
+    implicitHeight: Math.max(32, contentHeight + 14)
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: 12
     color: Theme.text
     placeholderTextColor: Theme.muted
     selectionColor: Theme.accent

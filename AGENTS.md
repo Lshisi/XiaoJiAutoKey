@@ -21,16 +21,18 @@
 
 ## 构建注意事项
 
-- 当前环境里 `cmake` 可能不在 `PATH`，优先使用 VS BuildTools 自带的 CMake：
-  `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`
+- **不要使用 VS BuildTools 自带的 CMake**（`...\Common7\IDE\CommonExtensions\Microsoft\CMake\...`）：本机上它的 `cmake -E cmake_autogen` 必定段错误（任何含 AUTOMOC 的工程都在 MOC 步骤崩溃，表现为 MSBuild 报 `系统找不到指定的批处理标签 - VCEnd` / MSB8066）。使用官方独立版 CMake：`D:\software\cmake-3.31.6\bin\cmake.exe`。
 - 如果 MSBuild 报 `System.ArgumentException: 已添加项。字典中的关键字:“Path”所添加的关键字:“PATH”`，说明当前进程环境里同时存在 `Path` / `PATH`。构建前先在当前 PowerShell 进程清掉重复项并设置单一 `Path`。
-- 现使用 Qt 6.8+（QML / Quick / Quick Controls / Quick Widgets / SVG / Shader Tools）。指定实际静态 Qt 安装目录，使用独立的 `build-qt6`，不要复用旧 Qt 构建缓存。推荐构建命令：
+- 现使用 Qt 6.8+（QML / Quick / Quick Controls / Quick Widgets / SVG / Shader Tools）。指定实际 Qt 安装目录，使用独立的构建目录，不要复用旧 Qt 构建缓存。当前已装：
+  - 动态版（测试用，aqt 安装）：`D:\Qt\6.8.3\msvc2022_64`，构建目录 `build-qt6-dyn`，产物需 `D:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir src\qml` 部署 DLL 后才能运行。
+  - 静态版（发布用，待构建）。
+- 动态测试构建命令（静态版就绪后把 `CMAKE_PREFIX_PATH` 与构建目录换成静态版）：
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
-[System.Environment]::SetEnvironmentVariable('Path', 'C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin', 'Process')
-& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' -S . -B build-qt6 -G 'Visual Studio 17 2022' -A x64 -DCMAKE_PREFIX_PATH='C:\Qt\6-static'
-& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build-qt6 --config Release --target XiaoJiAutoKey
+[System.Environment]::SetEnvironmentVariable('Path', 'C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem', 'Process')
+& 'D:\software\cmake-3.31.6\bin\cmake.exe' -S . -B build-qt6-dyn -G 'Visual Studio 17 2022' -A x64 -DCMAKE_PREFIX_PATH='D:/Qt/6.8.3/msvc2022_64'
+& 'D:\software\cmake-3.31.6\bin\cmake.exe' --build build-qt6-dyn --config Release --target XiaoJiAutoKey
 ```
 
 # 发布流程（线上更新）
@@ -61,7 +63,8 @@
 
 ## 按钮与控件
 
-- 使用统一的组件和设计 token，不在各个页面分别手写一套按钮样式。普通按钮建议最小高度 36、右侧启动/停止按钮最小高度 40、图标按钮最小触控区域 32，均为逻辑像素；文字或 DPI 需要更多空间时允许增高，不固定裁切内容。
+- 使用统一的组件和设计 token，不在各个页面分别手写一套按钮样式。普通按钮高度 32、右侧启动/停止按钮 32、图标按钮 32，均为逻辑像素；文字或 DPI 需要更多空间时允许增高，不固定裁切内容。
+- 正文/控件字号 12px，卡片标题 15px，页面标题 19px；默认窗口 780×560（最大高度 700），标题栏 34、侧栏 130、页边距 16、卡片间距 12、卡片内边距 14，表格行高 40。整体保持与 Qt Widgets 旧版一致的紧凑观感，不做放大处理。
 - 按钮与输入框圆角统一以 8 个逻辑像素为起点，卡片圆角以 13 个逻辑像素为起点；调整时修改统一 token，不将所有控件做成胶囊形，也不随意混用不同圆角。
 - 区分主要操作、次要操作和图标操作：右侧启动/停止为主要操作，新增和保存等动作按当前任务的重要性设置层级，不让一组按钮中的所有动作都使用高饱和填充。
 - 运行中的停止操作仍位于原启动位置，不移动、不隐藏。hover、pressed、disabled 和键盘焦点必须清晰且克制，不能仅用颜色变化表达运行状态。

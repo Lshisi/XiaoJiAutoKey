@@ -12,10 +12,15 @@ ColumnLayout {
     spacing: 1
     RowLayout {
         Layout.fillWidth: true
+        Layout.minimumHeight: implicitHeight
         spacing: 8
         Rectangle {
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
+            Layout.minimumWidth: 14
+            Layout.maximumWidth: 14
+            Layout.minimumHeight: 14
+            Layout.maximumHeight: 14
             radius: 7
             color: block.active ? block.appearance.accent : block.appearance.accentBorder
             Accessible.ignored: true
@@ -37,6 +42,7 @@ ColumnLayout {
     ColumnLayout {
         visible: block.lines.length > 0
         Layout.fillWidth: true
+        Layout.minimumHeight: implicitHeight
         Layout.leftMargin: 22
         spacing: 1
         Repeater {

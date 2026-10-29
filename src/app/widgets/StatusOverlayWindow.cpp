@@ -1,4 +1,5 @@
 #include "widgets/StatusOverlayWindow.h"
+#include "widgets/OverlayBackdropCapture.h"
 
 #include "FactionTheme.h"
 #include "MacroEngine.h"
@@ -7,13 +8,19 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <Windows.h>
+#include <dwmapi.h>
+#include <QApplication>
 #include <QCursor>
 #include <QFont>
 #include <QFontMetrics>
 #include <QGuiApplication>
+#include <QImage>
 #include <QMouseEvent>
+#include <QOperatingSystemVersion>
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QQmlError>
+#include <QQuickImageProvider>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QScreen>
@@ -30,12 +37,40 @@
 #include <limits>
 #include <utility>
 
+class OverlayBackdropProvider final : public QQuickImageProvider {
+public:
+    OverlayBackdropProvider() : QQuickImageProvider(QQuickImageProvider::Image),
+        frame_(1, 1, QImage::Format_ARGB32_Premultiplied) {
+        frame_.fill(Fluent::Colors::workspacePanel());
+    }
+
+    QImage requestImage(const QString&, QSize* size, const QSize&) override {
+        if (size) *size = frame_.size();
+        return frame_;
+    }
+
+    bool setFrame(QImage frame) {
+        if (frame_ == frame) return false;
+        frame_ = std::move(frame);
+        return true;
+    }
+
+private:
+    QImage frame_;
+};
+
 namespace {
 constexpr int kGlassInset = 0;
 constexpr int kContentPadding = 10;
 constexpr int kBaseWidth = 178;
 constexpr int kLockSize = 32;
 constexpr int kFontPixelSize = 12;
+constexpr int kBackdropMargin = 12;
+
+bool dragButtonDown() {
+    const int button = GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON;
+    return (GetAsyncKeyState(button) & 0x8000) != 0;
+}
 
 void configureQuickSurface(QQuickWidget* view) {
     QSurfaceFormat format = view->format();
@@ -43,6 +78,8 @@ void configureQuickSurface(QQuickWidget* view) {
     view->setFormat(format);
     view->setResizeMode(QQuickWidget::SizeRootObjectToView);
     view->setClearColor(Qt::transparent);
+    view->setAttribute(Qt::WA_TranslucentBackground, true);
+    view->setAutoFillBackground(false);
     view->setFocusPolicy(Qt::NoFocus);
 }
 
@@ -161,12 +198,12 @@ const QScreen* nearestScreenForPoint(const QPoint& point) {
 }
 
 StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
-    : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
+    : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::NoDropShadowWindowHint),
+      backdropCapture_(std::make_unique<OverlayBackdropCapture>()) {
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_ShowWithoutActivating, true);
     setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
     setCursor(Qt::SizeAllCursor);
-    setMouseTracking(true);
     setFixedWidth(kBaseWidth);
     overlayState_ = {
         {"showRepeat", false}, {"showMacro", false}, {"repeatTitle", QString()}, {"macroTitle", QString()},
@@ -176,7 +213,7 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
         {"accent", FactionTheme::instance().palette().accent},
         {"accentBorder", FactionTheme::instance().palette().accentBorder},
         {"text", Fluent::Colors::workspaceText()}, {"muted", Fluent::Colors::overlayTextSecondary()},
-        {"glassColor", FactionTheme::instance().palette().accentSubtle},
+        {"glassColor", Fluent::Colors::workspacePanel()},
         {"glassBorder", FactionTheme::instance().palette().accentBorder},
         {"warning", Fluent::Colors::warning()},
         {"fontFamily", Fluent::Typography::fontFamily()}, {"fontPixelSize", kFontPixelSize},
@@ -189,7 +226,8 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     quickWidget_->setAttribute(Qt::WA_TransparentForMouseEvents);
     root->addWidget(quickWidget_);
 
-    lockButtonWindow_ = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    lockButtonWindow_ = new QWidget(this, Qt::Tool | Qt::FramelessWindowHint
+        | Qt::WindowStaysOnTopHint | Qt::NoDropShadowWindowHint);
     lockButtonWindow_->setAttribute(Qt::WA_TranslucentBackground, true);
     lockButtonWindow_->setAttribute(Qt::WA_ShowWithoutActivating, true);
     lockButtonWindow_->setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
@@ -200,6 +238,14 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     configureQuickSurface(lockQuickWidget_);
     lockLayout->addWidget(lockQuickWidget_);
     setStyleSheet(QStringLiteral("StatusOverlayWindow { background: transparent; }"));
+    backdropTimer_ = new QTimer(this);
+    backdropTimer_->setInterval(50);
+    connect(backdropTimer_, &QTimer::timeout, this, &StatusOverlayWindow::scheduleBackdropRefresh);
+    dragReleaseTimer_ = new QTimer(this);
+    dragReleaseTimer_->setInterval(20);
+    connect(dragReleaseTimer_, &QTimer::timeout, this, [this] {
+        if (!dragButtonDown()) finishDragging(true);
+    });
 }
 
 StatusOverlayWindow::~StatusOverlayWindow() {
@@ -209,6 +255,8 @@ StatusOverlayWindow::~StatusOverlayWindow() {
 }
 
 bool StatusOverlayWindow::initialize(QWidget* dialogParent) {
+    backdropProvider_ = new OverlayBackdropProvider;
+    quickWidget_->engine()->addImageProvider(QStringLiteral("overlay-backdrop"), backdropProvider_);
     quickWidget_->rootContext()->setContextProperty("overlayModel", this);
     lockQuickWidget_->rootContext()->setContextProperty("overlayModel", this);
     quickWidget_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/OverlayWindow.qml")));
@@ -221,7 +269,7 @@ bool StatusOverlayWindow::initialize(QWidget* dialogParent) {
         return false;
     }
     connect(quickWidget_->rootObject(), &QQuickItem::implicitHeightChanged,
-        this, &StatusOverlayWindow::refreshTextLayout);
+        this, &StatusOverlayWindow::refreshTextLayout, Qt::QueuedConnection);
     winId();
     connect(windowHandle(), &QWindow::screenChanged, this, [this](QScreen*) {
         bindDpiRefreshSignals();
@@ -257,6 +305,7 @@ void StatusOverlayWindow::refreshForDpiChange(int nativeDpi) {
     syncLockButton();
     quickWidget_->update();
     lockQuickWidget_->update();
+    scheduleBackdropRefresh();
 }
 
 void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileConfig* profile,
@@ -267,6 +316,10 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     }
     setLocked(config.statusOverlayLocked);
     setOverlayOpacity(config.statusOverlayOpacity);
+    if (realRefraction_ != config.statusOverlayRealRefraction) {
+        realRefraction_ = config.statusOverlayRealRefraction;
+        configureBackdropCapture();
+    }
     const QFontMetrics metrics(overlayFont());
     const int desiredWidth = std::max(kBaseWidth, metrics.horizontalAdvance(tr("连发：配置停用"))
         + 2 * (kGlassInset + kContentPadding) + 22 + 24);
@@ -293,12 +346,13 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     state.insert("macroLines", macroLines(macro, config.macroOverlay, metrics, textWidth));
     state.insert("repeatActive", repeat.running && (!repeatPaused || !repeat.holdKeys.empty()));
     state.insert("macroActive", macroStatus.running && !macroStatus.paused);
-    state.insert("dark", Fluent::Theme::isDarkMode());
+    const bool materialDark = backdropAvailable_ ? backdropDark_ : Fluent::Theme::isDarkMode();
+    state.insert("dark", materialDark);
     state.insert("accent", FactionTheme::instance().palette().accent);
     state.insert("accentBorder", FactionTheme::instance().palette().accentBorder);
-    state.insert("text", Fluent::Colors::workspaceText());
-    state.insert("muted", Fluent::Colors::overlayTextSecondary());
-    state.insert("glassColor", FactionTheme::instance().palette().accentSubtle);
+    state.insert("text", Fluent::Colors::overlayText(materialDark));
+    state.insert("muted", Fluent::Colors::overlayTextSecondary(materialDark));
+    state.insert("glassColor", Fluent::Colors::overlayPanel(materialDark));
     state.insert("glassBorder", FactionTheme::instance().palette().accentBorder);
     state.insert("warning", Fluent::Colors::warning());
     if (overlayState_ != state) {
@@ -315,55 +369,161 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
 void StatusOverlayWindow::refreshTextLayout() {
     if (!quickWidget_->rootObject()) return;
     const int targetHeight = static_cast<int>(std::ceil(quickWidget_->rootObject()->implicitHeight()));
-    if (height() != targetHeight) setFixedHeight(targetHeight);
+    if (targetHeight <= 0) return;
+    if (height() != targetHeight) {
+        setFixedHeight(targetHeight);
+        layout()->invalidate();
+        layout()->activate();
+    }
     if (isVisible() && !dragging_) move(boundedPosition(pos()));
     syncLockButton();
 }
 
+void StatusOverlayWindow::refreshGlassPalette() {
+    const bool dark = backdropAvailable_ ? backdropDark_ : Fluent::Theme::isDarkMode();
+    QVariantMap state = overlayState_;
+    state.insert("dark", dark);
+    state.insert("text", Fluent::Colors::overlayText(dark));
+    state.insert("muted", Fluent::Colors::overlayTextSecondary(dark));
+    state.insert("glassColor", Fluent::Colors::overlayPanel(dark));
+    if (state == overlayState_) return;
+    overlayState_ = std::move(state);
+    emit overlayStateChanged();
+}
+
+void StatusOverlayWindow::clearBackdrop() {
+    if (!backdropAvailable_) return;
+    backdropAvailable_ = false;
+    refreshGlassPalette();
+    emit backdropChanged();
+}
+
+void StatusOverlayWindow::scheduleBackdropRefresh() {
+    if (!isVisible() || !captureExcluded_ || backdropCapturing_) return;
+    if (backdropRefreshPending_) return;
+    backdropRefreshPending_ = true;
+    const int delay = backdropClock_.isValid()
+        ? static_cast<int>(std::max<qint64>(0, 50 - backdropClock_.elapsed())) : 0;
+    QTimer::singleShot(delay, this, [this] {
+        backdropRefreshPending_ = false;
+        refreshBackdrop();
+    });
+}
+
+void StatusOverlayWindow::refreshBackdrop() {
+    if (!isVisible() || !backdropProvider_ || !captureExcluded_) return;
+    RECT bounds{};
+    if (!GetWindowRect(reinterpret_cast<HWND>(winId()), &bounds)) return;
+    const int margin = qRound(kBackdropMargin * devicePixelRatioF());
+    const QRect sampleRect(bounds.left - margin, bounds.top - margin,
+        bounds.right - bounds.left + 2 * margin, bounds.bottom - bounds.top + 2 * margin);
+    backdropCapturing_ = true;
+    QImage sample = backdropCapture_->grab(sampleRect);
+    backdropCapturing_ = false;
+    backdropClock_.restart();
+    if (sample.isNull()) {
+        clearBackdrop();
+        return;
+    }
+    double brightness = 0;
+    int count = 0;
+    const int step = std::max(1, qRound(4 * devicePixelRatioF()));
+    for (int y = margin; y < sample.height() - margin; y += step)
+        for (int x = margin; x < sample.width() - margin; x += step) {
+            brightness += qGray(sample.pixel(x, y)) / 255.0;
+            ++count;
+        }
+    brightness /= std::max(1, count);
+    if (!backdropAvailable_) backdropDark_ = brightness < 0.53;
+    else if (brightness < 0.45) backdropDark_ = true;
+    else if (brightness > 0.61) backdropDark_ = false;
+    const bool changed = backdropProvider_->setFrame(std::move(sample));
+    if (!changed && backdropAvailable_) return;
+    backdropAvailable_ = true;
+    refreshGlassPalette();
+    backdropSource_ = QUrl(QStringLiteral("image://overlay-backdrop/%1").arg(++backdropRevision_));
+    emit backdropChanged();
+}
+
+void StatusOverlayWindow::configureBackdropCapture() {
+    if (!windowHandle()) return;
+    const HWND overlay = reinterpret_cast<HWND>(winId());
+    const HWND lock = reinterpret_cast<HWND>(lockButtonWindow_->winId());
+    const bool supported = QOperatingSystemVersion::current()
+        >= QOperatingSystemVersion(QOperatingSystemVersion::Windows, 10, 0, 19041);
+    constexpr DWORD excludeFromCapture = 0x11;
+    const DWORD affinity = realRefraction_ && isVisible() && supported ? excludeFromCapture : WDA_NONE;
+    const bool overlaySet = SetWindowDisplayAffinity(overlay, affinity) != FALSE;
+    const bool lockSet = SetWindowDisplayAffinity(lock, affinity) != FALSE;
+    captureExcluded_ = affinity == excludeFromCapture && overlaySet && lockSet;
+    backdropCapture_->reset();
+    clearBackdrop();
+    if (captureExcluded_) {
+        DwmFlush();
+        backdropTimer_->start();
+        scheduleBackdropRefresh();
+    } else {
+        SetWindowDisplayAffinity(overlay, WDA_NONE);
+        SetWindowDisplayAffinity(lock, WDA_NONE);
+        backdropTimer_->stop();
+    }
+}
+
 void StatusOverlayWindow::mouseDoubleClickEvent(QMouseEvent* event) {
     if (locked_ || event->button() != Qt::LeftButton) return QWidget::mouseDoubleClickEvent(event);
-    dragging_ = false;
+    finishDragging(false);
     emit keyConfigRequested();
     event->accept();
 }
 
 void StatusOverlayWindow::mousePressEvent(QMouseEvent* event) {
     if (locked_ || event->button() != Qt::LeftButton) return QWidget::mousePressEvent(event);
-    dragging_ = true;
+    finishDragging(true);
+    dragPressed_ = true;
     dragStartGlobal_ = event->globalPosition().toPoint();
     dragStartWindow_ = pos();
+    grabMouse();
+    dragReleaseTimer_->start();
     event->accept();
 }
 
 void StatusOverlayWindow::mouseMoveEvent(QMouseEvent* event) {
     if (locked_) return QWidget::mouseMoveEvent(event);
-    setLightPosition(QPointF(std::clamp(event->position().x() / width(), 0.0, 1.0),
-        std::clamp(event->position().y() / height(), 0.0, 1.0)));
-    if (!dragging_) return QWidget::mouseMoveEvent(event);
-    move(boundedPosition(dragStartWindow_ + event->globalPosition().toPoint() - dragStartGlobal_));
+    if (!dragPressed_) return QWidget::mouseMoveEvent(event);
+    if (!(event->buttons() & Qt::LeftButton) || !dragButtonDown()) {
+        finishDragging(true);
+        return;
+    }
+    const QPoint delta = event->globalPosition().toPoint() - dragStartGlobal_;
+    if (!dragging_ && delta.manhattanLength() < QApplication::startDragDistance()) {
+        event->accept();
+        return;
+    }
+    dragging_ = true;
+    move(boundedPosition(dragStartWindow_ + delta));
     syncLockButton();
     event->accept();
 }
 
 void StatusOverlayWindow::mouseReleaseEvent(QMouseEvent* event) {
-    if (locked_ || !dragging_ || event->button() != Qt::LeftButton) return QWidget::mouseReleaseEvent(event);
-    dragging_ = false;
-    positionInitialized_ = true;
-    move(boundedPosition(pos()));
-    syncLockButton();
-    emit positionChanged(pos());
+    if (event->button() != Qt::LeftButton || !dragPressed_) return QWidget::mouseReleaseEvent(event);
+    finishDragging(true);
     event->accept();
 }
 
-void StatusOverlayWindow::leaveEvent(QEvent* event) {
-    setLightPosition(QPointF(0.25, 0.08));
-    QWidget::leaveEvent(event);
-}
-
-void StatusOverlayWindow::setLightPosition(const QPointF& position) {
-    if (lightPosition_ == position) return;
-    lightPosition_ = position;
-    emit lightPositionChanged();
+void StatusOverlayWindow::finishDragging(bool savePosition) {
+    if (!dragPressed_ && !dragging_) return;
+    const bool moved = dragging_;
+    dragPressed_ = false;
+    dragging_ = false;
+    dragReleaseTimer_->stop();
+    if (QWidget::mouseGrabber() == this) releaseMouse();
+    if (moved && savePosition) {
+        positionInitialized_ = true;
+        move(boundedPosition(pos()));
+        syncLockButton();
+        emit positionChanged(pos());
+    }
 }
 
 void StatusOverlayWindow::toggleLock() {
@@ -373,9 +533,8 @@ void StatusOverlayWindow::toggleLock() {
 
 void StatusOverlayWindow::setLocked(bool locked) {
     if (locked_ == locked) return;
+    finishDragging(true);
     locked_ = locked;
-    dragging_ = false;
-    setLightPosition(QPointF(0.25, 0.08));
     setStateValue("locked", locked);
     applyClickThrough();
     setCursor(locked_ ? Qt::ArrowCursor : Qt::SizeAllCursor);
@@ -403,8 +562,10 @@ void StatusOverlayWindow::syncLockButton() {
         return;
     }
     lockButtonWindow_->move(pos() + QPoint(width() - kGlassInset - 8 - kLockSize, kGlassInset + 8));
-    lockButtonWindow_->show();
-    syncTopMostOrder();
+    if (!lockButtonWindow_->isVisible()) {
+        lockButtonWindow_->show();
+        syncTopMostOrder();
+    }
 }
 
 void StatusOverlayWindow::syncTopMostOrder() {
@@ -417,11 +578,20 @@ void StatusOverlayWindow::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     bindDpiRefreshSignals();
     applyClickThrough();
+    configureBackdropCapture();
     refreshForDpiChange();
 }
 
 bool StatusOverlayWindow::event(QEvent* event) {
-    if (event->type() == QEvent::ScreenChangeInternal) refreshForDpiChange();
+    if (event->type() == QEvent::ScreenChangeInternal || event->type() == QEvent::DevicePixelRatioChange)
+        QTimer::singleShot(0, this, [this] { refreshForDpiChange(); });
+    if (event->type() == QEvent::Move || event->type() == QEvent::Resize) {
+        scheduleBackdropRefresh();
+    }
+    if (event->type() == QEvent::UngrabMouse || event->type() == QEvent::WindowDeactivate)
+        finishDragging(true);
+    if (event->type() == QEvent::Hide) finishDragging(false);
+    if (event->type() == QEvent::Hide && backdropTimer_) configureBackdropCapture();
     return QWidget::event(event);
 }
 
@@ -431,6 +601,9 @@ bool StatusOverlayWindow::nativeEvent(const QByteArray& eventType, void* message
         const int dpi = std::max<int>(96, LOWORD(msg->wParam));
         QTimer::singleShot(0, this, [this, dpi]() { refreshForDpiChange(dpi); });
     }
+    if (msg && msg->message == WM_DISPLAYCHANGE) backdropCapture_->reset();
+    if (msg && (msg->message == WM_CAPTURECHANGED || msg->message == WM_CANCELMODE))
+        finishDragging(true);
     return QWidget::nativeEvent(eventType, message, result);
 }
 

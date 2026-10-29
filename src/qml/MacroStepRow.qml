@@ -61,9 +61,7 @@ Item {
             text: root.entry.keyText
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
-            HoverHandler { id: keyHover }
-            ToolTip.visible: keyHover.hovered && root.entry.positionHint.length > 0
-            ToolTip.text: root.entry.positionHint
+            Accessible.description: root.entry.positionHint
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: 0; Layout.minimumWidth: 0; text: root.entry.delay.toString(); elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: 4 }

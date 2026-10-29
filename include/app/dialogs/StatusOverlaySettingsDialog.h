@@ -1,7 +1,12 @@
 #pragma once
 #include "AppTypes.h"
 #include "dialogs/QmlDialog.h"
-struct StatusOverlaySettings { RepeatOverlayOptions repeat; MacroOverlayOptions macro; int opacity = 70; };
+struct StatusOverlaySettings {
+    RepeatOverlayOptions repeat;
+    MacroOverlayOptions macro;
+    int opacity = 70;
+    bool realRefraction = true;
+};
 class StatusOverlaySettingsDialog : public QmlDialog {
     Q_OBJECT
 public:

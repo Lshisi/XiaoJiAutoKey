@@ -11,9 +11,6 @@ ComboBox {
     font.family: Theme.fontFamily
     font.pixelSize: 12
     hoverEnabled: true
-    ToolTip.visible: hovered && displayText.length > 0
-    ToolTip.text: displayText
-    ToolTip.delay: 550
     contentItem: Text {
         text: control.displayText
         textFormat: Text.PlainText

@@ -90,6 +90,9 @@ namespace Colors {
     inline QColor workspaceText()  { return Theme::isDarkMode() ? QColor("#edf0f4") : QColor("#24282f"); }
     inline QColor workspaceMuted() { return Theme::isDarkMode() ? QColor("#a9b1bc") : QColor("#737a84"); }
     inline QColor overlayTextSecondary() { return Theme::isDarkMode() ? QColor("#d3d9e1") : QColor("#353d49"); }
+    inline QColor overlayPanel(bool dark) { return dark ? QColor("#22252a") : QColor("#ffffff"); }
+    inline QColor overlayText(bool dark) { return dark ? QColor("#edf0f4") : QColor("#24282f"); }
+    inline QColor overlayTextSecondary(bool dark) { return dark ? QColor("#d3d9e1") : QColor("#353d49"); }
     inline QColor primary()        { return QColor(0x00, 0x78, 0xD4); }
     inline QColor primaryHover()   { return QColor(0x10, 0x6E, 0xBE); }
     inline QColor primaryPressed() { return QColor(0x00, 0x5A, 0x9E); }

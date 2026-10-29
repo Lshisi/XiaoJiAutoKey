@@ -1,31 +1,31 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import QtQuick.Layouts
 
 Item {
     id: overlay
     readonly property var appearance: overlayModel.overlayState
     implicitWidth: 178 + 2 * appearance.glassInset
-    implicitHeight: body.implicitHeight + 2 * appearance.glassInset + 17
-    Rectangle {
+    implicitHeight: Math.max(32, body.implicitHeight)
+        + 2 * (appearance.glassInset + appearance.contentPadding)
+    OverlayGlass {
         anchors.fill: parent
-        radius: 6
-        color: Qt.alpha(overlay.appearance.glassColor, overlay.appearance.opacity / 100)
-        border.color: Qt.alpha(overlay.appearance.glassBorder,
-            Math.min(1, overlay.appearance.opacity / 100 + 0.11))
-        border.width: 1
-        Accessible.ignored: true
+        backdrop: overlayModel.backdropSource
+        hasBackdrop: overlayModel.backdropAvailable
+        surfaceColor: overlay.appearance.glassColor
+        materialOpacity: overlay.appearance.opacity / 100
+        dark: overlay.appearance.dark
     }
-    ColumnLayout {
+    Column {
         id: body
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         anchors.leftMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
         anchors.rightMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
         anchors.topMargin: overlay.appearance.glassInset + 8
-        anchors.bottomMargin: overlay.appearance.glassInset + 9
         spacing: 6
         Loader {
-            Layout.fillWidth: true
+            width: body.width
             active: overlay.appearance.showRepeat
             visible: active
             sourceComponent: OverlayStatusBlock {
@@ -37,7 +37,7 @@ Item {
             }
         }
         Loader {
-            Layout.fillWidth: true
+            width: body.width
             active: overlay.appearance.showMacro
             visible: active
             sourceComponent: OverlayStatusBlock {
@@ -49,7 +49,7 @@ Item {
             }
         }
         Loader {
-            Layout.fillWidth: true
+            width: body.width
             active: overlay.appearance.gameGatePaused
             visible: active
             sourceComponent: Label {

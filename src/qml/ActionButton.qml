@@ -19,9 +19,6 @@ Button {
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
     Accessible.name: text.length ? text : hint
-    ToolTip.visible: hovered && hint.length > 0
-    ToolTip.text: hint
-    ToolTip.delay: 550
     contentItem: Text {
         text: control.text
         textFormat: Text.PlainText
@@ -39,13 +36,5 @@ Button {
             : control.down || control.hovered ? Theme.hover : control.quiet ? "transparent" : Theme.field
         border.width: control.visualFocus ? 2 : control.primary || control.quiet ? 0 : 1
         border.color: control.visualFocus ? Theme.accent : Theme.border
-        Rectangle {
-            visible: control.primary && control.enabled
-            x: Theme.buttonRadius
-            y: 1
-            width: Math.max(0, parent.width - 2 * Theme.buttonRadius)
-            height: 1
-            color: Theme.rim
-        }
     }
 }

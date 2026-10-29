@@ -143,6 +143,7 @@ struct AppConfig {
     int statusOverlayX = 6;
     int statusOverlayY = 6;
     int statusOverlayOpacity = 70;
+    bool statusOverlayRealRefraction = true;
     RepeatOverlayOptions repeatOverlay;
     MacroOverlayOptions macroOverlay;
     // 开机自启：登录 Windows 后通过 HKCU Run 注册表键自动运行小叽。

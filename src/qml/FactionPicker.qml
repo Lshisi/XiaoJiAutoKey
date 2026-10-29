@@ -78,48 +78,60 @@ ActionButton {
                 id: option
                 required property var modelData
                 width: factionList.width
-                implicitHeight: 24
+                implicitHeight: Math.max(24, factionName.implicitHeight + topPadding + bottomPadding)
+                leftPadding: 6
+                rightPadding: 6
+                topPadding: 3
+                bottomPadding: 3
                 text: modelData.name
                 highlighted: modelData.id === Theme.colors.factionId
                 onClicked: { appView.selectFaction(modelData.id); factionPopup.close() }
                 contentItem: RowLayout {
-                    spacing: 8
+                    spacing: 6
                     Text {
-                        visible: option.highlighted
+                        Layout.preferredWidth: 12
+                        Layout.preferredHeight: 16
+                        Layout.alignment: Qt.AlignVCenter
+                        opacity: option.highlighted ? 1 : 0
                         text: "\uE73E"
                         font.family: Theme.iconFamily
                         font.pixelSize: 10
                         color: Theme.accent
-                        Accessible.ignored: true
-                    }
-                    Image {
-                        visible: !Theme.dark
-                        source: option.modelData.icon
-                        sourceSize: Qt.size(16, 16)
-                        fillMode: Image.PreserveAspectFit
+                        verticalAlignment: Text.AlignVCenter
                         Accessible.ignored: true
                     }
                     Item {
-                        visible: Theme.dark
                         Layout.preferredWidth: 16
                         Layout.preferredHeight: 16
+                        Layout.minimumWidth: 16
+                        Layout.maximumWidth: 16
+                        Layout.alignment: Qt.AlignVCenter
                         Image {
                             id: optionSymbol
                             anchors.fill: parent
                             source: option.modelData.icon
                             sourceSize: Qt.size(16, 16)
                             fillMode: Image.PreserveAspectFit
-                            visible: false
+                            visible: !Theme.dark
+                            Accessible.ignored: true
                         }
                         MultiEffect {
                             anchors.fill: parent
                             source: optionSymbol
                             colorization: 1
                             colorizationColor: option.highlighted ? Theme.accent : Theme.text
-                            visible: optionSymbol.status === Image.Ready
+                            visible: Theme.dark && optionSymbol.status === Image.Ready
                         }
                     }
-                    QuietLabel { Layout.fillWidth: true; text: option.text; color: option.highlighted ? Theme.accent : Theme.text }
+                    QuietLabel {
+                        id: factionName
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        text: option.text
+                        color: option.highlighted ? Theme.accent : Theme.text
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
                 }
                 background: Rectangle { radius: 5; color: option.highlighted ? Theme.accentSoft : option.hovered ? Theme.hover : "transparent" }
             }

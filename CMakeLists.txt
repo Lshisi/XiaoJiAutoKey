@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2 ShaderTools)
 qt_standard_project_setup(REQUIRES 6.8)
 
 set(MOC_HEADERS
@@ -188,6 +188,8 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/coordinators/UpdateCoordinator.cpp
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
+    src/app/widgets/OverlayBackdropCapture.cpp
+    include/app/widgets/OverlayBackdropCapture.h
     src/app/main.cpp
     src/app/main_window/MainWindow.cpp
     src/app/main_window/MainWindowHooks.cpp
@@ -268,6 +270,7 @@ set(QML_FILES
     src/qml/DriverPage.qml
     src/qml/SettingsPage.qml
     src/qml/AboutPage.qml
+    src/qml/OverlayGlass.qml
     src/qml/OverlayWindow.qml
     src/qml/OverlayStatusBlock.qml
     src/qml/OverlayLock.qml
@@ -298,6 +301,11 @@ qt_add_qml_module(XiaoJiAutoKey
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml
     QML_FILES ${QML_FILES}
+)
+qt_add_shaders(XiaoJiAutoKey overlay_glass
+    PREFIX /shaders
+    BASE src/qml/shaders
+    FILES src/qml/shaders/glass-blur.frag src/qml/shaders/glass-refract.frag
 )
 target_include_directories(XiaoJiAutoKey PRIVATE
     include/app
@@ -339,6 +347,8 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     winmm
     winhttp
     dwmapi
+    d3d11
+    dxgi
     hid
     setupapi
     cfgmgr32

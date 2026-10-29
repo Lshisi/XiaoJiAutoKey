@@ -117,8 +117,6 @@ cmake --build build-qt6 --config Release
 
 旧 Widgets 自绘控件和菜单实现已移除。当前是 QML 自绘界面与原生宿主组合，不是纯 `QQuickWindow` 应用；系统托盘菜单、文件选择器和 Qt 初始化前的单实例提示继续使用原生实现。
 
-弹窗玻璃使用小叽自身 QML 界面的内存快照，打开弹窗及主题、DPI 刷新时取样，经双向模糊和边缘折射生成背景；拖动时更新取样区域，不采集桌面或游戏画面，也不保存、上传快照。材质算法改编自 [OverShifted/LiquidGlass](https://github.com/OverShifted/LiquidGlass)，移除了演示中的噪点和光晕。MIT 版权与许可见 [third_party/liquid-glass/LICENSE](third_party/liquid-glass/LICENSE)，同时嵌入 exe，可在“关于软件 → 开源许可”查看。
-
 ### 打包发布
 
 ```powershell

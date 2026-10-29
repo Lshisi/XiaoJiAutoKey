@@ -5,7 +5,7 @@ struct StatusOverlaySettings {
     RepeatOverlayOptions repeat;
     MacroOverlayOptions macro;
     int opacity = 70;
-    bool realRefraction = true;
+    bool nativeBlur = true;
 };
 class StatusOverlaySettingsDialog : public QmlDialog {
     Q_OBJECT

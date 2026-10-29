@@ -6,9 +6,10 @@ RowLayout {
     id: root
     required property QtObject page
     property bool macroMode: false
+    readonly property bool expandedLabels: width >= 400
     spacing: 6
     QuietLabel {
-        text: root.width >= 440
+        text: root.expandedLabels
             ? (root.macroMode ? qsTr("循环配置:") : qsTr("按键配置:"))
             : qsTr("配置:")
         color: Theme.muted
@@ -24,7 +25,7 @@ RowLayout {
         onActivated: root.page.selectProfile(currentValue)
         Accessible.name: root.macroMode ? qsTr("选择循环配置") : qsTr("选择按键配置")
     }
-    QuietLabel { text: root.width >= 440 ? qsTr("启用配置") : qsTr("启用"); color: Theme.muted }
+    QuietLabel { text: root.expandedLabels ? qsTr("启用配置") : qsTr("启用"); color: Theme.muted }
     QuietSwitch {
         checked: root.page.state.profileEnabled
         onClicked: root.macroMode ? root.page.macroEnabledToggled(checked) : root.page.profileEnabledToggled(checked)

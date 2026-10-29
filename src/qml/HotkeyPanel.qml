@@ -6,8 +6,7 @@ QuietCard {
     id: root
     required property QtObject page
     readonly property bool hasHotkey: page.state.hotkey.length > 0 && page.state.hotkey !== qsTr("未设置") && page.state.hotkey !== qsTr("录制中")
-    leftPadding: 12
-    rightPadding: 12
+    horizontalPadding: Theme.controlCardPadding
     topPadding: 6
     bottomPadding: 6
     implicitHeight: body.implicitHeight + topPadding + bottomPadding
@@ -30,12 +29,14 @@ QuietCard {
         }
         RowLayout {
             Layout.fillWidth: true
+            spacing: 3
             QuietCheck { text: qsTr("开启提示音"); enabled: !root.page.state.running; checked: root.page.state.beepEnabled; onClicked: root.page.beepToggled(checked) }
             Item { Layout.fillWidth: true }
             IconButton { glyph: "\uE189"; hint: qsTr("提示音设置"); enabled: !root.page.state.running; onClicked: root.page.soundSettingsClicked() }
         }
         RowLayout {
             Layout.fillWidth: true
+            spacing: 3
             QuietCheck { text: qsTr("显示到浮窗"); enabled: !root.page.state.running; checked: root.page.state.overlayEnabled; onClicked: root.page.statusOverlayToggled(checked) }
             Item { Layout.fillWidth: true }
             IconButton { glyph: "\uE713"; hint: qsTr("悬浮窗设置"); onClicked: root.page.statusOverlaySettingsClicked() }

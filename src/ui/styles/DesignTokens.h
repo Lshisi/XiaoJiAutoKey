@@ -167,6 +167,7 @@ namespace Spacing {
     constexpr int inputRadius   = 8;
     constexpr int dialogRadius  = 10;
     constexpr int sidebarWidth  = 130;
+    constexpr int controlPanelWidth = 147;
     constexpr int titleBarHeight = 34;
     constexpr int buttonHeight  = 32;
     constexpr int inputHeight   = 32;

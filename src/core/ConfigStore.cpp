@@ -380,8 +380,8 @@ AppConfig ConfigStore::Load() const {
         config.statusOverlayY = *overlayY;
     if (const auto opacity = GetIntField(*object, "statusOverlayOpacity"); opacity.has_value())
         config.statusOverlayOpacity = std::clamp(*opacity, 30, 100);
-    if (const auto refraction = GetBoolField(*object, "statusOverlayRealRefraction"); refraction.has_value())
-        config.statusOverlayRealRefraction = *refraction;
+    if (const auto blur = GetBoolField(*object, "statusOverlayNativeBlur"); blur.has_value())
+        config.statusOverlayNativeBlur = *blur;
     if (const auto value = GetBoolField(*object, "repeatOverlayShowHotkey"); value.has_value())
         config.repeatOverlay.showHotkey = *value;
     if (const auto value = GetBoolField(*object, "repeatOverlayShowIndependent"); value.has_value())
@@ -552,7 +552,7 @@ bool ConfigStore::Save(
     root.emplace("statusOverlayX", config.statusOverlayX);
     root.emplace("statusOverlayY", config.statusOverlayY);
     root.emplace("statusOverlayOpacity", std::clamp(config.statusOverlayOpacity, 30, 100));
-    root.emplace("statusOverlayRealRefraction", config.statusOverlayRealRefraction);
+    root.emplace("statusOverlayNativeBlur", config.statusOverlayNativeBlur);
     root.emplace("repeatOverlayShowHotkey", config.repeatOverlay.showHotkey);
     root.emplace("repeatOverlayShowIndependent", config.repeatOverlay.showIndependent);
     root.emplace("repeatOverlayShowHold", config.repeatOverlay.showHold);

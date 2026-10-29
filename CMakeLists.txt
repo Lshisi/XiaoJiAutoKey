@@ -305,7 +305,7 @@ qt_add_qml_module(XiaoJiAutoKey
 qt_add_shaders(XiaoJiAutoKey overlay_glass
     PREFIX /shaders
     BASE src/qml/shaders
-    FILES src/qml/shaders/glass-blur.frag src/qml/shaders/glass-refract.frag
+    FILES src/qml/shaders/glass-refract.frag
 )
 target_include_directories(XiaoJiAutoKey PRIVATE
     include/app

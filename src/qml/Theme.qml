@@ -7,6 +7,7 @@ QtObject {
     readonly property color background: colors.background
     readonly property color surface: colors.surface
     readonly property color surfaceTint: colors.surfaceTint
+    readonly property color titleBarBackground: colors.titleBarBackground
     readonly property color field: colors.field
     readonly property color border: colors.border
     readonly property color text: colors.text
@@ -27,10 +28,12 @@ QtObject {
     readonly property int pageMargin: colors.pageMargin
     readonly property int cardGap: colors.cardGap
     readonly property int cardPadding: colors.cardPadding
+    readonly property int controlCardPadding: 10
     readonly property int cardRadius: colors.cardRadius
     readonly property int dialogRadius: colors.dialogRadius
     readonly property int titleBarHeight: colors.titleBarHeight
     readonly property int sidebarWidth: colors.sidebarWidth
+    readonly property int controlPanelWidth: colors.controlPanelWidth
     readonly property int tableHeaderHeight: colors.tableHeaderHeight
     readonly property int tableRowHeight: colors.tableRowHeight
     readonly property int statusBarHeight: 24

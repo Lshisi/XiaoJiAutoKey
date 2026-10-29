@@ -18,7 +18,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumHeight: 120
-        implicitHeight: 180
+        implicitHeight: 160
         text: sharing.fields.code
         readOnly: sharing.fields.exporting
         placeholderText: qsTr("粘贴分享码（XJK1:…）或文本配方，识别后确认导入")

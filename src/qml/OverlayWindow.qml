@@ -4,25 +4,25 @@ import QtQuick.Controls.Basic
 Item {
     id: overlay
     readonly property var appearance: overlayModel.overlayState
-    implicitWidth: 178 + 2 * appearance.glassInset
+    implicitWidth: 178
     implicitHeight: Math.max(32, body.implicitHeight)
-        + 2 * (appearance.glassInset + appearance.contentPadding)
-    OverlayGlass {
+        + 2 * appearance.contentPadding
+    Rectangle {
         anchors.fill: parent
-        backdrop: overlayModel.backdropSource
-        hasBackdrop: overlayModel.backdropAvailable
-        surfaceColor: overlay.appearance.glassColor
-        materialOpacity: overlay.appearance.opacity / 100
-        dark: overlay.appearance.dark
+        color: Qt.alpha(overlay.appearance.panelColor,
+            overlay.appearance.nativeBlur && !overlay.appearance.blurActive
+                ? Math.max(0.9, overlay.appearance.opacity / 100)
+                : overlay.appearance.opacity / 100)
+        Accessible.ignored: true
     }
     Column {
         id: body
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.leftMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
-        anchors.rightMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
-        anchors.topMargin: overlay.appearance.glassInset + 8
+        anchors.leftMargin: overlay.appearance.contentPadding
+        anchors.rightMargin: overlay.appearance.contentPadding
+        anchors.topMargin: 8
         spacing: 6
         Loader {
             width: body.width

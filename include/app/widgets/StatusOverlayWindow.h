@@ -2,27 +2,20 @@
 
 #include "AppTypes.h"
 
-#include <QElapsedTimer>
 #include <QPointF>
 #include <QPointer>
-#include <QUrl>
 #include <QVariantMap>
 #include <QWidget>
-#include <memory>
 
 class QQuickWidget;
 class QScreen;
 class QTimer;
-class OverlayBackdropProvider;
-class OverlayBackdropCapture;
 struct RepeaterStatus;
 struct MacroStatus;
 
 class StatusOverlayWindow : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QVariantMap overlayState READ overlayState NOTIFY overlayStateChanged)
-    Q_PROPERTY(QUrl backdropSource READ backdropSource NOTIFY backdropChanged)
-    Q_PROPERTY(bool backdropAvailable READ backdropAvailable NOTIFY backdropChanged)
 
 public:
     explicit StatusOverlayWindow(QWidget* parent = nullptr);
@@ -38,13 +31,10 @@ public:
         const RepeaterStatus& repeat,
         const MacroStatus& macroStatus);
     QVariantMap overlayState() const { return overlayState_; }
-    QUrl backdropSource() const { return backdropSource_; }
-    bool backdropAvailable() const { return backdropAvailable_; }
     Q_INVOKABLE void toggleLock();
 
 signals:
     void overlayStateChanged();
-    void backdropChanged();
     void positionChanged(const QPoint& position);
     void lockChanged(bool locked);
     void keyConfigRequested();
@@ -73,28 +63,17 @@ private:
     void moveToConfiguredPosition(const AppConfig& config);
     void applyVisibleState();
     void refreshTextLayout();
-    void clearBackdrop();
-    void scheduleBackdropRefresh();
-    void refreshBackdrop();
-    void configureBackdropCapture();
-    void refreshGlassPalette();
+    bool updateNativeRegion();
+    void applyNativeBlur();
 
     QQuickWidget* quickWidget_ = nullptr;
     QQuickWidget* lockQuickWidget_ = nullptr;
     QWidget* lockButtonWindow_ = nullptr;
-    QTimer* backdropTimer_ = nullptr;
     QTimer* dragReleaseTimer_ = nullptr;
-    std::unique_ptr<OverlayBackdropCapture> backdropCapture_;
-    OverlayBackdropProvider* backdropProvider_ = nullptr;
-    QUrl backdropSource_{QStringLiteral("image://overlay-backdrop/0")};
-    QElapsedTimer backdropClock_;
-    quint64 backdropRevision_ = 0;
-    bool backdropAvailable_ = false;
-    bool backdropRefreshPending_ = false;
-    bool backdropCapturing_ = false;
-    bool realRefraction_ = true;
-    bool captureExcluded_ = false;
-    bool backdropDark_ = false;
+    bool nativeBlur_ = true;
+    WId nativeRegionWindow_ = 0;
+    QSize nativeRegionSize_;
+    int nativeRegionRadius_ = 0;
     QVariantMap overlayState_;
     QPointer<QScreen> boundScreen_;
     bool overlayEnabled_ = false;

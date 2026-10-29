@@ -21,6 +21,7 @@ struct FactionPalette {
     QColor accentSubtle;
     QColor accentBorder;
     QColor surfaceTint;
+    QColor titleBarBackground;
     QColor textOnAccent;
 };
 

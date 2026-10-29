@@ -37,7 +37,7 @@ constexpr int kBaseWindowHeight = 560;
 constexpr int kBaseDpi = 96;
 
 QColor appShellColor() {
-    return Fluent::Colors::workspaceBg();
+    return FactionTheme::instance().palette().surfaceTint;
 }
 
 QRect currentAvailableGeometry() {

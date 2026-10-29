@@ -32,11 +32,8 @@ Item {
                 QuietHeading { anchors.fill: parent; text: shell.dialogData.title; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
                 MouseArea { anchors.fill: parent; onPressed: dialogModel.startWindowMove(); Accessible.ignored: true }
             }
-            IconButton {
-                glyph: "\u00D7"
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                hint: qsTr("关闭")
+            CaptionButton {
+                closeAction: true
                 enabled: shell.dialogData.closeAllowed
                 onClicked: dialogModel.dispatch("cancel")
             }

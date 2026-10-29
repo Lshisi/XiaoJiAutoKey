@@ -5,6 +5,7 @@ import XiaoJi.UI
 QuietCard {
     id: root
     required property QtObject page
+    horizontalPadding: Theme.controlCardPadding
     implicitHeight: body.implicitHeight + topPadding + bottomPadding
     ColumnLayout {
         id: body
@@ -15,7 +16,7 @@ QuietCard {
         QuietLabel { Layout.fillWidth: true; text: qsTr("按住时暂停其他连发。"); color: Theme.muted; font.pixelSize: 12 }
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
         QuietCheck { text: qsTr("WASD 防卡"); enabled: !root.page.state.running; checked: root.page.state.wasdProtection; onClicked: root.page.wasdProtectionToggled(checked) }
-        QuietLabel { Layout.fillWidth: true; text: qsTr("移动时降速，松开后恢复。"); color: Theme.muted; font.pixelSize: 12 }
+        QuietLabel { Layout.fillWidth: true; text: qsTr("移动降速，松开恢复。"); color: Theme.muted; font.pixelSize: 12 }
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
         QuietCheck {
             text: qsTr("记住切换位置")

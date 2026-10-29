@@ -5,7 +5,7 @@ import XiaoJi.UI
 
 Rectangle {
     id: shell
-    color: Theme.background
+    color: Theme.surfaceTint
     radius: 10
     ColumnLayout {
         anchors.fill: parent
@@ -17,6 +17,8 @@ Rectangle {
             spacing: 0
             Rectangle {
                 Layout.preferredWidth: Theme.sidebarWidth
+                Layout.minimumWidth: Theme.sidebarWidth
+                Layout.maximumWidth: Theme.sidebarWidth
                 Layout.fillHeight: true
                 color: Theme.surfaceTint
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }

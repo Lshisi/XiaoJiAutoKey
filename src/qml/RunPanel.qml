@@ -7,11 +7,12 @@ QuietCard {
     required property QtObject page
     readonly property var pageState: page.state
     glass: true
+    horizontalPadding: Theme.controlCardPadding
     implicitHeight: body.implicitHeight + topPadding + bottomPadding
     ColumnLayout {
         id: body
         anchors.fill: parent
-        spacing: 10
+        spacing: 8
         QuietHeading { text: qsTr("快捷控制") }
         ActionButton {
             Layout.fillWidth: true

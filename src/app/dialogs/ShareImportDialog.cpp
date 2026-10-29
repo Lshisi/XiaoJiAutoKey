@@ -45,7 +45,7 @@ QString PayloadSummary(const SharePayload& payload) {
 ShareImportDialog::ShareImportDialog(QWidget* parent) : QmlDialog(parent) {
     setWindowTitle(tr("导入配置"));
     present("DialogShare.qml", {{"exporting", false}, {"format", 0}, {"code", QString()}, {"status", QString()},
-        {"canImport", false}, {"actions", QVariantList{button("import", tr("导入")), button("paste", tr("粘贴"), false), button("cancel", tr("取消"), false)}}}, QSize(560, 460));
+        {"canImport", false}, {"actions", QVariantList{button("import", tr("导入")), button("paste", tr("粘贴"), false), button("cancel", tr("取消"), false)}}}, QSize(480, 340));
     previewImport();
 }
 void ShareImportDialog::setText(const QString& text) { setValue("code", text); previewImport(); }

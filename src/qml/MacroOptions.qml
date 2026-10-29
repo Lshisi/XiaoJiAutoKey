@@ -5,6 +5,7 @@ import XiaoJi.UI
 QuietCard {
     id: root
     required property QtObject page
+    horizontalPadding: Theme.controlCardPadding
     implicitHeight: body.implicitHeight + topPadding + bottomPadding
     ColumnLayout {
         id: body

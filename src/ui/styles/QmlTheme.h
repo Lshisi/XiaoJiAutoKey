@@ -12,6 +12,7 @@ inline QVariantMap qmlTheme() {
         {"dark", Fluent::Theme::isDarkMode()},
         {"background", Fluent::Colors::workspaceBg()}, {"surface", Fluent::Colors::workspacePanel()},
         {"surfaceTint", colors.surfaceTint},
+        {"titleBarBackground", colors.titleBarBackground},
         {"field", Fluent::Colors::workspaceField()}, {"border", Fluent::Colors::workspaceLine()},
         {"text", Fluent::Colors::workspaceText()}, {"muted", Fluent::Colors::workspaceMuted()},
         {"hover", Fluent::Colors::hoverBg()}, {"divider", Fluent::Colors::divider()},
@@ -29,6 +30,7 @@ inline QVariantMap qmlTheme() {
         {"dialogRadius", Fluent::Spacing::dialogRadius},
         {"titleBarHeight", Fluent::Spacing::titleBarHeight},
         {"sidebarWidth", Fluent::Spacing::sidebarWidth},
+        {"controlPanelWidth", Fluent::Spacing::controlPanelWidth},
         {"tableHeaderHeight", Fluent::Spacing::tableHeaderH}, {"tableRowHeight", Fluent::Spacing::tableRowH},
         {"buttonRadius", Fluent::Spacing::buttonRadius}, {"inputRadius", Fluent::Spacing::inputRadius}
     };

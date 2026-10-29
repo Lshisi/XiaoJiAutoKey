@@ -298,7 +298,7 @@ void MainWindow::openStatusOverlaySettings(bool macroPage) {
     config_.repeatOverlay = settings.repeat;
     config_.macroOverlay = settings.macro;
     config_.statusOverlayOpacity = settings.opacity;
-    config_.statusOverlayRealRefraction = settings.realRefraction;
+    config_.statusOverlayNativeBlur = settings.nativeBlur;
     configCoordinator_.save();
     refreshStatusOverlay();
 }

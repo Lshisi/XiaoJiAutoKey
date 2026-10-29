@@ -5,7 +5,7 @@ import XiaoJi.UI
 Rectangle {
     id: titleBar
     implicitHeight: Math.max(Theme.titleBarHeight, content.implicitHeight + 2)
-    color: Theme.background
+    color: Theme.titleBarBackground
     radius: 10
     bottomLeftRadius: 0
     bottomRightRadius: 0

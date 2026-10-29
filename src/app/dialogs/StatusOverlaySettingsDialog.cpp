@@ -4,7 +4,7 @@ StatusOverlaySettingsDialog::StatusOverlaySettingsDialog(const AppConfig& config
     setWindowTitle(tr("悬浮窗设置"));
     present("DialogOverlaySettings.qml", {
         {"tab", macroPage ? 1 : 0}, {"opacity", config.statusOverlayOpacity},
-        {"realRefraction", config.statusOverlayRealRefraction},
+        {"nativeBlur", config.statusOverlayNativeBlur},
         {"repeatHotkey", config.repeatOverlay.showHotkey}, {"repeatIndependent", config.repeatOverlay.showIndependent},
         {"repeatHold", config.repeatOverlay.showHold}, {"repeatToggle", config.repeatOverlay.showToggle},
         {"repeatSequence", config.repeatOverlay.showSequence}, {"repeatSequenceHotkey", config.repeatOverlay.showSequenceHotkey},
@@ -18,11 +18,11 @@ StatusOverlaySettings StatusOverlaySettingsDialog::settings() const {
     return {{value("repeatHotkey").toBool(), value("repeatIndependent").toBool(), value("repeatHold").toBool(),
         value("repeatToggle").toBool(), value("repeatSequence").toBool(), value("repeatSequenceHotkey").toBool(), value("repeatPauseKeys").toBool()},
         {value("macroHotkey").toBool(), value("macroTriggerMode").toBool(), value("macroLoopCount").toBool(), value("macroPauseKeys").toBool()},
-        value("opacity").toInt(), value("realRefraction").toBool()};
+        value("opacity").toInt(), value("nativeBlur").toBool()};
 }
 void StatusOverlaySettingsDialog::editField(const QString& field, const QVariant& argument) {
     if (field == "opacity") setValue(field, std::clamp(argument.toInt(), 30, 100));
-    else if (field == "realRefraction") setValue(field, argument.toBool());
+    else if (field == "nativeBlur") setValue(field, argument.toBool());
     else if (field == "tab") setValue(field, std::clamp(argument.toInt(), 0, 2));
     else if (field.startsWith("repeat") || field.startsWith("macro")) {
         if (dialogState().contains(field)) setValue(field, argument.toBool());

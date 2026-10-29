@@ -64,25 +64,25 @@ ColumnLayout {
         sourceComponent: ColumnLayout {
             spacing: 12
             QuietCheck {
-                text: qsTr("真实背景折射")
-                checked: settings.fields.realRefraction
-                onClicked: dialogModel.edit("realRefraction", checked)
+                text: qsTr("原生背景模糊")
+                checked: settings.fields.nativeBlur
+                onClicked: dialogModel.edit("nativeBlur", checked)
             }
             QuietLabel {
                 Layout.fillWidth: true
-                text: qsTr("开启后，系统截图和录屏不包含悬浮窗。需要录制悬浮窗时请关闭。")
+                text: qsTr("柔化浮窗背后的画面，保持文字清晰。")
                 color: Theme.muted
                 wrapMode: Text.Wrap
             }
             RowLayout {
                 Layout.fillWidth: true
-                QuietLabel { Layout.fillWidth: true; text: settings.fields.realRefraction ? qsTr("材质浓度") : qsTr("背景不透明度") }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("背景不透明度") }
                 QuietLabel { text: qsTr("%1% ").arg(settings.fields.opacity); color: Theme.muted }
             }
-            QuietSlider { Layout.fillWidth: true; from: 30; value: settings.fields.opacity; stepSize: 5; onMoved: dialogModel.edit("opacity", Math.round(value)); Accessible.name: qsTr("悬浮窗材质浓度") }
+            QuietSlider { Layout.fillWidth: true; from: 30; value: settings.fields.opacity; stepSize: 5; onMoved: dialogModel.edit("opacity", Math.round(value)); Accessible.name: qsTr("悬浮窗背景不透明度") }
             QuietLabel {
                 Layout.fillWidth: true
-                text: qsTr("数值越低越通透，文字区域会保留必要的对比度。锁定按钮在右上角。")
+                text: qsTr("数值越高，文字越容易辨认；锁定按钮在浮窗右上角。")
                 color: Theme.muted
                 wrapMode: Text.Wrap
             }

@@ -8,6 +8,15 @@ Item {
     required property QtObject page
     property bool macroMode: false
     readonly property var rows: macroMode ? page.state.steps : page.state.bindings
+    QtObject {
+        id: tableColumns
+        readonly property real rowWidth: Math.max(0, list.width - tableScrollBar.implicitWidth)
+        readonly property int leadingWidth: workspace.macroMode ? Theme.iconSize : 42
+        readonly property int actionPadding: 4
+        readonly property int actionWidth: 2 * Theme.iconSize + 2 * actionPadding
+        readonly property real fieldWidth: Math.max(0,
+            (rowWidth - leadingWidth - actionWidth) / (workspace.macroMode ? 2 : 4))
+    }
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: Theme.pageMargin
@@ -16,10 +25,11 @@ Item {
         anchors.bottomMargin: Theme.cardGap
         spacing: Theme.cardGap
         QuietCard {
+            id: listCard
+            objectName: "workspaceDialogAnchor"
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.preferredWidth: 0
-            Layout.horizontalStretchFactor: 5
             Layout.minimumWidth: 0
             ColumnLayout {
                 anchors.fill: parent
@@ -47,20 +57,26 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     spacing: 0
-                    Rectangle {
+                    Item {
                         Layout.fillWidth: true
                         implicitHeight: Theme.tableHeaderHeight
-                        color: Theme.accentSubtle
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: 1 - listCard.leftPadding
+                            anchors.rightMargin: 1 - listCard.rightPadding
+                            color: Theme.accentSubtle
+                            Accessible.ignored: true
+                        }
                         RowLayout {
                             anchors.fill: parent
-                            anchors.rightMargin: 8
+                            anchors.rightMargin: tableScrollBar.implicitWidth
                             spacing: 0
-                            QuietLabel { Layout.preferredWidth: workspace.macroMode ? 32 : 42; text: workspace.macroMode ? "" : qsTr("状态"); color: Theme.muted }
-                            QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: 0; text: qsTr("按键"); color: Theme.muted }
-                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.preferredWidth: 0; text: qsTr("模式"); color: Theme.muted }
-                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.preferredWidth: 0; text: qsTr("优先"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: 0; text: workspace.macroMode ? qsTr("间隔 (ms)") : qsTr("延迟"); color: Theme.muted }
-                            QuietLabel { Layout.preferredWidth: 72; text: qsTr("操作"); color: Theme.muted }
+                            QuietLabel { Layout.preferredWidth: tableColumns.leadingWidth; text: workspace.macroMode ? "" : qsTr("状态"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                            QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("按键"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("模式"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("优先"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                            QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: workspace.macroMode ? qsTr("间隔 (ms)") : qsTr("延迟"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                            QuietLabel { Layout.preferredWidth: tableColumns.actionWidth; text: qsTr("操作"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                         }
                     }
                     ListView {
@@ -74,50 +90,40 @@ Item {
                             id: rowLoader
                             required property var modelData
                             required property int index
-                            width: list.width - 8
+                            width: tableColumns.rowWidth
                             height: Theme.tableRowHeight
                             sourceComponent: workspace.macroMode ? stepDelegate : bindingDelegate
                             Component {
                                 id: bindingDelegate
-                                BindingRow { page: workspace.page; entry: rowLoader.modelData; enabled: !workspace.page.state.running }
+                                BindingRow { page: workspace.page; entry: rowLoader.modelData; columns: tableColumns; enabled: !workspace.page.state.running }
                             }
                             Component {
                                 id: stepDelegate
-                                MacroStepRow { page: workspace.page; entry: rowLoader.modelData; rowIndex: rowLoader.index; rowCount: list.count; enabled: !workspace.page.state.running }
+                                MacroStepRow { page: workspace.page; entry: rowLoader.modelData; columns: tableColumns; rowIndex: rowLoader.index; rowCount: list.count; enabled: !workspace.page.state.running }
                             }
                         }
-                        ScrollBar.vertical: QuietScrollBar {}
+                        ScrollBar.vertical: QuietScrollBar { id: tableScrollBar }
                     }
                 }
                 ShortcutBar { Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
             }
         }
-        ScrollView {
-            id: sideScroll
-            Layout.fillWidth: true
-            Layout.preferredWidth: 0
-            Layout.horizontalStretchFactor: 3
-            Layout.minimumWidth: 190
+        ColumnLayout {
+            Layout.fillWidth: false
+            Layout.preferredWidth: Theme.controlPanelWidth
+            Layout.minimumWidth: Theme.controlPanelWidth
+            Layout.maximumWidth: Theme.controlPanelWidth
             Layout.fillHeight: true
-            contentWidth: availableWidth
-            contentHeight: Math.max(sideColumn.implicitHeight, availableHeight)
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: QuietScrollBar {}
-            ColumnLayout {
-                id: sideColumn
-                width: sideScroll.availableWidth
-                height: Math.max(implicitHeight, sideScroll.availableHeight)
-                spacing: Theme.cardGap
-                RunPanel { Layout.fillWidth: true; page: workspace.page }
-                HotkeyPanel { Layout.fillWidth: true; page: workspace.page }
-                Loader {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: implicitHeight
-                    sourceComponent: workspace.macroMode ? macroOptions : repeatOptions
-                    Component { id: repeatOptions; RepeatOptions { page: workspace.page } }
-                    Component { id: macroOptions; MacroOptions { page: workspace.page } }
-                }
+            spacing: Theme.cardGap
+            RunPanel { Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
+            HotkeyPanel { Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
+            Loader {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: implicitHeight
+                sourceComponent: workspace.macroMode ? macroOptions : repeatOptions
+                Component { id: repeatOptions; RepeatOptions { page: workspace.page } }
+                Component { id: macroOptions; MacroOptions { page: workspace.page } }
             }
         }
     }

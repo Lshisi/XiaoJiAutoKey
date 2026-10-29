@@ -31,10 +31,11 @@
 #include <utility>
 
 namespace {
-constexpr int kGlassInset = 8;
-constexpr int kContentPadding = Fluent::Spacing::cardPadding;
+constexpr int kGlassInset = 0;
+constexpr int kContentPadding = 10;
+constexpr int kBaseWidth = 178;
 constexpr int kLockSize = 32;
-constexpr int kFontPixelSize = 13;
+constexpr int kFontPixelSize = 12;
 
 void configureQuickSurface(QQuickWidget* view) {
     QSurfaceFormat format = view->format();
@@ -166,15 +167,17 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
     setCursor(Qt::SizeAllCursor);
     setMouseTracking(true);
-    setFixedWidth(224);
+    setFixedWidth(kBaseWidth);
     overlayState_ = {
         {"showRepeat", false}, {"showMacro", false}, {"repeatTitle", QString()}, {"macroTitle", QString()},
         {"repeatLines", QStringList{}}, {"macroLines", QStringList{}},
         {"repeatActive", false}, {"macroActive", false}, {"gameGatePaused", false},
         {"locked", false}, {"opacity", opacity_}, {"dark", Fluent::Theme::isDarkMode()},
         {"accent", FactionTheme::instance().palette().accent},
+        {"accentBorder", FactionTheme::instance().palette().accentBorder},
         {"text", Fluent::Colors::workspaceText()}, {"muted", Fluent::Colors::overlayTextSecondary()},
-        {"glassColor", Fluent::Colors::workspacePanel()},
+        {"glassColor", FactionTheme::instance().palette().accentSubtle},
+        {"glassBorder", FactionTheme::instance().palette().accentBorder},
         {"warning", Fluent::Colors::warning()},
         {"fontFamily", Fluent::Typography::fontFamily()}, {"fontPixelSize", kFontPixelSize},
         {"glassInset", kGlassInset}, {"contentPadding", kContentPadding}
@@ -265,11 +268,12 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     setLocked(config.statusOverlayLocked);
     setOverlayOpacity(config.statusOverlayOpacity);
     const QFontMetrics metrics(overlayFont());
-    const int desiredWidth = std::max(224, metrics.horizontalAdvance(tr("连发：配置停用")) + 88);
+    const int desiredWidth = std::max(kBaseWidth, metrics.horizontalAdvance(tr("连发：配置停用"))
+        + 2 * (kGlassInset + kContentPadding) + 22 + 24);
     const auto* currentScreen = nearestScreenForPoint(pos());
     const int targetWidth = currentScreen ? std::min(desiredWidth, currentScreen->availableGeometry().width()) : desiredWidth;
     if (width() != targetWidth) setFixedWidth(targetWidth);
-    const int textWidth = width() - 2 * (kGlassInset + kContentPadding) - 16;
+    const int textWidth = width() - 2 * (kGlassInset + kContentPadding) - 24;
 
     const bool hasPausableBindings = profile && std::any_of(profile->bindings.begin(), profile->bindings.end(),
         [](const KeyBinding& binding) { return binding.enabled && binding.mode != RepeatMode::Hold; });
@@ -291,9 +295,11 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     state.insert("macroActive", macroStatus.running && !macroStatus.paused);
     state.insert("dark", Fluent::Theme::isDarkMode());
     state.insert("accent", FactionTheme::instance().palette().accent);
+    state.insert("accentBorder", FactionTheme::instance().palette().accentBorder);
     state.insert("text", Fluent::Colors::workspaceText());
     state.insert("muted", Fluent::Colors::overlayTextSecondary());
-    state.insert("glassColor", Fluent::Colors::workspacePanel());
+    state.insert("glassColor", FactionTheme::instance().palette().accentSubtle);
+    state.insert("glassBorder", FactionTheme::instance().palette().accentBorder);
     state.insert("warning", Fluent::Colors::warning());
     if (overlayState_ != state) {
         overlayState_ = std::move(state);

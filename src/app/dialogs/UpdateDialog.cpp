@@ -44,7 +44,7 @@ UpdateDialog::UpdateDialog(const QString& version, const QString& notes, bool ha
         {"bodyRich", true}, {"status", QString()}, {"severity", 0}, {"progressVisible", false},
         {"progressIndeterminate", false}, {"progressValue", 0}, {"progressText", QString()},
         {"actions", QVariantList{button("confirm", hasAsset ? tr("确认更新") : tr("前往下载")), button("cancel", tr("取消"), false)}}},
-        QSize(540, 460));
+        QSize(440, 404));
 }
 void UpdateDialog::beginDownload() {
     busy_ = true;

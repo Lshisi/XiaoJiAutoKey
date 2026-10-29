@@ -18,5 +18,4 @@ signals:
     void checkUpdateRequested();
     void updateActionRequested();
     void usageGuideRequested();
-    void licenseRequested();
 };

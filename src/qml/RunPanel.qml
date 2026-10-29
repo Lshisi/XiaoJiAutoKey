@@ -17,17 +17,16 @@ QuietCard {
             Layout.fillWidth: true
             implicitHeight: Theme.primaryHeight
             primary: true
+            destructive: root.pageState.running
             enabled: root.pageState.running || root.pageState.profileEnabled
-            text: root.pageState.running ? qsTr("■  停止") : qsTr("▶  启动")
+            text: {
+                const action = root.pageState.running ? qsTr("■  停止") : qsTr("▶  启动")
+                const key = root.pageState.hotkey
+                return key.length && key !== qsTr("未设置") && key !== qsTr("录制中")
+                    ? qsTr("%1 (%2)").arg(action).arg(key) : action
+            }
             onClicked: root.page.startStopClicked()
             Accessible.name: root.pageState.running ? qsTr("停止连发") : qsTr("启动连发")
-        }
-        QuietLabel {
-            Layout.fillWidth: true
-            text: root.pageState.running ? qsTr("状态：运行中") : qsTr("状态：已停止")
-            color: root.pageState.running ? Theme.accent : Theme.muted
-            font.pixelSize: 12
-            Accessible.role: Accessible.StaticText
         }
     }
 }

@@ -34,7 +34,7 @@ QStringList RunningProcessNames() {
 GameProcessDialog::GameProcessDialog(const QStringList& initialProcesses, QWidget* parent) : QmlDialog(parent) {
     setWindowTitle(tr("游戏进程管理"));
     present("DialogProcesses.qml", {{"processes", initialProcesses}, {"runningProcesses", QStringList{}}, {"processName", QString()},
-        {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}}, QSize(520, 560));
+        {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}}, QSize(420, 460));
 }
 QStringList GameProcessDialog::processes() const { return value("processes").toStringList(); }
 void GameProcessDialog::addProcess(const QString& input) {

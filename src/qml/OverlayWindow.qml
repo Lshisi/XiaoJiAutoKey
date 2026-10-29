@@ -5,21 +5,25 @@ import QtQuick.Layouts
 Item {
     id: overlay
     readonly property var appearance: overlayModel.overlayState
-    implicitWidth: 224
-    implicitHeight: body.implicitHeight + 2 * (appearance.glassInset + appearance.contentPadding)
-    LiquidGlass {
+    implicitWidth: 178 + 2 * appearance.glassInset
+    implicitHeight: body.implicitHeight + 2 * appearance.glassInset + 17
+    Rectangle {
         anchors.fill: parent
-        dark: overlay.appearance.dark
-        surfaceColor: overlay.appearance.glassColor
-        materialOpacity: overlay.appearance.opacity / 100
-        shadowInset: overlay.appearance.glassInset
-        lightPoint: overlayModel.lightPosition
+        radius: 6
+        color: Qt.alpha(overlay.appearance.glassColor, overlay.appearance.opacity / 100)
+        border.color: Qt.alpha(overlay.appearance.glassBorder,
+            Math.min(1, overlay.appearance.opacity / 100 + 0.11))
+        border.width: 1
+        Accessible.ignored: true
     }
     ColumnLayout {
         id: body
         anchors.fill: parent
-        anchors.margins: overlay.appearance.glassInset + overlay.appearance.contentPadding
-        spacing: 10
+        anchors.leftMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
+        anchors.rightMargin: overlay.appearance.glassInset + overlay.appearance.contentPadding
+        anchors.topMargin: overlay.appearance.glassInset + 8
+        anchors.bottomMargin: overlay.appearance.glassInset + 9
+        spacing: 6
         Loader {
             Layout.fillWidth: true
             active: overlay.appearance.showRepeat
@@ -31,13 +35,6 @@ Item {
                 active: overlay.appearance.repeatActive
                 reserveLock: true
             }
-        }
-        Rectangle {
-            visible: overlay.appearance.showRepeat && overlay.appearance.showMacro
-            Layout.fillWidth: true
-            implicitHeight: 1
-            color: Qt.alpha(overlay.appearance.muted, 0.18)
-            Accessible.ignored: true
         }
         Loader {
             Layout.fillWidth: true
@@ -60,7 +57,7 @@ Item {
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
                 font.family: overlay.appearance.fontFamily
-                font.pixelSize: overlay.appearance.fontPixelSize - 1
+                font.pixelSize: overlay.appearance.fontPixelSize
                 color: overlay.appearance.warning
                 padding: 6
                 background: Rectangle {

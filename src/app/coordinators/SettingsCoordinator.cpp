@@ -31,6 +31,7 @@ void SettingsCoordinator::bind(Context context) {
     });
     connect(context_.page, &SettingsPageModel::gameGateEnabledChanged, this, [this](bool enabled) {
         context_.config->gameGateEnabled = enabled;
+        context_.page->setGameGateEnabled(enabled);
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyGameGate) context_.applyGameGate();
     });

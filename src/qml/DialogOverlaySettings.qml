@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -15,18 +16,27 @@ ColumnLayout {
         { field: "macroHotkey", label: qsTr("触发快捷键") }, { field: "macroTriggerMode", label: qsTr("触发模式") },
         { field: "macroLoopCount", label: qsTr("循环次数") }, { field: "macroPauseKeys", label: qsTr("暂停快捷键") }
     ]
-    spacing: 18
-    RowLayout {
+    spacing: Theme.cardGap
+    TabBar {
+        id: tabs
         Layout.fillWidth: true
+        currentIndex: settings.fields.tab
         Repeater {
             model: [qsTr("按键连发"), qsTr("循环连发"), qsTr("通用")]
-            delegate: ActionButton {
+            delegate: TabButton {
+                id: tab
                 required property int index
                 required property string modelData
-                Layout.fillWidth: true
                 text: modelData
-                primary: settings.fields.tab === index
+                font.family: Theme.fontFamily
+                font.pixelSize: 12
                 onClicked: dialogModel.edit("tab", index)
+                contentItem: QuietLabel { text: tab.text; horizontalAlignment: Text.AlignHCenter; color: tab.checked ? Theme.accent : Theme.text }
+                background: Rectangle {
+                    color: tab.hovered ? Theme.hover : "transparent"
+                    border.color: tab.visualFocus ? Theme.accent : "transparent"
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: tab.checked ? Theme.accent : "transparent" }
+                }
             }
         }
     }
@@ -55,11 +65,12 @@ ColumnLayout {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
-                QuietLabel { Layout.fillWidth: true; text: qsTr("玻璃底不透明度") }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("背景透明度") }
                 QuietLabel { text: qsTr("%1% ").arg(settings.fields.opacity); color: Theme.muted }
             }
-            QuietSlider { Layout.fillWidth: true; from: 30; value: settings.fields.opacity; stepSize: 5; onMoved: dialogModel.edit("opacity", Math.round(value)); Accessible.name: qsTr("悬浮窗玻璃底不透明度") }
-            QuietLabel { Layout.fillWidth: true; text: qsTr("数值越低越通透，文字不会一起变淡。右上角锁定按钮可开启鼠标穿透。"); color: Theme.muted }
+            QuietSlider { Layout.fillWidth: true; from: 30; value: settings.fields.opacity; stepSize: 5; onMoved: dialogModel.edit("opacity", Math.round(value)); Accessible.name: qsTr("悬浮窗背景透明度") }
+            QuietLabel { Layout.fillWidth: true; text: qsTr("数值越低越透明，锁定按钮在浮窗右上角"); color: Theme.muted }
         }
     }
+    Item { Layout.fillHeight: true }
 }

@@ -9,15 +9,15 @@ ColumnLayout {
     required property var lines
     required property bool active
     property bool reserveLock: false
-    spacing: 4
+    spacing: 1
     RowLayout {
         Layout.fillWidth: true
         spacing: 8
         Rectangle {
-            Layout.preferredWidth: 7
-            Layout.preferredHeight: 7
-            radius: 3.5
-            color: block.active ? block.appearance.accent : Qt.alpha(block.appearance.muted, 0.65)
+            Layout.preferredWidth: 14
+            Layout.preferredHeight: 14
+            radius: 7
+            color: block.active ? block.appearance.accent : block.appearance.accentBorder
             Accessible.ignored: true
         }
         Label {
@@ -32,13 +32,13 @@ ColumnLayout {
             elide: Text.ElideRight
             renderType: Text.NativeRendering
         }
-        Item { visible: block.reserveLock; Layout.preferredWidth: 28 }
+        Item { visible: block.reserveLock; Layout.preferredWidth: 24 }
     }
     ColumnLayout {
         visible: block.lines.length > 0
         Layout.fillWidth: true
-        Layout.leftMargin: 15
-        spacing: 3
+        Layout.leftMargin: 22
+        spacing: 1
         Repeater {
             model: block.lines
             delegate: Label {
@@ -48,7 +48,7 @@ ColumnLayout {
                 text: modelData
                 textFormat: Text.PlainText
                 font.family: block.appearance.fontFamily
-                font.pixelSize: block.appearance.fontPixelSize - 1
+                font.pixelSize: block.appearance.fontPixelSize
                 color: block.appearance.muted
                 elide: Text.ElideRight
                 renderType: Text.NativeRendering

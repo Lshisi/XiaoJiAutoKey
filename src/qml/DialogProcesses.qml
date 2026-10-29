@@ -30,7 +30,9 @@ ColumnLayout {
     ListView {
         id: list
         Layout.fillWidth: true
-        Layout.preferredHeight: 180
+        Layout.fillHeight: true
+        Layout.minimumHeight: 120
+        Layout.preferredHeight: 140
         clip: true
         model: processes.fields.processes
         delegate: RowLayout {

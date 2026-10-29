@@ -9,25 +9,38 @@ QuietCard {
     ColumnLayout {
         id: body
         anchors.fill: parent
-        spacing: 9
-        QuietHeading { text: qsTr("循环设置") }
-        QuietLabel { text: qsTr("触发方式"); color: Theme.muted; font.pixelSize: 12 }
+        spacing: 6
+        QuietHeading { text: qsTr("模式设置") }
+        QuietLabel { text: qsTr("触发模式"); color: Theme.muted; font.pixelSize: 12 }
         QuietCombo {
             Layout.fillWidth: true
-            model: [qsTr("按下切换"), qsTr("按住运行")]
+            model: [qsTr("开关模式"), qsTr("按压模式")]
             currentIndex: root.page.state.triggerMode
             enabled: !root.page.state.running
             onActivated: root.page.modeChanged(currentIndex)
             Accessible.name: qsTr("循环触发方式")
         }
-        QuietLabel { text: qsTr("循环次数"); color: Theme.muted; font.pixelSize: 12; Layout.topMargin: 4 }
-        QuietNumber {
+        QuietLabel { visible: root.page.state.triggerMode === 0; text: qsTr("循环次数 (0=无限)"); color: Theme.muted; font.pixelSize: 12; Layout.topMargin: 8 }
+        QuietTextField {
             Layout.fillWidth: true
-            value: root.page.state.loopCount
+            visible: root.page.state.triggerMode === 0
+            text: root.page.state.loopCount.toString()
+            validator: IntValidator { bottom: 0; top: 99999 }
+            inputMethodHints: Qt.ImhDigitsOnly
             enabled: !root.page.state.running
-            onValueModified: root.page.loopCountChanged(value)
+            onEditingFinished: {
+                const count = text.length ? Number(text) : 0
+                root.page.loopCountChanged(count)
+                text = Qt.binding(() => root.page.state.loopCount.toString())
+            }
+            onActiveFocusChanged: {
+                if (!activeFocus && text.length === 0) {
+                    root.page.loopCountChanged(0)
+                    text = Qt.binding(() => root.page.state.loopCount.toString())
+                }
+            }
             Accessible.name: qsTr("循环次数，零为无限循环")
         }
-        QuietLabel { Layout.fillWidth: true; text: qsTr("设为 0 时无限循环。"); color: Theme.muted; font.pixelSize: 12 }
+        Item { Layout.fillHeight: true }
     }
 }

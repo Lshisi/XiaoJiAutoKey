@@ -5,7 +5,6 @@
 #include <QQuickWidget>
 #include <QDesktopServices>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QMainWindow>
 #include <QMenu>
@@ -282,16 +281,6 @@ bool MainWindowView::setup(QMainWindow* window) {
             AppMessageDialog::warning(window, tr("无法打开使用说明"), tr("请确认系统已为 MHTML 文件配置可用的浏览器。"));
         }
     });
-    connect(aboutPage_, &AboutPageModel::licenseRequested, window, [window]() {
-        QFile license(QStringLiteral(":/licenses/LICENSE"));
-        if (!license.open(QIODevice::ReadOnly)) {
-            AppMessageDialog::warning(window, tr("无法读取开源许可"), license.errorString());
-            return;
-        }
-        AppMessageDialog::information(window, tr("第三方开源许可"),
-            QStringLiteral("LiquidGlass\nhttps://github.com/OverShifted/LiquidGlass\n\n")
-                + QString::fromUtf8(license.readAll()));
-    });
     return true;
 }
 
@@ -355,7 +344,8 @@ QString MainWindowView::version() const { return QString::fromLatin1(APP_VERSION
 QVariantList MainWindowView::factions() const {
     QVariantList values;
     for (const auto& faction : FactionTheme::instance().factions()) {
-        values.push_back(QVariantMap{{"id", faction.id}, {"name", faction.name}});
+        values.push_back(QVariantMap{{"id", faction.id}, {"name", faction.name},
+            {"icon", QString(faction.iconPath).replace(QStringLiteral(":/"), QStringLiteral("qrc:/"))}});
     }
     return values;
 }

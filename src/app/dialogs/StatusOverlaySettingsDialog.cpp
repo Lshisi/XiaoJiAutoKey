@@ -11,7 +11,7 @@ StatusOverlaySettingsDialog::StatusOverlaySettingsDialog(const AppConfig& config
         {"macroHotkey", config.macroOverlay.showHotkey}, {"macroTriggerMode", config.macroOverlay.showTriggerMode},
         {"macroLoopCount", config.macroOverlay.showLoopCount}, {"macroPauseKeys", config.macroOverlay.showPauseKeys},
         {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}
-    }, QSize(480, 480));
+    }, QSize(400, 400));
 }
 StatusOverlaySettings StatusOverlaySettingsDialog::settings() const {
     return {{value("repeatHotkey").toBool(), value("repeatIndependent").toBool(), value("repeatHold").toBool(),

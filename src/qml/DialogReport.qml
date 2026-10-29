@@ -7,7 +7,7 @@ ColumnLayout {
     id: report
     readonly property var fields: dialogModel.dialogState
     readonly property color statusColor: fields.severity === 3 ? Theme.danger : fields.severity === 2 ? Theme.warning : fields.severity === 1 ? Theme.success : Theme.text
-    spacing: 14
+    spacing: 10
     QuietHeading { visible: text.length > 0; Layout.fillWidth: true; text: report.fields.heading; color: report.statusColor }
     QuietLabel {
         Layout.fillWidth: true
@@ -29,4 +29,5 @@ ColumnLayout {
             QuietLabel { Layout.fillWidth: true; text: report.fields.progressText; color: Theme.muted; font.pixelSize: 12 }
         }
     }
+    Item { Layout.fillHeight: true }
 }

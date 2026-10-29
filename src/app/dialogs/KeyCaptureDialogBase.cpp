@@ -7,10 +7,12 @@
 #include <QScreen>
 #include <algorithm>
 KeyCaptureDialogBase::KeyCaptureDialogBase(QWidget* parent) : QmlDialog(parent) {}
-void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool()> supportsMouseMove) {
+void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool()> supportsMouseMove,
+    const QSize& initialSize) {
     supportsMouseMove_ = std::move(supportsMouseMove);
     const QVariantMap defaults{{"keyText", capturedKey_ ? QString::fromStdWString(GetKeyDisplayName(*capturedKey_)) : tr("点击录制")},
         {"isMouse", capturedKey_ && capturedKey_->device == InputDevice::Mouse},
+        {"positionVisible", true},
         {"supportsPosition", supportsMouseMove_ && supportsMouseMove_()}, {"positionHint", tr("未拾取")},
         {"fixed", false}, {"modeVisible", false}, {"needsDelay", true}, {"mode", 0},
         {"enabled", true}, {"priority", true}, {"delay", QString::number(kDefaultDelayMs)}};
@@ -21,7 +23,7 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
     clickPos_.anchorY = values.take("anchorY").toDouble();
     if (clickPos_.IsFixed()) values.insert("positionHint", tr("屏幕内：%1%，%2%").arg(clickPos_.anchorX * 100, 0, 'f', 1).arg(clickPos_.anchorY * 100, 0, 'f', 1));
     values.insert("actions", QVariantList{button("accept", tr("确定")), button("cancel", tr("取消"), false)});
-    present("DialogKeyEditor.qml", values, QSize(500, 360), true);
+    present("DialogKeyEditor.qml", values, initialSize, true);
 }
 void KeyCaptureDialogBase::setCapturedKey(KeyDescriptor key) {
     capturedKey_ = key;

@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls.Basic
+import QtQuick.Controls
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -7,32 +7,34 @@ ScrollView {
     id: root
     readonly property QtObject page: driverPageModel
     contentWidth: availableWidth
-    contentHeight: Math.max(pageColumn.implicitHeight, root.availableHeight)
+    contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     ScrollBar.vertical: QuietScrollBar {}
     ColumnLayout {
         id: pageColumn
         width: root.availableWidth
-        height: Math.max(pageColumn.implicitHeight, root.availableHeight)
-        spacing: Theme.cardGap
+        height: Math.max(implicitHeight, root.availableHeight)
         QuietCard {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.margins: Theme.pageMargin
+            Layout.leftMargin: Theme.pageMargin
+            Layout.rightMargin: Theme.pageMargin
+            Layout.topMargin: Theme.cardGap
+            Layout.bottomMargin: Theme.cardGap
             implicitHeight: body.implicitHeight + topPadding + bottomPadding
             ColumnLayout {
                 id: body
                 anchors.fill: parent
-                spacing: 16
+                spacing: 10
                 QuietHeading { text: qsTr("驱动管理"); pageTitle: true }
-                QuietLabel { Layout.fillWidth: true; text: qsTr("管理 DD、HID 和 USB 驱动，查看连接状态。"); color: Theme.muted }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("管理 DD、HID 和 USB 小叽硬件驱动，查看当前状态、切换驱动、安装或卸载驱动。"); color: Theme.muted }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
+                QuietHeading { text: qsTr("运行模式") }
                 RowLayout {
                     Layout.fillWidth: true
-                    QuietHeading { text: qsTr("运行模式") }
-                    Item { Layout.fillWidth: true }
+                    QuietLabel { text: qsTr("使用驱动"); Layout.fillWidth: true }
                     QuietCombo {
-                        Layout.preferredWidth: 180
+                        Layout.preferredWidth: 190
                         model: ["DD", "HID", "USB"]
                         currentIndex: root.page.state.mode
                         enabled: !root.page.state.busy
@@ -43,33 +45,36 @@ ScrollView {
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 RowLayout {
                     Layout.fillWidth: true
-                    QuietHeading { text: qsTr("当前状态") }
-                    Item { Layout.fillWidth: true }
-                    ActionButton { text: qsTr("刷新"); enabled: !root.page.state.busy; onClicked: root.page.refreshRequested() }
-                    ActionButton { text: qsTr("驱动自检"); enabled: !root.page.state.busy; onClicked: root.page.selfCheckRequested() }
+                    spacing: 8
+                    QuietHeading { text: qsTr("当前状态"); Layout.fillWidth: true }
+                    ActionButton { text: qsTr("一键自检"); primary: true; enabled: !root.page.state.busy; onClicked: root.page.selfCheckRequested() }
+                    ActionButton { visible: root.page.state.ddInstalled; primary: true; text: qsTr("卸载 DD"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(0) }
+                    ActionButton { visible: root.page.state.hidInstalled; primary: true; text: qsTr("卸载 HID"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(1) }
                 }
-                QuietLabel { Layout.fillWidth: true; text: root.page.state.summary }
+                RowLayout {
+                    Layout.fillWidth: true
+                    QuietLabel { text: qsTr("概要") }
+                    QuietLabel { Layout.fillWidth: true; text: root.page.state.summary; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
+                }
                 TextArea {
                     Layout.fillWidth: true
-                    implicitHeight: contentHeight + topPadding + bottomPadding
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 210
                     text: root.page.state.details
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap
                     color: Theme.muted
-                    selectionColor: Theme.accent
-                    selectedTextColor: Theme.accentForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
-                    background: Item {}
+                    padding: 10
+                    background: Rectangle {
+                        radius: Theme.inputRadius
+                        color: Theme.accentSubtle
+                        border.color: Theme.accentBorder
+                    }
+                    ScrollBar.vertical: QuietScrollBar {}
                     Accessible.name: qsTr("驱动详细状态")
-                }
-                Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
-                QuietHeading { text: qsTr("卸载驱动") }
-                QuietLabel { Layout.fillWidth: true; text: qsTr("卸载前会停止引擎并释放按键，部分操作需要重启。"); color: Theme.muted; font.pixelSize: 12 }
-                RowLayout {
-                    ActionButton { text: qsTr("卸载 DD"); enabled: !root.page.state.busy && root.page.state.ddInstalled; onClicked: root.page.uninstallMode(0) }
-                    ActionButton { text: qsTr("卸载 HID"); enabled: !root.page.state.busy && root.page.state.hidInstalled; onClicked: root.page.uninstallMode(1) }
                 }
             }
         }

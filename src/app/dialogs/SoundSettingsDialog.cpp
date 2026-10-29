@@ -9,7 +9,7 @@ SoundSettingsDialog::SoundSettingsDialog(SoundService& service, bool macroMode, 
     setWindowTitle(macroMode ? tr("循环音效设置") : tr("按键音效设置"));
     present("DialogSound.qml", {{"soundOn", QString::fromStdWString(initial.soundOn)},
         {"soundOff", QString::fromStdWString(initial.soundOff)}, {"volume", std::clamp(initial.volume, 0, 100)},
-        {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}}, QSize(520, 360), true);
+        {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}}, QSize(430, 260), true);
 }
 SoundSettingsResult SoundSettingsDialog::settings() const {
     return {value("soundOn").toString().toStdWString(), value("soundOff").toString().toStdWString(), value("volume").toInt()};

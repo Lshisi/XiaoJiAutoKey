@@ -16,69 +16,85 @@ Rectangle {
             Layout.fillHeight: true
             spacing: 0
             Rectangle {
-                Layout.preferredWidth: 130
+                Layout.preferredWidth: Theme.sidebarWidth
                 Layout.fillHeight: true
-                color: Qt.alpha(Theme.surface, 0.76)
-                Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.divider }
+                color: Theme.surfaceTint
+                Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
-                    FactionPicker { Layout.fillWidth: true; Layout.topMargin: 16; Layout.bottomMargin: 22 }
+                    anchors.topMargin: 12
+                    anchors.bottomMargin: 12
+                    spacing: 2
+                    FactionPicker { Layout.fillWidth: true; Layout.preferredHeight: 58; Layout.bottomMargin: 6; sidebar: true }
                     Repeater {
                         model: [
-                            { page: "keys", title: qsTr("按键连发"), glyph: "\uE765" },
-                            { page: "macro", title: qsTr("循环连发"), glyph: "\uE8EE" },
-                            { page: "driver", title: qsTr("驱动管理"), glyph: "\uE7F8" },
-                            { page: "settings", title: qsTr("全局设置"), glyph: "\uE713" },
-                            { page: "about", title: qsTr("关于软件"), glyph: "\uE946" }
+                            { page: "keys", title: qsTr("按键连发") },
+                            { page: "macro", title: qsTr("循环连发") },
+                            { page: "driver", title: qsTr("驱动管理") },
+                            { page: "settings", title: qsTr("全局设置") },
+                            { page: "about", title: qsTr("关于软件") }
                         ]
                         delegate: ActionButton {
                             id: navButton
                             required property var modelData
                             readonly property bool selected: appView.currentPage === modelData.page
                             Layout.fillWidth: true
-                            implicitHeight: 40
+                            Layout.leftMargin: 6
+                            Layout.rightMargin: 6
+                            implicitHeight: Theme.navItemHeight
                             text: modelData.title
                             quiet: true
                             Accessible.name: modelData.title
                             onClicked: appView.selectPage(modelData.page)
                             contentItem: RowLayout {
                                 spacing: 9
-                                Text { text: navButton.modelData.glyph; font.family: Theme.iconFamily; font.pixelSize: 15; color: navButton.selected ? Theme.accent : Theme.muted }
-                                QuietLabel { text: navButton.text; Layout.fillWidth: true; color: navButton.selected ? Theme.accent : Theme.text; elide: Text.ElideRight; wrapMode: Text.NoWrap }
+                                NavIcon { iconId: navButton.modelData.page; iconColor: navButton.selected ? Theme.accent : Theme.muted }
+                                QuietLabel { text: navButton.text; Layout.fillWidth: true; color: Theme.text; elide: Text.ElideRight; wrapMode: Text.NoWrap }
                             }
                             background: Rectangle {
                                 radius: Theme.buttonRadius
                                 color: navButton.selected ? Theme.accentSoft : navButton.hovered ? Theme.hover : "transparent"
                                 border.width: navButton.visualFocus ? 2 : 0
                                 border.color: Theme.accent
+                                Rectangle {
+                                    visible: navButton.selected
+                                    x: -2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 3
+                                    height: 16
+                                    radius: 1.5
+                                    color: Theme.accent
+                                }
                             }
                         }
                     }
                     Item { Layout.fillHeight: true }
                 }
             }
-            Loader {
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                source: {
-                    switch (appView.currentPage) {
-                    case "keys": return "KeyPage.qml"
-                    case "macro": return "MacroPage.qml"
-                    case "driver": return "DriverPage.qml"
-                    case "settings": return "SettingsPage.qml"
-                    case "about": return "AboutPage.qml"
+                color: Theme.surfaceTint
+                Loader {
+                    anchors.fill: parent
+                    source: {
+                        switch (appView.currentPage) {
+                        case "keys": return "KeyPage.qml"
+                        case "macro": return "MacroPage.qml"
+                        case "driver": return "DriverPage.qml"
+                        case "settings": return "SettingsPage.qml"
+                        case "about": return "AboutPage.qml"
+                        }
+                        return ""
                     }
-                    return ""
                 }
             }
         }
         Rectangle {
             id: statusBar
             Layout.fillWidth: true
-            implicitHeight: 27
-            color: Theme.background
+            implicitHeight: Theme.statusBarHeight
+            color: Theme.surfaceTint
             radius: 10
             topLeftRadius: 0
             topRightRadius: 0

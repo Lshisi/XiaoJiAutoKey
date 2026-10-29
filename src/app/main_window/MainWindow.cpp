@@ -179,7 +179,7 @@ public:
         present("DialogReport.qml", {{"heading", QString()}, {"body", message}, {"bodyRich", false},
             {"status", QString()}, {"severity", 0}, {"progressVisible", true},
             {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()},
-            {"closeAllowed", false}}, QSize(480, 300), true);
+            {"closeAllowed", false}}, QSize(420, 168), true);
     }
     void markFinished(const QString& message) {
         setValue("progressVisible", false);

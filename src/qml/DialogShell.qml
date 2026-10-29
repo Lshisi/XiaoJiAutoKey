@@ -6,26 +6,23 @@ import XiaoJi.UI
 Item {
     id: shell
     readonly property var dialogData: dialogModel.dialogState
-    readonly property real preferredHeight: header.implicitHeight + content.implicitHeight + footer.implicitHeight + 88
-    Loader {
+    readonly property real preferredHeight: header.implicitHeight + content.implicitHeight + footer.implicitHeight
+        + 2 * Theme.dialogVerticalPadding + 2 * Theme.cardGap
+    Rectangle {
         anchors.fill: parent
-        sourceComponent: shell.dialogData.hasBackdrop ? refractiveMaterial : plainMaterial
-    }
-    Component {
-        id: refractiveMaterial
-        DialogGlass {
-            sourceUrl: dialogModel.backdropUrl
-            sourceRegion: dialogModel.backdropRegion
-        }
-    }
-    Component {
-        id: plainMaterial
-        LiquidGlass { dark: Theme.dark; surfaceColor: Theme.surface; materialOpacity: 0.97; cornerRadius: Theme.dialogRadius }
+        radius: Theme.dialogRadius
+        color: Theme.surface
+        border.color: Theme.border
+        border.width: 1
+        Accessible.ignored: true
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 28
-        spacing: 16
+        anchors.leftMargin: Theme.dialogPadding
+        anchors.rightMargin: Theme.dialogPadding
+        anchors.topMargin: Theme.dialogVerticalPadding
+        anchors.bottomMargin: Theme.dialogVerticalPadding
+        spacing: Theme.cardGap
         RowLayout {
             id: header
             Layout.fillWidth: true
@@ -35,7 +32,14 @@ Item {
                 QuietHeading { anchors.fill: parent; text: shell.dialogData.title; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
                 MouseArea { anchors.fill: parent; onPressed: dialogModel.startWindowMove(); Accessible.ignored: true }
             }
-            IconButton { glyph: "\uE711"; hint: qsTr("关闭"); enabled: shell.dialogData.closeAllowed; onClicked: dialogModel.dispatch("cancel") }
+            IconButton {
+                glyph: "\u00D7"
+                font.family: Theme.fontFamily
+                font.pixelSize: 13
+                hint: qsTr("关闭")
+                enabled: shell.dialogData.closeAllowed
+                onClicked: dialogModel.dispatch("cancel")
+            }
         }
         ScrollView {
             id: scroll
@@ -47,6 +51,7 @@ Item {
             Loader {
                 id: content
                 width: scroll.availableWidth
+                height: Math.max(implicitHeight, scroll.availableHeight)
                 source: shell.dialogData.page
             }
         }

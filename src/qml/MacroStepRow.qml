@@ -10,16 +10,18 @@ Item {
     required property int rowIndex
     required property int rowCount
     property real dragOffset: 0
-    implicitHeight: 40
+    implicitHeight: Theme.tableRowHeight
+    HoverHandler { id: rowHover }
     z: dragHandler.active ? 2 : 0
     transform: Translate { y: dragHandler.active ? root.dragOffset : 0 }
-    Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : "transparent" }
+    Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : rowHover.hovered ? Theme.hover : "transparent" }
+    MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editStepRequested(root.rowIndex) }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
         anchors.fill: parent
         spacing: 0
         ActionButton {
-            Layout.preferredWidth: 34
+            Layout.preferredWidth: 32
             text: "≡"
             quiet: true
             leftPadding: 4
@@ -55,6 +57,7 @@ Item {
         QuietLabel {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
+            Layout.preferredWidth: 0
             text: root.entry.keyText
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
@@ -62,8 +65,10 @@ Item {
             ToolTip.visible: keyHover.hovered && root.entry.positionHint.length > 0
             ToolTip.text: root.entry.positionHint
         }
-        QuietLabel { Layout.preferredWidth: 72; text: qsTr("%1 ms").arg(root.entry.delay); font.pixelSize: 12 }
+        QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: 0; Layout.minimumWidth: 0; text: root.entry.delay.toString(); elide: Text.ElideRight; wrapMode: Text.NoWrap }
+        Item { Layout.preferredWidth: 4 }
         IconButton { glyph: "\uE70F"; hint: qsTr("编辑步骤"); onClicked: root.page.editStepRequested(root.rowIndex) }
         IconButton { glyph: "\uE74D"; hint: qsTr("删除步骤"); onClicked: root.page.deleteStepRequested(root.rowIndex) }
+        Item { Layout.preferredWidth: 4 }
     }
 }

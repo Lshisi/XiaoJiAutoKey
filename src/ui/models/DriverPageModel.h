@@ -9,7 +9,7 @@ public:
     explicit DriverPageModel(QObject* parent = nullptr);
     void setDriverMode(DriverMode mode) { setValue("mode", static_cast<int>(mode)); }
     void setStatusSummary(const QString& value) { setValue("summary", value); }
-    void setDetailText(const QString& value) { setValue("details", value); }
+    void setDetailText(const QString& value);
     void setDriverActions(bool ddInstalled, bool hidInstalled);
     void setBusy(bool value) { setValue("busy", value); }
     Q_INVOKABLE void selectMode(int value);

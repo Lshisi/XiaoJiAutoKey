@@ -32,7 +32,7 @@ public:
             {"body", tr("请勿关闭程序，卸载完成后将尝试重启电脑。")}, {"bodyRich", false},
             {"status", QString()}, {"severity", 0}, {"progressVisible", true},
             {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()},
-            {"closeAllowed", false}}, QSize(480, 300), true);
+            {"closeAllowed", false}}, QSize(420, 168), true);
     }
     void markFinished() {
         setValue("progressVisible", false);

@@ -4,7 +4,7 @@ ConfigNameDialog::ConfigNameDialog(const QString& title, const QString& label,
     setWindowTitle(title);
     present("DialogName.qml", {{"message", label}, {"name", initialName},
         {"actions", QVariantList{button("accept", tr("确定")), button("cancel", tr("取消"), false)}}},
-        QSize(440, 260), true);
+        QSize(360, 196), true);
     editField("name", initialName);
 }
 QString ConfigNameDialog::nameText() const { return value("name").toString().trimmed(); }

@@ -3,6 +3,7 @@
 #include "dialogs/QmlDialog.h"
 #include <functional>
 #include <optional>
+#include <QSize>
 class KeyCaptureDialogBase : public QmlDialog {
     Q_OBJECT
 public:
@@ -15,7 +16,8 @@ signals:
     void keyAccepted();
 protected:
     void setCapturedKey(KeyDescriptor key);
-    void prepareEditor(QVariantMap fields, std::function<bool()> supportsMouseMove = {});
+    void prepareEditor(QVariantMap fields, std::function<bool()> supportsMouseMove = {},
+        const QSize& initialSize = QSize(420, 250));
     ClickPosition clickPosition() const;
     void handleAction(const QString& action, const QVariant& value) override;
     void editField(const QString& field, const QVariant& value) override;

@@ -46,7 +46,7 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
     setWindowTitle(title);
     summary_ = PayloadSummary(payload);
     present("DialogShare.qml", {{"exporting", true}, {"format", 0}, {"code", QString()}, {"status", summary_},
-        {"actions", QVariantList{button("copy", tr("复制")), button("cancel", tr("关闭"), false)}}}, QSize(620, 480));
+        {"actions", QVariantList{button("copy", tr("复制")), button("cancel", tr("关闭"), false)}}}, QSize(560, 400));
     refreshExport();
 }
 void ShareExportDialog::refreshExport() {

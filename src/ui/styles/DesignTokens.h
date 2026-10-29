@@ -162,7 +162,7 @@ namespace Spacing {
     constexpr int cardRadius    = 13;
     constexpr int buttonRadius  = 8;
     constexpr int inputRadius   = 8;
-    constexpr int dialogRadius  = 18;
+    constexpr int dialogRadius  = 10;
     constexpr int sidebarWidth  = 130;
     constexpr int titleBarHeight = 34;
     constexpr int buttonHeight  = 32;

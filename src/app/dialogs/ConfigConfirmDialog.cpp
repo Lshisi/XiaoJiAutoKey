@@ -4,7 +4,7 @@ ConfigConfirmDialog::ConfigConfirmDialog(const QString& title, const QString& me
     setWindowTitle(title);
     present("DialogMessage.qml", {{"message", message}, {"warning", true},
         {"actions", QVariantList{button("accept", confirmText, true, true), button("cancel", tr("取消"), false)}}},
-        QSize(460, 280), true);
+        QSize(380, 176), true);
 }
 bool ConfigConfirmDialog::confirm(QWidget* parent, const QString& title, const QString& message, const QString& confirmText) {
     ConfigConfirmDialog dialog(title, message, confirmText, parent);

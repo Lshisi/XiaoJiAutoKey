@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2 ShaderTools)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 
 set(MOC_HEADERS
@@ -245,17 +245,21 @@ set(QML_FILES
     src/qml/ActionButton.qml
     src/qml/IconButton.qml
     src/qml/QuietCheck.qml
+    src/qml/QuietSwitch.qml
+    src/qml/QuietRadio.qml
     src/qml/QuietCombo.qml
     src/qml/QuietNumber.qml
     src/qml/QuietScrollBar.qml
     src/qml/QuietCard.qml
     src/qml/FactionPicker.qml
+    src/qml/NavIcon.qml
     src/qml/ProfileToolbar.qml
     src/qml/RunPanel.qml
     src/qml/HotkeyPanel.qml
     src/qml/RepeatOptions.qml
     src/qml/MacroOptions.qml
     src/qml/ShortcutBar.qml
+    src/qml/PauseKeyList.qml
     src/qml/BindingRow.qml
     src/qml/MacroStepRow.qml
     src/qml/KeyWorkspace.qml
@@ -264,12 +268,10 @@ set(QML_FILES
     src/qml/DriverPage.qml
     src/qml/SettingsPage.qml
     src/qml/AboutPage.qml
-    src/qml/LiquidGlass.qml
     src/qml/OverlayWindow.qml
     src/qml/OverlayStatusBlock.qml
     src/qml/OverlayLock.qml
     src/qml/DialogShell.qml
-    src/qml/DialogGlass.qml
     src/qml/DialogMessage.qml
     src/qml/DialogName.qml
     src/qml/DialogClose.qml
@@ -297,17 +299,6 @@ qt_add_qml_module(XiaoJiAutoKey
     RESOURCE_PREFIX /qt/qml
     QML_FILES ${QML_FILES}
 )
-qt_add_shaders(XiaoJiAutoKey overlay_material
-    PREFIX /shaders
-    BASE src/qml/shaders
-    FILES src/qml/shaders/liquid-glass.frag src/qml/shaders/glass-blur.frag src/qml/shaders/glass-refract.frag
-)
-qt_add_resources(XiaoJiAutoKey third_party_notices
-    PREFIX /licenses
-    BASE third_party/liquid-glass
-    FILES third_party/liquid-glass/LICENSE
-)
-
 target_include_directories(XiaoJiAutoKey PRIVATE
     include/app
     include/core

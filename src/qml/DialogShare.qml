@@ -5,7 +5,7 @@ import XiaoJi.UI
 ColumnLayout {
     id: sharing
     readonly property var fields: dialogModel.dialogState
-    spacing: 14
+    spacing: 12
     QuietCombo {
         visible: sharing.fields.exporting
         Layout.fillWidth: true
@@ -16,7 +16,9 @@ ColumnLayout {
     }
     QuietTextArea {
         Layout.fillWidth: true
-        implicitHeight: 240
+        Layout.fillHeight: true
+        Layout.minimumHeight: 120
+        implicitHeight: 180
         text: sharing.fields.code
         readOnly: sharing.fields.exporting
         placeholderText: qsTr("粘贴分享码（XJK1:…）或文本配方，识别后确认导入")

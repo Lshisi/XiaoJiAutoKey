@@ -20,7 +20,7 @@ AppMessageDialog::AppMessageDialog(Kind kind, const QString& title, const QStrin
     QVariantList actions{button("accept", primaryButtonText)};
     if (!secondaryButtonText.isEmpty()) actions << button("cancel", secondaryButtonText, false);
     present("DialogMessage.qml", {{"message", message}, {"warning", kind == Kind::Warning},
-        {"actions", actions}}, QSize(460, 300), true);
+        {"actions", actions}}, QSize(400, 176), true);
 }
 void AppMessageDialog::handleAction(const QString& action, const QVariant& argument) {
     if (action == "accept") accept();

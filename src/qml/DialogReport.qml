@@ -7,16 +7,27 @@ ColumnLayout {
     id: report
     readonly property var fields: dialogModel.dialogState
     readonly property color statusColor: fields.severity === 3 ? Theme.danger : fields.severity === 2 ? Theme.warning : fields.severity === 1 ? Theme.success : Theme.text
+    readonly property real preferredWidth: Math.max(reportHeading.implicitWidth, bodyMeasure.implicitWidth, statusLabel.implicitWidth)
     spacing: 10
-    QuietHeading { visible: text.length > 0; Layout.fillWidth: true; text: report.fields.heading; color: report.statusColor }
+    Text {
+        id: bodyMeasure
+        visible: false
+        text: bodyLabel.text
+        textFormat: bodyLabel.textFormat
+        font: bodyLabel.font
+        wrapMode: Text.NoWrap
+        Accessible.ignored: true
+    }
+    QuietHeading { id: reportHeading; visible: text.length > 0; Layout.fillWidth: true; text: report.fields.heading; color: report.statusColor }
     QuietLabel {
+        id: bodyLabel
         Layout.fillWidth: true
         text: report.fields.body
         textFormat: report.fields.bodyRich ? Text.RichText : Text.PlainText
         color: Theme.muted
         wrapMode: Text.Wrap
     }
-    QuietLabel { visible: text.length > 0; Layout.fillWidth: true; text: report.fields.status; color: report.statusColor }
+    QuietLabel { id: statusLabel; visible: text.length > 0; Layout.fillWidth: true; text: report.fields.status; color: report.statusColor }
     Loader {
         Layout.fillWidth: true
         active: report.fields.progressVisible

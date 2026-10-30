@@ -7,6 +7,7 @@ ScrollBar {
     implicitWidth: 8
     implicitHeight: 8
     padding: 1
+    hoverEnabled: true
     minimumSize: 0.06
     contentItem: Rectangle {
         implicitWidth: 6

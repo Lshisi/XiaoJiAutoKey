@@ -13,8 +13,10 @@ Switch {
         implicitHeight: 20
         y: (control.height - height) / 2
         radius: 10
-        color: control.checked ? Theme.accent : Theme.hover
-        border.color: control.visualFocus ? Theme.accent : Theme.border
+        color: !control.enabled ? Theme.hover : control.checked
+            ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
+            : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.hover
+        border.color: control.visualFocus ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
         Rectangle {
             x: control.checked ? parent.width - width - 4 : 4

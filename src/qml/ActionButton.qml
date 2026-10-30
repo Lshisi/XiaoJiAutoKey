@@ -6,14 +6,16 @@ Button {
     id: control
     property bool primary: false
     property bool quiet: false
+    property bool accented: false
+    property bool compact: false
     property bool destructive: false
     property string hint: ""
-    implicitHeight: Math.max(Theme.buttonHeight, contentItem.implicitHeight + topPadding + bottomPadding)
+    implicitHeight: Math.max(compact ? Theme.compactButtonHeight : Theme.buttonHeight, contentItem.implicitHeight + topPadding + bottomPadding)
     implicitWidth: Math.max(implicitHeight, contentItem.implicitWidth + leftPadding + rightPadding)
-    leftPadding: 12
-    rightPadding: 12
-    topPadding: 6
-    bottomPadding: 6
+    leftPadding: compact ? 8 : 12
+    rightPadding: compact ? 8 : 12
+    topPadding: compact ? 4 : 6
+    bottomPadding: compact ? 4 : 6
     font.family: Theme.fontFamily
     font.pixelSize: 12
     hoverEnabled: true
@@ -33,8 +35,11 @@ Button {
         radius: Theme.buttonRadius
         color: !control.enabled ? Theme.hover : control.destructive ? (control.down || control.hovered ? Qt.darker(Theme.danger, 1.1) : Theme.danger) : control.primary
             ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
-            : control.down || control.hovered ? Theme.hover : control.quiet ? "transparent" : Theme.field
-        border.width: control.visualFocus ? 2 : control.primary || control.quiet ? 0 : 1
-        border.color: control.visualFocus ? Theme.accent : Theme.border
+            : control.down ? (control.accented || control.quiet ? Theme.accentBorder : Theme.accentSoft)
+            : control.hovered ? (control.accented || control.quiet ? Theme.accentSoft : Theme.accentSubtle)
+            : control.accented ? Theme.accentSubtle : control.quiet ? "transparent" : Theme.field
+        border.width: control.visualFocus ? 2 : control.primary || (control.quiet && !control.accented) ? 0 : 1
+        border.color: control.visualFocus ? Theme.accent
+            : control.enabled && (control.hovered || control.down || control.accented) ? Theme.accentBorder : Theme.border
     }
 }

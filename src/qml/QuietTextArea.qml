@@ -12,7 +12,7 @@ ScrollView {
     contentWidth: availableWidth
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     ScrollBar.vertical: QuietScrollBar {}
-    background: Rectangle { color: Theme.field; radius: Theme.inputRadius; border.color: editor.activeFocus ? Theme.accent : Theme.border }
+    background: Rectangle { color: Theme.field; radius: Theme.inputRadius; border.color: editor.activeFocus ? Theme.accent : editor.enabled && editor.hovered ? Theme.accentBorder : Theme.border }
     TextArea {
         id: editor
         textFormat: TextEdit.PlainText
@@ -23,6 +23,7 @@ ScrollView {
         selectionColor: Theme.accent
         selectedTextColor: Theme.accentForeground
         selectByMouse: true
+        hoverEnabled: true
         wrapMode: TextEdit.WrapAnywhere
         padding: 12
         onTextChanged: { if (activeFocus) control.edited(text) }

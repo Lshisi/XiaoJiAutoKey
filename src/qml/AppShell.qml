@@ -55,7 +55,7 @@ Rectangle {
                             }
                             background: Rectangle {
                                 radius: Theme.buttonRadius
-                                color: navButton.selected ? Theme.accentSoft : navButton.hovered ? Theme.hover : "transparent"
+                                color: navButton.selected || navButton.down ? Theme.accentSoft : navButton.hovered ? Theme.accentSubtle : "transparent"
                                 border.width: navButton.visualFocus ? 2 : 0
                                 border.color: Theme.accent
                                 Rectangle {

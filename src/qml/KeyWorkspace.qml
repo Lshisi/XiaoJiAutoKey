@@ -10,12 +10,15 @@ Item {
     readonly property var rows: macroMode ? page.state.steps : page.state.bindings
     QtObject {
         id: tableColumns
-        readonly property real rowWidth: Math.max(0, list.width - tableScrollBar.implicitWidth)
+        readonly property real rowWidth: Math.max(0, list.width)
+        readonly property real contentLeftPadding: Math.max(0, listCard.leftPadding - 1)
+        readonly property real contentRightPadding: Math.max(0, listCard.rightPadding - 1) + tableScrollBar.implicitWidth
+        readonly property real contentWidth: Math.max(0, rowWidth - contentLeftPadding - contentRightPadding)
         readonly property int leadingWidth: workspace.macroMode ? Theme.iconSize : 42
         readonly property int actionPadding: 4
         readonly property int actionWidth: 2 * Theme.iconSize + 2 * actionPadding
         readonly property real fieldWidth: Math.max(0,
-            (rowWidth - leadingWidth - actionWidth) / (workspace.macroMode ? 2 : 4))
+            (contentWidth - leadingWidth - actionWidth) / (workspace.macroMode ? 2 : 4))
     }
     RowLayout {
         anchors.fill: parent
@@ -43,12 +46,14 @@ Item {
                         visible: !workspace.macroMode && keyPageModel.state.updateVersion.length > 0
                         text: qsTr("有新版本 V%1").arg(keyPageModel.state.updateVersion)
                         quiet: true
+                        accented: true
                         onClicked: keyPageModel.updateBadgeClicked()
                     }
                     Item { Layout.fillWidth: true }
                     ActionButton {
                         text: qsTr("+  添加按键")
                         primary: true
+                        compact: true
                         enabled: !workspace.page.state.running
                         onClicked: workspace.macroMode ? workspace.page.addStepRequested() : workspace.page.addRequested()
                     }
@@ -83,6 +88,8 @@ Item {
                         id: list
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.leftMargin: 1 - listCard.leftPadding
+                        Layout.rightMargin: 1 - listCard.rightPadding
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         model: workspace.rows

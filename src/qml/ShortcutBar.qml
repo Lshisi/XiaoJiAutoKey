@@ -12,23 +12,19 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: 6
         QuietLabel { visible: !root.macroMode; text: qsTr("切换键:"); color: Theme.muted }
-        QuietLabel {
+        ShortcutTag {
             visible: !root.macroMode
-            Layout.maximumWidth: 64
+            Layout.minimumWidth: removable ? Theme.shortcutRemoveWidth + 2 * Theme.shortcutTagPadding : implicitWidth
+            Layout.maximumWidth: implicitWidth
             text: root.macroMode ? "" : root.page.state.sequenceKey
-            color: Theme.muted
-            elide: Text.ElideRight
-            wrapMode: Text.NoWrap
-        }
-        IconButton {
-            visible: !root.macroMode && root.page.state.hasSequenceKey
-            glyph: "\uE711"
-            hint: qsTr("清除切换键")
+            removable: !root.macroMode && root.page.state.hasSequenceKey
+            removeHint: qsTr("清除切换键")
             enabled: !root.page.state.running
-            onClicked: root.page.sequenceSwitchKeyDeleteClicked()
+            onRemoveRequested: root.page.sequenceSwitchKeyDeleteClicked()
         }
         IconButton {
             visible: !root.macroMode
+            compact: true
             glyph: "\uE710"
             hint: qsTr("设置切换键")
             enabled: !root.page.state.running && !root.page.state.sequenceRecording
@@ -36,7 +32,7 @@ ColumnLayout {
         }
         Rectangle { visible: !root.macroMode; Layout.preferredWidth: 1; Layout.preferredHeight: 18; color: Theme.divider }
         QuietLabel { text: qsTr("暂停键:"); color: Theme.muted }
-        PauseKeyList { Layout.fillWidth: true; Layout.minimumWidth: 42; page: root.page }
-        IconButton { glyph: "\uE710"; hint: qsTr("添加暂停键"); enabled: !root.page.state.running; onClicked: root.page.pauseKeyAddClicked() }
+        PauseKeyList { Layout.fillWidth: true; Layout.minimumWidth: implicitWidth; page: root.page }
+        IconButton { compact: true; glyph: "\uE710"; hint: qsTr("添加暂停键"); enabled: !root.page.state.running; onClicked: root.page.pauseKeyAddClicked() }
     }
 }

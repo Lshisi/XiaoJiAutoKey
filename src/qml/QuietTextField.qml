@@ -12,12 +12,13 @@ TextField {
     selectionColor: Theme.accent
     selectedTextColor: Theme.accentForeground
     selectByMouse: true
+    hoverEnabled: true
     leftPadding: 10
     rightPadding: 10
     background: Rectangle {
         radius: Theme.inputRadius
         color: Theme.field
-        border.color: control.activeFocus ? Theme.accent : Theme.border
+        border.color: control.activeFocus ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.activeFocus ? 2 : 1
     }
     TextEditMenu { id: contextMenu; textControl: control; onModified: control.textEdited() }

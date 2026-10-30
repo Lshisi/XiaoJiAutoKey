@@ -298,8 +298,7 @@ void MainWindowView::initializeTray(QMainWindow* window) {
         window->activateWindow();
     });
     connect(quitAction, &QAction::triggered, window, [this]() {
-        hideTrayIcon();
-        qApp->quit();
+        emit exitRequested();
     });
     connect(trayIcon_, &QSystemTrayIcon::activated, window, [window](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::DoubleClick) {
@@ -362,6 +361,7 @@ void MainWindowView::updateActivityIcons(QMainWindow* window, bool repeatRunning
 
 void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     const auto& faction = FactionTheme::instance().current();
+    qApp->setPalette(Fluent::Theme::applicationPalette());
     theme_ = Fluent::qmlTheme();
     emit themeChanged();
     QPalette palette = window->palette();

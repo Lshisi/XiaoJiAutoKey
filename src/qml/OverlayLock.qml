@@ -22,9 +22,10 @@ Button {
     }
     background: Rectangle {
         radius: 8
-        color: control.down ? Qt.alpha(control.appearance.muted, 0.22)
-            : control.hovered ? Qt.alpha(control.appearance.muted, 0.14)
-            : Qt.alpha(control.appearance.muted, 0.06)
-        border.color: control.appearance.dark ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(0, 0, 0, 0.12)
+        color: control.down ? Qt.alpha(control.appearance.accent, 0.24)
+            : control.hovered ? Qt.alpha(control.appearance.accent, 0.15)
+            : "transparent"
+        border.color: control.hovered || control.down ? control.appearance.accentBorder
+            : "transparent"
     }
 }

@@ -261,6 +261,7 @@ set(QML_FILES
     src/qml/RepeatOptions.qml
     src/qml/MacroOptions.qml
     src/qml/ShortcutBar.qml
+    src/qml/ShortcutTag.qml
     src/qml/PauseKeyList.qml
     src/qml/BindingRow.qml
     src/qml/MacroStepRow.qml

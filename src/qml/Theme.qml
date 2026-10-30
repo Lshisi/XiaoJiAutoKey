@@ -41,8 +41,14 @@ QtObject {
     readonly property int buttonRadius: colors.buttonRadius
     readonly property int inputRadius: colors.inputRadius
     readonly property int buttonHeight: 32
+    readonly property int compactButtonHeight: 28
     readonly property int primaryHeight: 32
     readonly property int iconSize: 32
+    readonly property int compactIconSize: 24
+    readonly property int smallIconGlyphSize: 8
+    readonly property int shortcutTextMaxWidth: 72
+    readonly property int shortcutRemoveWidth: 18
+    readonly property int shortcutTagPadding: 6
     readonly property int dialogPadding: 24
     readonly property int dialogVerticalPadding: 18
     readonly property int formGap: 14

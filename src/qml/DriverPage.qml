@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -70,7 +70,7 @@ ScrollView {
                     padding: 10
                     background: Rectangle {
                         radius: Theme.inputRadius
-                        color: Theme.accentSubtle
+                        color: Theme.field
                         border.color: Theme.accentBorder
                     }
                     ScrollBar.vertical: QuietScrollBar {}

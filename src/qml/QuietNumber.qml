@@ -11,10 +11,14 @@ SpinBox {
     editable: true
     font.family: Theme.fontFamily
     font.pixelSize: 12
+    hoverEnabled: true
     palette.text: Theme.text
     palette.base: Theme.field
     palette.buttonText: Theme.text
     palette.button: Theme.field
+    palette.mid: Theme.accentSoft
+    palette.highlight: Theme.accent
+    palette.highlightedText: Theme.accentForeground
     contentItem: TextInput {
         text: control.textFromValue(control.value, control.locale)
         font: control.font
@@ -30,7 +34,7 @@ SpinBox {
     background: Rectangle {
         color: Theme.field
         radius: Theme.inputRadius
-        border.color: control.visualFocus ? Theme.accent : Theme.border
+        border.color: control.visualFocus ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
     }
 }

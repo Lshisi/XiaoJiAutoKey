@@ -71,10 +71,44 @@ LRESULT CALLBACK BlockHidInitMouseProc(int code, WPARAM wParam, LPARAM lParam) {
     return ::CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
+class MouseSettingsGuard {
+public:
+    MouseSettingsGuard() {
+        mouseParamsCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSE, 0, mouseParams_.data(), 0) != FALSE;
+        mouseSpeedCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &mouseSpeed_, 0) != FALSE;
+    }
+
+    ~MouseSettingsGuard() {
+        if (mouseParamsCaptured_) {
+            std::array<int, 3> current{};
+            if (::SystemParametersInfoW(SPI_GETMOUSE, 0, current.data(), 0) != FALSE &&
+                current != mouseParams_) {
+                ::SystemParametersInfoW(SPI_SETMOUSE, 0, mouseParams_.data(), 0);
+            }
+        }
+
+        if (mouseSpeedCaptured_) {
+            int currentSpeed = 0;
+            if (::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &currentSpeed, 0) != FALSE &&
+                currentSpeed != mouseSpeed_) {
+                ::SystemParametersInfoW(SPI_SETMOUSESPEED, 0, reinterpret_cast<void*>(static_cast<INT_PTR>(mouseSpeed_)), 0);
+            }
+        }
+    }
+
+    MouseSettingsGuard(const MouseSettingsGuard&) = delete;
+    MouseSettingsGuard& operator=(const MouseSettingsGuard&) = delete;
+
+private:
+    std::array<int, 3> mouseParams_{};
+    int mouseSpeed_ = 0;
+    bool mouseParamsCaptured_ = false;
+    bool mouseSpeedCaptured_ = false;
+};
+
 class HidInitGuard {
 public:
     HidInitGuard() {
-        CaptureMouseSettings();
         stopEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         readyEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         if (stopEvent_ != nullptr && readyEvent_ != nullptr) {
@@ -125,7 +159,6 @@ public:
         // Keep the input guard briefly after DD_btn(0) returns because the HID runtime may emit delayed input.
         std::this_thread::sleep_for(kHidInitGuardTailDelay);
         RestoreCursorIfHidJumped();
-        RestoreMouseSettingsIfChanged();
         if (stopEvent_ != nullptr) {
             ::SetEvent(stopEvent_);
         }
@@ -144,29 +177,6 @@ public:
     HidInitGuard& operator=(const HidInitGuard&) = delete;
 
 private:
-    void CaptureMouseSettings() {
-        mouseParamsCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSE, 0, mouseParams_.data(), 0) != FALSE;
-        mouseSpeedCaptured_ = ::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &mouseSpeed_, 0) != FALSE;
-    }
-
-    void RestoreMouseSettingsIfChanged() const {
-        if (mouseParamsCaptured_) {
-            std::array<int, 3> current{};
-            if (::SystemParametersInfoW(SPI_GETMOUSE, 0, current.data(), 0) != FALSE &&
-                current != mouseParams_) {
-                ::SystemParametersInfoW(SPI_SETMOUSE, 0, const_cast<int*>(mouseParams_.data()), 0);
-            }
-        }
-
-        if (mouseSpeedCaptured_) {
-            int currentSpeed = 0;
-            if (::SystemParametersInfoW(SPI_GETMOUSESPEED, 0, &currentSpeed, 0) != FALSE &&
-                currentSpeed != mouseSpeed_) {
-                ::SystemParametersInfoW(SPI_SETMOUSESPEED, 0, reinterpret_cast<void*>(static_cast<INT_PTR>(mouseSpeed_)), 0);
-            }
-        }
-    }
-
     void RestoreCursorIfHidJumped() const {
         if (!cursorCaptured_ || IsNearHidInitCorner(oldPos_)) {
             return;
@@ -186,10 +196,6 @@ private:
     HANDLE stopEvent_ = nullptr;
     std::thread hookThread_;
     bool cursorCaptured_ = false;
-    std::array<int, 3> mouseParams_{};
-    int mouseSpeed_ = 0;
-    bool mouseParamsCaptured_ = false;
-    bool mouseSpeedCaptured_ = false;
 };
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
@@ -388,6 +394,8 @@ bool DdDriver::LoadHidFrom(const std::wstring& dllPath) {
 }
 
 bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
+    // DD DLL initialization can change mouse acceleration inside LoadLibraryW.
+    MouseSettingsGuard mouseSettingsGuard;
     Unload();
 
     module_ = ::LoadLibraryW(dllPath.c_str());
@@ -503,6 +511,8 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHi
 }
 
 void DdDriver::Unload() {
+    // DLL teardown can restore stale settings after the user changed them.
+    MouseSettingsGuard mouseSettingsGuard;
     {
         std::lock_guard lock(hidMouseMutex_);
         CloseHidMouseHandleLocked();

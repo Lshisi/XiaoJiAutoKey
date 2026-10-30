@@ -29,7 +29,7 @@ signals:
 
 protected:
     static QVariantMap button(const QString& id, const QString& text, bool primary = true, bool danger = false);
-    void present(const QString& page, QVariantMap state, const QSize& size, bool fitContent = false);
+    void present(const QString& page, QVariantMap state, const QSize& size, bool fitContent = false, bool fitWidth = false);
     void setValue(const QString& key, const QVariant& value);
     QVariant value(const QString& key) const { return state_.value(key); }
     virtual void handleAction(const QString& action, const QVariant& value);
@@ -46,4 +46,5 @@ private:
     QQuickWidget* quick_ = nullptr;
     QVariantMap state_;
     bool fitContent_ = false;
+    bool fitWidth_ = false;
 };

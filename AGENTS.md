@@ -25,8 +25,14 @@
 - 如果 MSBuild 报 `System.ArgumentException: 已添加项。字典中的关键字:“Path”所添加的关键字:“PATH”`，说明当前进程环境里同时存在 `Path` / `PATH`。构建前先在当前 PowerShell 进程清掉重复项并设置单一 `Path`。
 - 现使用 Qt 6.8+（QML / Quick / Quick Controls / Quick Widgets / SVG / Shader Tools）。指定实际 Qt 安装目录，使用独立的构建目录，不要复用旧 Qt 构建缓存。当前已装：
   - 动态版（测试用，aqt 安装）：`D:\Qt\6.8.3\msvc2022_64`，构建目录 `build-qt6-dyn`，产物需 `D:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir src\qml` 部署 DLL 后才能运行。
-  - 静态版（发布用，待构建）。
-- 动态测试构建命令（静态版就绪后把 `CMAKE_PREFIX_PATH` 与构建目录换成静态版）：
+  - 静态版（发布用）：`D:\Qt\6.8.3-static`，项目构建目录 `build-qt6`，运行时输出为 `build-qt6\Release`。
+- Qt 静态版构建规范见 `docs/build-qt6-static.md`。重建 Qt 时优先使用：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -QtVersion 6.8.3 -QtRoot D:\Qt -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe -RemoveIntermediates
+```
+
+- 动态测试构建命令：
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
@@ -40,7 +46,11 @@
 项目开源在 `gitee.com/fourteen-fourteen/xiao-ji-auto-key`（GPL-3.0）。程序内"软件更新"功能的数据源是 Gitee Releases（基于 git tag），更新逻辑见 `src/app/services/UpdateService.cpp`。发布新版本时：
 
 1. 提升 `CMakeLists.txt` 里 `project(XiaoJiAutoKey VERSION x.y.z)` 的版本号（`APP_VERSION` 宏由它生成）。README 不写版本号和版本历史，版本信息只存在于 git tag 和 Gitee Release 的发布说明里。
-2. 用 `scripts/package-release.ps1` 打包（产物为 `dist/XiaoJiAutoKey.zip`，内部有顶层 `XiaoJiAutoKey/` 目录）。
+2. 用 `scripts/package-release.ps1` 打包（产物为 `dist/XiaoJiAutoKey.zip`，内部有顶层 `XiaoJiAutoKey/` 目录）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath D:\Qt\6.8.3-static -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe
+```
 3. 在仓库打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致）。
 4. 在 Gitee 上基于该 tag 创建"发行版（Release）"，并把 `XiaoJiAutoKey.zip` 重命名后（建议 `XiaoJiAutoKey-vx.y.z.zip`）作为附件上传。附件的下载地址形如 `.../releases/download/...`，程序只把这种附件当作可用的更新包；Gitee 自动生成的源码包（`/archive/refs/tags/...`）会被忽略。
 5. 更新包约束：必须是 zip；顶层目录（如有）会被自动剥掉；`config.json` 永远不会被更新包覆盖；PowerShell 5.1 生成的反斜杠路径条目和 GBK 文件名条目都能被解压逻辑兼容。

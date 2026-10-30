@@ -63,6 +63,7 @@ signals:
     void themeChanged();
     void titleChanged();
     void activityIconChanged();
+    void exitRequested();
     void pageSelected(const QString& pageId);
     void factionSelected(const QString& factionId);
 

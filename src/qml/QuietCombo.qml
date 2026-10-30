@@ -30,8 +30,8 @@ ComboBox {
     }
     background: Rectangle {
         radius: Theme.inputRadius
-        color: control.down ? Theme.hover : Theme.field
-        border.color: control.visualFocus ? Theme.accent : Theme.border
+        color: !control.enabled ? Theme.hover : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.field
+        border.color: control.visualFocus ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
     }
     delegate: ItemDelegate {
@@ -40,6 +40,7 @@ ComboBox {
         width: control.width - 8
         text: control.textAt(index)
         highlighted: control.highlightedIndex === index
+        hoverEnabled: true
         font: control.font
         contentItem: Text {
             text: optionDelegate.text
@@ -49,7 +50,7 @@ ComboBox {
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
-        background: Rectangle { radius: 6; color: optionDelegate.highlighted ? Theme.accentSoft : "transparent" }
+        background: Rectangle { radius: Theme.buttonRadius; color: optionDelegate.highlighted || optionDelegate.down ? Theme.accentSoft : optionDelegate.hovered ? Theme.accentSubtle : "transparent" }
     }
     popup: Popup {
         y: control.height + 4

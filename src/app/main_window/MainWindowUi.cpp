@@ -17,6 +17,9 @@
 bool MainWindow::setupUi() {
     if (!view_.setup(this)) return false;
     if (!statusOverlay_.initialize(this)) return false;
+    connect(&view_, &MainWindowView::exitRequested, this, [this]() {
+        if (configCoordinator_.save()) quitApplication();
+    });
     connect(view_.keyPage(), &KeyPageModel::statusOverlaySettingsClicked, this,
         [this]() { openStatusOverlaySettings(false); });
     connect(view_.macroPage(), &MacroPageModel::statusOverlaySettingsClicked, this,
@@ -307,6 +310,10 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     if (systemShutdownRequested_) {
         prepareForSystemShutdown();
         view_.hideTrayIcon();
+        event->accept();
+        return;
+    }
+    if (exitRequested_) {
         event->accept();
         return;
     }

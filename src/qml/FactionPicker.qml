@@ -85,6 +85,7 @@ ActionButton {
                 bottomPadding: 3
                 text: modelData.name
                 highlighted: modelData.id === Theme.colors.factionId
+                hoverEnabled: true
                 onClicked: { appView.selectFaction(modelData.id); factionPopup.close() }
                 contentItem: RowLayout {
                     spacing: 6
@@ -133,7 +134,7 @@ ActionButton {
                         wrapMode: Text.NoWrap
                     }
                 }
-                background: Rectangle { radius: 5; color: option.highlighted ? Theme.accentSoft : option.hovered ? Theme.hover : "transparent" }
+                background: Rectangle { radius: Theme.buttonRadius; color: option.highlighted || option.down ? Theme.accentSoft : option.hovered ? Theme.accentSubtle : "transparent" }
             }
             ScrollBar.vertical: QuietScrollBar {}
         }

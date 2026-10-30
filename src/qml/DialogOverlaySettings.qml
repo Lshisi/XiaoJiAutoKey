@@ -30,10 +30,11 @@ ColumnLayout {
                 text: modelData
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
+                hoverEnabled: true
                 onClicked: dialogModel.edit("tab", index)
                 contentItem: QuietLabel { text: tab.text; horizontalAlignment: Text.AlignHCenter; color: tab.checked ? Theme.accent : Theme.text }
                 background: Rectangle {
-                    color: tab.hovered ? Theme.hover : "transparent"
+                    color: tab.down ? Theme.accentSoft : tab.hovered ? Theme.accentSubtle : "transparent"
                     border.color: tab.visualFocus ? Theme.accent : "transparent"
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: tab.checked ? Theme.accent : "transparent" }
                 }
@@ -64,7 +65,7 @@ ColumnLayout {
         sourceComponent: ColumnLayout {
             spacing: 12
             QuietCheck {
-                text: qsTr("原生背景模糊")
+                text: qsTr("背景模糊")
                 checked: settings.fields.nativeBlur
                 onClicked: dialogModel.edit("nativeBlur", checked)
             }
@@ -82,7 +83,7 @@ ColumnLayout {
             QuietSlider { Layout.fillWidth: true; from: 30; value: settings.fields.opacity; stepSize: 5; onMoved: dialogModel.edit("opacity", Math.round(value)); Accessible.name: qsTr("悬浮窗背景不透明度") }
             QuietLabel {
                 Layout.fillWidth: true
-                text: qsTr("数值越高，文字越容易辨认；锁定按钮在浮窗右上角。")
+                text: qsTr("数值越低，背景越通透；锁定按钮在浮窗右上角。")
                 color: Theme.muted
                 wrapMode: Text.Wrap
             }

@@ -42,11 +42,12 @@ QVariantMap QmlDialog::button(const QString& id, const QString& text, bool prima
 }
 QVariantMap QmlDialog::theme() const { return Fluent::qmlTheme(); }
 
-void QmlDialog::present(const QString& page, QVariantMap state, const QSize& size, bool fitContent) {
+void QmlDialog::present(const QString& page, QVariantMap state, const QSize& size, bool fitContent, bool fitWidth) {
     state_ = {{"page", page}, {"title", windowTitle()}, {"actions", QVariantList{}},
         {"closeAllowed", true}};
     for (auto it = state.cbegin(); it != state.cend(); ++it) state_.insert(it.key(), it.value());
     fitContent_ = fitContent;
+    fitWidth_ = fitWidth;
     resize(size);
     quick_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/DialogShell.qml")));
     if (quick_->status() != QQuickWidget::Ready) {
@@ -55,6 +56,8 @@ void QmlDialog::present(const QString& page, QVariantMap state, const QSize& siz
         qFatal("QML dialog failed: %s", qPrintable(errors.join(QLatin1Char('\n'))));
     }
     connect(quick_->rootObject(), SIGNAL(preferredHeightChanged()), this, SLOT(fitToContent()), Qt::QueuedConnection);
+    if (fitWidth_)
+        connect(quick_->rootObject(), SIGNAL(preferredWidthChanged()), this, SLOT(fitToContent()), Qt::QueuedConnection);
 }
 
 void QmlDialog::setValue(const QString& key, const QVariant& value) {
@@ -99,12 +102,20 @@ bool QmlDialog::event(QEvent* event) {
 void QmlDialog::fitToContent() {
     const auto* currentScreen = screen();
     if (!currentScreen || !quick_->rootObject()) return;
-    const QSize limit = currentScreen->availableGeometry().size() - QSize(32, 32);
+    QSize limit = currentScreen->availableGeometry().size() - QSize(32, 32);
+    if (fitWidth_) {
+        limit.setWidth(qMin(limit.width(), 640));
+        if (auto* parent = parentWidget(); parent && parent->window()->isVisible())
+            limit = limit.boundedTo(parent->window()->size() - QSize(32, 32));
+    }
     setMinimumSize(QSize(320, 180).boundedTo(limit));
     setMaximumSize(limit);
     const QPoint center = frameGeometry().center();
-    if (fitContent_) resize(QSize(width(), static_cast<int>(std::ceil(
-        quick_->rootObject()->property("preferredHeight").toReal()))).boundedTo(limit));
-    else resize(size().boundedTo(limit));
+    if (fitContent_) {
+        const int preferredWidth = fitWidth_ ? qBound(minimumWidth(), static_cast<int>(std::ceil(
+            quick_->rootObject()->property("preferredWidth").toReal())), maximumWidth()) : width();
+        resize(QSize(preferredWidth, static_cast<int>(std::ceil(
+            quick_->rootObject()->property("preferredHeight").toReal()))).boundedTo(limit));
+    } else resize(size().boundedTo(limit));
     DialogChrome::clampWithinScreen(this, center);
 }

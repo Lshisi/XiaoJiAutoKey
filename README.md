@@ -92,24 +92,27 @@
 ### 环境要求
 
 - Windows 10/11
-- Visual Studio 2022（MSVC，含 CMake 组件）
+- Visual Studio 2022（MSVC v143 x64 和 Windows SDK）
+- 官方独立版 CMake 3.30+（不要使用 VS BuildTools 自带 CMake）
 - Qt 6.8 或更新版本，包含 Qt QML、Qt Quick、Qt Quick Controls、Qt Quick Widgets、Qt SVG、Qt Shader Tools
 - 发布包使用静态 Qt，安装路径由 `CMAKE_PREFIX_PATH` 指定，不再使用旧 Qt 构建目录
 
 ### 编译
 
 ```powershell
-cmake -S . -B build-qt6 -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:\Qt\6-static"
-cmake --build build-qt6 --config Release
+& "D:\software\cmake-3.31.6\bin\cmake.exe" -S . -B build-qt6 -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="D:/Qt/6.8.3-static"
+& "D:\software\cmake-3.31.6\bin\cmake.exe" --build build-qt6 --config Release --target XiaoJiAutoKey
 ```
 
-输出：`build-qt6/Release/XiaoJiAutoKey.exe`（QML 组件编译并嵌入 exe，不需要额外分发 QML 文件）。
+输出：`build-qt6/Release`（与旧版结构一致，包含 exe、使用说明、`audio/` 和 `driver/`；QML 组件编译并嵌入 exe，不需要额外分发 QML 文件）。
 
-需要自行编译静态 Qt 时，在 VS2022 x64 Native Tools 命令行中准备 CMake、Ninja、Python 和 Qt 6.8+ 完整源码，再执行：
+需要重新编译静态 Qt 时执行：
 
 ```powershell
-.\scripts\build-static-qt.ps1 -QtSourceDir "C:\Qt\6-src" -InstallDir "C:\Qt\6-static"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -QtVersion 6.8.3 -QtRoot D:\Qt -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe -RemoveIntermediates
 ```
+
+脚本会自动下载并校验 Qt 源码、导入 MSVC x64 环境、下载 Ninja、编译并安装到 `D:\Qt\6.8.3-static`。完整说明见 [Qt 6 静态构建规范](docs/build-qt6-static.md)。
 
 主窗口标题栏、五个页面、剪贴板分享提示条、状态悬浮窗和悬浮窗锁定按钮均使用 QML。标题栏保留原有拖动、最小化和关闭确认；分享提示条保留点击导入、关闭抑制和 8 秒自动隐藏，位置随窗口尺寸自动调整。原生窗口负责 Windows 消息、托盘、鼠标穿透和 DPI 协调。悬浮窗以单个着色器绘制通透底、弧面轮廓、交互高光和阴影；不采集桌面或游戏画面，不包含背景实时折射，也不是苹果原生 Liquid Glass 材质。调整透明度只影响玻璃底，不会使文字一起变淡。
 
@@ -120,7 +123,7 @@ cmake --build build-qt6 --config Release
 ### 打包发布
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath "C:\Qt\6-static"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath "D:\Qt\6.8.3-static" -CMakePath "D:\software\cmake-3.31.6\bin\cmake.exe"
 ```
 
 打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音和 DD/HID 运行库；打包脚本会自动排除 `config.json`。

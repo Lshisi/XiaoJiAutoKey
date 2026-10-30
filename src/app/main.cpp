@@ -20,6 +20,7 @@
 #include <QStyleFactory>
 #include <QTimer>
 #include <QQuickStyle>
+#include <QQuickWindow>
 
 #include <Windows.h>
 #include <mmsystem.h>
@@ -286,12 +287,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // Remove leftovers from an in-place update (renamed old exe and staging
-    // directory); performs no network access. Must run BEFORE the single
-    // instance check: a launch that hands over to an already-running
-    // instance exits right there and would otherwise never clean up.
-    UpdateService::cleanupPreviousUpdateArtifacts();
-
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
@@ -301,6 +296,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // Only the owning instance may clean update files; a second launch must
+    // leave the running instance's downloaded or staged package intact.
+    UpdateService::cleanupPreviousUpdateArtifacts();
+
     HANDLE activateEvent = CreateEventW(nullptr, FALSE, FALSE, kActivateWindowEventName);
 
     PreserveTimerResolution();
@@ -308,6 +307,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+    QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
 
     QApplication app(argc, argv);
     SpaceInputFilter spaceInputFilter;

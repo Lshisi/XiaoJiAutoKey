@@ -7,6 +7,7 @@ MenuItem {
     implicitHeight: Math.max(36, contentItem.implicitHeight + 12)
     font.family: Theme.fontFamily
     font.pixelSize: 12
+    hoverEnabled: true
     contentItem: Text {
         text: control.text
         textFormat: Text.PlainText
@@ -17,7 +18,7 @@ MenuItem {
     }
     background: Rectangle {
         radius: Theme.buttonRadius
-        color: control.highlighted ? Theme.hover : "transparent"
+        color: !control.enabled ? "transparent" : control.down ? Theme.accentSoft : control.highlighted || control.hovered ? Theme.accentSubtle : "transparent"
         border.width: control.visualFocus ? 1 : 0
         border.color: Theme.accent
     }

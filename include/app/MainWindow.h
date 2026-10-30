@@ -85,6 +85,7 @@ private:
     void finalizeDriverUninstall(DriverMode mode);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
+    void quitApplication();
     bool rebootComputer();
     void showDdUnavailableMessage();
     void scheduleRuntimeVisualRefresh(bool dpiChanged, bool themeChanged);
@@ -174,6 +175,7 @@ private:
     // 每次运行只自动弹一次自检向导，避免反复失败时打扰。
     bool selfCheckAutoOpened_ = false;
     std::wstring driverStatusNote_;
+    bool exitRequested_ = false;
     bool systemShutdownRequested_ = false;
     bool systemShutdownSaveAttempted_ = false;
     // 剪贴板导入提示抑制记录（新内容在前，超出上限淘汰最旧的）。

@@ -16,7 +16,7 @@ Button {
     onClicked: shareBannerModel.importShare()
     background: Rectangle {
         radius: Theme.cardRadius
-        color: banner.down ? Qt.tint(Theme.surface, Theme.hover) : banner.hovered ? Theme.accentSoft : Theme.surface
+        color: banner.down ? Theme.accentSoft : banner.hovered ? Theme.accentSubtle : Theme.surface
         border.color: banner.visualFocus || banner.down ? Theme.accent : Theme.border
         border.width: banner.visualFocus ? 2 : 1
     }

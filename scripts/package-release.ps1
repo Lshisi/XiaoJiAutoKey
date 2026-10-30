@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
-    [Parameter(Mandatory = $true)][string]$QtPrefixPath
+    [Parameter(Mandatory = $true)][string]$QtPrefixPath,
+    [string]$CMakePath = "D:\software\cmake-3.31.6\bin\cmake.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,8 +18,13 @@ if (-not $processPath) {
 [System.Environment]::SetEnvironmentVariable("PATH", $processPath, "Process")
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$cmake = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
-if (-not (Test-Path $cmake)) {
+$cmake = $CMakePath
+# The CMake bundled with VS BuildTools crashes in cmake_autogen on this machine.
+$forbiddenCMakeMarker = "Common7\IDE\CommonExtensions\Microsoft\CMake"
+if ($cmake.IndexOf($forbiddenCMakeMarker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw "Do not use the CMake bundled with VS BuildTools. Use the standalone CMake."
+}
+if (-not (Test-Path $cmake -PathType Leaf)) {
     throw "cmake.exe not found: $cmake"
 }
 $qtPrefixPath = (Resolve-Path $QtPrefixPath).Path

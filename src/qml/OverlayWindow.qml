@@ -9,10 +9,7 @@ Item {
         + 2 * appearance.contentPadding
     Rectangle {
         anchors.fill: parent
-        color: Qt.alpha(overlay.appearance.panelColor,
-            overlay.appearance.nativeBlur && !overlay.appearance.blurActive
-                ? Math.max(0.9, overlay.appearance.opacity / 100)
-                : overlay.appearance.opacity / 100)
+        color: Qt.alpha(overlay.appearance.panelColor, overlay.appearance.opacity / 100)
         Accessible.ignored: true
     }
     Column {

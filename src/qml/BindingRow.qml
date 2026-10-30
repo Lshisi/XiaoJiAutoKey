@@ -11,10 +11,12 @@ Item {
     implicitHeight: Theme.tableRowHeight
     HoverHandler { id: rowHover }
     MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editBinding(root.entry.id) }
-    Rectangle { anchors.fill: parent; color: rowHover.hovered ? Theme.hover : "transparent" }
+    Rectangle { anchors.fill: parent; color: root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent" }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
         anchors.fill: parent
+        anchors.leftMargin: root.columns.contentLeftPadding
+        anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
         Item {
             Layout.preferredWidth: root.columns.leadingWidth

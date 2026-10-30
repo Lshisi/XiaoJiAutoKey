@@ -781,7 +781,7 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
 }
 
 bool MainWindow::restartForDriverModeChange() {
-    configCoordinator_.save();
+    if (!configCoordinator_.save()) return false;
     suppressDdUnavailablePrompt_ = true;
 
     const QString program = QCoreApplication::applicationFilePath();
@@ -792,7 +792,7 @@ bool MainWindow::restartForDriverModeChange() {
         return false;
     }
 
-    QCoreApplication::quit();
+    quitApplication();
     return true;
 }
 
@@ -837,6 +837,8 @@ bool MainWindow::rebootComputer() {
 }
 
 void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
+    if (!configCoordinator_.save()) return;
+
     // Stop the running sessions and unload the driver DLLs so the package
     // files next to the exe can be replaced.
     (void)engineStateCoordinator_.setRepeatRunningFast(false);
@@ -858,6 +860,8 @@ void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
         if (!loadConfiguredDriver(false)) {
             logDriverUnavailableOnce();
         }
+        engineStateCoordinator_.updateRepeatStatus();
+        refreshStatusOverlay();
         refreshDriverStatusUi();
         AppMessageDialog::warning(
             this,
@@ -881,10 +885,11 @@ void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
             QString::fromWCharArray(
                 L"\u65b0\u7248\u672c\u5df2\u5c31\u7eea\uff0c\u4f46\u65e0\u6cd5\u81ea\u52a8\u91cd\u542f\uff0c\u8bf7\u624b\u52a8\u6253\u5f00\u5c0f\u53fd\u6309\u952e\u3002"));
     }
-    QCoreApplication::quit();
+    quitApplication();
 }
 
 bool MainWindow::restartApplication(const QString& reasonMessage) {
+    if (!configCoordinator_.save()) return false;
     suppressDdUnavailablePrompt_ = true;
 
     AppMessageDialog::information(
@@ -899,8 +904,14 @@ bool MainWindow::restartApplication(const QString& reasonMessage) {
         return false;
     }
 
-    QCoreApplication::quit();
+    quitApplication();
     return true;
+}
+
+void MainWindow::quitApplication() {
+    exitRequested_ = true;
+    view_.hideTrayIcon();
+    QCoreApplication::quit();
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {

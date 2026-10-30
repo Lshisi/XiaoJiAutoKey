@@ -21,7 +21,7 @@ IconButton {
     background: Rectangle {
         radius: Theme.buttonRadius
         color: control.down || control.hovered
-            ? (control.closeAction ? (control.down ? Qt.darker(Theme.danger, 1.1) : Theme.danger) : (control.down ? Theme.border : Theme.hover))
+            ? (control.closeAction ? (control.down ? Qt.darker(Theme.danger, 1.1) : Theme.danger) : (control.down ? Theme.accentSoft : Theme.accentSubtle))
             : "transparent"
         border.width: control.visualFocus ? 2 : 0
         border.color: Theme.accent

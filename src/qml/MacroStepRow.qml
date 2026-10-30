@@ -15,11 +15,13 @@ Item {
     HoverHandler { id: rowHover }
     z: dragHandler.active ? 2 : 0
     transform: Translate { y: dragHandler.active ? root.dragOffset : 0 }
-    Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : rowHover.hovered ? Theme.hover : "transparent" }
+    Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent" }
     MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editStepRequested(root.rowIndex) }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
         anchors.fill: parent
+        anchors.leftMargin: root.columns.contentLeftPadding
+        anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
         ActionButton {
             Layout.preferredWidth: root.columns.leadingWidth

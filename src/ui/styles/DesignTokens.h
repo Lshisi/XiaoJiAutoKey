@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FactionTheme.h"
+
 #include <QColor>
 #include <QFont>
 #include <QMargins>
@@ -60,7 +62,7 @@ namespace Theme {
         const QColor text = dark ? QColor(0xF3, 0xF3, 0xF3) : QColor(0x1F, 0x1F, 0x1F);
         const QColor muted = dark ? QColor(0xC8, 0xC8, 0xC8) : QColor(0x60, 0x60, 0x60);
         const QColor disabled = dark ? QColor(0x9A, 0x9A, 0x9A) : QColor(0x90, 0x90, 0x90);
-        const QColor accent(0x00, 0x78, 0xD4);
+        const auto faction = FactionTheme::instance().palette();
 
         palette.setColor(QPalette::Window, window);
         palette.setColor(QPalette::WindowText, text);
@@ -72,8 +74,8 @@ namespace Theme {
         palette.setColor(QPalette::Button, base);
         palette.setColor(QPalette::ButtonText, text);
         palette.setColor(QPalette::BrightText, Qt::white);
-        palette.setColor(QPalette::Highlight, accent);
-        palette.setColor(QPalette::HighlightedText, Qt::white);
+        palette.setColor(QPalette::Highlight, faction.accent);
+        palette.setColor(QPalette::HighlightedText, faction.textOnAccent);
         palette.setColor(QPalette::PlaceholderText, muted);
         palette.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
         palette.setColor(QPalette::Disabled, QPalette::Text, disabled);
@@ -130,7 +132,7 @@ namespace Typography {
         QFont f(fontFamily(), pointSize);
         f.setWeight(weight);
         f.setStyleStrategy(QFont::PreferAntialias);
-        f.setHintingPreference(QFont::PreferFullHinting);
+        f.setHintingPreference(QFont::PreferVerticalHinting);
         f.setLetterSpacing(QFont::AbsoluteSpacing, 0);
         return f;
     }
@@ -166,8 +168,8 @@ namespace Spacing {
     constexpr int buttonRadius  = 8;
     constexpr int inputRadius   = 8;
     constexpr int dialogRadius  = 10;
-    constexpr int sidebarWidth  = 130;
-    constexpr int controlPanelWidth = 147;
+    constexpr int sidebarWidth  = 120;
+    constexpr int controlPanelWidth = 168;
     constexpr int titleBarHeight = 34;
     constexpr int buttonHeight  = 32;
     constexpr int inputHeight   = 32;
@@ -185,13 +187,15 @@ namespace Animation {
 }
 
 namespace Styles {
-    // 全局统一的滚动条配色：深色用白色半透明、浅色用黑色半透明。
+    // 滚动条静态保持中性，悬浮和拖动时使用当前门派强调色。
     inline QColor scrollBarHandle() {
         return Theme::isDarkMode() ? QColor(255, 255, 255, 46) : QColor(0, 0, 0, 31);
     }
 
     inline QColor scrollBarHandleHover() {
-        return Theme::isDarkMode() ? QColor(255, 255, 255, 71) : QColor(0, 0, 0, 51);
+        QColor color = FactionTheme::instance().palette().accent;
+        color.setAlpha(Theme::isDarkMode() ? 180 : 150);
+        return color;
     }
 
     // 全局统一的滚动条样式：6px 圆角细条、透明轨道、无原生箭头。

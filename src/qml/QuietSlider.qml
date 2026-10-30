@@ -8,6 +8,7 @@ Slider {
     from: 0
     to: 100
     stepSize: 1
+    hoverEnabled: true
     background: Rectangle {
         x: control.leftPadding
         y: (control.height - height) / 2
@@ -23,8 +24,8 @@ Slider {
         implicitWidth: 18
         implicitHeight: 18
         radius: 9
-        color: Theme.field
-        border.color: control.visualFocus ? Theme.accent : Theme.border
+        color: control.enabled && control.pressed ? Theme.accentSoft : control.enabled && control.hovered ? Theme.accentSubtle : Theme.field
+        border.color: control.visualFocus || (control.enabled && control.pressed) ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
     }
 }

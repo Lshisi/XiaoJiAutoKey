@@ -16,8 +16,8 @@ RadioButton {
         x: control.leftPadding
         y: (control.height - height) / 2
         radius: 7
-        color: Theme.field
-        border.color: control.checked || control.visualFocus ? Theme.accent : Theme.border
+        color: !control.enabled ? Theme.hover : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.field
+        border.color: !control.enabled ? Theme.border : control.checked || control.visualFocus ? Theme.accent : control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
         Rectangle {
             anchors.centerIn: parent

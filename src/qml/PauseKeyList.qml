@@ -7,48 +7,49 @@ Item {
     id: root
     required property QtObject page
     readonly property var keys: page.state.pauseKeys
+    readonly property real moreWidth: Math.max(Theme.iconSize, metrics.advanceWidth(qsTr("+%1").arg(keys.length)) + 8)
     readonly property int visibleCount: {
         let used = 0
         let count = 0
         for (let i = 0; i < Math.min(keys.length, 3); ++i) {
-            const next = Math.min(metrics.advanceWidth(keys[i]), 72) + Theme.iconSize + 12
-            const more = i + 1 < keys.length ? 46 : 0
+            const next = Math.min(metrics.advanceWidth(keys[i]), Theme.shortcutTextMaxWidth)
+                + Theme.shortcutRemoveWidth + 2 * Theme.shortcutTagPadding
+            const more = i + 1 < keys.length ? moreWidth + 4 : 0
             if (used + next + more > width) break
             used += next + 4
             ++count
         }
         return count
     }
-    implicitHeight: Theme.iconSize
+    implicitWidth: root.keys.length === 0 ? metrics.advanceWidth(qsTr("未设置")) + 2 * Theme.shortcutTagPadding : moreWidth
+    implicitHeight: Math.max(Theme.compactIconSize, metrics.height + 4)
     FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: 12 }
     RowLayout {
         anchors.fill: parent
         spacing: 4
-        QuietLabel { visible: root.keys.length === 0; text: qsTr("未设置"); color: Theme.muted }
+        ShortcutTag { visible: root.keys.length === 0; text: qsTr("未设置"); removable: false; enabled: !root.page.state.running }
         Repeater {
             model: root.visibleCount
-            delegate: Rectangle {
+            delegate: ShortcutTag {
                 id: tag
                 required property int index
-                Layout.preferredWidth: Math.min(metrics.advanceWidth(root.keys[index]), 72) + Theme.iconSize + 12
-                Layout.preferredHeight: Theme.iconSize
-                radius: 4
-                color: Theme.hover
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 6
-                    spacing: 2
-                    QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; text: root.keys[tag.index]; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                    IconButton { glyph: "\uE711"; hint: qsTr("删除暂停键 %1").arg(root.keys[tag.index]); enabled: !root.page.state.running; onClicked: root.page.pauseKeyDeleteClicked(tag.index) }
-                }
+                Layout.preferredWidth: implicitWidth
+                Layout.preferredHeight: implicitHeight
+                text: root.keys[tag.index]
+                removeHint: qsTr("删除暂停键 %1").arg(root.keys[tag.index])
+                enabled: !root.page.state.running
+                onRemoveRequested: root.page.pauseKeyDeleteClicked(tag.index)
             }
         }
         ActionButton {
             id: moreButton
             visible: root.keys.length > root.visibleCount
-            Layout.preferredWidth: 42
+            Layout.preferredWidth: root.moreWidth
+            implicitHeight: Math.max(Theme.compactIconSize, contentItem.implicitHeight + topPadding + bottomPadding)
             leftPadding: 4
             rightPadding: 4
+            topPadding: 2
+            bottomPadding: 2
             text: qsTr("+%1").arg(root.keys.length - root.visibleCount)
             hint: qsTr("更多暂停键，点击可删除")
             enabled: !root.page.state.running

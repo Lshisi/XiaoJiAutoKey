@@ -6,6 +6,9 @@ import XiaoJi.UI
 Item {
     id: shell
     readonly property var dialogData: dialogModel.dialogState
+    readonly property real preferredWidth: (content.status === Loader.Ready && content.item
+        && content.item.preferredWidth !== undefined ? content.item.preferredWidth : content.implicitWidth)
+        + 2 * Theme.dialogPadding
     readonly property real preferredHeight: header.implicitHeight + content.implicitHeight + footer.implicitHeight
         + 2 * Theme.dialogVerticalPadding + 2 * Theme.cardGap
     Rectangle {

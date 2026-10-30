@@ -66,6 +66,7 @@ public:
 
     // 前台门控挂起：暂停注入并释放已按下的键，但保留开关状态；恢复后继续。
     void SetSuspended(bool suspended);
+    void RefreshLongPressForeground(bool allowed);
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
@@ -102,6 +103,8 @@ private:
     bool toolRunning_ = false;
     bool mixedMode_ = false;
     bool wasdProtection_ = false;
+    bool longPressForegroundAllowed_ = true;
+    std::chrono::steady_clock::time_point longPressResumeTime_{};
     bool selfInjectedKeyboardVisible_ = true;
     bool selfInjectedMouseVisible_ = true;
 

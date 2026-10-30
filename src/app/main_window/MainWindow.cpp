@@ -234,6 +234,7 @@ MainWindow::~MainWindow() {
     unregisterUsbDeviceNotifications();
     // 先停前台监视，避免析构期间回调再投递到已销毁的窗口。
     gameWatcher_.SetCallback(nullptr);
+    gameWatcher_.SetWindowChangeCallback(nullptr);
     gameWatcher_.Stop();
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
@@ -297,6 +298,11 @@ bool MainWindow::Initialize() {
     gameWatcher_.SetCallback([this](bool gameForeground) {
         QMetaObject::invokeMethod(this, [this, gameForeground]() {
             onGameForegroundChanged(gameForeground);
+        }, Qt::QueuedConnection);
+    });
+    gameWatcher_.SetWindowChangeCallback([this](HWND foregroundWindow) {
+        QMetaObject::invokeMethod(this, [this, foregroundWindow]() {
+            onForegroundWindowChanged(foregroundWindow);
         }, Qt::QueuedConnection);
     });
     applyGameGateSettings();
@@ -1401,6 +1407,7 @@ void MainWindow::applyGameGateSettings() {
     if (auto* page = view_.settingsPage()) {
         page->setGameGateEnabled(config_.gameGateEnabled);
     }
+    onForegroundWindowChanged(::GetForegroundWindow());
     onGameForegroundChanged(gameWatcher_.IsGameForeground());
 }
 
@@ -1414,6 +1421,18 @@ void MainWindow::onGameForegroundChanged(bool gameForeground) {
     engine_.SetSuspended(suspended);
     macroEngine_.SetSuspended(suspended);
     refreshStatusOverlay();
+}
+
+void MainWindow::onForegroundWindowChanged(HWND foregroundWindow) {
+    if (foregroundWindow == nullptr || foregroundWindow != ::GetForegroundWindow()) return;
+
+    bool allowed = true;
+    if (config_.gameGateEnabled) {
+        const auto processName = QueryForegroundProcessName(foregroundWindow);
+        allowed = ForegroundWatcher::MatchesBuiltInProcessName(processName)
+            || ForegroundWatcher::MatchesCustomProcess(processName, config_.gameGateProcesses);
+    }
+    engine_.RefreshLongPressForeground(allowed);
 }
 
 void MainWindow::openExportProfileDialog() {

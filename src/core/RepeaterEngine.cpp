@@ -6,6 +6,7 @@
 
 namespace {
 constexpr int kWasdProtectionMinIntervalMs = 35;
+constexpr int kLongPressFocusSettleMs = 50;
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
@@ -101,6 +102,21 @@ void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
 
 void RepeaterEngine::SetSuspended(bool suspended) {
     suspended_.store(suspended);
+    waiter_.Wake();
+}
+
+void RepeaterEngine::RefreshLongPressForeground(bool allowed) {
+    std::lock_guard lock(mutex_);
+    longPressForegroundAllowed_ = allowed;
+    // Let focus acquisition settle before restoring a held key in the new window.
+    longPressResumeTime_ = Now() + std::chrono::milliseconds(kLongPressFocusSettleMs);
+    for (auto& task : tasks_) {
+        if (task.config.mode != RepeatMode::LongPress || !task.isDown) continue;
+        driver_.SendUp(task.config.key, InputSource::Repeater);
+        task.isDown = false;
+        task.downTime = {};
+        task.lastUpTime = {};
+    }
     waiter_.Wake();
 }
 
@@ -681,6 +697,16 @@ void RepeaterEngine::WorkerLoop() {
                 }
 
                 const auto now = Now();
+
+                if (isLongPressMode
+                    && (!longPressForegroundAllowed_ || now < longPressResumeTime_)) {
+                    if (t.isDown) queueRelease(t);
+                    if (longPressForegroundAllowed_) {
+                        nextWake = !nextWake || longPressResumeTime_ < *nextWake
+                            ? longPressResumeTime_ : nextWake;
+                    }
+                    continue;
+                }
 
                 if (t.isDown) {
                     if (!isLongPressMode

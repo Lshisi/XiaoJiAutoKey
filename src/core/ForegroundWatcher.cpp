@@ -79,6 +79,7 @@ bool ForegroundWatcher::Start() {
     }
     exit_.store(false);
     gameForeground_.store(false);
+    lastForegroundWindow_ = nullptr;
     pendingLeaveTick_ = 0;
     thread_ = std::thread(&ForegroundWatcher::ThreadMain, this);
     return true;
@@ -103,6 +104,11 @@ void ForegroundWatcher::SetRules(Rules rules) {
 void ForegroundWatcher::SetCallback(ChangeCallback callback) {
     std::lock_guard lock(callbackMutex_);
     callback_ = std::move(callback);
+}
+
+void ForegroundWatcher::SetWindowChangeCallback(WindowChangeCallback callback) {
+    std::lock_guard lock(callbackMutex_);
+    windowChangeCallback_ = std::move(callback);
 }
 
 bool ForegroundWatcher::IsGameForeground() const noexcept {
@@ -169,6 +175,16 @@ void ForegroundWatcher::EvaluateForeground() {
     const HWND foreground = ::GetForegroundWindow();
     if (foreground == nullptr) {
         return;
+    }
+
+    if (foreground != lastForegroundWindow_) {
+        lastForegroundWindow_ = foreground;
+        WindowChangeCallback callback;
+        {
+            std::lock_guard lock(callbackMutex_);
+            callback = windowChangeCallback_;
+        }
+        if (callback) callback(foreground);
     }
 
     const std::wstring processName = QueryForegroundProcessName(foreground);

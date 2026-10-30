@@ -21,6 +21,7 @@ public:
 
     // gameForeground 变化时在 watcher 线程回调。
     using ChangeCallback = std::function<void(bool gameForeground)>;
+    using WindowChangeCallback = std::function<void(HWND foregroundWindow)>;
 
     ForegroundWatcher() = default;
     ~ForegroundWatcher();
@@ -33,6 +34,7 @@ public:
 
     void SetRules(Rules rules);
     void SetCallback(ChangeCallback callback);
+    void SetWindowChangeCallback(WindowChangeCallback callback);
 
     [[nodiscard]] bool IsGameForeground() const noexcept;
 
@@ -63,7 +65,9 @@ private:
 
     std::mutex callbackMutex_;
     ChangeCallback callback_;
+    WindowChangeCallback windowChangeCallback_;
 
+    HWND lastForegroundWindow_ = nullptr;
     DWORD pendingLeaveTick_ = 0;
     DWORD threadId_ = 0;
     HWINEVENTHOOK winEventHook_ = nullptr;

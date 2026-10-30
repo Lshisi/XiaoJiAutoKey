@@ -107,6 +107,7 @@ private:
     // 开机自启（HKCU Run 注册表键）
     void applyAutoStartSettings();
     void onGameForegroundChanged(bool gameForeground);
+    void onForegroundWindowChanged(HWND foregroundWindow);
 
     // 配置分享
     void openExportProfileDialog();

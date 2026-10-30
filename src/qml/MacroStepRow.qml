@@ -15,7 +15,10 @@ Item {
     HoverHandler { id: rowHover }
     z: dragHandler.active ? 2 : 0
     transform: Translate { y: dragHandler.active ? root.dragOffset : 0 }
-    Rectangle { anchors.fill: parent; color: dragHandler.active ? Theme.accentSoft : root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent" }
+    Rectangle {
+        anchors.fill: parent
+        color: dragHandler.active ? Theme.accentSoft : root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent"
+    }
     MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editStepRequested(root.rowIndex) }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
@@ -23,12 +26,9 @@ Item {
         anchors.leftMargin: root.columns.contentLeftPadding
         anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
-        ActionButton {
+        IconButton {
             Layout.preferredWidth: root.columns.leadingWidth
-            text: "≡"
-            quiet: true
-            leftPadding: 4
-            rightPadding: 4
+            glyph: "\uE700"
             hint: qsTr("拖动排序；Alt+↑/↓ 调整步骤位置")
             Accessible.name: qsTr("步骤 %1 的排序手柄").arg(root.rowIndex + 1)
             Keys.onPressed: event => {
@@ -57,15 +57,12 @@ Item {
                 }
             }
         }
-        QuietLabel {
+        KeyCell {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: root.columns.fieldWidth
             text: root.entry.keyText
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-            wrapMode: Text.NoWrap
-            Accessible.description: root.entry.positionHint
+            description: root.entry.positionHint
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: root.columns.actionPadding }

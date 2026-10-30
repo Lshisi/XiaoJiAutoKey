@@ -157,6 +157,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         if (mode == "hold") binding.mode = RepeatMode::Hold;
         else if (mode == "independent") binding.mode = RepeatMode::Independent;
         else if (mode == "sequence") binding.mode = RepeatMode::Sequence;
+        else if (mode == "longPress") binding.mode = RepeatMode::LongPress;
         else binding.mode = RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
         if (const auto clickIt = entry->find("clickPos"); clickIt != entry->end()) {
@@ -253,6 +254,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         if (b.mode == RepeatMode::Hold) mode = "hold";
         else if (b.mode == RepeatMode::Independent) mode = "independent";
         else if (b.mode == RepeatMode::Sequence) mode = "sequence";
+        else if (b.mode == RepeatMode::LongPress) mode = "longPress";
         entry.emplace("mode", std::string(mode));
         entry.emplace("delayMs", b.delayMs);
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
@@ -390,6 +392,8 @@ AppConfig ConfigStore::Load() const {
         config.repeatOverlay.showHold = *value;
     if (const auto value = GetBoolField(*object, "repeatOverlayShowToggle"); value.has_value())
         config.repeatOverlay.showToggle = *value;
+    if (const auto value = GetBoolField(*object, "repeatOverlayShowLongPress"); value.has_value())
+        config.repeatOverlay.showLongPress = *value;
     if (const auto value = GetBoolField(*object, "repeatOverlayShowSequence"); value.has_value())
         config.repeatOverlay.showSequence = *value;
     if (const auto value = GetBoolField(*object, "repeatOverlayShowSequenceHotkey"); value.has_value())
@@ -422,6 +426,10 @@ AppConfig ConfigStore::Load() const {
         else if (*driverMode == "usb" || *driverMode == "pico") config.driverMode = DriverMode::Usb;
         else config.driverMode = DriverMode::Legacy;
     }
+    if (const auto uninstalled = GetBoolField(*object, "ddDriverUninstalledByUser"); uninstalled.has_value())
+        config.ddDriverUninstalledByUser = *uninstalled;
+    if (const auto uninstalled = GetBoolField(*object, "hidDriverUninstalledByUser"); uninstalled.has_value())
+        config.hidDriverUninstalledByUser = *uninstalled;
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
@@ -557,6 +565,7 @@ bool ConfigStore::Save(
     root.emplace("repeatOverlayShowIndependent", config.repeatOverlay.showIndependent);
     root.emplace("repeatOverlayShowHold", config.repeatOverlay.showHold);
     root.emplace("repeatOverlayShowToggle", config.repeatOverlay.showToggle);
+    root.emplace("repeatOverlayShowLongPress", config.repeatOverlay.showLongPress);
     root.emplace("repeatOverlayShowSequence", config.repeatOverlay.showSequence);
     root.emplace("repeatOverlayShowSequenceHotkey", config.repeatOverlay.showSequenceHotkey);
     root.emplace("repeatOverlayShowPauseKeys", config.repeatOverlay.showPauseKeys);
@@ -576,6 +585,8 @@ bool ConfigStore::Save(
     if (config.driverMode == DriverMode::Hid) driverMode = "hid";
     else if (config.driverMode == DriverMode::Usb) driverMode = "usb";
     root.emplace("driverMode", std::string(driverMode));
+    root.emplace("ddDriverUninstalledByUser", config.ddDriverUninstalledByUser);
+    root.emplace("hidDriverUninstalledByUser", config.hidDriverUninstalledByUser);
 
     if (!config.faction.empty())
         root.emplace("faction", config.faction);

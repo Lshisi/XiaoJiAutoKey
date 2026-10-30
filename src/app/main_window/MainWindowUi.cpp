@@ -199,7 +199,7 @@ bool MainWindow::setupUi() {
         &ddRuntimeService_,
         this,
         [this](DriverMode mode) { return switchDriverMode(mode); },
-        [this](DriverMode mode) { prepareDriverUninstall(mode); },
+        [this](DriverMode mode) { return prepareDriverUninstall(mode); },
         [this](DriverMode mode) { finalizeDriverUninstall(mode); },
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
@@ -211,7 +211,11 @@ bool MainWindow::setupUi() {
         this,
         &config_,
         [this]() { return activeInputDriverReady(); },
-        [this]() { return ddRuntimeService_.Inspect(driver_); },
+        [this]() {
+            auto status = ddRuntimeService_.Inspect(driver_);
+            status.lastError = activeInputDriverError();
+            return status;
+        },
         [this](bool open) { inputHook_.setDialogOpen(open); }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {

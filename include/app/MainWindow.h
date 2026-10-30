@@ -65,7 +65,7 @@ private:
     void setupHooks();
     void refreshStatusOverlay();
     void openStatusOverlaySettings(bool macroPage);
-    bool loadConfiguredDriver(bool allowHidFallbackToLegacy = true);
+    bool loadConfiguredDriver();
     bool loadHidDriver();
     bool loadLegacyDriver();
     bool loadCh552UsbDriver();
@@ -74,14 +74,14 @@ private:
     bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
     bool canLoadCh552UsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
-    bool ensureHidDriverInstalledForSwitch();
+    bool ensureHidDriverInstalledForSwitch(bool repairRequested);
     void logDriverUnavailableOnce();
     // 任何“驱动不可用”的触发点（启动失败/切换失败/热键撞上死驱动）自动打开一次自检向导，
     // 不区分根因——向导内部会做诊断分诊。
     void openSelfCheckAfterDriverFailure();
     void refreshDriverStatusUi();
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
-    void prepareDriverUninstall(DriverMode mode);
+    bool prepareDriverUninstall(DriverMode mode);
     void finalizeDriverUninstall(DriverMode mode);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
@@ -169,7 +169,6 @@ private:
     bool recreatedFractionalDpiSurface_ = false;
     bool suppressDdUnavailablePrompt_ = false;
     bool driverUnavailableLogged_ = false;
-    bool driverStatusFallback_ = false;
     // 启动时驱动加载失败，待主窗口首次显示后自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
     bool pendingSelfCheckPrompt_ = false;
     // 每次运行只自动弹一次自检向导，避免反复失败时打扰。

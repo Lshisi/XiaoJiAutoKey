@@ -11,8 +11,8 @@
 #include <functional>
 
 // 驱动自检：纯诊断 + 指引，不执行任何修复/切换动作。
-// 驱动的安装/补装由启动时的 ensureLegacyDdInfInstalled 闭环负责；
-// 内核隔离拦截场景引导用户到 Windows 安全中心手动关闭。
+// 优先检查当前模式的运行文件，再报告安装、设备及加载状态；
+// 安全配置和历史拦截记录仅作辅助信息，不据此认定本次故障原因。
 class DriverSelfCheckCoordinator : public QObject {
     Q_OBJECT
 
@@ -39,6 +39,7 @@ private:
     struct Snapshot {
         DriverMode mode = DriverMode::Legacy;
         bool driverReady = false;
+        bool uninstalledByUser = false;
         DdRuntimeService::RuntimeStatus status;
         CodeIntegrityInspector::GuardStatus guards;
     };

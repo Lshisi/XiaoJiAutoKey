@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Layouts
 import XiaoJi.UI
 
 Button {
@@ -9,7 +10,11 @@ Button {
     property bool accented: false
     property bool compact: false
     property bool destructive: false
+    property string leadingGlyph: ""
     property string hint: ""
+    readonly property color foregroundColor: !enabled ? Theme.muted
+        : destructive ? (Theme.dark ? Theme.background : Theme.field)
+        : primary ? Theme.accentForeground : Theme.text
     implicitHeight: Math.max(compact ? Theme.compactButtonHeight : Theme.buttonHeight, contentItem.implicitHeight + topPadding + bottomPadding)
     implicitWidth: Math.max(implicitHeight, contentItem.implicitWidth + leftPadding + rightPadding)
     leftPadding: compact ? 8 : 12
@@ -17,19 +22,34 @@ Button {
     topPadding: compact ? 4 : 6
     bottomPadding: compact ? 4 : 6
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
+    font.weight: primary ? Theme.headingWeight : Font.Normal
+    font.hintingPreference: Font.PreferVerticalHinting
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
     Accessible.name: text.length ? text : hint
-    contentItem: Text {
-        text: control.text
-        textFormat: Text.PlainText
-        font: control.font
-        color: !control.enabled ? Theme.muted : control.destructive ? (Theme.dark ? Theme.background : Theme.field)
-            : control.primary ? Theme.accentForeground : Theme.text
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+    contentItem: RowLayout {
+        spacing: control.leadingGlyph.length ? 6 : 0
+        QuietIcon {
+            visible: control.leadingGlyph.length > 0
+            glyph: control.leadingGlyph
+            color: caption.color
+            Layout.preferredWidth: Theme.iconGlyphSize
+            Layout.preferredHeight: Theme.iconGlyphSize
+        }
+        Text {
+            id: caption
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            text: control.text
+            textFormat: Text.PlainText
+            font: control.font
+            renderType: Text.NativeRendering
+            color: control.foregroundColor
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
     }
     background: Rectangle {
         radius: Theme.buttonRadius
@@ -41,5 +61,9 @@ Button {
         border.width: control.visualFocus ? 2 : control.primary || (control.quiet && !control.accented) ? 0 : 1
         border.color: control.visualFocus ? Theme.accent
             : control.enabled && (control.hovered || control.down || control.accented) ? Theme.accentBorder : Theme.border
+    }
+    QuietToolTip {
+        text: control.hint
+        visible: control.enabled && control.visible && control.hovered && !control.down && text.length > 0
     }
 }

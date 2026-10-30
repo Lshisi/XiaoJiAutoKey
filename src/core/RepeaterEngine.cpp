@@ -50,20 +50,20 @@ bool RepeaterEngine::IsToolRunning() const noexcept {
 }
 
 void RepeaterEngine::SetMixedMode(bool enabled) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     mixedMode_ = enabled;
 }
 
 void RepeaterEngine::SetWasdProtection(bool enabled) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     wasdProtection_ = enabled;
 }
 
 void RepeaterEngine::SetSequenceSwitchKey(std::optional<KeyDescriptor> key) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     sequenceSwitchKey_ = key;
     sequenceSwitchDown_ = false;
 }
@@ -93,15 +93,15 @@ void RepeaterEngine::SetSelfInjectedMouseVisible(bool visible) {
 }
 
 void RepeaterEngine::SetPauseKeys(const std::vector<KeyDescriptor>& keys) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     pauseKeys_ = keys;
     pauseKeysDown_.clear();
 }
 
 void RepeaterEngine::SetSuspended(bool suspended) {
-    waiter_.Wake();
     suspended_.store(suspended);
+    waiter_.Wake();
 }
 
 bool RepeaterEngine::IsPauseActive() const {
@@ -110,8 +110,8 @@ bool RepeaterEngine::IsPauseActive() const {
 
 // ── 启停 ─────────────────────────────
 void RepeaterEngine::SetToolRunning(bool running) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     ++runGeneration_;
     toolRunning_ = running;
     running_.store(running);
@@ -129,6 +129,9 @@ void RepeaterEngine::SetToolRunning(bool running) {
     sequenceActiveTaskId_.reset();
 
     for (auto& t : tasks_) {
+        if (t.isDown && t.config.mode == RepeatMode::LongPress) {
+            driver_.SendUp(t.config.key, InputSource::Repeater);
+        }
         t.lastUpTime = {};
         t.isDown = false;
         t.downTime = {};
@@ -143,8 +146,8 @@ void RepeaterEngine::SetToolRunning(bool running) {
 
 // ── 物理输入状态追踪 ─────────────
 void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
 
@@ -214,8 +217,8 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
 }
 
 void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
 
@@ -453,6 +456,7 @@ void RepeaterEngine::SyncSourceActiveKeysLocked() {
                 && *sequenceActiveTaskId_ == task.config.id;
             break;
         case RepeatMode::Toggle:
+        case RepeatMode::LongPress:
             active = toolRunning_;
             break;
         }
@@ -496,8 +500,8 @@ bool RepeaterEngine::HasActiveHoldKeys() const {
 
 // ── bindings ─────────────────────────────
 void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<KeyBinding>& bindings, bool rememberSequencePosition) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
 
     if (!activeProfileId_.has_value() || *activeProfileId_ != profileId) {
         activeProfileId_ = profileId;
@@ -526,11 +530,25 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
 
         if (it != tasks_.end()) {
             t.lastUpTime = it->lastUpTime;
+            if (it->config.mode == RepeatMode::LongPress
+                && t.config.mode == RepeatMode::LongPress
+                && it->config.key == t.config.key && t.config.enabled) {
+                t.isDown = it->isDown;
+                t.downTime = it->downTime;
+            }
         }
 
         updated.push_back(t);
     }
 
+    for (const auto& task : tasks_) {
+        if (task.config.mode != RepeatMode::LongPress || !task.isDown) continue;
+        const bool retained = std::any_of(updated.begin(), updated.end(), [&](const TaskRuntime& next) {
+            return next.isDown && next.config.mode == RepeatMode::LongPress
+                && next.config.key == task.config.key;
+        });
+        if (!retained) driver_.SendUp(task.config.key, InputSource::Repeater);
+    }
     tasks_ = std::move(updated);
     NormalizeIndependentSelectionLocked();
     NormalizeSequenceSelectionLocked();
@@ -556,8 +574,8 @@ RepeaterStatus RepeaterEngine::GetStatus() const {
 }
 
 void RepeaterEngine::ForgetProfileRuntimeState(std::uint64_t profileId) {
-    waiter_.Wake();
     std::lock_guard lock(mutex_);
+    waiter_.Wake();
 
     sequenceSelectionByProfile_.erase(profileId);
     if (activeProfileId_.has_value() && *activeProfileId_ == profileId) {
@@ -573,7 +591,7 @@ void RepeaterEngine::ForgetProfileRuntimeState(std::uint64_t profileId) {
 void RepeaterEngine::WorkerLoop() {
     while (!exit_.load()) {
         std::vector<KeyDescriptor> releases;
-        std::vector<std::pair<KeyDescriptor, ClickPosition>> presses;
+        std::vector<TaskRuntime*> presses;
         std::uint64_t batchGeneration = 0;
         std::optional<std::chrono::steady_clock::time_point> nextWake;
         {
@@ -602,6 +620,7 @@ void RepeaterEngine::WorkerLoop() {
                 const bool isHoldMode = t.config.mode == RepeatMode::Hold;
                 const bool isIndependentMode = t.config.mode == RepeatMode::Independent;
                 const bool isSequenceMode = t.config.mode == RepeatMode::Sequence;
+                const bool isLongPressMode = t.config.mode == RepeatMode::LongPress;
                 const bool isToggleLikeMode = IsToggleLikeRepeatMode(t.config.mode);
 
                 int interval = std::max(kMinDelayMs, t.config.intervalMs);
@@ -664,40 +683,52 @@ void RepeaterEngine::WorkerLoop() {
                 const auto now = Now();
 
                 if (t.isDown) {
-                    if (now - t.downTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
+                    if (!isLongPressMode
+                        && now - t.downTime >= std::chrono::milliseconds(kInputPulseWidthMs)) {
                         queueRelease(t);
                     }
                     continue;
                 }
 
-                if (t.lastUpTime == std::chrono::steady_clock::time_point{}
+                if (isLongPressMode || t.lastUpTime == std::chrono::steady_clock::time_point{}
                     || now - t.lastUpTime >= std::chrono::milliseconds(interval)) {
-                    presses.emplace_back(t.config.key, t.config.clickPos);
+                    presses.push_back(&t);
                     t.isDown = true;
                     t.downTime = now;
                 }
             }
 
-            for (const auto& [key, clickPos] : presses) {
-                BeforeSendLocked(key);
+            for (const auto* task : presses) {
+                BeforeSendLocked(task->config.key);
             }
 
             if (batchGeneration == runGeneration_.load()) {
                 for (const auto& key : releases) {
                     driver_.SendUp(key, InputSource::Repeater);
                 }
-                for (const auto& [key, clickPos] : presses) {
+                for (auto* task : presses) {
+                    const auto& key = task->config.key;
+                    const auto& clickPos = task->config.clickPos;
                     if (key.device == InputDevice::Mouse && clickPos.IsFixed()) {
                         if (const auto point = ResolveClickAnchorScreenPoint(clickPos)) {
                             MoveCursorToScreenPoint(driver_, point->x, point->y);
                         }
                     }
-                    driver_.SendDown(key, InputSource::Repeater);
+                    if (task->config.mode == RepeatMode::LongPress) {
+                        if (!driver_.SendHeldDown(key, InputSource::Repeater)) {
+                            driver_.SendUp(key, InputSource::Repeater);
+                            task->isDown = false;
+                            const auto retry = Now() + std::chrono::milliseconds(kDefaultDelayMs);
+                            nextWake = !nextWake || retry < *nextWake ? retry : nextWake;
+                        }
+                    } else {
+                        driver_.SendDown(key, InputSource::Repeater);
+                    }
                 }
             }
 
             for (const auto& task : tasks_) {
-                if (!task.config.enabled) continue;
+                if (!task.config.enabled || task.config.mode == RepeatMode::LongPress) continue;
 
                 if (task.isDown) {
                     const auto deadline = task.downTime + std::chrono::milliseconds(kInputPulseWidthMs);

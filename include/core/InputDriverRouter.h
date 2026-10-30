@@ -16,6 +16,7 @@ public:
     [[nodiscard]] std::wstring GetLastError() const override;
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool SendHeldDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
     [[nodiscard]] bool SupportsMouseMove() const override;
@@ -28,6 +29,7 @@ public:
 private:
     struct SourceState {
         std::unordered_map<std::uint64_t, std::uint64_t> activeKeys;
+        std::unordered_set<std::uint64_t> heldKeys;
     };
 
     static bool IsArbitratedSource(InputSource src) noexcept;
@@ -37,6 +39,8 @@ private:
     SourceState& StateFor(InputSource src);
     const SourceState& StateFor(InputSource src) const;
     void RecomputeOwnersLocked();
+    bool SendDownLocked(const KeyDescriptor& key, InputSource src);
+    void RestoreHeldKeysLocked(InputSource src);
     bool ReleaseForwardedKeyLocked(std::uint64_t encoded);
     void NoteArbitrationSkipLocked(std::uint64_t encoded, InputSource src, const char* reason);
 

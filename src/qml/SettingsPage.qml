@@ -4,13 +4,12 @@ import QtQuick.Effects
 import QtQuick.Layouts
 import XiaoJi.UI
 
-ScrollView {
+QuietScrollView {
     id: root
+    autoHideScrollBar: true
     readonly property QtObject page: settingsPageModel
     contentWidth: availableWidth
     contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
-    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-    ScrollBar.vertical: QuietScrollBar {}
     ButtonGroup { id: startupGroup }
     ButtonGroup { id: closeGroup }
     ColumnLayout {

@@ -9,6 +9,7 @@ ColumnLayout {
     readonly property var repeatOptions: [
         { field: "repeatHotkey", label: qsTr("启停快捷键") }, { field: "repeatIndependent", label: qsTr("独立模式") },
         { field: "repeatHold", label: qsTr("按压模式") }, { field: "repeatToggle", label: qsTr("开关模式") },
+        { field: "repeatLongPress", label: qsTr("长按模式") },
         { field: "repeatSequence", label: qsTr("切换模式") }, { field: "repeatSequenceHotkey", label: qsTr("切换快捷键") },
         { field: "repeatPauseKeys", label: qsTr("暂停快捷键") }
     ]

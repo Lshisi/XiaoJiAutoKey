@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import XiaoJi.UI
 
-ScrollView {
+QuietScrollView {
     id: control
     property alias text: editor.text
     property alias placeholderText: editor.placeholderText
@@ -10,8 +10,6 @@ ScrollView {
     signal edited(string value)
     implicitHeight: 180
     contentWidth: availableWidth
-    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-    ScrollBar.vertical: QuietScrollBar {}
     background: Rectangle { color: Theme.field; radius: Theme.inputRadius; border.color: editor.activeFocus ? Theme.accent : editor.enabled && editor.hovered ? Theme.accentBorder : Theme.border }
     TextArea {
         id: editor

@@ -4,6 +4,8 @@
 
 namespace {
 QString compactDriverDetails(const QString& details) {
+    QString currentMode;
+    QString currentError;
     QString dd32;
     QString dd64;
     QString infKeyboardService;
@@ -22,7 +24,9 @@ QString compactDriverDetails(const QString& details) {
     const QStringList lines = details.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
-        if (trimmed.startsWith(QString::fromWCharArray(L"\u5185\u6838\u9694\u79bb:"))) kernelIsolation = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        if (trimmed.startsWith(QString::fromWCharArray(L"\u914d\u7f6e\u9a71\u52a8:"))) currentMode = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QStringLiteral("当前错误:"))) currentError = trimmed.section(QLatin1Char(':'), 1).trimmed();
+        else if (trimmed.startsWith(QString::fromWCharArray(L"\u5185\u6838\u9694\u79bb:"))) kernelIsolation = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QStringLiteral("DD32.dll:"))) dd32 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QStringLiteral("DD64.dll:"))) dd64 = trimmed.section(QLatin1Char(':'), 1).trimmed();
         else if (trimmed.startsWith(QString::fromWCharArray(L"INF \u952e\u76d8\u670d\u52a1:"))) infKeyboardService = trimmed.section(QLatin1Char(':'), 1).trimmed();
@@ -40,8 +44,11 @@ QString compactDriverDetails(const QString& details) {
     }
 
     QStringList sections;
-    // 内核隔离是驱动失效的最常见根因，置顶展示。
+    if (!currentMode.isEmpty()) sections << QObject::tr("当前模式: %1").arg(currentMode);
+    if (!currentError.isEmpty()) sections << QObject::tr("当前错误: %1").arg(currentError);
+    // 安全配置仅供核对，不作为本次故障的判定依据。
     if (!kernelIsolation.isEmpty()) {
+        if (!sections.isEmpty()) sections.push_back(QString());
         sections.push_back(QString::fromWCharArray(L"\u5185\u6838\u9694\u79bb"));
         sections.push_back(kernelIsolation);
     }
@@ -118,12 +125,18 @@ QString compactDriverDetails(const QString& details) {
 
 DriverPageModel::DriverPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"mode", 0}, {"summary", tr("正在读取驱动状态")}, {"details", QString()},
-        {"ddInstalled", false}, {"hidInstalled", false}, {"busy", false}};
+        {"ddInstalled", false}, {"hidInstalled", false}, {"busy", false},
+        {"installAvailable", false}, {"installText", QString()}};
 }
 
 void DriverPageModel::setDriverActions(bool ddInstalled, bool hidInstalled) {
     state_.insert("ddInstalled", ddInstalled);
     setValue("hidInstalled", hidInstalled);
+}
+
+void DriverPageModel::setInstallAction(bool available, const QString& text) {
+    state_.insert("installText", text);
+    setValue("installAvailable", available);
 }
 
 void DriverPageModel::setDetailText(const QString& value) {

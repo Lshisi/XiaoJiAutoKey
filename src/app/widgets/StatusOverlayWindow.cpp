@@ -147,6 +147,12 @@ QStringList repeatLines(const ProfileConfig* profile, const RepeaterStatus& stat
             if (binding.enabled && binding.mode == RepeatMode::Toggle) keys.push_back(binding.key);
         lines << keySummary(keys, QObject::tr("开关%1：").arg(modeState), metrics, availableWidth);
     }
+    if (options.showLongPress && hasMode(RepeatMode::LongPress)) {
+        std::vector<KeyDescriptor> keys;
+        for (const auto& binding : profile->bindings)
+            if (binding.enabled && binding.mode == RepeatMode::LongPress) keys.push_back(binding.key);
+        lines << keySummary(keys, QObject::tr("长按%1：").arg(modeState), metrics, availableWidth);
+    }
     if (options.showSequence && hasMode(RepeatMode::Sequence)) {
         QString selected = QObject::tr("未激活");
         for (const auto& binding : profile->bindings) {

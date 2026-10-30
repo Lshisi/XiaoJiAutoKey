@@ -3,8 +3,20 @@
 #include "FactionTheme.h"
 #include "DesignTokens.h"
 #include <QVariantMap>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 namespace Fluent {
+inline bool qmlMotionEnabled() {
+#ifdef Q_OS_WIN
+    BOOL enabled = TRUE;
+    if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0))
+        return enabled != FALSE;
+#endif
+    return true;
+}
+
 inline QVariantMap qmlTheme() {
     const auto& faction = FactionTheme::instance().current();
     const auto colors = FactionTheme::instance().palette();
@@ -32,6 +44,9 @@ inline QVariantMap qmlTheme() {
         {"sidebarWidth", Fluent::Spacing::sidebarWidth},
         {"controlPanelWidth", Fluent::Spacing::controlPanelWidth},
         {"tableHeaderHeight", Fluent::Spacing::tableHeaderH}, {"tableRowHeight", Fluent::Spacing::tableRowH},
+        {"motionEnabled", qmlMotionEnabled()},
+        {"hoverDuration", Fluent::Animation::hoverDuration}, {"fadeDuration", Fluent::Animation::fadeDuration},
+        {"slideDuration", Fluent::Animation::slideDuration},
         {"buttonRadius", Fluent::Spacing::buttonRadius}, {"inputRadius", Fluent::Spacing::inputRadius}
     };
 }

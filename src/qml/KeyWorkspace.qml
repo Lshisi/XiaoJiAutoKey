@@ -7,19 +7,6 @@ Item {
     id: workspace
     required property QtObject page
     property bool macroMode: false
-    readonly property var rows: macroMode ? page.state.steps : page.state.bindings
-    QtObject {
-        id: tableColumns
-        readonly property real rowWidth: Math.max(0, list.width)
-        readonly property real contentLeftPadding: Math.max(0, listCard.leftPadding - 1)
-        readonly property real contentRightPadding: Math.max(0, listCard.rightPadding - 1) + tableScrollBar.implicitWidth
-        readonly property real contentWidth: Math.max(0, rowWidth - contentLeftPadding - contentRightPadding)
-        readonly property int leadingWidth: workspace.macroMode ? Theme.iconSize : 42
-        readonly property int actionPadding: 4
-        readonly property int actionWidth: 2 * Theme.iconSize + 2 * actionPadding
-        readonly property real fieldWidth: Math.max(0,
-            (contentWidth - leadingWidth - actionWidth) / (workspace.macroMode ? 2 : 4))
-    }
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: Theme.pageMargin
@@ -51,66 +38,22 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     ActionButton {
-                        text: qsTr("+  添加按键")
-                        primary: true
+                        text: qsTr("添加按键")
+                        leadingGlyph: "\uE710"
                         compact: true
                         enabled: !workspace.page.state.running
                         onClicked: workspace.macroMode ? workspace.page.addStepRequested() : workspace.page.addRequested()
                     }
                 }
-                ColumnLayout {
+                WorkspaceTable {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 0
-                    Item {
-                        Layout.fillWidth: true
-                        implicitHeight: Theme.tableHeaderHeight
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.leftMargin: 1 - listCard.leftPadding
-                            anchors.rightMargin: 1 - listCard.rightPadding
-                            color: Theme.accentSubtle
-                            Accessible.ignored: true
-                        }
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.rightMargin: tableScrollBar.implicitWidth
-                            spacing: 0
-                            QuietLabel { Layout.preferredWidth: tableColumns.leadingWidth; text: workspace.macroMode ? "" : qsTr("状态"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("按键"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("模式"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { visible: !workspace.macroMode; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: qsTr("优先"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: tableColumns.fieldWidth; text: workspace.macroMode ? qsTr("间隔 (ms)") : qsTr("延迟"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                            QuietLabel { Layout.preferredWidth: tableColumns.actionWidth; text: qsTr("操作"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                        }
-                    }
-                    ListView {
-                        id: list
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.leftMargin: 1 - listCard.leftPadding
-                        Layout.rightMargin: 1 - listCard.rightPadding
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-                        model: workspace.rows
-                        delegate: Loader {
-                            id: rowLoader
-                            required property var modelData
-                            required property int index
-                            width: tableColumns.rowWidth
-                            height: Theme.tableRowHeight
-                            sourceComponent: workspace.macroMode ? stepDelegate : bindingDelegate
-                            Component {
-                                id: bindingDelegate
-                                BindingRow { page: workspace.page; entry: rowLoader.modelData; columns: tableColumns; enabled: !workspace.page.state.running }
-                            }
-                            Component {
-                                id: stepDelegate
-                                MacroStepRow { page: workspace.page; entry: rowLoader.modelData; columns: tableColumns; rowIndex: rowLoader.index; rowCount: list.count; enabled: !workspace.page.state.running }
-                            }
-                        }
-                        ScrollBar.vertical: QuietScrollBar { id: tableScrollBar }
-                    }
+                    Layout.leftMargin: 1 - listCard.leftPadding
+                    Layout.rightMargin: 1 - listCard.rightPadding
+                    page: workspace.page
+                    macroMode: workspace.macroMode
+                    contentLeftPadding: Math.max(0, listCard.leftPadding - 1)
+                    contentRightPadding: Math.max(0, listCard.rightPadding - 1)
                 }
                 ShortcutBar { Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
             }

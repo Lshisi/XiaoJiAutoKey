@@ -10,7 +10,7 @@ void DriverSelfCheckDialog::beginCheck() {
     actions_.clear();
     setValue("closeAllowed", false);
     setValue("heading", tr("正在检测驱动环境…"));
-    setValue("body", tr("正在检查驱动运行状态与 Windows 内核隔离设置，请稍候。"));
+    setValue("body", tr("正在检查当前驱动模式的运行文件、安装状态及设备连接，请稍候。"));
     setValue("progressVisible", true);
     setValue("severity", 0);
     setValue("actions", QVariantList{});

@@ -244,6 +244,8 @@ set(QML_FILES
     src/qml/ShareImportBanner.qml
     src/qml/QuietLabel.qml
     src/qml/QuietHeading.qml
+    src/qml/QuietIcon.qml
+    src/qml/QuietToolTip.qml
     src/qml/ActionButton.qml
     src/qml/IconButton.qml
     src/qml/QuietCheck.qml
@@ -252,9 +254,11 @@ set(QML_FILES
     src/qml/QuietCombo.qml
     src/qml/QuietNumber.qml
     src/qml/QuietScrollBar.qml
+    src/qml/QuietScrollView.qml
     src/qml/QuietCard.qml
     src/qml/FactionPicker.qml
     src/qml/NavIcon.qml
+    src/qml/SidebarNavigation.qml
     src/qml/ProfileToolbar.qml
     src/qml/RunPanel.qml
     src/qml/HotkeyPanel.qml
@@ -264,7 +268,10 @@ set(QML_FILES
     src/qml/ShortcutTag.qml
     src/qml/PauseKeyList.qml
     src/qml/BindingRow.qml
+    src/qml/KeyCell.qml
     src/qml/MacroStepRow.qml
+    src/qml/WorkspaceRows.qml
+    src/qml/WorkspaceTable.qml
     src/qml/KeyWorkspace.qml
     src/qml/KeyPage.qml
     src/qml/MacroPage.qml

@@ -12,6 +12,7 @@ IconButton {
     contentItem: Text {
         text: control.glyph
         font: control.font
+        renderType: Text.NativeRendering
         color: control.closeAction && (control.hovered || control.down)
             ? (Theme.dark ? Theme.background : Theme.field) : Theme.text
         horizontalAlignment: Text.AlignHCenter

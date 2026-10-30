@@ -9,24 +9,29 @@ ComboBox {
     leftPadding: 10
     rightPadding: 28
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
+    font.hintingPreference: Font.PreferVerticalHinting
     hoverEnabled: true
     contentItem: Text {
         text: control.displayText
         textFormat: Text.PlainText
         font: control.font
+        renderType: Text.NativeRendering
         color: control.enabled ? Theme.text : Theme.muted
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
-    indicator: Text {
+    indicator: QuietIcon {
         x: control.width - width - 10
         y: (control.height - height) / 2
-        text: "\uE70D"
-        font.family: Theme.iconFamily
+        glyph: "\uE70D"
         font.pixelSize: 10
         color: Theme.muted
-        Accessible.ignored: true
+        rotation: control.popup.visible ? 180 : 0
+        Behavior on rotation {
+            enabled: Theme.motionEnabled && control.visible
+            RotationAnimator { duration: Theme.toggleDuration; easing.type: Easing.OutCubic }
+        }
     }
     background: Rectangle {
         radius: Theme.inputRadius
@@ -47,6 +52,7 @@ ComboBox {
             textFormat: Text.PlainText
             color: Theme.text
             font: control.font
+            renderType: Text.NativeRendering
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
@@ -58,6 +64,14 @@ ComboBox {
         height: Math.min(contentItem.implicitHeight + topPadding + bottomPadding, 300)
         margins: 8
         padding: 4
+        enter: Transition {
+            enabled: Theme.motionEnabled
+            OpacityAnimator { from: 0.8; to: 1; duration: Theme.popupEnterDuration; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            enabled: Theme.motionEnabled
+            OpacityAnimator { from: 1; to: 0; duration: Theme.popupExitDuration }
+        }
         contentItem: ListView {
             clip: true
             implicitHeight: contentHeight

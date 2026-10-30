@@ -1106,7 +1106,10 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     RuntimeStatus status;
     status.driverReady = driver.IsReady();
     status.lastError = driver.GetLastError();
-    status.hidRuntimeExists = std::filesystem::exists(HidRuntimePath());
+    status.driverRootPath = DriverRootDir().wstring();
+    status.driverRootExists = QFileInfo(QString::fromStdWString(status.driverRootPath)).isDir();
+    status.hidRuntimePath = HidRuntimePath().wstring();
+    status.hidRuntimeExists = QFileInfo(QString::fromStdWString(status.hidRuntimePath)).isFile();
     status.hidEmbeddedDriverExists = EmbeddedHidDriverExists();
     status.hidServiceInstalled = ServiceExists(kHidServiceName);
     status.hidServicePendingDelete = ServiceMarkedForDelete(kHidServiceName);
@@ -1114,8 +1117,24 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.hidDriverStorePresent = HidDriverStorePresent();
     status.hidRootDeviceOk = HidRootDeviceOk();
     status.hidChildDeviceOk = HidChildDeviceOk();
-    status.legacy32Exists = std::filesystem::exists(Legacy32Path());
-    status.legacy64Exists = std::filesystem::exists(Legacy64Path());
+    status.legacy32Exists = QFileInfo(QString::fromStdWString(Legacy32Path().wstring())).isFile();
+    status.legacy64Exists = QFileInfo(QString::fromStdWString(Legacy64Path().wstring())).isFile();
+#if defined(_WIN64)
+    auto legacyRuntimePath = Legacy64Path();
+    status.legacyRuntimeExists = status.legacy64Exists;
+#else
+    auto legacyRuntimePath = Legacy32Path();
+    status.legacyRuntimeExists = status.legacy32Exists;
+#endif
+    // The loader also accepts the matching runtime beside the executable.
+    if (!status.legacyRuntimeExists) {
+        const auto fallbackPath = exeDir_ / legacyRuntimePath.filename();
+        if (QFileInfo(QString::fromStdWString(fallbackPath.wstring())).isFile()) {
+            legacyRuntimePath = fallbackPath;
+            status.legacyRuntimeExists = true;
+        }
+    }
+    status.legacyRuntimePath = legacyRuntimePath.wstring();
     status.embeddedInfVariant0Exists = EmbeddedInfVariantExists(0);
     status.embeddedInfVariant1Exists = EmbeddedInfVariantExists(1);
     status.infKeyboardServiceInstalled = ServiceExists(kInfKeyboardServiceName);
@@ -1138,8 +1157,8 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     if (!status.driverReady) {
         status.notes.push_back(L"DD is not ready. Input simulation will fail until the selected runtime and driver are available.");
     }
-    if (!status.hidRuntimeExists && !status.legacy32Exists && !status.legacy64Exists) {
-        status.notes.push_back(L"No DD runtime files were found in the application directory.");
+    if (!status.hidRuntimeExists && !status.legacyRuntimeExists) {
+        status.notes.push_back(L"No HID runtime or DD runtime matching this process architecture was found in the application directory.");
     }
     if (!status.hidEmbeddedDriverExists && !status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
         status.notes.push_back(L"No embedded driver package was found.");

@@ -213,20 +213,35 @@ int main(int argc, char *argv[]) {
         std::ostringstream reportText;
 
         const auto statusBefore = runtime.Inspect(driver);
-        std::wstring probeMessage;
-        const bool probeOk = runtime.ProbeHidRuntime(8000, &probeMessage);
-
+        const bool uninstalledByUser = config.IsDriverUninstalledByUser(config.driverMode);
+        bool loadAttempted = false;
         bool loadOk = false;
         bool loadedAsConfigured = false;
-        if (config.driverMode == DriverMode::Usb) {
-            loadOk = false;
-            loadedAsConfigured = false;
+        std::string loadSkippedReason;
+        if (uninstalledByUser) {
+            loadSkippedReason = "The selected driver was explicitly uninstalled by the user.";
+        } else if (config.driverMode == DriverMode::Usb) {
+            loadSkippedReason = "USB connection is not probed by this command.";
         } else if (config.driverMode == DriverMode::Hid) {
-            loadOk = driver.LoadFromDirectory(appPaths.exeDir(), true);
-            loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Hid;
+            const bool installed = statusBefore.hidServiceInstalled && statusBefore.hidSysInstalled &&
+                (statusBefore.hidRootDeviceOk || statusBefore.hidChildDeviceOk);
+            if (statusBefore.hidRuntimeExists && installed && !statusBefore.hidServicePendingDelete) {
+                loadAttempted = true;
+                loadOk = driver.LoadHidFrom(statusBefore.hidRuntimePath);
+                loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Hid;
+            } else {
+                loadSkippedReason = "HID runtime or installed driver is not ready; diagnosis does not install drivers.";
+            }
         } else {
-            loadOk = driver.LoadFromDirectory(appPaths.exeDir(), false);
-            loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy;
+            const bool installed = statusBefore.infKeyboardServiceInstalled && statusBefore.infMouseServiceInstalled &&
+                statusBefore.infKeyboardSysInstalled && statusBefore.infMouseSysInstalled;
+            if (statusBefore.legacyRuntimeExists && installed) {
+                loadAttempted = true;
+                loadOk = driver.LoadLegacyFromDirectory(appPaths.exeDir());
+                loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy;
+            } else {
+                loadSkippedReason = "DD runtime or installed driver is not ready; diagnosis does not install drivers.";
+            }
         }
 
         WriteText(reportText, "config_path", appPaths.configPath().string());
@@ -239,8 +254,13 @@ int main(int argc, char *argv[]) {
         WriteBool(reportText, "status_hid_child_device_ok", statusBefore.hidChildDeviceOk);
         WriteBool(reportText, "status_legacy32_exists", statusBefore.legacy32Exists);
         WriteBool(reportText, "status_legacy64_exists", statusBefore.legacy64Exists);
-        WriteBool(reportText, "probe_hid_ok", probeOk);
-        WriteText(reportText, "probe_hid_message", ToUtf8Line(probeMessage));
+        WriteBool(reportText, "driver_uninstalled_by_user", uninstalledByUser);
+        WriteBool(reportText, "load_attempted", loadAttempted);
+        WriteText(reportText, "load_skipped_reason", loadSkippedReason);
+        WriteBool(reportText, "probe_hid_ok", config.driverMode == DriverMode::Hid && loadOk);
+        WriteText(reportText, "probe_hid_message", config.driverMode != DriverMode::Hid
+            ? "Not run: HID is not the selected mode."
+            : (!loadAttempted ? loadSkippedReason : (loadOk ? "HID runtime loaded." : ToUtf8Line(driver.GetLastError()))));
         WriteBool(reportText, "load_ok", loadOk);
         WriteBool(reportText, "loaded_as_configured", loadedAsConfigured);
         WriteText(reportText, "loaded_runtime_kind", RuntimeKindText(driver.GetRuntimeKind()));

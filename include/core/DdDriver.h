@@ -25,7 +25,7 @@ public:
 
     bool LoadFrom(const std::wstring& dllPath);
     bool LoadHidFrom(const std::wstring& dllPath);
-    bool LoadFromDirectory(const std::wstring& directoryPath, bool allowHid = true);
+    bool LoadLegacyFromDirectory(const std::wstring& directoryPath);
     void Unload();
     void SwapWith(DdDriver& other);
 

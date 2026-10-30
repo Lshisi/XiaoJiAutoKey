@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -41,13 +40,11 @@ Item {
                 onClicked: dialogModel.dispatch("cancel")
             }
         }
-        ScrollView {
+        QuietScrollView {
             id: scroll
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: QuietScrollBar {}
             Loader {
                 id: content
                 width: scroll.availableWidth

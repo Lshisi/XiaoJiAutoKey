@@ -44,8 +44,11 @@ ClickPosition KeyCaptureDialogBase::clickPosition() const {
 }
 void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argument) {
     if (field == "delay") setValue(field, argument.toString());
-    else if (field == "mode" && argument.toInt() >= 0 && argument.toInt() <= 3) setValue(field, argument.toInt());
-    else if (field == "enabled" || field == "priority") setValue(field, argument.toBool());
+    else if (field == "mode" && argument.toInt() >= 0
+        && argument.toInt() <= static_cast<int>(RepeatMode::LongPress)) {
+        setValue(field, argument.toInt());
+        setValue("needsDelay", argument.toInt() != static_cast<int>(RepeatMode::LongPress));
+    } else if (field == "enabled" || field == "priority") setValue(field, argument.toBool());
     else if (field == "fixed") {
         if (argument.toBool() && !(supportsMouseMove_ && supportsMouseMove_())) {
             emit dialogStateChanged();

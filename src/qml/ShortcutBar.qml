@@ -14,7 +14,7 @@ ColumnLayout {
         QuietLabel { visible: !root.macroMode; text: qsTr("切换键:"); color: Theme.muted }
         ShortcutTag {
             visible: !root.macroMode
-            Layout.minimumWidth: removable ? Theme.shortcutRemoveWidth + 2 * Theme.shortcutTagPadding : implicitWidth
+            Layout.minimumWidth: implicitWidth
             Layout.maximumWidth: implicitWidth
             text: root.macroMode ? "" : root.page.state.sequenceKey
             removable: !root.macroMode && root.page.state.hasSequenceKey

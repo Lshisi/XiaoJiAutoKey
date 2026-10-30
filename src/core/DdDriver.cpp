@@ -460,10 +460,9 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
     return true;
 }
 
-bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHid) {
+bool DdDriver::LoadLegacyFromDirectory(const std::wstring& directoryPath) {
     const std::filesystem::path directory(directoryPath);
     const std::filesystem::path driverDir = directory / L"driver";
-    const std::filesystem::path hidDll = driverDir / L"hid" / L"ddhid.63340.dll";
 
 #if defined(_WIN64)
     constexpr std::wstring_view primaryDllName = L"DD64.dll";
@@ -472,10 +471,6 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHi
     constexpr std::wstring_view primaryDllName = L"DD32.dll";
     constexpr std::wstring_view secondaryDllName = L"DD64.dll";
 #endif
-
-    if (allowHid && LoadHidFrom(hidDll.wstring())) {
-        return true;
-    }
 
     const std::vector<std::filesystem::path> candidates = {
         driverDir / primaryDllName,
@@ -498,8 +493,6 @@ bool DdDriver::LoadFromDirectory(const std::wstring& directoryPath, bool allowHi
 
     if (!firstMeaningfulError.empty()) {
         lastError_ = firstMeaningfulError;
-    } else if (allowHid) {
-        lastError_ = L"Unable to load DD HID DLL, DD32.dll, or DD64.dll";
     } else {
 #if defined(_WIN64)
         lastError_ = L"Unable to load DD64.dll";

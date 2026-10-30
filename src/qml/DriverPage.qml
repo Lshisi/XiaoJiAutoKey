@@ -3,13 +3,12 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import XiaoJi.UI
 
-ScrollView {
+QuietScrollView {
     id: root
+    autoHideScrollBar: true
     readonly property QtObject page: driverPageModel
     contentWidth: availableWidth
     contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
-    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-    ScrollBar.vertical: QuietScrollBar {}
     ColumnLayout {
         id: pageColumn
         width: root.availableWidth
@@ -41,6 +40,12 @@ ScrollView {
                         onActivated: root.page.selectMode(currentIndex)
                         Accessible.name: qsTr("使用驱动")
                     }
+                    ActionButton {
+                        visible: root.page.state.installAvailable
+                        text: root.page.state.installText
+                        enabled: !root.page.state.busy
+                        onClicked: root.page.selectMode(root.page.state.mode)
+                    }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 RowLayout {
@@ -56,24 +61,18 @@ ScrollView {
                     QuietLabel { text: qsTr("概要") }
                     QuietLabel { Layout.fillWidth: true; text: root.page.state.summary; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
                 }
-                TextArea {
+                QuietTextArea {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.minimumHeight: 210
+                    autoHideScrollBar: true
                     text: root.page.state.details
                     readOnly: true
-                    selectByMouse: true
-                    wrapMode: TextEdit.Wrap
-                    color: Theme.muted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    padding: 10
                     background: Rectangle {
                         radius: Theme.inputRadius
                         color: Theme.field
                         border.color: Theme.accentBorder
                     }
-                    ScrollBar.vertical: QuietScrollBar {}
                     Accessible.name: qsTr("驱动详细状态")
                 }
             }

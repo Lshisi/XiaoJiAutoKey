@@ -15,6 +15,7 @@ enum class RepeatMode {
     Hold,
     Independent,
     Sequence,
+    LongPress,
 };
 
 enum class InputSource {
@@ -120,6 +121,7 @@ struct RepeatOverlayOptions {
     bool showSequence = false;
     bool showSequenceHotkey = false;
     bool showPauseKeys = false;
+    bool showLongPress = false;
 };
 
 struct MacroOverlayOptions {
@@ -151,6 +153,8 @@ struct AppConfig {
     StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Legacy;
+    bool ddDriverUninstalledByUser = false;
+    bool hidDriverUninstalledByUser = false;
     std::string faction = "cangjian";
     // Latest version seen through a manual update check; only used to keep
     // the update badge visible across restarts. Never triggers a check.
@@ -168,6 +172,15 @@ struct AppConfig {
     std::vector<ProfileConfig> profiles;
     std::uint64_t activeMacroId = 0;
     std::vector<MacroConfig> macros;
+
+    [[nodiscard]] bool IsDriverUninstalledByUser(DriverMode mode) const noexcept {
+        return mode == DriverMode::Legacy ? ddDriverUninstalledByUser
+            : mode == DriverMode::Hid && hidDriverUninstalledByUser;
+    }
+    void SetDriverUninstalledByUser(DriverMode mode, bool value) noexcept {
+        if (mode == DriverMode::Legacy) ddDriverUninstalledByUser = value;
+        else if (mode == DriverMode::Hid) hidDriverUninstalledByUser = value;
+    }
 };
 
 std::wstring ToWide(const std::string& text);

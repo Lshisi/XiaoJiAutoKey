@@ -6,7 +6,9 @@ TextField {
     id: control
     implicitHeight: Math.max(32, contentHeight + 14)
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
+    font.hintingPreference: Font.PreferVerticalHinting
+    renderType: Text.NativeRendering
     color: Theme.text
     placeholderTextColor: Theme.muted
     selectionColor: Theme.accent

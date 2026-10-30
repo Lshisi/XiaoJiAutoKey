@@ -8,7 +8,7 @@ CheckBox {
     spacing: 8
     padding: 2
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
     hoverEnabled: true
     indicator: Rectangle {
         implicitWidth: 16
@@ -21,13 +21,12 @@ CheckBox {
             : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.field
         border.width: control.visualFocus ? 2 : 1
         border.color: !control.enabled ? Theme.border : control.visualFocus || control.checked ? Theme.accent : control.hovered ? Theme.accentBorder : Theme.border
-        Text {
+        QuietIcon {
             anchors.centerIn: parent
-            text: control.checked ? "✓" : ""
+            glyph: "\uE73E"
+            visible: control.checked
             color: control.enabled ? Theme.accentForeground : Theme.muted
-            font.family: "Segoe UI Symbol"
             font.pixelSize: 12
-            Accessible.ignored: true
         }
     }
     contentItem: QuietLabel {

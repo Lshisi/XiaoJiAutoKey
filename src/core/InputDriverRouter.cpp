@@ -10,6 +10,8 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
     driver_ = driver;
     forwardedDown_.clear();
+    repeaterState_.heldKeys.clear();
+    macroState_.heldKeys.clear();
     arbitrationSkipDiag_.clear();
 }
 
@@ -36,6 +38,18 @@ bool InputDriverRouter::SendTap(const KeyDescriptor& key, InputSource src) {
 
 bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
+    return SendDownLocked(key, src);
+}
+
+bool InputDriverRouter::SendHeldDown(const KeyDescriptor& key, InputSource src) {
+    std::lock_guard lock(mutex_);
+    if (IsArbitratedSource(src) && StateFor(src).activeKeys.count(EncodeKey(key)) > 0) {
+        StateFor(src).heldKeys.insert(EncodeKey(key));
+    }
+    return SendDownLocked(key, src);
+}
+
+bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src) {
     if (!driver_) return false;
     if (!IsArbitratedSource(src)) return driver_->SendDown(key, src);
 
@@ -70,6 +84,7 @@ bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
 
 bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
+    if (IsArbitratedSource(src)) StateFor(src).heldKeys.erase(EncodeKey(key));
     if (!driver_) return false;
     if (!IsArbitratedSource(src)) return driver_->SendUp(key, src);
 
@@ -105,6 +120,7 @@ void InputDriverRouter::SetSourceActiveKeys(InputSource src, const std::vector<K
 
     for (auto it = state.activeKeys.begin(); it != state.activeKeys.end();) {
         if (desiredKeys.count(it->first) == 0) {
+            state.heldKeys.erase(it->first);
             it = state.activeKeys.erase(it);
         } else {
             ++it;
@@ -132,12 +148,16 @@ void InputDriverRouter::ReleaseAll() {
     owners_.clear();
     repeaterState_.activeKeys.clear();
     macroState_.activeKeys.clear();
+    repeaterState_.heldKeys.clear();
+    macroState_.heldKeys.clear();
 }
 
 void InputDriverRouter::ClearAllStates() {
     std::lock_guard lock(mutex_);
     if (driver_) driver_->ClearAllStates();
     forwardedDown_.clear();
+    repeaterState_.heldKeys.clear();
+    macroState_.heldKeys.clear();
 }
 
 bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) {
@@ -200,6 +220,15 @@ void InputDriverRouter::RecomputeOwnersLocked() {
     }
 
     owners_ = std::move(updatedOwners);
+    RestoreHeldKeysLocked(InputSource::Repeater);
+    RestoreHeldKeysLocked(InputSource::Macro);
+}
+
+void InputDriverRouter::RestoreHeldKeysLocked(InputSource src) {
+    // A held key has no repeat pulse to retry after the earlier owner stops.
+    for (const auto encoded : StateFor(src).heldKeys) {
+        SendDownLocked(DecodeKey(encoded), src);
+    }
 }
 
 bool InputDriverRouter::ReleaseForwardedKeyLocked(std::uint64_t encoded) {

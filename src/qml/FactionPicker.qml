@@ -50,7 +50,7 @@ ActionButton {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             text: root.text
-            font.weight: root.sidebar ? Font.Bold : Font.Normal
+            font.weight: root.sidebar ? Theme.headingWeight : Font.Normal
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
         }
@@ -70,6 +70,14 @@ ActionButton {
         height: Math.min(factionList.contentHeight + 8, 512)
         padding: 4
         margins: 8
+        enter: Transition {
+            enabled: Theme.motionEnabled
+            OpacityAnimator { from: 0.8; to: 1; duration: Theme.popupEnterDuration; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            enabled: Theme.motionEnabled
+            OpacityAnimator { from: 1; to: 0; duration: Theme.popupExitDuration }
+        }
         contentItem: ListView {
             id: factionList
             clip: true

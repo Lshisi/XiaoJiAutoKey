@@ -43,13 +43,6 @@ QString guardItemsHtml(const CodeIntegrityInspector::GuardStatus& guards) {
         + QStringLiteral("</li></ul>");
 }
 
-const QString kSecuritySteps = QString::fromWCharArray(
-    L"\u5173\u95ed\u6b65\u9aa4\uff1a<br>"
-    L"1. \u6253\u5f00\u300cWindows \u5b89\u5168\u4e2d\u5fc3\u300d\u2192\u300c\u8bbe\u5907\u5b89\u5168\u6027\u300d\u2192\u300c\u5185\u6838\u9694\u79bb\u8be6\u7ec6\u4fe1\u606f\u300d<br>"
-    L"2. \u5173\u95ed\u300c\u5185\u5b58\u5b8c\u6574\u6027\u300d\u548c\u300c\u6613\u53d7\u653b\u51fb\u7684\u9a71\u52a8\u7a0b\u5e8f\u963b\u6b62\u5217\u8868\u300d<br>"
-    L"3. \u91cd\u542f\u7535\u8111<br>"
-    L"4. \u91cd\u542f\u540e\u6253\u5f00\u5c0f\u9e21\u8fde\u53d1\uff0c\u7a0b\u5e8f\u4f1a\u81ea\u52a8\u91cd\u65b0\u5b89\u88c5\u5e76\u6062\u590d\u9a71\u52a8");
-
 }  // namespace
 
 DriverSelfCheckCoordinator::DriverSelfCheckCoordinator(QObject* parent) : QObject(parent) {}
@@ -88,9 +81,18 @@ void DriverSelfCheckCoordinator::runDiagnosis(DriverSelfCheckDialog* dialog) {
     // Inspect 与驱动页刷新同源同量级，留在主线程；事件日志等纯系统读取放后台。
     const auto snapshot = std::make_shared<Snapshot>();
     snapshot->mode = context_.config->driverMode;
+    snapshot->uninstalledByUser = context_.config->IsDriverUninstalledByUser(snapshot->mode);
     snapshot->driverReady = context_.driverReady ? context_.driverReady() : false;
     snapshot->status = context_.inspectRuntime ? context_.inspectRuntime()
                                                : DdRuntimeService::RuntimeStatus{};
+
+    const bool runtimeExists = snapshot->mode == DriverMode::Hid
+        ? snapshot->status.hidRuntimeExists : snapshot->status.legacyRuntimeExists;
+    if (snapshot->mode == DriverMode::Usb || !runtimeExists || snapshot->driverReady || snapshot->uninstalledByUser
+        || (snapshot->mode == DriverMode::Hid && snapshot->status.hidServicePendingDelete)) {
+        dialog->setConclusion(buildConclusion(*snapshot));
+        return;
+    }
 
     const QPointer<DriverSelfCheckDialog> dialogPtr(dialog);
     auto* thread = QThread::create([snapshot]() {
@@ -107,101 +109,150 @@ void DriverSelfCheckCoordinator::runDiagnosis(DriverSelfCheckDialog* dialog) {
 
 Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot) const {
     Conclusion conclusion;
-    const bool blockedByGuards =
-        snapshot.guards.memoryIntegrityRunning || !snapshot.guards.recentBlocks.empty();
-
-    if (!snapshot.driverReady && blockedByGuards) {
-        conclusion.severity = DriverSelfCheckDialog::Severity::Danger;
-        conclusion.heading = QString::fromWCharArray(
-            L"Windows \u5185\u6838\u9694\u79bb\u6b63\u5728\u62e6\u622a\u6309\u952e\u9a71\u52a8");
-        QStringList body;
-        body << QString::fromWCharArray(
-            L"\u68c0\u6d4b\u5230\u4ee5\u4e0b\u5b89\u5168\u529f\u80fd\u4f1a\u62e6\u622a DD / HID \u9a71\u52a8\u52a0\u8f7d\uff0c"
-            L"\u8fd9\u5c31\u662f\u6309\u952e\u8fde\u53d1\u65e0\u6548\u7684\u539f\u56e0\uff1a");
-        const QString items = guardItemsHtml(snapshot.guards);
-        if (!items.isEmpty()) body << items;
-        if (!snapshot.guards.recentBlocks.empty()) {
-            body << QString::fromWCharArray(L"Windows \u4e8b\u4ef6\u65e5\u5fd7\u4e2d\u7684\u62e6\u622a\u8bb0\u5f55\uff1a");
-            QStringList records;
-            for (const auto& block : snapshot.guards.recentBlocks) {
-                records << QStringLiteral("- ")
-                    + QString::fromStdWString(block.timeText) + QStringLiteral(" \u00b7 ")
-                    + QString::fromStdWString(block.fileName)
-                    + QStringLiteral(" (") + QString::number(block.eventId)
-                    + QStringLiteral(")");
-            }
-            body << records.join(QStringLiteral("<br>"));
-        }
-        body << QString::fromWCharArray(
-            L"<b>\u6b64\u65f6\u5378\u8f7d/\u91cd\u88c5 DD\u3001\u5207\u6362 HID \u5747\u65e0\u6548</b>"
-            L"\u2014\u2014\u5b83\u4eec\u540c\u5c5e\u4f1a\u88ab\u62e6\u622a\u7684\u9a71\u52a8\uff0c"
-            L"\u8bf7\u5148\u6309\u4ee5\u4e0b\u6b65\u9aa4\u5173\u95ed\u62e6\u622a\uff1a");
-        body << kSecuritySteps;
-        conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
-        conclusion.actions = {
-            {Action::OpenSecurityCenter, QString::fromWCharArray(L"\u6253\u5f00 Windows \u5b89\u5168\u4e2d\u5fc3")},
-            {Action::None, QString::fromWCharArray(L"\u5173\u95ed")},
-        };
-        return conclusion;
-    }
-
-    if (snapshot.guards.memoryIntegrityRunning && snapshot.driverReady) {
-        conclusion.severity = DriverSelfCheckDialog::Severity::Warning;
-        conclusion.heading = QString::fromWCharArray(
-            L"\u68c0\u6d4b\u5230\u5185\u5b58\u5b8c\u6574\u6027\uff08\u5185\u6838\u9694\u79bb\uff09\u5f00\u542f");
-        conclusion.bodyHtml = QString::fromWCharArray(
-            L"\u5f53\u524d\u9a71\u52a8\u4ecd\u53ef\u8fd0\u884c\uff0c\u4f46\u7cfb\u7edf\u66f4\u65b0\u540e\u53ef\u80fd\u88ab\u62e6\u622a\u800c\u5931\u6548\uff0c"
-            L"\u5efa\u8bae\u63d0\u524d\u5173\u95ed\uff1a<br><br>") + kSecuritySteps;
-        conclusion.actions = {
-            {Action::OpenSecurityCenter, QString::fromWCharArray(L"\u6253\u5f00 Windows \u5b89\u5168\u4e2d\u5fc3")},
-            {Action::None, QString::fromWCharArray(L"\u5173\u95ed")},
-        };
-        return conclusion;
-    }
-
-    if (!snapshot.driverReady) {
-        conclusion.severity = DriverSelfCheckDialog::Severity::Danger;
-        conclusion.heading = QString::fromWCharArray(L"\u6309\u952e\u9a71\u52a8\u672a\u80fd\u6b63\u5e38\u5de5\u4f5c");
-        QStringList body;
-        if (snapshot.mode == DriverMode::Usb) {
-            body << QString::fromWCharArray(
-                L"\u5f53\u524d\u4f7f\u7528 USB \u6a21\u5f0f\uff0c\u4f46\u672a\u68c0\u6d4b\u5230\u53ef\u7528\u8bbe\u5907\u3002"
-                L"\u8bf7\u786e\u8ba4 CH552 \u8bbe\u5907\u5df2\u63d2\u5165\uff0c\u53ef\u5c1d\u8bd5\u66f4\u6362 USB \u53e3\u540e\u91cd\u65b0\u81ea\u68c0\u3002");
-        } else {
-            body << QString::fromWCharArray(L"\u5f53\u524d\u4f7f\u7528 ")
-                + modeText(snapshot.mode)
-                + QString::fromWCharArray(
-                    L" \u9a71\u52a8\uff0c\u4f46\u672a\u80fd\u52a0\u8f7d\u3002"
-                    L"\u8bf7\u5148\u91cd\u542f\u7535\u8111\uff0c\u91cd\u542f\u540e\u6253\u5f00\u5c0f\u9e21\u8fde\u53d1\u4f1a\u81ea\u52a8\u8865\u88c5\u9a71\u52a8\u3002");
-            if (!snapshot.status.lastError.empty()) {
-                body << QString::fromWCharArray(L"\u9519\u8bef\u4fe1\u606f\uff1a")
-                    + QString::fromStdWString(snapshot.status.lastError).toHtmlEscaped();
-            }
-            if (snapshot.guards.vulnerableBlocklistEnabled) {
-                body << QString::fromWCharArray(
-                    L"\u63d0\u793a\uff1a\u6613\u53d7\u653b\u51fb\u7684\u9a71\u52a8\u7a0b\u5e8f\u963b\u6b62\u5217\u8868\u5904\u4e8e\u5f00\u542f\u72b6\u6001\uff0c"
-                    L"\u82e5\u91cd\u542f\u540e\u4ecd\u4e0d\u53ef\u7528\uff0c\u53ef\u6309\u4e0b\u65b9\u6b65\u9aa4\u5173\u95ed\u540e\u518d\u91cd\u542f\uff1a<br>")
-                    + kSecuritySteps;
-                conclusion.actions = {
-                    {Action::OpenSecurityCenter, QString::fromWCharArray(L"\u6253\u5f00 Windows \u5b89\u5168\u4e2d\u5fc3")},
-                    {Action::None, QString::fromWCharArray(L"\u5173\u95ed")},
-                };
-            } else {
-                body << QString::fromWCharArray(
-                    L"\u82e5\u91cd\u542f\u540e\u4ecd\u4e0d\u53ef\u7528\uff0c\u53ef\u5728\u9a71\u52a8\u7ba1\u7406\u9875\u5207\u6362\u9a71\u52a8\u6a21\u5f0f\uff0c"
-                    L"\u6216\u524d\u5f80\u5f00\u6e90\u4ed3\u5e93\u53cd\u9988\u3002");
-                conclusion.actions = closeActions();
-            }
-        }
-        conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
-        return conclusion;
-    }
-
-    conclusion.severity = DriverSelfCheckDialog::Severity::Ok;
-    conclusion.heading = QString::fromWCharArray(L"\u9a71\u52a8\u5de5\u4f5c\u6b63\u5e38");
-    conclusion.bodyHtml = QString::fromWCharArray(L"\u5f53\u524d\u6a21\u5f0f\uff1a") + modeText(snapshot.mode)
-        + QString::fromWCharArray(L"\uff0c\u9a71\u52a8\u52a0\u8f7d\u6b63\u5e38\uff0c\u672a\u53d1\u73b0\u5f02\u5e38\u3002");
     conclusion.actions = closeActions();
+    const auto& status = snapshot.status;
+    const QString name = modeText(snapshot.mode);
+
+    if (snapshot.mode == DriverMode::Usb) {
+        conclusion.severity = snapshot.driverReady
+            ? DriverSelfCheckDialog::Severity::Ok : DriverSelfCheckDialog::Severity::Danger;
+        conclusion.heading = snapshot.driverReady ? tr("USB 设备已就绪") : tr("USB 设备连接或通信未就绪");
+        QStringList body;
+        body << (snapshot.driverReady ? tr("当前 USB 设备已连接，通信已就绪。")
+            : tr("请确认 CH552 设备已连接，并检查 USB 线缆、端口及设备固件后重新自检。"));
+        if (!snapshot.driverReady && !status.lastError.empty()) {
+            body << tr("USB 错误信息：") + QString::fromStdWString(status.lastError).toHtmlEscaped();
+        }
+        conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
+        return conclusion;
+    }
+
+    const bool hid = snapshot.mode == DriverMode::Hid;
+    const bool runtimeExists = hid ? status.hidRuntimeExists : status.legacyRuntimeExists;
+    const QString runtimePath = QString::fromStdWString(hid ? status.hidRuntimePath : status.legacyRuntimePath);
+    // Missing files take precedence over security settings and historical events.
+    if (!runtimeExists) {
+        conclusion.severity = snapshot.driverReady
+            ? DriverSelfCheckDialog::Severity::Warning : DriverSelfCheckDialog::Severity::Danger;
+        conclusion.heading = status.driverRootExists ? tr("%1 运行文件缺失").arg(name) : tr("驱动目录缺失");
+        QStringList body;
+        if (!status.driverRootExists) {
+            body << tr("未找到 exe 同级的 driver 目录：<br>%1")
+                .arg(QString::fromStdWString(status.driverRootPath).toHtmlEscaped());
+        }
+        body << tr("当前 %1 模式所需的运行文件未找到：<br>%2")
+            .arg(name, runtimePath.toHtmlEscaped());
+        body << tr("请从完整发布包中恢复 driver 目录，或重新下载并完整解压发布包，"
+                   "确保 driver 目录与 XiaoJiAutoKey.exe 位于同一目录，再重新启动程序。");
+        body << tr("重启电脑或重新安装系统驱动无法补回这些运行文件，无需为此修改 Windows 安全设置。");
+        if (snapshot.driverReady) {
+            body << tr("当前已加载的驱动仍处于就绪状态，但运行文件缺失会影响下次启动。");
+        }
+        if (snapshot.uninstalledByUser) {
+            body << tr("当前模式的自动安装已因主动卸载而停用。恢复文件后，"
+                       "还需在驱动管理页点击“安装 %1”才能再次使用。").arg(name);
+        }
+        conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
+        return conclusion;
+    }
+
+    if (snapshot.driverReady) {
+        conclusion.severity = DriverSelfCheckDialog::Severity::Ok;
+        conclusion.heading = tr("驱动已就绪");
+        conclusion.bodyHtml = tr("当前模式：%1，运行文件已找到，驱动已加载并处于就绪状态。").arg(name);
+        return conclusion;
+    }
+
+    if (snapshot.uninstalledByUser) {
+        conclusion.severity = DriverSelfCheckDialog::Severity::Warning;
+        conclusion.heading = tr("当前 %1 已停用").arg(name);
+        conclusion.bodyHtml = tr("你已主动发起 %1 驱动卸载，程序保留了当前模式，并停用了自动安装。"
+                                 "<br><br>需要再次使用时，请在驱动管理页点击“安装 %1”；"
+                                 "也可以自行选择其他驱动模式。").arg(name);
+        if (hid && status.hidServicePendingDelete)
+            conclusion.bodyHtml += tr("<br><br>Windows 仍在等待删除 HID 驱动服务，请先重启电脑完成卸载。");
+        return conclusion;
+    }
+
+    conclusion.severity = DriverSelfCheckDialog::Severity::Danger;
+    if (hid && status.hidServicePendingDelete) {
+        conclusion.heading = tr("HID 驱动卸载尚未完成");
+        conclusion.bodyHtml = tr("Windows 已将 HID 驱动服务标记为待删除。"
+                                 "请先重启电脑，让系统完成卸载，再到驱动管理页点击“安装/修复 HID”。");
+        return conclusion;
+    }
+
+    QStringList missingComponents;
+    if (hid) {
+        if (!status.hidServiceInstalled) missingComponents << tr("HID 驱动服务");
+        if (!status.hidSysInstalled) missingComponents << QStringLiteral("ddhid63340.sys");
+    } else {
+        if (!status.infKeyboardServiceInstalled) missingComponents << tr("DD 键盘驱动服务");
+        if (!status.infMouseServiceInstalled) missingComponents << tr("DD 鼠标驱动服务");
+        if (!status.infKeyboardSysInstalled) missingComponents << QStringLiteral("dd.key.96688.sys");
+        if (!status.infMouseSysInstalled) missingComponents << QStringLiteral("dd.mou.96688.sys");
+    }
+    const bool devicesReady = hid ? (status.hidRootDeviceOk && status.hidChildDeviceOk)
+        : (status.infKeyboardDeviceStarted && status.infMouseDeviceStarted
+            && status.infKeyboardDeviceBound && status.infMouseDeviceBound);
+    QStringList body;
+    if (!missingComponents.isEmpty()) {
+        conclusion.heading = tr("%1 驱动安装不完整").arg(name);
+        body << tr("运行文件已找到，但以下系统安装组件未找到：<br>%1")
+            .arg(missingComponents.join(QStringLiteral("<br>")));
+        const bool embeddedDriverExists = hid ? status.hidEmbeddedDriverExists
+            : (status.embeddedInfVariant0Exists || status.embeddedInfVariant1Exists);
+        if (!embeddedDriverExists) {
+            body << tr("当前程序的内置驱动安装资源也不可用，请重新下载完整发布包后再安装。");
+        } else {
+            body << tr("请到驱动管理页点击“安装/修复 %1”，由你主动发起安装。").arg(name);
+        }
+    } else if (!devicesReady) {
+        conclusion.heading = tr("%1 驱动设备未就绪").arg(name);
+        body << tr("运行文件、驱动服务和 SYS 文件已找到，但以下设备未就绪：");
+        if (hid) {
+            if (!status.hidRootDeviceOk) body << tr("HID 根设备：未就绪");
+            if (!status.hidChildDeviceOk) body << tr("HID 子设备：未就绪");
+        } else {
+            if (!status.infKeyboardDeviceStarted || !status.infKeyboardDeviceBound)
+                body << tr("DD 键盘设备：未启动或未绑定驱动服务");
+            if (!status.infMouseDeviceStarted || !status.infMouseDeviceBound)
+                body << tr("DD 鼠标设备：未启动或未绑定驱动服务");
+        }
+        body << tr("请先重新启动程序；若刚安装或卸载过驱动，可重启电脑后重新自检。");
+    } else {
+        conclusion.heading = tr("%1 驱动加载失败").arg(name);
+        body << tr("运行文件、系统安装组件和设备状态均已检查到，但当前驱动仍未就绪，"
+                   "暂时无法确定本次加载失败的原因。请重新启动程序后再次自检。");
+    }
+    if (!status.lastError.empty()) {
+        body << tr("当前 %1 模式的错误信息：<br>").arg(name)
+            + QString::fromStdWString(status.lastError).toHtmlEscaped();
+    }
+
+    QStringList records;
+    for (const auto& block : snapshot.guards.recentBlocks) {
+        const QString fileName = QString::fromStdWString(block.fileName);
+        const bool matchesMode = hid
+            ? fileName.compare(QStringLiteral("ddhid63340.sys"), Qt::CaseInsensitive) == 0
+            : (fileName.compare(QStringLiteral("dd.key.96688.sys"), Qt::CaseInsensitive) == 0
+                || fileName.compare(QStringLiteral("dd.mou.96688.sys"), Qt::CaseInsensitive) == 0);
+        if (!matchesMode) continue;
+        records << QStringLiteral("- %1 · %2 (%3)")
+            .arg(QString::fromStdWString(block.timeText).toHtmlEscaped(), fileName.toHtmlEscaped())
+            .arg(block.eventId);
+    }
+    if (!records.isEmpty()) {
+        body << tr("近 7 天与当前 %1 模式相关的 Windows 拦截记录：<br>%2")
+            .arg(name, records.join(QStringLiteral("<br>")));
+        body << tr("这些是历史记录，不能据此确认本次故障由安全策略引起。"
+                   "可打开 Windows 安全中心，核对被阻止的驱动及发生时间，再按系统提示处理。");
+        const QString items = guardItemsHtml(snapshot.guards);
+        if (!items.isEmpty()) body << tr("当前系统安全配置（仅供核对）：") + items;
+        conclusion.actions.prepend({Action::OpenSecurityCenter, tr("打开 Windows 安全中心")});
+    }
+    body << tr("若仍不可用，请保留 logs 目录中的驱动日志并到开源仓库反馈。");
+    conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
     return conclusion;
 }
 

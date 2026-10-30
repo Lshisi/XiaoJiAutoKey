@@ -12,8 +12,8 @@ Item {
         let used = 0
         let count = 0
         for (let i = 0; i < Math.min(keys.length, 3); ++i) {
-            const next = Math.min(metrics.advanceWidth(keys[i]), Theme.shortcutTextMaxWidth)
-                + Theme.shortcutRemoveWidth + 2 * Theme.shortcutTagPadding
+            const next = Math.min(Math.ceil(metrics.advanceWidth(keys[i])) + 2, Theme.shortcutTextMaxWidth)
+                + Theme.shortcutRemoveWidth + Theme.shortcutTagGap + 2 * Theme.shortcutTagPadding
             const more = i + 1 < keys.length ? moreWidth + 4 : 0
             if (used + next + more > width) break
             used += next + 4
@@ -21,9 +21,9 @@ Item {
         }
         return count
     }
-    implicitWidth: root.keys.length === 0 ? metrics.advanceWidth(qsTr("未设置")) + 2 * Theme.shortcutTagPadding : moreWidth
+    implicitWidth: root.keys.length === 0 ? Math.ceil(metrics.advanceWidth(qsTr("未设置"))) + 2 : moreWidth
     implicitHeight: Math.max(Theme.compactIconSize, metrics.height + 4)
-    FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: 12 }
+    FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: Theme.bodyFontSize }
     RowLayout {
         anchors.fill: parent
         spacing: 4
@@ -33,7 +33,9 @@ Item {
             delegate: ShortcutTag {
                 id: tag
                 required property int index
+                Layout.minimumWidth: implicitWidth
                 Layout.preferredWidth: implicitWidth
+                Layout.maximumWidth: implicitWidth
                 Layout.preferredHeight: implicitHeight
                 text: root.keys[tag.index]
                 removeHint: qsTr("删除暂停键 %1").arg(root.keys[tag.index])

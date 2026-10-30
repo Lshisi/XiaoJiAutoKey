@@ -150,6 +150,8 @@ std::wstring RepeatModeToText(RepeatMode mode) {
         return L"\u72ec\u7acb";
     case RepeatMode::Sequence:
         return L"\u5207\u6362";
+    case RepeatMode::LongPress:
+        return L"\u957f\u6309";
     default:
         return L"\u672a\u77e5";
     }
@@ -158,7 +160,8 @@ std::wstring RepeatModeToText(RepeatMode mode) {
 bool IsToggleLikeRepeatMode(RepeatMode mode) noexcept {
     return mode == RepeatMode::Toggle
         || mode == RepeatMode::Independent
-        || mode == RepeatMode::Sequence;
+        || mode == RepeatMode::Sequence
+        || mode == RepeatMode::LongPress;
 }
 
 std::wstring DeviceToText(InputDevice device) {

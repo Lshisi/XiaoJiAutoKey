@@ -35,7 +35,7 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     text: appView.title
-                    font.weight: Font.Bold
+                    font.weight: Theme.headingWeight
                     elide: Text.ElideRight
                     wrapMode: Text.NoWrap
                 }

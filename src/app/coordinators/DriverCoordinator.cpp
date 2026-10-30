@@ -76,11 +76,13 @@ void DriverCoordinator::bind(Context context) {
         const bool confirmed = ConfigConfirmDialog::confirm(
             context_.parentWidget,
             QString::fromWCharArray(L"\u5378\u8f7d ") + name + QString::fromWCharArray(L" \u9a71\u52a8"),
-            QString::fromWCharArray(L"\u5378\u8f7d\u540e ") + name + QString::fromWCharArray(L" \u5c06\u4e0d\u53ef\u7528\uff0c\u5e76\u4f1a\u5728\u5378\u8f7d\u5b8c\u6210\u540e\u91cd\u542f\u7535\u8111\u3002\u5378\u8f7d\u8fc7\u7a0b\u4e2d\u8bf7\u52ff\u5173\u95ed\u7a0b\u5e8f\u3002\u662f\u5426\u7ee7\u7eed\uff1f"),
+            tr("卸载后 %1 将不可用，程序会保留当前选择，并停用该驱动的自动安装。"
+               "卸载完成后将重启电脑。需要再次使用时，可在驱动管理页主动安装。"
+               "卸载过程中请勿关闭程序。是否继续？").arg(name),
             QString::fromWCharArray(L"\u5378\u8f7d"));
         if (!confirmed) return;
 
-        if (context_.prepareDriverUninstall) context_.prepareDriverUninstall(mode);
+        if (context_.prepareDriverUninstall && !context_.prepareDriverUninstall(mode)) return;
         if (context_.page) context_.page->setBusy(true);
         if (context_.setDialogOpen) context_.setDialogOpen(true);
 

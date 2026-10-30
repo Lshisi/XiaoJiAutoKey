@@ -1,19 +1,12 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import XiaoJi.UI
 
-ScrollView {
+Item {
     id: root
     readonly property QtObject page: aboutPageModel
-    contentWidth: availableWidth
-    contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
-    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-    ScrollBar.vertical: QuietScrollBar {}
     ColumnLayout {
-        id: pageColumn
-        width: root.availableWidth
-        height: Math.max(implicitHeight, root.availableHeight)
+        anchors.fill: parent
         QuietCard {
             Layout.fillWidth: true
             Layout.fillHeight: true

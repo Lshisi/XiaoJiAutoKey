@@ -28,48 +28,7 @@ Rectangle {
                     anchors.bottomMargin: 12
                     spacing: 2
                     FactionPicker { Layout.fillWidth: true; Layout.preferredHeight: 58; Layout.bottomMargin: 6; sidebar: true }
-                    Repeater {
-                        model: [
-                            { page: "keys", title: qsTr("按键连发") },
-                            { page: "macro", title: qsTr("循环连发") },
-                            { page: "driver", title: qsTr("驱动管理") },
-                            { page: "settings", title: qsTr("全局设置") },
-                            { page: "about", title: qsTr("关于软件") }
-                        ]
-                        delegate: ActionButton {
-                            id: navButton
-                            required property var modelData
-                            readonly property bool selected: appView.currentPage === modelData.page
-                            Layout.fillWidth: true
-                            Layout.leftMargin: 6
-                            Layout.rightMargin: 6
-                            implicitHeight: Theme.navItemHeight
-                            text: modelData.title
-                            quiet: true
-                            Accessible.name: modelData.title
-                            onClicked: appView.selectPage(modelData.page)
-                            contentItem: RowLayout {
-                                spacing: 9
-                                NavIcon { iconId: navButton.modelData.page; iconColor: navButton.selected ? Theme.accent : Theme.muted }
-                                QuietLabel { text: navButton.text; Layout.fillWidth: true; color: Theme.text; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                            }
-                            background: Rectangle {
-                                radius: Theme.buttonRadius
-                                color: navButton.selected || navButton.down ? Theme.accentSoft : navButton.hovered ? Theme.accentSubtle : "transparent"
-                                border.width: navButton.visualFocus ? 2 : 0
-                                border.color: Theme.accent
-                                Rectangle {
-                                    visible: navButton.selected
-                                    x: -2
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 3
-                                    height: 16
-                                    radius: 1.5
-                                    color: Theme.accent
-                                }
-                            }
-                        }
-                    }
+                    SidebarNavigation { Layout.fillWidth: true }
                     Item { Layout.fillHeight: true }
                 }
             }

@@ -5,7 +5,9 @@ import XiaoJi.UI
 Label {
     color: Theme.text
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
+    font.hintingPreference: Font.PreferVerticalHinting
+    renderType: Text.NativeRendering
     wrapMode: Text.Wrap
     textFormat: Text.PlainText
 }

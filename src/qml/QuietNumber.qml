@@ -10,7 +10,8 @@ SpinBox {
     to: 2147483647
     editable: true
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
+    font.hintingPreference: Font.PreferVerticalHinting
     hoverEnabled: true
     palette.text: Theme.text
     palette.base: Theme.field
@@ -22,6 +23,7 @@ SpinBox {
     contentItem: TextInput {
         text: control.textFromValue(control.value, control.locale)
         font: control.font
+        renderType: Text.NativeRendering
         color: Theme.text
         selectionColor: Theme.accent
         selectedTextColor: Theme.accentForeground

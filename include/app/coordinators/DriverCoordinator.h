@@ -25,7 +25,7 @@ public:
         DdRuntimeService* runtimeService = nullptr;
         QWidget* parentWidget = nullptr;
         std::function<SwitchResult(DriverMode)> switchDriverMode;
-        std::function<void(DriverMode)> prepareDriverUninstall;
+        std::function<bool(DriverMode)> prepareDriverUninstall;
         std::function<void(DriverMode)> finalizeDriverUninstall;
         std::function<bool()> rebootComputer;
         std::function<void()> refreshStatus;

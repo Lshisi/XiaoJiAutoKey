@@ -12,6 +12,9 @@ public:
     struct RuntimeStatus {
         bool driverReady = false;
         std::wstring lastError;
+        bool driverRootExists = false;
+        std::wstring driverRootPath;
+        std::wstring hidRuntimePath;
         bool hidRuntimeExists = false;
         bool hidEmbeddedDriverExists = false;
         bool hidServiceInstalled = false;
@@ -22,6 +25,8 @@ public:
         bool hidChildDeviceOk = false;
         bool legacy32Exists = false;
         bool legacy64Exists = false;
+        bool legacyRuntimeExists = false;
+        std::wstring legacyRuntimePath;
         bool embeddedInfVariant0Exists = false;
         bool embeddedInfVariant1Exists = false;
         bool infKeyboardServiceInstalled = false;

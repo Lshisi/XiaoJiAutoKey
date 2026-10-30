@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import XiaoJi.UI
 
 Rectangle {
@@ -7,44 +6,50 @@ Rectangle {
     required property string text
     property bool removable: true
     property string removeHint: ""
+    readonly property real labelWidth: Math.min(Math.ceil(metrics.advanceWidth(text)) + 2, Theme.shortcutTextMaxWidth)
+    readonly property int horizontalPadding: removable ? Theme.shortcutTagPadding : 0
     signal removeRequested()
-    implicitWidth: Math.min(keyLabel.implicitWidth, Theme.shortcutTextMaxWidth)
-        + (removable ? Theme.shortcutRemoveWidth : 0) + 2 * Theme.shortcutTagPadding
+    implicitWidth: labelWidth + (removable ? Theme.shortcutRemoveWidth + Theme.shortcutTagGap : 0)
+        + 2 * horizontalPadding
     implicitHeight: Math.max(Theme.compactIconSize, keyLabel.implicitHeight + 4)
     radius: Theme.buttonRadius
-    color: enabled && tagHover.hovered ? Theme.accentSubtle : "transparent"
-    border.color: enabled && tagHover.hovered ? Theme.accentBorder : Theme.border
-    Accessible.role: Accessible.Grouping
+    color: removable && enabled && tagHover.hovered ? Theme.accentSubtle : "transparent"
+    border.width: removable ? 1 : 0
+    border.color: removable && enabled && tagHover.hovered ? Theme.accentBorder : Theme.border
+    Accessible.role: removable ? Accessible.Grouping : Accessible.StaticText
     Accessible.name: text
+    FontMetrics { id: metrics; font: keyLabel.font }
     HoverHandler {
         id: tagHover
-        enabled: root.enabled
+        enabled: root.enabled && root.removable
     }
-    RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: Theme.shortcutTagPadding
-        anchors.rightMargin: Theme.shortcutTagPadding
-        spacing: 0
-        QuietLabel {
-            id: keyLabel
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            text: root.text
-            color: root.enabled ? Theme.text : Theme.muted
-            elide: Text.ElideRight
-            wrapMode: Text.NoWrap
-        }
-        IconButton {
-            visible: root.removable
-            compact: true
-            implicitWidth: Theme.shortcutRemoveWidth
-            leftPadding: 0
-            rightPadding: 0
-            topPadding: 0
-            bottomPadding: 0
-            glyph: "\uE711"
-            hint: root.removeHint
-            onClicked: root.removeRequested()
-        }
+    QuietLabel {
+        id: keyLabel
+        anchors.left: parent.left
+        anchors.leftMargin: root.horizontalPadding
+        anchors.right: root.removable ? removeButton.left : parent.right
+        anchors.rightMargin: root.removable ? Theme.shortcutTagGap : 0
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.text
+        color: root.removable && root.enabled ? Theme.text : Theme.muted
+        elide: Text.ElideRight
+        wrapMode: Text.NoWrap
+    }
+    IconButton {
+        id: removeButton
+        anchors.right: parent.right
+        anchors.rightMargin: root.horizontalPadding
+        anchors.verticalCenter: parent.verticalCenter
+        width: Theme.shortcutRemoveWidth
+        height: Theme.compactIconSize
+        visible: root.removable
+        compact: true
+        leftPadding: 0
+        rightPadding: 0
+        topPadding: 0
+        bottomPadding: 0
+        glyph: "\uE711"
+        hint: root.removeHint
+        onClicked: root.removeRequested()
     }
 }

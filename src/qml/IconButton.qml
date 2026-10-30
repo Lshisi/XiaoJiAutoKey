@@ -12,6 +12,6 @@ ActionButton {
     topPadding: 4
     bottomPadding: 4
     font.family: Theme.iconFamily
-    font.pixelSize: glyph === "\uE711" || glyph === "\uE710" ? Theme.smallIconGlyphSize : 14
+    font.pixelSize: glyph === "\uE711" || glyph === "\uE710" ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     Accessible.name: hint
 }

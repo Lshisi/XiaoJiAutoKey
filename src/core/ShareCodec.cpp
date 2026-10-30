@@ -212,6 +212,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Hold) mode = "hold";
             else if (binding.mode == RepeatMode::Independent) mode = "independent";
             else if (binding.mode == RepeatMode::Sequence) mode = "sequence";
+            else if (binding.mode == RepeatMode::LongPress) mode = "longPress";
             bindingObj.emplace("mode", std::string(mode));
             bindingObj.emplace("delayMs", ClampDelay(binding.delayMs));
             bindingObj.emplace("suppressMixedMode", binding.suppressMixedMode);
@@ -331,6 +332,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             if (mode == "hold") binding.mode = RepeatMode::Hold;
                             else if (mode == "independent") binding.mode = RepeatMode::Independent;
                             else if (mode == "sequence") binding.mode = RepeatMode::Sequence;
+                            else if (mode == "longPress") binding.mode = RepeatMode::LongPress;
                             else binding.mode = RepeatMode::Toggle;
                             binding.delayMs = ClampDelay(IntField(*bindingObj, "delayMs").value_or(kDefaultDelayMs));
                             binding.suppressMixedMode = BoolField(*bindingObj, "suppressMixedMode").value_or(false);
@@ -614,6 +616,7 @@ constexpr const char* kModeToggle = "\u5f00\u5173";            // 开关
 constexpr const char* kModeHold = "\u6309\u538b";              // 按压
 constexpr const char* kModeIndependent = "\u72ec\u7acb";       // 独立
 constexpr const char* kModeSequence = "\u5207\u6362";          // 切换
+constexpr const char* kModeLongPress = "\u957f\u6309";
 constexpr const char* kValueYes = "\u662f";                    // 是
 constexpr const char* kValueNo = "\u5426";                     // 否
 
@@ -726,6 +729,7 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Hold) line += std::string(" ") + kModeHold;
             else if (binding.mode == RepeatMode::Independent) line += std::string(" ") + kModeIndependent;
             else if (binding.mode == RepeatMode::Sequence) line += std::string(" ") + kModeSequence;
+            else if (binding.mode == RepeatMode::LongPress) line += std::string(" ") + kModeLongPress;
             else line += std::string(" ") + kModeToggle;
             if (!binding.enabled) {
                 // 未启用的绑定用 ! 前缀标记
@@ -854,6 +858,7 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 if (token == kModeHold) binding.mode = RepeatMode::Hold;
                 else if (token == kModeIndependent) binding.mode = RepeatMode::Independent;
                 else if (token == kModeSequence) binding.mode = RepeatMode::Sequence;
+                else if (token == kModeLongPress) binding.mode = RepeatMode::LongPress;
                 else if (token == kModeToggle) binding.mode = RepeatMode::Toggle;
 
                 std::string tokenKey;

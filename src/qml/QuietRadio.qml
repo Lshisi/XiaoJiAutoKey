@@ -8,7 +8,7 @@ RadioButton {
     spacing: 8
     padding: 2
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodyFontSize
     hoverEnabled: true
     indicator: Rectangle {
         implicitWidth: 14

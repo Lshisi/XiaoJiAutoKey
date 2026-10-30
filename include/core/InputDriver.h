@@ -14,6 +14,9 @@ public:
 
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
+    virtual bool SendHeldDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) {
+        return SendDown(key, src);
+    }
     virtual bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     // 相对移动光标（像素）；驱动不支持时返回 false。
     virtual bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) {

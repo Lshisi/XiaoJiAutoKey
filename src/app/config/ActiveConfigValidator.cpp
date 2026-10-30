@@ -81,7 +81,7 @@ ControllerResult validateHotkeyCandidate(
     if (profile) {
         for (const auto& binding : profile->bindings) {
             if (binding.enabled && binding.key == key) {
-                return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb/\u5207\u6362\u6309\u952e");
+                return hotkeyConflict(key, hotkeyOwner, L"\u5f53\u524d\u8fde\u53d1\u914d\u7f6e\u7684\u8fde\u53d1/\u6309\u538b/\u72ec\u7acb/\u5207\u6362/\u957f\u6309\u6309\u952e");
             }
         }
         for (const auto& pauseKey : profile->pauseKeys) {

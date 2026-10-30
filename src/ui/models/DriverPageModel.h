@@ -11,6 +11,7 @@ public:
     void setStatusSummary(const QString& value) { setValue("summary", value); }
     void setDetailText(const QString& value);
     void setDriverActions(bool ddInstalled, bool hidInstalled);
+    void setInstallAction(bool available, const QString& text);
     void setBusy(bool value) { setValue("busy", value); }
     Q_INVOKABLE void selectMode(int value);
     Q_INVOKABLE void uninstallMode(int value);

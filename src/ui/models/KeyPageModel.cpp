@@ -22,7 +22,8 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings) {
                 ? (binding.suppressMixedMode ? QStringLiteral("×") : QStringLiteral("✓")) : QStringLiteral("—")},
             {"priorityKind", binding.mode == RepeatMode::Hold && !binding.suppressMixedMode
                 ? QStringLiteral("enabled") : QStringLiteral("muted")},
-            {"delay", binding.delayMs}, {"positionHint", fixed
+            {"delay", binding.mode == RepeatMode::LongPress
+                ? QVariant(QStringLiteral("—")) : QVariant(binding.delayMs)}, {"positionHint", fixed
                 ? tr("固定点位：%1%，%2%")
                     .arg(binding.clickPos.anchorX * 100, 0, 'f', 1)
                     .arg(binding.clickPos.anchorY * 100, 0, 'f', 1) : QString()}});

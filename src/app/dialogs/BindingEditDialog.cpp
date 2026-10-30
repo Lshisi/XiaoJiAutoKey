@@ -6,8 +6,12 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     QVariantMap fields{{"modeVisible", true}, {"delay", QString::number(defaultDelayMs)}};
     if (existing) {
         setCapturedKey(existing->key);
-        const int mode = existing->mode == RepeatMode::Hold ? 1 : existing->mode == RepeatMode::Independent ? 2 : existing->mode == RepeatMode::Sequence ? 3 : 0;
+        const int mode = existing->mode == RepeatMode::Hold ? 1
+            : existing->mode == RepeatMode::Independent ? 2
+            : existing->mode == RepeatMode::Sequence ? 3
+            : existing->mode == RepeatMode::LongPress ? 4 : 0;
         fields.insert("mode", mode);
+        fields.insert("needsDelay", existing->mode != RepeatMode::LongPress);
         fields.insert("delay", QString::number(existing->delayMs));
         fields.insert("enabled", existing->enabled);
         fields.insert("priority", existing->mode != RepeatMode::Hold || !existing->suppressMixedMode);
@@ -19,7 +23,11 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
 }
 BindingEditResult BindingEditDialog::editResult() const {
     const int selected = value("mode").toInt();
-    const auto mode = selected == 1 ? RepeatMode::Hold : selected == 2 ? RepeatMode::Independent : selected == 3 ? RepeatMode::Sequence : RepeatMode::Toggle;
-    return {*capturedKey(), mode, value("delay").toString().toInt(), value("enabled").toBool(),
+    const auto mode = selected == 1 ? RepeatMode::Hold
+        : selected == 2 ? RepeatMode::Independent
+        : selected == 3 ? RepeatMode::Sequence
+        : selected == 4 ? RepeatMode::LongPress : RepeatMode::Toggle;
+    const int delayMs = mode == RepeatMode::LongPress ? kDefaultDelayMs : value("delay").toString().toInt();
+    return {*capturedKey(), mode, delayMs, value("enabled").toBool(),
         mode == RepeatMode::Hold && !value("priority").toBool(), clickPosition()};
 }

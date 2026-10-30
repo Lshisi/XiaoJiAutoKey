@@ -11,7 +11,10 @@ Item {
     implicitHeight: Theme.tableRowHeight
     HoverHandler { id: rowHover }
     MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editBinding(root.entry.id) }
-    Rectangle { anchors.fill: parent; color: root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent" }
+    Rectangle {
+        anchors.fill: parent
+        color: root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent"
+    }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
         anchors.fill: parent
@@ -29,15 +32,12 @@ Item {
                 onClicked: root.page.enableBinding(root.entry.id, checked)
             }
         }
-        QuietLabel {
+        KeyCell {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: root.columns.fieldWidth
             text: root.entry.keyText
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-            wrapMode: Text.NoWrap
-            Accessible.description: root.entry.positionHint
+            description: root.entry.positionHint
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.modeText; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         QuietLabel {

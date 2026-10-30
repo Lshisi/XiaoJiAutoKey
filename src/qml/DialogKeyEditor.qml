@@ -19,7 +19,7 @@ ColumnLayout {
             visible: editor.fields.modeVisible
             Layout.fillWidth: true
             Layout.minimumWidth: 100
-            model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式")]
+            model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式"), qsTr("长按模式")]
             currentIndex: editor.fields.mode
             onActivated: dialogModel.edit("mode", currentIndex)
             Accessible.name: qsTr("连发模式")
@@ -58,6 +58,13 @@ ColumnLayout {
             QuietLabel { Layout.fillWidth: true; text: qsTr("参与按压优先") }
             QuietSwitch { checked: editor.fields.priority; onClicked: dialogModel.edit("priority", checked); Accessible.name: qsTr("参与按压优先") }
         }
+    }
+    QuietLabel {
+        Layout.fillWidth: true
+        visible: editor.fields.modeVisible && !editor.fields.needsDelay
+        text: qsTr("启动后持续按住，暂停或停止时松开。")
+        color: Theme.muted
+        wrapMode: Text.Wrap
     }
     Loader {
         Layout.fillWidth: true

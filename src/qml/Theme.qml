@@ -45,13 +45,26 @@ QtObject {
     readonly property int primaryHeight: 32
     readonly property int iconSize: 32
     readonly property int compactIconSize: 24
-    readonly property int smallIconGlyphSize: 8
+    readonly property int smallIconGlyphSize: 10
     readonly property int shortcutTextMaxWidth: 72
     readonly property int shortcutRemoveWidth: 18
     readonly property int shortcutTagPadding: 6
+    readonly property int shortcutTagGap: 6
     readonly property int dialogPadding: 24
     readonly property int dialogVerticalPadding: 18
     readonly property int formGap: 14
+    readonly property int bodyFontSize: 12
+    readonly property int captionFontSize: 11
+    readonly property int cardTitleFontSize: 15
+    readonly property int pageTitleFontSize: 19
+    readonly property int iconGlyphSize: 14
+    readonly property int navGlyphSize: 18
+    readonly property int headingWeight: Font.Medium
+    readonly property bool motionEnabled: colors.motionEnabled && Qt.application.state === Qt.ApplicationActive
+    readonly property int fadeDuration: Math.min(colors.fadeDuration, 100)
+    readonly property int toggleDuration: 90
+    readonly property int popupEnterDuration: 50
+    readonly property int popupExitDuration: 30
     readonly property string fontFamily: "Microsoft YaHei UI"
     readonly property string iconFamily: "Segoe MDL2 Assets"
 }

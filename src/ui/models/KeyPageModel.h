@@ -16,7 +16,7 @@ public:
     void setMixedMode(bool value) { setValue("mixedMode", value); }
     void setWasdProtection(bool value) { setValue("wasdProtection", value); }
     void setRememberSequencePosition(bool value) { setValue("rememberSequencePosition", value); }
-    void setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording = false);
+    void setSequenceSwitchKey(std::optional<KeyDescriptor> key);
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void setUpdateBadge(const QString& value) { setValue("updateVersion", value); }
     void setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& profiles, std::uint64_t activeId);

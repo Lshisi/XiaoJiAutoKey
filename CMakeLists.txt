@@ -40,6 +40,7 @@ set(MOC_HEADERS
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/SequenceSwitchKeyDialog.h
     include/app/dialogs/ShareExportDialog.h
     include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
@@ -154,6 +155,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
     include/app/dialogs/PauseKeyDialog.h
+    include/app/dialogs/SequenceSwitchKeyDialog.h
     include/app/dialogs/ShareExportDialog.h
     include/app/dialogs/ShareImportDialog.h
     include/app/dialogs/SoundSettingsDialog.h
@@ -215,6 +217,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/dialogs/KeyCaptureDialogBase.cpp
     src/app/dialogs/MacroStepDialog.cpp
     src/app/dialogs/PauseKeyDialog.cpp
+    src/app/dialogs/SequenceSwitchKeyDialog.cpp
     src/app/dialogs/ShareExportDialog.cpp
     src/app/dialogs/ShareImportDialog.cpp
     src/app/dialogs/SoundSettingsDialog.cpp

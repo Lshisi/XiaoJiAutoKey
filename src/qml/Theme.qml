@@ -57,9 +57,11 @@ QtObject {
     readonly property int captionFontSize: 11
     readonly property int cardTitleFontSize: 15
     readonly property int pageTitleFontSize: 19
-    readonly property int iconGlyphSize: 14
-    readonly property int navGlyphSize: 18
+    readonly property int iconGlyphSize: 12
+    readonly property int navGlyphSize: 16
     readonly property int headingWeight: Font.Medium
+    readonly property int textRenderType: Text.QtRendering
+    readonly property int textRenderQuality: Text.HighRenderTypeQuality
     readonly property bool motionEnabled: colors.motionEnabled && Qt.application.state === Qt.ApplicationActive
     readonly property int fadeDuration: Math.min(colors.fadeDuration, 100)
     readonly property int toggleDuration: 90

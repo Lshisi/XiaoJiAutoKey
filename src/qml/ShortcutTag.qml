@@ -13,9 +13,9 @@ Rectangle {
         + 2 * horizontalPadding
     implicitHeight: Math.max(Theme.compactIconSize, keyLabel.implicitHeight + 4)
     radius: Theme.buttonRadius
-    color: removable && enabled && tagHover.hovered ? Theme.accentSubtle : "transparent"
-    border.width: removable ? 1 : 0
-    border.color: removable && enabled && tagHover.hovered ? Theme.accentBorder : Theme.border
+    color: removable ? (enabled && tagHover.hovered ? Theme.accentSubtle : Theme.hover) : "transparent"
+    border.width: removable && enabled && tagHover.hovered ? 1 : 0
+    border.color: Theme.accentBorder
     Accessible.role: removable ? Accessible.Grouping : Accessible.StaticText
     Accessible.name: text
     FontMetrics { id: metrics; font: keyLabel.font }

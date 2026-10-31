@@ -4,6 +4,7 @@ import XiaoJi.UI
 ActionButton {
     required property string glyph
     text: glyph
+    textRenderType: Text.NativeRendering
     quiet: true
     implicitWidth: compact ? Theme.compactIconSize : Theme.iconSize
     implicitHeight: compact ? Theme.compactIconSize : Theme.iconSize
@@ -12,6 +13,6 @@ ActionButton {
     topPadding: 4
     bottomPadding: 4
     font.family: Theme.iconFamily
-    font.pixelSize: glyph === "\uE711" || glyph === "\uE710" ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
+    font.pixelSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     Accessible.name: hint
 }

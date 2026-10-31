@@ -8,12 +8,14 @@ Item {
     required property QtObject page
     readonly property var keys: page.state.pauseKeys
     readonly property real moreWidth: Math.max(Theme.iconSize, metrics.advanceWidth(qsTr("+%1").arg(keys.length)) + 8)
+    readonly property var tagWidths: keys.slice(0, 3).map(key =>
+        Math.min(Math.ceil(metrics.advanceWidth(key)) + 2, Theme.shortcutTextMaxWidth)
+            + Theme.shortcutRemoveWidth + Theme.shortcutTagGap + 2 * Theme.shortcutTagPadding)
     readonly property int visibleCount: {
         let used = 0
         let count = 0
-        for (let i = 0; i < Math.min(keys.length, 3); ++i) {
-            const next = Math.min(Math.ceil(metrics.advanceWidth(keys[i])) + 2, Theme.shortcutTextMaxWidth)
-                + Theme.shortcutRemoveWidth + Theme.shortcutTagGap + 2 * Theme.shortcutTagPadding
+        for (let i = 0; i < tagWidths.length; ++i) {
+            const next = tagWidths[i]
             const more = i + 1 < keys.length ? moreWidth + 4 : 0
             if (used + next + more > width) break
             used += next + 4
@@ -21,7 +23,12 @@ Item {
         }
         return count
     }
-    implicitWidth: root.keys.length === 0 ? Math.ceil(metrics.advanceWidth(qsTr("未设置"))) + 2 : moreWidth
+    implicitWidth: {
+        if (root.keys.length === 0) return Math.ceil(metrics.advanceWidth(qsTr("未设置"))) + 2
+        const tags = root.tagWidths.reduce((total, tagWidth) => total + tagWidth, 0)
+        return tags + (root.tagWidths.length - 1) * 4
+            + (root.keys.length > root.tagWidths.length ? root.moreWidth + 4 : 0)
+    }
     implicitHeight: Math.max(Theme.compactIconSize, metrics.height + 4)
     FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: Theme.bodyFontSize }
     RowLayout {

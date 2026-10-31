@@ -327,7 +327,7 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
-    QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
+    QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
 
     QApplication app(argc, argv);
     SpaceInputFilter spaceInputFilter;

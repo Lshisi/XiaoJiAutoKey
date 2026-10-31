@@ -276,6 +276,18 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
         return;
     }
     physicalDown_.erase(key);
+    for (auto& task : tasks_) {
+        if (!task.config.enabled || task.config.mode != RepeatMode::LongPress
+            || task.config.key != key || !task.isDown) {
+            continue;
+        }
+        // A physical release can invalidate the held key even while our down is tracked.
+        // Release the driver's old state so the worker can send a fresh held down.
+        driver_.SendUp(key, InputSource::Repeater);
+        task.isDown = false;
+        task.downTime = {};
+        task.lastUpTime = {};
+    }
     SyncSourceActiveKeysLocked();
 }
 

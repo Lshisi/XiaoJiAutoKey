@@ -59,6 +59,7 @@ ActionButton {
             text: "\uE70D"
             font.family: Theme.iconFamily
             font.pixelSize: 10
+            renderType: Text.NativeRendering
             color: Theme.muted
             Accessible.ignored: true
         }
@@ -105,6 +106,7 @@ ActionButton {
                         text: "\uE73E"
                         font.family: Theme.iconFamily
                         font.pixelSize: 10
+                        renderType: Text.NativeRendering
                         color: Theme.accent
                         verticalAlignment: Text.AlignVCenter
                         Accessible.ignored: true

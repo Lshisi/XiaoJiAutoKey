@@ -8,7 +8,7 @@ TextField {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
     font.hintingPreference: Font.PreferVerticalHinting
-    renderType: Text.NativeRendering
+    renderType: Theme.textRenderType
     color: Theme.text
     placeholderTextColor: Theme.muted
     selectionColor: Theme.accent

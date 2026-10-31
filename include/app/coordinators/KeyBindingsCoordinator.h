@@ -24,7 +24,6 @@ public:
         RepeaterEngine* engine = nullptr;
         std::function<void(KeyCaptureDialogBase&)> runKeyCaptureDialog;
         std::function<void()> startHotkeyCapture;
-        std::function<void()> startSequenceSwitchKeyCapture;
         std::function<void(bool)> setRepeatRunning;
         std::function<void()> applyBindings;
         std::function<void()> saveConfig;

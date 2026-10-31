@@ -2,7 +2,9 @@
 
 #include "InputDriver.h"
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -25,8 +27,11 @@ public:
     void ReleaseAll() override;
     void ClearAllStates() override;
     bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
+    [[nodiscard]] bool IsHeldDown(const KeyDescriptor& key) const noexcept;
 
 private:
+    using HeldKeySet = std::unordered_set<std::uint64_t>;
+
     struct SourceState {
         std::unordered_map<std::uint64_t, std::uint64_t> activeKeys;
         std::unordered_set<std::uint64_t> heldKeys;
@@ -41,11 +46,15 @@ private:
     void RecomputeOwnersLocked();
     bool SendDownLocked(const KeyDescriptor& key, InputSource src);
     void RestoreHeldKeysLocked(InputSource src);
+    void PublishHeldKeysLocked();
     bool ReleaseForwardedKeyLocked(std::uint64_t encoded);
     void NoteArbitrationSkipLocked(std::uint64_t encoded, InputSource src, const char* reason);
 
     mutable std::mutex mutex_;
     InputDriver* driver_ = nullptr;
+    // The hook reads these without acquiring the mutex used during driver I/O.
+    std::atomic<InputDriver*> selfInjectedDriver_{nullptr};
+    std::atomic<std::shared_ptr<const HeldKeySet>> heldDownKeys_{nullptr};
     SourceState repeaterState_;
     SourceState macroState_;
     std::uint64_t nextActivationOrder_ = 1;

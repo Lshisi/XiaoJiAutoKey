@@ -12,7 +12,8 @@ MenuItem {
         text: control.text
         textFormat: Text.PlainText
         font: control.font
-        renderType: Text.NativeRendering
+        renderType: Theme.textRenderType
+        renderTypeQuality: Theme.textRenderQuality
         color: control.enabled ? Theme.text : Theme.muted
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight

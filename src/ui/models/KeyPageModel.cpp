@@ -5,7 +5,7 @@ KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
         {"profileEnabled", true}, {"running", false}, {"hotkey", tr("未设置")},
         {"beepEnabled", true}, {"overlayEnabled", false}, {"mixedMode", false},
         {"wasdProtection", false}, {"rememberSequencePosition", true},
-        {"sequenceKey", tr("未设置")}, {"hasSequenceKey", false}, {"sequenceRecording", false},
+        {"sequenceKey", tr("未设置")}, {"hasSequenceKey", false},
         {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false}, {"updateVersion", QString()}};
 }
 
@@ -36,11 +36,9 @@ void KeyPageModel::setRunning(bool value) {
     if (state_.value("running").toBool() != value) setValue("running", value);
 }
 
-void KeyPageModel::setSequenceSwitchKey(std::optional<KeyDescriptor> key, bool recording) {
-    state_.insert("sequenceRecording", recording);
+void KeyPageModel::setSequenceSwitchKey(std::optional<KeyDescriptor> key) {
     state_.insert("hasSequenceKey", key.has_value());
-    setValue("sequenceKey", recording ? tr("录制中") : key
-        ? QString::fromStdWString(GetKeyDisplayName(*key)) : tr("未设置"));
+    setValue("sequenceKey", key ? QString::fromStdWString(GetKeyDisplayName(*key)) : tr("未设置"));
 }
 
 void KeyPageModel::setPauseKeys(const std::vector<KeyDescriptor>& keys) {

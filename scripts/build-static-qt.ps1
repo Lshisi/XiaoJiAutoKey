@@ -19,6 +19,11 @@ $ErrorActionPreference = "Stop"
 
 function Get-FullPath {
     param([Parameter(Mandatory = $true)][string] $Path)
+    # Join-Path textually prepends the current dir even for drive-qualified
+    # paths (D:\Qt), which makes GetFullPath reject the embedded colon.
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
@@ -187,6 +192,13 @@ $toolPaths = @(
 [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
 [Environment]::SetEnvironmentVariable("Path", (($toolPaths + @($currentPath)) -join ";"), "Process")
 
+# Fail fast when MSVC is not on the final PATH. A Ninja resolved from another
+# toolchain (e.g. Strawberry Perl's MinGW) must never let the build proceed.
+$clCommand = Get-Command cl.exe -ErrorAction SilentlyContinue
+if (-not $clCommand) {
+    throw "MSVC cl.exe not found after environment setup. Check vcvarsall import: $VcVarsAll"
+}
+
 New-Item -ItemType Directory -Path $QtRoot -Force | Out-Null
 
 $versionParts = $QtVersion.Split(".")
@@ -261,7 +273,12 @@ try {
         "-confirm-license",
         "-nomake", "examples",
         "-nomake", "tests",
-        "-submodules", "qtbase,qtshadertools,qtdeclarative,qtsvg"
+        "-submodules", "qtbase,qtshadertools,qtdeclarative,qtsvg",
+        # Pin MSVC explicitly: with the Ninja generator, CMake may otherwise
+        # pick a gcc that appears earlier on PATH than cl.exe.
+        "--",
+        "-DCMAKE_C_COMPILER=$($clCommand.Source)",
+        "-DCMAKE_CXX_COMPILER=$($clCommand.Source)"
     )
     if ($Ltcg) {
         $configureArguments += "-ltcg"

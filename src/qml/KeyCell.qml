@@ -23,7 +23,6 @@ Item {
         background: Rectangle {
             radius: 5
             color: Theme.field
-            border.color: Theme.border
         }
     }
     HoverHandler { id: keyHover }

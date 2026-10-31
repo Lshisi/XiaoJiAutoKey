@@ -20,7 +20,7 @@ class CaptureCoordinator : public QObject {
     Q_OBJECT
 
 public:
-    enum class Target { MainHotkey, SequenceSwitchKey, DialogKey, MacroHotkey };
+    enum class Target { MainHotkey, DialogKey, MacroHotkey };
 
     struct Context {
         QWidget* parent = nullptr;
@@ -44,7 +44,6 @@ public:
 
     void bind(Context context);
     void startMainHotkeyCapture();
-    void startSequenceSwitchKeyCapture();
     void startMacroHotkeyCapture();
     void runKeyCaptureDialog(KeyCaptureDialogBase& dialog);
     void handleCapturedKey(quint64 encodedKey);

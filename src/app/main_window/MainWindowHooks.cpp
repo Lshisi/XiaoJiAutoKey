@@ -10,6 +10,9 @@ void MainWindow::setupHooks() {
     inputHook_.setSelfInjectedFilter([this](const KeyDescriptor& key, bool pressed) {
         return inputDriver_.ConsumeSelfInjected(key, pressed);
     });
+    inputHook_.setPhysicalInputFilter([this](const KeyDescriptor& key) {
+        return inputDriver_.IsHeldDown(key);
+    });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{
         &inputHook_,

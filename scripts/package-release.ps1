@@ -70,7 +70,11 @@ $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # } else {
 #     Write-Warning "Could not find version string in CMakeLists.txt"
 # }
-& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath"
+# Pin Qt6_DIR explicitly: with several Qt installs sharing C:\Qt, bare
+# CMAKE_PREFIX_PATH resolution was observed to pick a different kit
+# non-deterministically between runs.
+$qt6ConfigDir = Join-Path $qtPrefixPath "lib\cmake\Qt6"
+& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath" -DQt6_DIR="$qt6ConfigDir"
 if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed"
 }

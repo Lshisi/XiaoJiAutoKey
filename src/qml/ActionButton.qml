@@ -11,6 +11,9 @@ Button {
     property bool compact: false
     property bool destructive: false
     property string leadingGlyph: ""
+    property int textRenderType: Theme.textRenderType
+    readonly property int glyphSize: leadingGlyph === "\uE710" || leadingGlyph === "\uE711"
+        ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     property string hint: ""
     readonly property color foregroundColor: !enabled ? Theme.muted
         : destructive ? (Theme.dark ? Theme.background : Theme.field)
@@ -34,8 +37,9 @@ Button {
             visible: control.leadingGlyph.length > 0
             glyph: control.leadingGlyph
             color: caption.color
-            Layout.preferredWidth: Theme.iconGlyphSize
-            Layout.preferredHeight: Theme.iconGlyphSize
+            font.pixelSize: control.glyphSize
+            Layout.preferredWidth: control.glyphSize
+            Layout.preferredHeight: control.glyphSize
         }
         Text {
             id: caption
@@ -44,7 +48,8 @@ Button {
             text: control.text
             textFormat: Text.PlainText
             font: control.font
-            renderType: Text.NativeRendering
+            renderType: control.textRenderType
+            renderTypeQuality: Theme.textRenderQuality
             color: control.foregroundColor
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

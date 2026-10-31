@@ -5,10 +5,13 @@
 #include <chrono>
 #include <cstdio>
 #include <thread>
+#include <utility>
 
 void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
+    heldDownKeys_.store(nullptr);
     driver_ = driver;
+    selfInjectedDriver_.store(driver);
     forwardedDown_.clear();
     repeaterState_.heldKeys.clear();
     macroState_.heldKeys.clear();
@@ -46,7 +49,9 @@ bool InputDriverRouter::SendHeldDown(const KeyDescriptor& key, InputSource src) 
     if (IsArbitratedSource(src) && StateFor(src).activeKeys.count(EncodeKey(key)) > 0) {
         StateFor(src).heldKeys.insert(EncodeKey(key));
     }
-    return SendDownLocked(key, src);
+    const bool sent = SendDownLocked(key, src);
+    PublishHeldKeysLocked();
+    return sent;
 }
 
 bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src) {
@@ -84,7 +89,9 @@ bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src
 
 bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
-    if (IsArbitratedSource(src)) StateFor(src).heldKeys.erase(EncodeKey(key));
+    if (IsArbitratedSource(src) && StateFor(src).heldKeys.erase(EncodeKey(key)) > 0) {
+        PublishHeldKeysLocked();
+    }
     if (!driver_) return false;
     if (!IsArbitratedSource(src)) return driver_->SendUp(key, src);
 
@@ -143,6 +150,7 @@ void InputDriverRouter::ReleaseSource(InputSource src) {
 
 void InputDriverRouter::ReleaseAll() {
     std::lock_guard lock(mutex_);
+    heldDownKeys_.store(nullptr);
     if (driver_) driver_->ReleaseAll();
     forwardedDown_.clear();
     owners_.clear();
@@ -154,6 +162,7 @@ void InputDriverRouter::ReleaseAll() {
 
 void InputDriverRouter::ClearAllStates() {
     std::lock_guard lock(mutex_);
+    heldDownKeys_.store(nullptr);
     if (driver_) driver_->ClearAllStates();
     forwardedDown_.clear();
     repeaterState_.heldKeys.clear();
@@ -161,8 +170,14 @@ void InputDriverRouter::ClearAllStates() {
 }
 
 bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) {
-    std::lock_guard lock(mutex_);
-    return driver_ && driver_->ConsumeSelfInjected(key, pressed);
+    // Hook callbacks must not wait on the router while driver I/O is in progress.
+    auto* driver = selfInjectedDriver_.load();
+    return driver && driver->ConsumeSelfInjected(key, pressed);
+}
+
+bool InputDriverRouter::IsHeldDown(const KeyDescriptor& key) const noexcept {
+    const auto heldKeys = heldDownKeys_.load();
+    return heldKeys && heldKeys->count(EncodeKey(key)) > 0;
 }
 
 bool InputDriverRouter::IsArbitratedSource(InputSource src) noexcept {
@@ -193,6 +208,7 @@ const InputDriverRouter::SourceState& InputDriverRouter::StateFor(InputSource sr
 }
 
 void InputDriverRouter::RecomputeOwnersLocked() {
+    heldDownKeys_.store(nullptr);
     std::unordered_map<std::uint64_t, InputSource> updatedOwners;
     for (const auto& [encoded, repeaterOrder] : repeaterState_.activeKeys) {
         const auto macro = macroState_.activeKeys.find(encoded);
@@ -222,12 +238,30 @@ void InputDriverRouter::RecomputeOwnersLocked() {
     owners_ = std::move(updatedOwners);
     RestoreHeldKeysLocked(InputSource::Repeater);
     RestoreHeldKeysLocked(InputSource::Macro);
+    PublishHeldKeysLocked();
 }
 
 void InputDriverRouter::RestoreHeldKeysLocked(InputSource src) {
     // A held key has no repeat pulse to retry after the earlier owner stops.
     for (const auto encoded : StateFor(src).heldKeys) {
         SendDownLocked(DecodeKey(encoded), src);
+    }
+}
+
+void InputDriverRouter::PublishHeldKeysLocked() {
+    HeldKeySet heldKeys;
+    for (const auto& [encoded, source] : forwardedDown_) {
+        if (StateFor(source).heldKeys.count(encoded) > 0) {
+            heldKeys.insert(encoded);
+        }
+    }
+
+    const auto current = heldDownKeys_.load();
+    if (current && *current == heldKeys) return;
+    if (heldKeys.empty()) {
+        heldDownKeys_.store(nullptr);
+    } else {
+        heldDownKeys_.store(std::make_shared<const HeldKeySet>(std::move(heldKeys)));
     }
 }
 

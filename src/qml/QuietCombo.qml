@@ -16,7 +16,8 @@ ComboBox {
         text: control.displayText
         textFormat: Text.PlainText
         font: control.font
-        renderType: Text.NativeRendering
+        renderType: Theme.textRenderType
+        renderTypeQuality: Theme.textRenderQuality
         color: control.enabled ? Theme.text : Theme.muted
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -52,7 +53,8 @@ ComboBox {
             textFormat: Text.PlainText
             color: Theme.text
             font: control.font
-            renderType: Text.NativeRendering
+            renderType: Theme.textRenderType
+            renderTypeQuality: Theme.textRenderQuality
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }

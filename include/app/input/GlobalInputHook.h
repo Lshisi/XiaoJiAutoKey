@@ -30,6 +30,7 @@ public:
     void setRawKeyboardActive(bool active);
     void setRawMouseActive(bool active);
     void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter);
+    void setPhysicalInputFilter(std::function<bool(const KeyDescriptor&)> filter);
 
     [[nodiscard]] bool isDialogOpen() const noexcept;
     [[nodiscard]] bool isRawKeyboardActive() const noexcept;
@@ -63,6 +64,7 @@ private:
     mutable std::mutex stateMutex_;
     std::optional<KeyDescriptor> controlHotkey_;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
+    std::function<bool(const KeyDescriptor&)> physicalInputFilter_;
     bool captureActive_ = false;
     ULONGLONG captureStartedTick_ = 0;
 

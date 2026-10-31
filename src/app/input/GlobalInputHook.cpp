@@ -100,6 +100,11 @@ void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescript
     selfInjectedFilter_ = std::move(filter);
 }
 
+void GlobalInputHook::setPhysicalInputFilter(std::function<bool(const KeyDescriptor&)> filter) {
+    std::lock_guard lock(stateMutex_);
+    physicalInputFilter_ = std::move(filter);
+}
+
 bool GlobalInputHook::isDialogOpen() const noexcept {
     return dialogOpen_.load();
 }
@@ -169,20 +174,33 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     const bool repeatRunning = hook->repeatRunning_.load();
     std::optional<KeyDescriptor> controlHotkey;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
+    std::function<bool(const KeyDescriptor&)> physicalInputFilter;
     bool captureActive = false;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
         selfInjectedFilter = hook->selfInjectedFilter_;
+        physicalInputFilter = hook->physicalInputFilter_;
         captureActive = hook->captureActive_;
     }
 
-    if (!captureActive && hook->rawKeyboardActive_.load()) {
+    const bool blockPhysicalInput = repeatRunning && !captureActive && !hook->dialogOpen_.load()
+        && physicalInputFilter && physicalInputFilter(key);
+    if (!blockPhysicalInput && !captureActive && hook->rawKeyboardActive_.load()) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 
     if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
+    if (blockPhysicalInput) {
+        if (released) {
+            QMetaObject::invokeMethod(hook, [hook, key] {
+                emit hook->physicalKeyChanged(key, false);
+            }, Qt::QueuedConnection);
+        }
+        return 1;
     }
 
     if (captureActive && pressed) {
@@ -223,20 +241,19 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     auto* hook = g_hookInstance;
     std::optional<KeyDescriptor> controlHotkey;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
+    std::function<bool(const KeyDescriptor&)> physicalInputFilter;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
         selfInjectedFilter = hook->selfInjectedFilter_;
+        physicalInputFilter = hook->physicalInputFilter_;
         captureActive = hook->captureActive_;
         captureStartedTick = hook->captureStartedTick_;
     }
 
     if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-    if (!captureActive && hook->rawMouseActive_.load()) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
     if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
@@ -246,6 +263,19 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (nowTick < ignoreUntil) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool repeatRunning = hook->repeatRunning_.load();
+
+    if (repeatRunning && !captureActive && !hook->dialogOpen_.load()
+        && physicalInputFilter && physicalInputFilter(key)) {
+        if (!pressed) {
+            QMetaObject::invokeMethod(hook, [hook, key] {
+                emit hook->physicalKeyChanged(key, false);
+            }, Qt::QueuedConnection);
+        }
+        return 1;
+    }
+    if (!captureActive && hook->rawMouseActive_.load()) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
 
     if (captureActive && pressed) {
         if (GetTickCount64() - captureStartedTick < 150) return CallNextHookEx(nullptr, code, wParam, lParam);

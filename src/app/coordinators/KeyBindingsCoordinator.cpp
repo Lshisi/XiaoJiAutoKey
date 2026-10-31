@@ -5,6 +5,7 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/BindingEditDialog.h"
 #include "dialogs/PauseKeyDialog.h"
+#include "dialogs/SequenceSwitchKeyDialog.h"
 #include "RepeaterEngine.h"
 #include "ui/models/KeyPageModel.h"
 
@@ -172,7 +173,31 @@ void KeyBindingsCoordinator::onRememberSequencePositionChanged(bool enabled) {
 }
 
 void KeyBindingsCoordinator::onSequenceSwitchKeyAdd() {
-    if (context_.startSequenceSwitchKeyCapture) context_.startSequenceSwitchKeyCapture();
+    if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    auto* profile = context_.controller->activeProfile();
+    if (!profile) return;
+
+    SequenceSwitchKeyDialog dialog(context_.parent);
+    context_.runKeyCaptureDialog(dialog);
+    if (dialog.result() == QDialog::Rejected) return;
+
+    auto validation = ActiveConfigValidator::validateSequenceSwitchKeyCandidate(
+        dialog.editResult().key,
+        profile,
+        context_.activeMacro ? context_.activeMacro() : nullptr);
+    if (!validation.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
+        return;
+    }
+
+    auto result = context_.controller->setSequenceSwitchKey(dialog.editResult().key);
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
+        return;
+    }
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
 }
 
 void KeyBindingsCoordinator::onSequenceSwitchKeyDelete() {

@@ -23,7 +23,7 @@ SpinBox {
     contentItem: TextInput {
         text: control.textFromValue(control.value, control.locale)
         font: control.font
-        renderType: Text.NativeRendering
+        renderType: Theme.textRenderType
         color: Theme.text
         selectionColor: Theme.accent
         selectedTextColor: Theme.accentForeground

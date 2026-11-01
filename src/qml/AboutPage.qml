@@ -70,7 +70,8 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             QuietLabel { Layout.fillWidth: true; text: qsTr("小叽按键配置说明") }
-                            ActionButton { text: qsTr("打开"); onClicked: root.page.usageGuideRequested() }
+                            ActionButton { text: qsTr("使用说明"); onClicked: root.page.usageGuideRequested() }
+                            ActionButton { text: qsTr("新手引导"); onClicked: root.page.onboardingRequested() }
                         }
                     }
                 }

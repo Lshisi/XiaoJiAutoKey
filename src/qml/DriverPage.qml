@@ -7,6 +7,7 @@ QuietScrollView {
     id: root
     autoHideScrollBar: true
     readonly property QtObject page: driverPageModel
+    readonly property var guideTargets: ({ driver: driverChoice })
     contentWidth: availableWidth
     contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
     ColumnLayout {
@@ -33,6 +34,7 @@ QuietScrollView {
                     Layout.fillWidth: true
                     QuietLabel { text: qsTr("使用驱动"); Layout.fillWidth: true }
                     QuietCombo {
+                        id: driverChoice
                         Layout.preferredWidth: 190
                         model: ["DD", "HID", "USB"]
                         currentIndex: root.page.state.mode

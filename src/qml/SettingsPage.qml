@@ -8,6 +8,7 @@ QuietScrollView {
     id: root
     autoHideScrollBar: true
     readonly property QtObject page: settingsPageModel
+    readonly property var guideTargets: ({ scope: scopeSwitch })
     contentWidth: availableWidth
     contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
     ButtonGroup { id: startupGroup }
@@ -78,7 +79,7 @@ QuietScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     QuietLabel { text: qsTr("仅游戏客户端前台时生效"); Layout.fillWidth: true }
-                    QuietSwitch { checked: root.page.state.gameGateEnabled; onClicked: root.page.gameGateEnabledChanged(checked); Accessible.name: qsTr("仅游戏客户端前台时生效") }
+                    QuietSwitch { id: scopeSwitch; checked: root.page.state.gameGateEnabled; onClicked: root.page.gameGateEnabledChanged(checked); Accessible.name: qsTr("仅游戏客户端前台时生效") }
                 }
                 ActionButton { text: qsTr("管理游戏进程…"); onClicked: root.page.gameGateProcessesEditRequested() }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }

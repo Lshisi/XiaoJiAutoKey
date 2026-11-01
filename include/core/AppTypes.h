@@ -71,6 +71,13 @@ enum class StartupAction {
     Window,
 };
 
+enum class OnboardingStatus {
+    Pending,
+    InProgress,
+    Completed,
+    Skipped,
+};
+
 enum class DriverMode {
     Legacy,
     Hid,
@@ -132,6 +139,11 @@ struct MacroOverlayOptions {
 };
 
 struct AppConfig {
+    int onboardingVersion = 1;
+    OnboardingStatus onboardingStatus = OnboardingStatus::Completed;
+    int onboardingStep = 0;
+    int onboardingMacroStep = 0;
+    int onboardingSeenTips = 0;
     bool backgroundAutoRun = false;
     bool beepEnabled = true;
     // 仅当游戏客户端在前台时生效（离开游戏自动暂停并释放按键）

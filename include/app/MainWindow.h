@@ -28,6 +28,7 @@
 #include "coordinators/ConfigCoordinator.h"
 #include "coordinators/EngineStateCoordinator.h"
 #include "coordinators/DriverSelfCheckCoordinator.h"
+#include "coordinators/OnboardingCoordinator.h"
 #include "coordinators/UpdateCoordinator.h"
 #include "services/AppPaths.h"
 #include "services/AutoStartService.h"
@@ -120,6 +121,7 @@ private:
     void suppressShareText(const QString& text);
     void applyImportedSharePayload(const SharePayload& payload);
 
+    OnboardingCoordinator onboardingCoordinator_;
     MainWindowView view_;
 
     // Core
@@ -172,6 +174,7 @@ private:
     bool driverUnavailableLogged_ = false;
     // 启动时驱动加载失败，待主窗口首次显示后自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
     bool pendingSelfCheckPrompt_ = false;
+    bool onboardingStartupScheduled_ = false;
     // 每次运行只自动弹一次自检向导，避免反复失败时打扰。
     bool selfCheckAutoOpened_ = false;
     std::wstring driverStatusNote_;

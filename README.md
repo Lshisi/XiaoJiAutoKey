@@ -5,7 +5,7 @@
 [![Qt](https://img.shields.io/badge/Qt-6.8%2B-41CD52.svg)](#从源码构建)
 [![Release](https://img.shields.io/badge/下载-Gitee%20Releases-brightgreen.svg)](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases)
 
-基于 Qt 6 + QML 的 Windows 按键连发工具。支持键盘和鼠标按键的自动连发与宏循环，提供剑三门派主题的中文界面，单文件绿色免安装，可静驻系统托盘。
+基于 Qt 6 + QML 的 Windows 按键连发工具。支持键盘和鼠标按键的自动连发与循环连发，提供剑三门派主题的中文界面，单文件绿色免安装，可静驻系统托盘。
 
 ## 目录
 
@@ -28,13 +28,15 @@
 - 开关模式（Toggle）：工具启动后自动开始连发，停止后统一停止
 - 长按模式（LongPress）：工具启动后持续按住配置键，停止时松开；切换前台窗口后自动恢复长按，仍遵循游戏前台限制、暂停键、按压优先和冲突规则
 - 按压模式（Hold）：按住配置键才连发，松开立即停止
-- 连发优先：按住参与优先的按压键期间，所有开关连发自动暂停，长按键松开；松开按压键后恢复，每个按压键可单独设置是否参与
+- 独立模式：启动工具后按配置键独立启停，多个独立模式按键之间互相切换，同一时间只连发当前选中的一个
+- 切换模式：通过切换键轮换当前连发按键，可选择记住上次切换位置
+- 按压优先：按住参与优先的按压键期间，开关、独立和切换模式连发暂停，长按键松开；松开后恢复，每个按压键可单独设置是否参与
 - WASD 防卡位：按住 W/A/S/D 移动时临时降低开关连发频率，松开后恢复
-- 暂停按键：支持配置多个暂停键，按住时暂停所有开关模式连发并松开长按键，松开暂停键后恢复（独立于连发优先）
+- 暂停按键：支持多个暂停键，按住时暂停开关、独立和切换模式并松开长按键，按压键仍可触发；松开后恢复，独立于按压优先
 - 每个连发按键可独立配置延迟间隔（ms，最低 1ms）和启用状态；长按模式无需间隔，列表显示为「—」
 - 多配置方案：创建、切换、重命名、删除，默认加载上次使用的方案
 
-### 宏循环
+### 循环连发
 
 - 按键序列录制与编辑，支持上移/下移调整步骤顺序
 - 循环次数、触发模式（开关/按压）和宏暂停键独立配置
@@ -48,6 +50,7 @@
 - 状态悬浮窗：显示连发/宏启停状态，支持拖动、锁定、透明度调节、多屏位置保持
 - 系统托盘：最小化到托盘，双击恢复；重复启动程序时自动唤起已运行实例的窗口（进程保持唯一）
 - 运行时自动锁定编辑操作，编辑弹窗打开时屏蔽启停快捷键，防止误触
+- 首次启动提供操作引导，支持跳过、继续和在关于页重新查看；独立、切换和循环连发按需说明
 
 ### 驱动
 
@@ -73,10 +76,12 @@
 
 ## 快速上手
 
+首次打开软件会显示新手引导，依次介绍驱动、添加按键、模式与启用状态、启停快捷键、生效范围以及启动/暂停/停止。驱动已就绪时直接进入按键配置，异常时先衔接驱动自检。引导中不会自动开始连发，完成后由用户主动启动。可随时跳过，之后在「关于软件 → 配置说明 → 新手引导」重新查看；已有配置的升级用户不会自动重走。
+
 1. **安装驱动**：首次使用请在「驱动管理」页确认 DD/HID 驱动状态，必要时切换驱动模式（默认 DD，也可切换 HID）
 2. **配置全局启停键**：在按键连发页设置一个全局快捷键，按一次启动连发，再按一次停止
-3. **添加连发按键**：点击「添加按键」录制按键，选择模式（开关/按压）和延迟间隔
-4. **（可选）配置宏**：在宏循环页录制按键序列，设置循环次数和触发键
+3. **添加连发按键**：点击「添加按键」录制按键，选择模式（开关/按压/独立/切换/长按）和间隔；长按模式无需间隔
+4. **（可选）配置循环**：在「循环连发」页添加按键序列，设置循环次数和触发键；首次进入有独立的简短引导
 5. 具体操作说明见发布包内的《使用说明.mhtml》（可在关于页直接打开）
 
 ## 软件更新
@@ -148,7 +153,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
       "id": 1,
       "name": "默认配置",
       "controlHotkey": "...",
-      "defaultDelayMs": 30,
+      "defaultDelayMs": 10,
       "mixedMode": false,
       "wasdProtection": false,
       "pauseKeys": [],
@@ -168,14 +173,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 | `driverMode` | 驱动模式（`legacy` = DD，`hid` = HID，`usb` = USB 硬件） |
 | `faction` | 门派主题 ID |
 | `latestKnownVersion` | 最近一次手动检查发现的版本号，仅用于保持"有新版本"标签显示，不触发联网 |
+| `onboarding` | 本机新手引导的版本、状态、步骤及已读提示；完成或跳过后不再自动展示，不随按键方案分享 |
 | `customSoundOn` / `customSoundOff` | 自定义连发开启/关闭提示音路径（空 = 内置音） |
 | `soundVolume` | 连发提示音音量（0-100） |
-| `macroBeepEnabled` / `macroSoundOn` / `macroSoundOff` / `macroSoundVolume` | 宏循环对应提示音设置 |
+| `macroBeepEnabled` / `macroSoundOn` / `macroSoundOff` / `macroSoundVolume` | 循环连发对应提示音设置 |
 | `statusOverlayShowRepeat` / `statusOverlayShowMacro` / `statusOverlayOpacity` / `statusOverlayLocked` | 状态悬浮窗显示与外观 |
 
 ### 配置方案（Profile）
 
-每个配置方案包含独立的按键列表（`bindings`）、宏配置（`macros`）、启停快捷键（`controlHotkey`）、暂停键（`pauseKeys`）、连发优先（`mixedMode`）、WASD 防卡位（`wasdProtection`）和新增按键默认间隔（`defaultDelayMs`，默认 30ms、最低 1ms）。
+每个按键配置方案包含独立的按键列表（`bindings`）、启停快捷键（`controlHotkey`）、暂停键（`pauseKeys`）、按压优先（`mixedMode`）、WASD 防卡位（`wasdProtection`）和默认间隔（`defaultDelayMs`，默认 10ms、最低 1ms）。循环配置（`macros`）在「循环连发」页独立管理。
 
 ## 技术架构
 
@@ -199,7 +205,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 
 ### 运行时按键互斥
 
-按键连发和宏循环不是页面级或配置级互斥。`InputDriverRouter` 按实际运行状态为每个按键登记来源和激活顺序：
+按键连发和循环连发不是页面级或配置级互斥。`InputDriverRouter` 按实际运行状态为每个按键登记来源和激活顺序：
 
 - 双方同时申请同一个按键时，先申请的一方保留所有权；互不相同的按键并行发送
 - 所有权释放或转移时，路由器会先补发原来源的抬键事件，避免按键卡住

@@ -7,9 +7,17 @@ Item {
     id: table
     required property QtObject page
     property bool macroMode: false
+    readonly property Item guideRow: firstRowAnchor
     property real contentLeftPadding: Theme.cardPadding - 1
     property real contentRightPadding: Theme.cardPadding - 1
     readonly property bool animateRows: rowModel.initialized && !rowModel.replacing && visible && Theme.motionEnabled
+    Connections {
+        target: onboardingModel
+        function onStateChanged() {
+            if (!table.macroMode && onboardingModel.state.active && onboardingModel.state.target === "mode")
+                list.positionViewAtBeginning()
+        }
+    }
     WorkspaceRows {
         id: rowModel
         sourceRows: table.macroMode ? table.page.state.steps : table.page.state.bindings
@@ -80,6 +88,14 @@ Item {
             }
             ScrollBar.vertical: QuietScrollBar { id: tableScrollBar }
         }
+    }
+    Item {
+        id: firstRowAnchor
+        x: 0
+        y: Theme.tableHeaderHeight
+        width: table.width
+        height: Math.min(Theme.tableRowHeight, Math.max(0, table.height - y))
+        visible: rowModel.count > 0
     }
     Item {
         anchors.fill: parent

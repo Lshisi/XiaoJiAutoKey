@@ -192,6 +192,7 @@ public:
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
+      onboardingCoordinator_(this),
       appPaths_(),
       configCoordinator_(appPaths_.configPath(), this),
       profileController_(config_),
@@ -329,10 +330,25 @@ void MainWindow::ShowForStartup() {
 bool MainWindow::loadConfiguredDriver() {
     driverStatusNote_.clear();
     if (config_.IsDriverUninstalledByUser(config_.driverMode)) {
-        inputDriver_.SetDriver(nullptr);
-        driverStatusNote_ = tr("当前驱动已由你主动卸载，自动安装已停用。"
-                              "可在驱动管理页点击“安装”恢复当前模式。").toStdWString();
-        return false;
+        const auto status = ddRuntimeService_.Inspect(driver_);
+        const bool installed = config_.driverMode == DriverMode::Hid
+            ? (status.hidRuntimeExists && status.hidServiceInstalled && status.hidSysInstalled &&
+                status.hidRootDeviceOk && status.hidChildDeviceOk && !status.hidServicePendingDelete)
+            : (status.legacyRuntimeExists &&
+                status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
+                status.infKeyboardSysInstalled && status.infMouseSysInstalled &&
+                status.infKeyboardDeviceStarted && status.infMouseDeviceStarted &&
+                status.infKeyboardDeviceBound && status.infMouseDeviceBound &&
+                !status.infKeyboardServicePendingDelete && !status.infMouseServicePendingDelete);
+        if (!installed) {
+            inputDriver_.SetDriver(nullptr);
+            driverStatusNote_ = tr("当前驱动已由你主动卸载，自动安装已停用。"
+                                  "可在驱动管理页点击“安装”恢复当前模式。").toStdWString();
+            return false;
+        }
+        // Restored configs can retain an uninstall flag after the driver was reinstalled.
+        config_.SetDriverUninstalledByUser(config_.driverMode, false);
+        configCoordinator_.save(false);
     }
     if (config_.driverMode == DriverMode::Usb) {
         if (loadCh552UsbDriver()) {
@@ -971,7 +987,10 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 
 void MainWindow::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
+    if (onboardingStartupScheduled_) return;
+    onboardingStartupScheduled_ = true;
     if (!pendingSelfCheckPrompt_) {
+        QTimer::singleShot(0, &onboardingCoordinator_, &OnboardingCoordinator::initialize);
         return;
     }
     pendingSelfCheckPrompt_ = false;
@@ -979,6 +998,7 @@ void MainWindow::showEvent(QShowEvent* event) {
     // 先让主窗口完成首帧渲染，再弹自检向导，避免开屏即模态。
     QTimer::singleShot(250, this, [this]() {
         driverSelfCheckCoordinator_.open();
+        onboardingCoordinator_.initialize();
     });
 }
 

@@ -34,6 +34,7 @@ public:
         std::function<void()> showDdUnavailableMessage;
         std::function<bool()> selfInjectedMouseVisible;
         QWidget* parent = nullptr;
+        std::function<bool()> onboardingActive;
     };
 
     explicit EngineHookCoordinator(QObject* parent = nullptr);

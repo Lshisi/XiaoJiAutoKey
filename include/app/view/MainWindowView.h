@@ -27,7 +27,7 @@ class MainWindowView : public QObject {
 
 public:
     ~MainWindowView() override;
-    bool setup(QMainWindow* window);
+    bool setup(QMainWindow* window, QObject* onboarding);
     void initializeTray(QMainWindow* window);
     void navigateTo(const QString& pageId);
     void showRepeatPage();

@@ -31,8 +31,10 @@ private:
     bool locked_ = false;
 };
 
-AppConfig DefaultConfig() {
+AppConfig DefaultConfig(bool offerOnboarding = false) {
     AppConfig config;
+    config.onboardingStatus = offerOnboarding ? OnboardingStatus::Pending : OnboardingStatus::Completed;
+    config.onboardingSeenTips = offerOnboarding ? 0 : 7;
     ProfileConfig profile;
     profile.id = 1;
     profile.name = L"\u9ed8\u8ba4\u914d\u7f6e";
@@ -328,7 +330,11 @@ AppConfig ConfigStore::Load() const {
     } else if (!currentValid && IsValidConfigFile(backupPath)) {
         sourcePath = std::move(backupPath);
     } else if (!currentValid) {
-        return DefaultConfig();
+        std::error_code ec;
+        const bool configMissing = !std::filesystem::exists(configPath_, ec) && !ec;
+        const bool tempMissing = !std::filesystem::exists(tempPath, ec) && !ec;
+        const bool backupMissing = !std::filesystem::exists(backupPath, ec) && !ec;
+        return DefaultConfig(configMissing && tempMissing && backupMissing);
     }
 
     AppConfig config;
@@ -344,6 +350,22 @@ AppConfig ConfigStore::Load() const {
 
     const auto* object = root.AsObject();
     if (!object) return DefaultConfig();
+
+    // Older configurations stay out of the automatic tour, including restored backups.
+    config.onboardingSeenTips = 7;
+    const auto onboardingIt = object->find("onboarding");
+    if (onboardingIt != object->end()) {
+        if (const auto* onboarding = onboardingIt->second.AsObject()) {
+            config.onboardingVersion = std::max(1, GetIntField(*onboarding, "version").value_or(1));
+            const auto status = GetStringField(*onboarding, "status").value_or("completed");
+            if (status == "pending") config.onboardingStatus = OnboardingStatus::Pending;
+            else if (status == "inProgress") config.onboardingStatus = OnboardingStatus::InProgress;
+            else if (status == "skipped") config.onboardingStatus = OnboardingStatus::Skipped;
+            config.onboardingStep = std::clamp(GetIntField(*onboarding, "step").value_or(0), 0, 5);
+            config.onboardingMacroStep = std::clamp(GetIntField(*onboarding, "macroStep").value_or(0), 0, 2);
+            config.onboardingSeenTips = GetIntField(*onboarding, "seenTips").value_or(0) & 7;
+        }
+    }
 
     // Global settings
     if (const auto backgroundAutoRun = GetBoolField(*object, "backgroundAutoRun"); backgroundAutoRun.has_value())
@@ -540,6 +562,18 @@ AppConfig ConfigStore::Load() const {
 bool ConfigStore::Save(
     const AppConfig& config, std::wstring& error, std::uint32_t lockTimeoutMs) const {
     jsonlite::Object root;
+
+    const char* onboardingStatus = "completed";
+    if (config.onboardingStatus == OnboardingStatus::Pending) onboardingStatus = "pending";
+    else if (config.onboardingStatus == OnboardingStatus::InProgress) onboardingStatus = "inProgress";
+    else if (config.onboardingStatus == OnboardingStatus::Skipped) onboardingStatus = "skipped";
+    jsonlite::Object onboarding;
+    onboarding.emplace("version", config.onboardingVersion);
+    onboarding.emplace("status", std::string(onboardingStatus));
+    onboarding.emplace("step", std::clamp(config.onboardingStep, 0, 5));
+    onboarding.emplace("macroStep", std::clamp(config.onboardingMacroStep, 0, 2));
+    onboarding.emplace("seenTips", config.onboardingSeenTips & 7);
+    root.emplace("onboarding", std::move(onboarding));
 
     // Global settings
     root.emplace("backgroundAutoRun", config.backgroundAutoRun);

@@ -33,6 +33,7 @@ set(MOC_HEADERS
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
     include/app/coordinators/DriverSelfCheckCoordinator.h
+    include/app/coordinators/OnboardingCoordinator.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/DriverSelfCheckDialog.h
@@ -187,6 +188,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/coordinators/ConfigCoordinator.cpp
     src/app/coordinators/EngineStateCoordinator.cpp
     src/app/coordinators/DriverSelfCheckCoordinator.cpp
+    src/app/coordinators/OnboardingCoordinator.cpp
     src/app/coordinators/UpdateCoordinator.cpp
     src/app/controllers/MacroController.cpp
     src/app/widgets/StatusOverlayWindow.cpp
@@ -242,6 +244,8 @@ set(QML_FILES
     src/qml/Main.qml
     src/qml/Theme.qml
     src/qml/AppShell.qml
+    src/qml/OnboardingOverlay.qml
+    src/qml/GuideHint.qml
     src/qml/TitleBar.qml
     src/qml/CaptionButton.qml
     src/qml/ShareImportBanner.qml

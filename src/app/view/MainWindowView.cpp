@@ -223,7 +223,7 @@ MainWindowView::~MainWindowView() {
     delete quickWidget_;
 }
 
-bool MainWindowView::setup(QMainWindow* window) {
+bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     window_ = window;
     window->setWindowTitle(tr("小叽按键"));
     connect(window, &QMainWindow::windowTitleChanged, this, &MainWindowView::titleChanged);
@@ -258,6 +258,7 @@ bool MainWindowView::setup(QMainWindow* window) {
     quickWidget_->setAcceptDrops(false);
     auto* context = quickWidget_->rootContext();
     context->setContextProperty("appView", this);
+    context->setContextProperty("onboardingModel", onboarding);
     context->setContextProperty("keyPageModel", keyPage_);
     context->setContextProperty("macroPageModel", macroPage_);
     context->setContextProperty("driverPageModel", driverPage_);

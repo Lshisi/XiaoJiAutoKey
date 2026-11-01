@@ -61,10 +61,29 @@ ColumnLayout {
     }
     QuietLabel {
         Layout.fillWidth: true
-        visible: editor.fields.modeVisible && !editor.fields.needsDelay
-        text: qsTr("启动后持续按住，暂停或停止时松开。")
+        visible: editor.fields.modeVisible
+        text: {
+            switch (editor.fields.mode) {
+            case 1: return qsTr("先启动工具，再按住此键连发，松开停止。")
+            case 2: return qsTr("先启动工具，再按此键独立开启或停止连发。")
+            case 3: return qsTr("启动后，通过列表下方的“切换键”轮换当前连发按键。")
+            case 4: return qsTr("启动后持续按住，暂停或停止时松开；无需连发间隔。")
+            default: return qsTr("启动后按设定间隔反复点击此键，停止时结束。")
+            }
+        }
         color: Theme.muted
         wrapMode: Text.Wrap
+    }
+    Loader {
+        Layout.fillWidth: true
+        active: editor.fields.modeGuideVisible
+        visible: active
+        sourceComponent: GuideHint {
+            text: editor.fields.mode === 2
+                ? qsTr("多个独立模式按键之间会互相切换，同一时间只连发当前选中的一个；再次按当前键会停止。其他模式不受这个切换影响。")
+                : qsTr("保存后，在按键列表下方设置“切换键”。每按一次，轮换到下一个切换模式按键；右侧“记住切换位置”决定重新启动时是否续用上次位置。")
+            onDismissed: dialogModel.dispatch("dismissModeGuide")
+        }
     }
     Loader {
         Layout.fillWidth: true

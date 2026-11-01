@@ -1139,6 +1139,8 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver
     status.embeddedInfVariant1Exists = EmbeddedInfVariantExists(1);
     status.infKeyboardServiceInstalled = ServiceExists(kInfKeyboardServiceName);
     status.infMouseServiceInstalled = ServiceExists(kInfMouseServiceName);
+    status.infKeyboardServicePendingDelete = ServiceMarkedForDelete(kInfKeyboardServiceName);
+    status.infMouseServicePendingDelete = ServiceMarkedForDelete(kInfMouseServiceName);
     status.infKeyboardSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName);
     status.infMouseSysInstalled = std::filesystem::exists(SystemDriversDir() / kInfMouseSysName);
 

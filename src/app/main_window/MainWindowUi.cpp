@@ -15,7 +15,7 @@
 #include <QTimer>
 
 bool MainWindow::setupUi() {
-    if (!view_.setup(this)) return false;
+    if (!view_.setup(this, &onboardingCoordinator_)) return false;
     if (!statusOverlay_.initialize(this)) return false;
     connect(&view_, &MainWindowView::exitRequested, this, [this]() {
         if (configCoordinator_.save()) quitApplication();
@@ -39,7 +39,8 @@ bool MainWindow::setupUi() {
     configCoordinator_.bind(ConfigCoordinator::Context{
         this,
         &config_,
-        [this]() { engineHookCoordinator_.refreshState(); }
+        [this]() { engineHookCoordinator_.refreshState(); },
+        [this]() { onboardingCoordinator_.scheduleRefresh(); }
     });
 
     pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{
@@ -66,6 +67,7 @@ bool MainWindow::setupUi() {
     });
 
     connect(&view_, &MainWindowView::pageSelected, this, [this](const QString& pageId) {
+        if (onboardingCoordinator_.active()) return;
         view_.navigateTo(pageId);
         if (pageId == QStringLiteral("driver")) {
             QTimer::singleShot(0, this, [this]() { refreshDriverStatusUi(); });
@@ -80,7 +82,10 @@ bool MainWindow::setupUi() {
         view_.keyPage(),
         &profileController_,
         &engine_,
-        [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
+        [this](KeyCaptureDialogBase& dialog) {
+            onboardingCoordinator_.prepareKeyEditor(dialog);
+            captureCoordinator_.runKeyCaptureDialog(dialog);
+        },
         [this]() { captureCoordinator_.startMainHotkeyCapture(); },
         [this](bool running) { engineStateCoordinator_.setRepeatRunning(running); },
         [this]() { engineStateCoordinator_.applyBindings(); },
@@ -149,7 +154,10 @@ bool MainWindow::setupUi() {
         &macroController_,
         &macroEngine_,
         &inputHook_,
-        [this](KeyCaptureDialogBase& dialog) { captureCoordinator_.runKeyCaptureDialog(dialog); },
+        [this](KeyCaptureDialogBase& dialog) {
+            onboardingCoordinator_.prepareKeyEditor(dialog);
+            captureCoordinator_.runKeyCaptureDialog(dialog);
+        },
         [this]() { engineStateCoordinator_.applyMacros(); },
         [this]() { configCoordinator_.save(); },
         [this]() {
@@ -294,6 +302,16 @@ bool MainWindow::setupUi() {
         refreshStatusOverlay();
     });
     macroStateTimer->start(100);
+    onboardingCoordinator_.bind(OnboardingCoordinator::Context{
+        this,
+        &config_,
+        &view_,
+        [this]() { return engine_.IsToolRunning() || macroEngine_.HasActiveMacro(); },
+        [this]() { return captureCoordinator_.captureActive(); },
+        [this]() { return activeInputDriverReady(); },
+        [this]() { configCoordinator_.save(); },
+        [this]() { driverSelfCheckCoordinator_.open(); }
+    });
     return true;
 }
 

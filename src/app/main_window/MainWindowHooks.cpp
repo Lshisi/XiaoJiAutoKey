@@ -55,7 +55,8 @@ void MainWindow::setupHooks() {
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
         [this]() { return config_.driverMode == DriverMode::Usb; },
-        this
+        this,
+        [this]() { return onboardingCoordinator_.blocksStart(); }
     });
 
     if (!engineHookCoordinator_.start()) {

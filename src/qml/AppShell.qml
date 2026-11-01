@@ -10,7 +10,7 @@ Rectangle {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-        TitleBar { Layout.fillWidth: true }
+        TitleBar { id: shellTitleBar; Layout.fillWidth: true }
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -37,6 +37,7 @@ Rectangle {
                 Layout.fillHeight: true
                 color: Theme.surfaceTint
                 Loader {
+                    id: pageLoader
                     anchors.fill: parent
                     source: {
                         switch (appView.currentPage) {
@@ -76,8 +77,18 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: statusBar.height + 8
         width: Math.min(360, shell.width - 2 * Theme.pageMargin)
-        active: shareBannerModel.visible
+        active: shareBannerModel.visible && !onboardingModel.state.active
         visible: active
         sourceComponent: ShareImportBanner {}
+    }
+    Loader {
+        anchors.fill: parent
+        anchors.topMargin: shellTitleBar.height
+        anchors.bottomMargin: statusBar.height
+        active: onboardingModel.state.active
+        visible: onboardingModel.state.visible
+        sourceComponent: OnboardingOverlay {
+            pageRoot: pageLoader.status === Loader.Ready ? pageLoader.item : null
+        }
     }
 }

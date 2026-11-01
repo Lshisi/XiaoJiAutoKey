@@ -15,7 +15,7 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
         {"positionVisible", true},
         {"supportsPosition", supportsMouseMove_ && supportsMouseMove_()}, {"positionHint", tr("未拾取")},
         {"fixed", false}, {"modeVisible", false}, {"needsDelay", true}, {"mode", 0},
-        {"enabled", true}, {"priority", true}, {"delay", QString::number(kDefaultDelayMs)}};
+        {"enabled", true}, {"priority", true}, {"modeGuideVisible", false}, {"delay", QString::number(kDefaultDelayMs)}};
     QVariantMap values = defaults;
     for (auto it = fields.cbegin(); it != fields.cend(); ++it) values.insert(it.key(), it.value());
     clickPos_.fixedPosition = values.value("fixed").toBool();
@@ -48,6 +48,7 @@ void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argum
         && argument.toInt() <= static_cast<int>(RepeatMode::LongPress)) {
         setValue(field, argument.toInt());
         setValue("needsDelay", argument.toInt() != static_cast<int>(RepeatMode::LongPress));
+        updateModeGuide();
     } else if (field == "enabled" || field == "priority") setValue(field, argument.toBool());
     else if (field == "fixed") {
         if (argument.toBool() && !(supportsMouseMove_ && supportsMouseMove_())) {
@@ -75,6 +76,8 @@ void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& a
         clickPos_.anchorX = std::clamp(double(point->x() - area.left()) / area.width(), 0.0, 1.0);
         clickPos_.anchorY = std::clamp(double(point->y() - area.top()) / area.height(), 0.0, 1.0);
         setValue("positionHint", tr("屏幕内：%1%，%2%").arg(clickPos_.anchorX * 100, 0, 'f', 1).arg(clickPos_.anchorY * 100, 0, 'f', 1));
+    } else if (action == "dismissModeGuide") {
+        dismissModeGuide();
     } else if (action == "accept") {
         if (!capturedKey_ || !capturedKey_->IsValid()) {
             AppMessageDialog::warning(this, tr("参数无效"), tr("请先录制一个按键或鼠标键。"));
@@ -88,6 +91,26 @@ void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& a
                 return;
             }
         }
+        dismissModeGuide();
         accept();
     } else QmlDialog::handleAction(action, argument);
+}
+
+void KeyCaptureDialogBase::setModeGuideCallbacks(std::function<bool(RepeatMode)> shouldShow,
+    std::function<void(RepeatMode)> dismissed) {
+    shouldShowModeGuide_ = std::move(shouldShow);
+    modeGuideDismissed_ = std::move(dismissed);
+    updateModeGuide();
+}
+
+void KeyCaptureDialogBase::updateModeGuide() {
+    const auto mode = static_cast<RepeatMode>(value("mode").toInt());
+    setValue("modeGuideVisible", value("modeVisible").toBool()
+        && shouldShowModeGuide_ && shouldShowModeGuide_(mode));
+}
+
+void KeyCaptureDialogBase::dismissModeGuide() {
+    if (!value("modeGuideVisible").toBool()) return;
+    if (modeGuideDismissed_) modeGuideDismissed_(static_cast<RepeatMode>(value("mode").toInt()));
+    setValue("modeGuideVisible", false);
 }

@@ -31,6 +31,8 @@ public:
         bool embeddedInfVariant1Exists = false;
         bool infKeyboardServiceInstalled = false;
         bool infMouseServiceInstalled = false;
+        bool infKeyboardServicePendingDelete = false;
+        bool infMouseServicePendingDelete = false;
         bool infKeyboardSysInstalled = false;
         bool infMouseSysInstalled = false;
         bool infKeyboardDeviceStarted = false;

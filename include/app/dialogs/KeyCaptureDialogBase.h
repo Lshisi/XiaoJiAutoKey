@@ -11,6 +11,8 @@ public:
     void handleCapturedKey(quint64 encodedKey);
     std::optional<KeyDescriptor> capturedKey() const { return capturedKey_; }
     void setPrimaryMouseButtonsAllowed(bool allowed) { allowPrimaryMouseButtons_ = allowed; }
+    void setModeGuideCallbacks(std::function<bool(RepeatMode)> shouldShow,
+        std::function<void(RepeatMode)> dismissed);
 signals:
     void keyCaptureRequested();
     void keyAccepted();
@@ -22,8 +24,12 @@ protected:
     void handleAction(const QString& action, const QVariant& value) override;
     void editField(const QString& field, const QVariant& value) override;
 private:
+    void updateModeGuide();
+    void dismissModeGuide();
     std::optional<KeyDescriptor> capturedKey_;
     std::function<bool()> supportsMouseMove_;
     ClickPosition clickPos_;
     bool allowPrimaryMouseButtons_ = false;
+    std::function<bool(RepeatMode)> shouldShowModeGuide_;
+    std::function<void(RepeatMode)> modeGuideDismissed_;
 };

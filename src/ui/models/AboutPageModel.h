@@ -18,4 +18,5 @@ signals:
     void checkUpdateRequested();
     void updateActionRequested();
     void usageGuideRequested();
+    void onboardingRequested();
 };

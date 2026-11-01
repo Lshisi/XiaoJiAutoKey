@@ -96,6 +96,8 @@ void EngineHookCoordinator::handlePhysicalChanged(const KeyDescriptor& key, bool
 }
 
 void EngineHookCoordinator::handleControlHotkeyPressed() {
+    if (context_.onboardingActive && context_.onboardingActive()
+        && !(context_.repeatRunning && context_.repeatRunning())) return;
     if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
         if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
         return;
@@ -117,6 +119,8 @@ void EngineHookCoordinator::handleControlHotkeyPressed() {
 void EngineHookCoordinator::handleMacroTriggerChanged(const KeyDescriptor& key, bool pressed) {
     if (!context_.macroEngine) return;
     if (pressed) {
+        if (context_.onboardingActive && context_.onboardingActive()
+            && !context_.macroEngine->HasActiveMacro()) return;
         if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
             if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
             return;

@@ -7,6 +7,11 @@ Item {
     id: workspace
     required property QtObject page
     property bool macroMode: false
+    readonly property var guideTargets: ({
+        profile: profileToolbar, add: addButton, mode: keyTable.guideRow,
+        hotkey: hotkeyPanel, run: runPanel, pause: shortcutBar,
+        options: optionsLoader.status === Loader.Ready ? optionsLoader.item : null
+    })
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: Theme.pageMargin
@@ -24,7 +29,7 @@ Item {
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 10
-                ProfileToolbar { Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
+                ProfileToolbar { id: profileToolbar; Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
@@ -38,6 +43,7 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     ActionButton {
+                        id: addButton
                         text: qsTr("添加按键")
                         leadingGlyph: "\uE710"
                         compact: true
@@ -46,6 +52,7 @@ Item {
                     }
                 }
                 WorkspaceTable {
+                    id: keyTable
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.leftMargin: 1 - listCard.leftPadding
@@ -55,7 +62,7 @@ Item {
                     contentLeftPadding: Math.max(0, listCard.leftPadding - 1)
                     contentRightPadding: Math.max(0, listCard.rightPadding - 1)
                 }
-                ShortcutBar { Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
+                ShortcutBar { id: shortcutBar; Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
             }
         }
         ColumnLayout {
@@ -65,9 +72,10 @@ Item {
             Layout.maximumWidth: Theme.controlPanelWidth
             Layout.fillHeight: true
             spacing: Theme.cardGap
-            RunPanel { Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
-            HotkeyPanel { Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
+            RunPanel { id: runPanel; Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
+            HotkeyPanel { id: hotkeyPanel; Layout.fillWidth: true; Layout.fillHeight: false; Layout.minimumHeight: implicitHeight; page: workspace.page }
             Loader {
+                id: optionsLoader
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: implicitHeight

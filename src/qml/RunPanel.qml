@@ -24,7 +24,7 @@ QuietCard {
             implicitHeight: Theme.primaryHeight
             primary: true
             destructive: root.pageState.running
-            enabled: root.pageState.running || root.pageState.profileEnabled
+            enabled: root.pageState.running || (root.pageState.profileEnabled && !onboardingModel.state.startBlocked)
             text: {
                 const key = root.pageState.hotkey
                 return hasHotkey ? qsTr("%1 (%2)").arg(actionText).arg(key) : actionText

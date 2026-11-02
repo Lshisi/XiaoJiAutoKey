@@ -35,6 +35,7 @@
 - 暂停按键：支持多个暂停键，按住时暂停开关、独立和切换模式并松开长按键，按压键仍可触发；松开后恢复，独立于按压优先
 - 每个连发按键可独立配置延迟间隔（ms，最低 1ms）和启用状态；长按模式无需间隔，列表显示为「—」
 - 多配置方案：创建、复制、切换、重命名、删除，默认加载上次使用的方案
+- 配置备注：在“更多 → 配置备注”填写说明，顶部显示一行摘要；连发和循环配置分别保存，复制及分享时一并保留
 
 ### 循环连发
 
@@ -163,6 +164,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
     {
       "id": 1,
       "name": "默认配置",
+      "note": "主宏放在 1，暂停键为 F9。",
       "controlHotkey": "...",
       "defaultDelayMs": 10,
       "mixedMode": false,
@@ -194,6 +196,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 ### 配置方案（Profile）
 
 每个按键配置方案包含独立的按键列表（`bindings`）、启停快捷键（`controlHotkey`）、暂停键（`pauseKeys`）、按压优先（`mixedMode`）、WASD 防卡位（`wasdProtection`）和默认间隔（`defaultDelayMs`，默认 10ms、最低 1ms）。循环配置（`macros`）在「循环连发」页独立管理。
+
+按键方案与循环配置均使用 `note` 保存可选的纯文本备注，支持换行。通过顶部“更多 → 配置备注”编辑，或点击已有备注摘要进入编辑；清空后保存即可移除。备注随方案复制、分享码和文本配方导入导出，并在分享弹窗中显示。文本配方中的备注使用带双引号的 JSON 字符串，换行、引号和反斜杠按 JSON 规则转义。
 
 ## 技术架构
 

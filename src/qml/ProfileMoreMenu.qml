@@ -34,6 +34,15 @@ IconButton {
             spacing: 2
             QuietMenuItem {
                 Layout.fillWidth: true
+                text: qsTr("配置备注")
+                enabled: root.actionsEnabled
+                onTriggered: {
+                    morePopup.close()
+                    root.page.noteEditRequested()
+                }
+            }
+            QuietMenuItem {
+                Layout.fillWidth: true
                 text: qsTr("重命名配置")
                 enabled: root.actionsEnabled
                 onTriggered: {

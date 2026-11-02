@@ -2,7 +2,7 @@
 
 KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"bindings", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
-        {"profileEnabled", true}, {"running", false}, {"hotkey", tr("未设置")},
+        {"profileEnabled", true}, {"note", QString()}, {"running", false}, {"hotkey", tr("未设置")},
         {"beepEnabled", true}, {"overlayEnabled", false}, {"mixedMode", false},
         {"wasdProtection", false}, {"rememberSequencePosition", true},
         {"sequenceKey", tr("未设置")}, {"hasSequenceKey", false},

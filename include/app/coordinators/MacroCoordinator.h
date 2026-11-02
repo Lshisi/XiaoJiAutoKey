@@ -51,6 +51,7 @@ private:
     void onMacroAdd();
     void onMacroDuplicate();
     void onMacroRename();
+    void onNoteEdit();
     void onMacroDelete();
     void onMacroEnabledToggled(bool enabled);
     void onMacroAddStep();

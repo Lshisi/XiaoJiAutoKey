@@ -23,6 +23,7 @@ public:
     ControllerResult addProfile(const QString& name, std::uint64_t& createdProfileId);
     ControllerResult duplicateActiveProfile(const QString& name, std::uint64_t& createdProfileId);
     ControllerResult renameActiveProfile(const QString& name);
+    ControllerResult setActiveProfileNote(const QString& note);
     ControllerResult deleteActiveProfile(std::uint64_t& newActiveProfileId);
     ControllerResult setActiveProfileEnabled(bool enabled);
 

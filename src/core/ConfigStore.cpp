@@ -196,6 +196,7 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
         macro.id = GetUInt64Field(*entry, "id").value_or(0);
         macro.enabled = GetBoolField(*entry, "enabled").value_or(true);
         if (auto name = GetStringField(*entry, "name")) macro.name = ToWide(*name);
+        if (auto note = GetStringField(*entry, "note")) macro.note = ToWide(*note);
         auto modeStr = GetStringField(*entry, "triggerMode").value_or("toggle");
         macro.triggerMode = (modeStr == "hold") ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
         if (auto triggerText = GetStringField(*entry, "triggerKey"))
@@ -283,6 +284,7 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
         entry.emplace("id", static_cast<double>(macro.id));
         entry.emplace("enabled", macro.enabled);
         entry.emplace("name", ToUtf8(macro.name));
+        entry.emplace("note", ToUtf8(macro.note));
         entry.emplace("triggerMode", std::string(macro.triggerMode == MacroTriggerMode::Hold ? "hold" : "toggle"));
         entry.emplace("triggerKey", ToUtf8(KeyDescriptorToStorage(macro.triggerKey)));
         entry.emplace("loopCount", macro.loopCount);
@@ -511,6 +513,7 @@ AppConfig ConfigStore::Load() const {
                 ProfileConfig profile;
                 profile.id = GetUInt64Field(*pObj, "id").value_or(0);
                 if (auto name = GetStringField(*pObj, "name")) profile.name = ToWide(*name);
+                if (auto note = GetStringField(*pObj, "note")) profile.note = ToWide(*note);
                 profile.enabled = GetBoolField(*pObj, "enabled").value_or(true);
                 if (auto hotkeyText = GetStringField(*pObj, "controlHotkey"))
                     profile.controlHotkey = StorageToKeyDescriptor(ToWide(*hotkeyText));
@@ -674,6 +677,7 @@ bool ConfigStore::Save(
         jsonlite::Object pObj;
         pObj.emplace("id", static_cast<double>(profile.id));
         pObj.emplace("name", ToUtf8(profile.name));
+        pObj.emplace("note", ToUtf8(profile.note));
         pObj.emplace("enabled", profile.enabled);
         pObj.emplace("controlHotkey", ToUtf8(KeyDescriptorToStorage(profile.controlHotkey)));
         pObj.emplace("sequenceSwitchKey", ToUtf8(KeyDescriptorToStorage(profile.sequenceSwitchKey)));

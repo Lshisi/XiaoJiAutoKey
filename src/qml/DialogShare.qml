@@ -26,4 +26,18 @@ ColumnLayout {
         Accessible.name: sharing.fields.exporting ? qsTr("导出的配置内容") : qsTr("要导入的配置内容")
     }
     QuietLabel { Layout.fillWidth: true; text: sharing.fields.status; color: Theme.muted; font.pixelSize: 12 }
+    QuietLabel {
+        Layout.fillWidth: true
+        visible: sharing.fields.notePreview.length > 0
+        text: qsTr("配置备注")
+        color: Theme.muted
+    }
+    QuietTextArea {
+        Layout.fillWidth: true
+        visible: sharing.fields.notePreview.length > 0
+        implicitHeight: 72
+        text: sharing.fields.notePreview
+        readOnly: true
+        Accessible.name: qsTr("分享配置的备注")
+    }
 }

@@ -1,4 +1,5 @@
 #include "dialogs/ShareImportDialog.h"
+#include "dialogs/ShareNotePreview.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QStringList>
@@ -44,13 +45,14 @@ QString PayloadSummary(const SharePayload& payload) {
 
 ShareImportDialog::ShareImportDialog(QWidget* parent) : QmlDialog(parent) {
     setWindowTitle(tr("导入配置"));
-    present("DialogShare.qml", {{"exporting", false}, {"format", 0}, {"code", QString()}, {"status", QString()},
+    present("DialogShare.qml", {{"exporting", false}, {"format", 0}, {"code", QString()}, {"status", QString()}, {"notePreview", QString()},
         {"canImport", false}, {"actions", QVariantList{button("import", tr("导入")), button("paste", tr("粘贴"), false), button("cancel", tr("取消"), false)}}}, QSize(480, 340));
     previewImport();
 }
 void ShareImportDialog::setText(const QString& text) { setValue("code", text); previewImport(); }
 void ShareImportDialog::previewImport() {
     hasImport_ = false;
+    setValue("notePreview", QString());
     const auto text = value("code").toString().trimmed().toStdString();
     auto payload = ShareCodec::DecodeShareCode(text);
     if (!payload) payload = ShareCodec::DecodeTextRecipe(text);
@@ -58,6 +60,7 @@ void ShareImportDialog::previewImport() {
         importPayload_ = std::move(*payload);
         hasImport_ = true;
         setValue("status", PayloadSummary(importPayload_));
+        setValue("notePreview", ShareNotePreview(importPayload_));
     } else setValue("status", text.empty() ? QString() : tr("解析失败，请检查内容是否完整"));
     setValue("canImport", hasImport_);
     auto actions = value("actions").toList();

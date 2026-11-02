@@ -186,6 +186,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
     for (const auto& profile : payload.profiles) {
         jsonlite::Object entry;
         entry.emplace("name", WideToUtf8(profile.name));
+        entry.emplace("note", WideToUtf8(profile.note));
         entry.emplace("enabled", profile.enabled);
         entry.emplace("defaultDelayMs", ClampDelay(profile.defaultDelayMs));
         entry.emplace("mixedMode", profile.mixedMode);
@@ -234,6 +235,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
     for (const auto& macro : payload.macros) {
         jsonlite::Object entry;
         entry.emplace("name", WideToUtf8(macro.name));
+        entry.emplace("note", WideToUtf8(macro.note));
         entry.emplace("enabled", macro.enabled);
         entry.emplace("triggerMode", std::string(macro.triggerMode == MacroTriggerMode::Hold ? "hold" : "toggle"));
         if (macro.triggerKey.has_value()) {
@@ -299,6 +301,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                     profile.name = Utf8ToWide(*name);
                 }
                 if (profile.name.empty() || profile.name.size() > 64) continue;
+                if (const auto note = StringField(*entry, "note")) profile.note = Utf8ToWide(*note);
                 profile.enabled = BoolField(*entry, "enabled").value_or(true);
                 profile.defaultDelayMs = ClampDelay(IntField(*entry, "defaultDelayMs").value_or(kDefaultDelayMs));
                 profile.mixedMode = BoolField(*entry, "mixedMode").value_or(false);
@@ -370,6 +373,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                     macro.name = Utf8ToWide(*name);
                 }
                 if (macro.name.empty() || macro.name.size() > 64) continue;
+                if (const auto note = StringField(*entry, "note")) macro.note = Utf8ToWide(*note);
                 macro.enabled = BoolField(*entry, "enabled").value_or(true);
                 macro.triggerMode = StringField(*entry, "triggerMode").value_or("toggle") == "hold"
                     ? MacroTriggerMode::Hold
@@ -598,6 +602,7 @@ constexpr const char* kTokenProfile = "\u65b9\u6848";          // 方案
 constexpr const char* kTokenProfileSettings = "\u65b9\u6848\u8bbe\u7f6e";  // 方案设置
 constexpr const char* kTokenBinding = "\u8fde\u53d1";          // 连发
 constexpr const char* kTokenMacro = "\u5b8f";                  // 宏
+constexpr const char* kTokenNote = "\u5907\u6ce8";
 constexpr const char* kTokenMacroSettings = "\u5b8f\u8bbe\u7f6e";          // 宏设置
 constexpr const char* kTokenSteps = "\u6b65\u9aa4";            // 步骤
 constexpr const char* kKeyEnabled = "\u542f\u7528";            // 启用
@@ -705,6 +710,9 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
     }
     for (const auto& profile : payload.profiles) {
         out += std::string(kTokenProfile) + ": " + WideToUtf8(profile.name) + "\n";
+        if (!profile.note.empty()) {
+            out += std::string(kTokenNote) + ": " + jsonlite::Stringify(WideToUtf8(profile.note)) + "\n";
+        }
         std::string settings;
         if (profile.enabled) settings += std::string(" ") + kKeyEnabled;
         settings += " " + std::string(kKeyDelay) + "=" + std::to_string(ClampDelay(profile.defaultDelayMs));
@@ -749,6 +757,9 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
     }
     for (const auto& macro : payload.macros) {
         out += std::string(kTokenMacro) + ": " + WideToUtf8(macro.name) + "\n";
+        if (!macro.note.empty()) {
+            out += std::string(kTokenNote) + ": " + jsonlite::Stringify(WideToUtf8(macro.note)) + "\n";
+        }
         std::string settings;
         if (macro.enabled) settings += std::string(" ") + kKeyEnabled;
         settings += " " + std::string(kKeyTrigger) + "="
@@ -940,6 +951,15 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 }
                 currentMacro->steps.push_back(step);
             }
+            continue;
+        }
+        if (StartsWithKey(line, kTokenNote, value)) {
+            jsonlite::Value note;
+            std::string error;
+            if (!jsonlite::Parse(value, note, error) || !note.IsString()) return std::nullopt;
+            if (currentProfile) currentProfile->note = Utf8ToWide(*note.AsString());
+            else if (currentMacro) currentMacro->note = Utf8ToWide(*note.AsString());
+            else return std::nullopt;
             continue;
         }
         if (StartsWithKey(line, kTokenProfile, value)) {

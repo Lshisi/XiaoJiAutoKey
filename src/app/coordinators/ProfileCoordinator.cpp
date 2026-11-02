@@ -6,6 +6,7 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/ConfigNameDialog.h"
+#include "dialogs/ConfigNoteDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
@@ -21,6 +22,7 @@ void ProfileCoordinator::bind(Context context) {
     connect(context_.page, &KeyPageModel::profileAddRequested, this, &ProfileCoordinator::onProfileAdd);
     connect(context_.page, &KeyPageModel::profileDuplicateRequested, this, &ProfileCoordinator::onProfileDuplicate);
     connect(context_.page, &KeyPageModel::profileRenameRequested, this, &ProfileCoordinator::onProfileRename);
+    connect(context_.page, &KeyPageModel::noteEditRequested, this, &ProfileCoordinator::onNoteEdit);
     connect(context_.page, &KeyPageModel::profileDeleteRequested, this, &ProfileCoordinator::onProfileDelete);
     connect(context_.page, &KeyPageModel::profileEnabledToggled, this, &ProfileCoordinator::onProfileEnabledToggled);
 }
@@ -133,6 +135,26 @@ void ProfileCoordinator::onProfileRename() {
     }
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshProfileCombo) context_.refreshProfileCombo();
+}
+
+void ProfileCoordinator::onNoteEdit() {
+    if (!context_.inputHook || !context_.profileController || !context_.page || context_.page->state().value("running").toBool()) return;
+    const auto* profile = context_.profileController->activeProfile();
+    if (!profile) return;
+
+    ConfigNoteDialog dialog(QString::fromStdWString(profile->name), QString::fromStdWString(profile->note), context_.parent);
+    context_.inputHook->setDialogOpen(true);
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    context_.inputHook->setDialogOpen(false);
+    if (!accepted) return;
+
+    const auto result = context_.profileController->setActiveProfileNote(dialog.noteText());
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, tr("保存备注失败"), result.message);
+        return;
+    }
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setNote(dialog.noteText());
 }
 
 void ProfileCoordinator::onProfileDelete() {

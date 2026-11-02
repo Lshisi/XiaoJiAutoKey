@@ -9,6 +9,7 @@ public:
     explicit KeyPageModel(QObject* parent = nullptr);
     void setBindings(const std::vector<KeyBinding>& bindings);
     void setProfileEnabled(bool value) { setValue("profileEnabled", value); }
+    void setNote(const QString& value) { setValue("note", value); }
     void setRunning(bool value);
     void setHotkeyText(const QString& value) { setValue("hotkey", value); }
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
@@ -50,6 +51,7 @@ signals:
     void profileAddRequested();
     void profileDuplicateRequested();
     void profileRenameRequested();
+    void noteEditRequested();
     void profileDeleteRequested();
     void profileEnabledToggled(bool enabled);
     void shareRequested();

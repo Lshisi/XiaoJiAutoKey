@@ -5,6 +5,7 @@
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/ConfigNameDialog.h"
+#include "dialogs/ConfigNoteDialog.h"
 #include "dialogs/MacroStepDialog.h"
 #include "dialogs/PauseKeyDialog.h"
 #include "input/GlobalInputHook.h"
@@ -23,6 +24,7 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPageModel::macroAddRequested, this, &MacroCoordinator::onMacroAdd);
     connect(context_.page, &MacroPageModel::macroDuplicateRequested, this, &MacroCoordinator::onMacroDuplicate);
     connect(context_.page, &MacroPageModel::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
+    connect(context_.page, &MacroPageModel::noteEditRequested, this, &MacroCoordinator::onNoteEdit);
     connect(context_.page, &MacroPageModel::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
     connect(context_.page, &MacroPageModel::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
     connect(context_.page, &MacroPageModel::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
@@ -153,6 +155,26 @@ void MacroCoordinator::onMacroRename() {
     }
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
+void MacroCoordinator::onNoteEdit() {
+    if (!context_.inputHook || !context_.controller || !context_.page || context_.page->state().value("running").toBool()) return;
+    const auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+
+    ConfigNoteDialog dialog(QString::fromStdWString(macro->name), QString::fromStdWString(macro->note), context_.parent);
+    context_.inputHook->setDialogOpen(true);
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    context_.inputHook->setDialogOpen(false);
+    if (!accepted) return;
+
+    const auto result = context_.controller->setActiveMacroNote(dialog.noteText());
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, tr("保存备注失败"), result.message);
+        return;
+    }
+    if (context_.saveConfig) context_.saveConfig();
+    context_.page->setNote(dialog.noteText());
 }
 
 void MacroCoordinator::onMacroDelete() {

@@ -6,10 +6,13 @@ PreviewWorkspaceModel::PreviewWorkspaceModel(bool macro, QObject* parent) : Page
 }
 
 void PreviewWorkspaceModel::reset(bool demo) {
-    QVariantList profiles{QVariantMap{{"id", "1"}, {"name", tr("默认配置")}}};
-    if (demo) profiles.append(QVariantMap{{"id", "2"}, {"name", tr("副本配置")}});
+    const QString note = demo ? (macro_
+        ? tr("基础循环示例，启动前确认游戏内 1、侧键1、F2 的键位。\n可在更多菜单中编辑或清空备注。")
+        : tr("打本示例：主宏放在 1，侧键1 用于按压接管。\n切换模式对应 3；暂停键为 F9。")) : QString();
+    QVariantList profiles{QVariantMap{{"id", "1"}, {"name", tr("默认配置")}, {"note", note}}};
+    if (demo) profiles.append(QVariantMap{{"id", "2"}, {"name", tr("副本配置")}, {"note", QString()}});
     state_ = {{"bindings", QVariantList{}}, {"steps", QVariantList{}}, {"profiles", profiles},
-        {"profileIndex", 0}, {"profileEnabled", true}, {"running", false},
+        {"profileIndex", 0}, {"profileEnabled", true}, {"note", note}, {"running", false},
         {"hotkey", macro_ ? QStringLiteral("F8") : tr("侧键2")}, {"beepEnabled", true},
         {"overlayEnabled", false}, {"mixedMode", true}, {"wasdProtection", true},
         {"rememberSequencePosition", true}, {"sequenceKey", tr("未设置")},
@@ -36,6 +39,16 @@ QVariantList PreviewWorkspaceModel::rows() const {
     return state_.value(macro_ ? "steps" : "bindings").toList();
 }
 
+void PreviewWorkspaceModel::update(const QString& field, const QVariant& value) {
+    state_.insert(field, value);
+    if (field == "profiles" || field == "profileIndex") {
+        const auto profiles = state_.value("profiles").toList();
+        const int index = state_.value("profileIndex").toInt();
+        state_.insert("note", profiles.value(index).toMap().value("note").toString());
+    }
+    emit stateChanged();
+}
+
 void PreviewWorkspaceModel::setRows(const QVariantList& rows) {
     bool hasSequence = false;
     for (const auto& row : rows) hasSequence |= row.toMap().value("mode").toInt() == 3;
@@ -47,7 +60,7 @@ void PreviewWorkspaceModel::selectProfile(const QString& id) {
     const auto profiles = state_.value("profiles").toList();
     for (int index = 0; index < profiles.size(); ++index) {
         if (profiles[index].toMap().value("id").toString() == id) {
-            setValue("profileIndex", index);
+            update("profileIndex", index);
             return;
         }
     }

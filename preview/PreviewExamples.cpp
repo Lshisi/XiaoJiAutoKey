@@ -44,6 +44,7 @@ void PreviewController::showExample(int example) {
         break;
     case 2:
         dialog_.present("DialogShare.qml", tr("导入配置"), {{"exporting", false}, {"format", 1},
+            {"notePreview", tr("方案：打本配置\n主宏放在 1，侧键1 用于按压接管。\n暂停键为 F9。")},
             {"code", QString()}, {"status", tr("此处展示导入窗口，内容不会保存到用户配置。")}});
         break;
     case 3: showUpdateProgress(); break;

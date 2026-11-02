@@ -2,7 +2,7 @@
 
 MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"steps", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
-        {"profileEnabled", false}, {"running", false}, {"hotkey", tr("未设置")},
+        {"profileEnabled", false}, {"note", QString()}, {"running", false}, {"hotkey", tr("未设置")},
         {"beepEnabled", true}, {"overlayEnabled", false}, {"pauseKeys", QVariantList{}},
         {"triggerMode", 0}, {"loopCount", 0}};
 }

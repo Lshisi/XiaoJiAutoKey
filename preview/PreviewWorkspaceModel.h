@@ -8,7 +8,7 @@ public:
     explicit PreviewWorkspaceModel(bool macro, QObject* parent = nullptr);
     bool macroMode() const { return macro_; }
     void reset(bool demo);
-    void update(const QString& field, const QVariant& value) { setValue(field, value); }
+    void update(const QString& field, const QVariant& value);
     void setRows(const QVariantList& rows);
     QVariantList rows() const;
 
@@ -40,6 +40,7 @@ public:
     Q_INVOKABLE void profileAddRequested() { emit requested("profileAdd", {}); }
     Q_INVOKABLE void profileDuplicateRequested() { emit requested("profileDuplicate", {}); }
     Q_INVOKABLE void profileRenameRequested() { emit requested("profileRename", {}); }
+    Q_INVOKABLE void noteEditRequested() { emit requested("profileNote", {}); }
     Q_INVOKABLE void profileDeleteRequested() { emit requested("profileDelete", {}); }
     Q_INVOKABLE void macroAddRequested() { emit requested("profileAdd", {}); }
     Q_INVOKABLE void macroDuplicateRequested() { emit requested("profileDuplicate", {}); }

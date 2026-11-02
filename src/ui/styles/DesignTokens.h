@@ -85,12 +85,6 @@ namespace Theme {
 }
 
 namespace Colors {
-    inline QColor workspaceBg()    { return Theme::isDarkMode() ? QColor("#17191c") : QColor("#f3f4f6"); }
-    inline QColor workspacePanel() { return Theme::isDarkMode() ? QColor("#22252a") : QColor("#ffffff"); }
-    inline QColor workspaceField() { return Theme::isDarkMode() ? QColor("#292d33") : QColor("#ffffff"); }
-    inline QColor workspaceLine()  { return Theme::isDarkMode() ? QColor("#373c44") : QColor("#e6e8ec"); }
-    inline QColor workspaceText()  { return Theme::isDarkMode() ? QColor("#edf0f4") : QColor("#24282f"); }
-    inline QColor workspaceMuted() { return Theme::isDarkMode() ? QColor("#a9b1bc") : QColor("#737a84"); }
     inline QColor overlayTextSecondary() { return Theme::isDarkMode() ? QColor("#d3d9e1") : QColor("#353d49"); }
     inline QColor overlayPanel(bool dark) { return dark ? QColor("#22252a") : QColor("#ffffff"); }
     inline QColor overlayText(bool dark) { return dark ? QColor("#edf0f4") : QColor("#24282f"); }
@@ -123,6 +117,13 @@ namespace Colors {
     inline QColor rowHover()       { return Theme::isDarkMode() ? QColor(255, 255, 255, 12) : QColor(0, 0, 0, 6); }
 
     inline QColor closeHover()     { return QColor(0xE8, 0x11, 0x23); }
+
+    inline QColor workspaceBg()    { return Theme::isDarkMode() ? pageBg() : QColor("#f3f4f6"); }
+    inline QColor workspacePanel() { return Theme::isDarkMode() ? cardBg() : QColor("#ffffff"); }
+    inline QColor workspaceField() { return Theme::isDarkMode() ? cardBg() : QColor("#ffffff"); }
+    inline QColor workspaceLine()  { return Theme::isDarkMode() ? cardBorder() : QColor("#e6e8ec"); }
+    inline QColor workspaceText()  { return Theme::isDarkMode() ? textPrimary() : QColor("#24282f"); }
+    inline QColor workspaceMuted() { return Theme::isDarkMode() ? textSecondary() : QColor("#737a84"); }
 }
 
 namespace Typography {

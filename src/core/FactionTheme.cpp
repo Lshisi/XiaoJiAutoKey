@@ -127,8 +127,8 @@ FactionPalette FactionTheme::palette() const {
     p.accentSubtle = mixColor(cardBase, accent, darkMode ? 0.18 : 0.06, 255);
     p.accentBorder = mixColor(cardBase, accent, darkMode ? 0.55 : 0.34, 255);
     p.surfaceTint = mixColor(surfaceBase, accent, darkMode ? 0.045 : 0.025, 255);
-    p.titleBarBackground = mixColor(darkMode ? QColor(0x12, 0x12, 0x12) : surfaceBase,
-        accent, darkMode ? 0.10 : 0.14, 255);
+    p.titleBarBackground = mixColor(darkMode ? Fluent::Colors::titleBarBg() : surfaceBase,
+        accent, darkMode ? 0.09 : 0.14, 255);
     p.textOnAccent = relativeLuminance(accent) > 0.48 ? QColor(0x16, 0x16, 0x16) : white;
     return p;
 }

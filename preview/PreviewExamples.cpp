@@ -1,0 +1,110 @@
+#include "PreviewController.h"
+
+#include "FactionTheme.h"
+#include "ui/styles/DesignTokens.h"
+#include <QWindow>
+
+void PreviewController::showDriverReport() {
+    dialog_.present("DialogReport.qml", tr("驱动自检"),
+        {{"heading", tr("驱动自检结果（示例）")}, {"body", driverPage_.state().value("details")},
+            {"bodyRich", false}, {"status", tr("此窗口仅展示自检结果，不访问系统驱动。")},
+            {"severity", demoData_ ? 1 : 2}, {"progressVisible", false},
+            {"progressIndeterminate", false}, {"progressValue", 0.0}, {"progressText", QString()}}, {}, 500);
+}
+
+void PreviewController::showProcesses() {
+    dialog_.present("DialogProcesses.qml", tr("管理游戏进程"),
+        {{"runningProcesses", QStringList{"jx3clientx64.exe", "mumuplayer.exe", "game.exe"}},
+            {"processes", processes_}, {"processName", QString()}},
+        [this](const QVariantMap& values) { processes_ = values.value("processes").toStringList(); }, 500);
+}
+
+void PreviewController::showOverlaySettings(bool macro) {
+    auto fields = overlayOptions_;
+    fields.insert("tab", macro ? 1 : 0);
+    dialog_.present("DialogOverlaySettings.qml", tr("悬浮窗设置"), fields,
+        [this](const QVariantMap& values) { overlayOptions_ = values; emit overlayChanged(); });
+}
+
+void PreviewController::showUpdateProgress() {
+    dialog_.present("DialogReport.qml", tr("下载更新"),
+        {{"heading", tr("正在下载更新（示例）")}, {"body", tr("更新包下载和安装过程的界面预览。")},
+            {"bodyRich", false}, {"status", tr("演示进度，不发起网络请求或安装更新。")},
+            {"severity", 0}, {"progressVisible", true}, {"progressIndeterminate", false},
+            {"progressValue", 0.65}, {"progressText", tr("65% · 示例更新包")}});
+}
+
+void PreviewController::showExample(int example) {
+    switch (example) {
+    case 1:
+        dialog_.present("DialogClose.qml", tr("关闭确认"), {{"remember", false}}, {}, 360);
+        dialog_.edit("actions", QVariantList{
+            QVariantMap{{"id", "exit"}, {"text", tr("退出程序")}, {"primary", true}, {"danger", false}, {"enabled", true}},
+            QVariantMap{{"id", "tray"}, {"text", tr("最小化到托盘")}, {"primary", false}, {"danger", false}, {"enabled", true}}});
+        break;
+    case 2:
+        dialog_.present("DialogShare.qml", tr("导入配置"), {{"exporting", false}, {"format", 1},
+            {"code", QString()}, {"status", tr("此处展示导入窗口，内容不会保存到用户配置。")}});
+        break;
+    case 3: showUpdateProgress(); break;
+    case 4: shareBanner_.showForText(QStringLiteral("preview")); break;
+    case 5: onboarding_.show(); break;
+    case 6: pickerVisible_ = true; emit pickerChanged(); break;
+    default: break;
+    }
+}
+
+bool PreviewController::overlayVisible() const {
+    return keys_.model()->state().value("overlayEnabled").toBool()
+        || macros_.model()->state().value("overlayEnabled").toBool();
+}
+
+QVariantMap PreviewController::overlayState() const {
+    const auto colors = FactionTheme::instance().palette();
+    const bool dark = Fluent::Theme::isDarkMode();
+    const auto repeat = keys_.model()->state();
+    const auto macro = macros_.model()->state();
+    QStringList repeatLines;
+    QStringList macroLines;
+    if (overlayOptions_.value("repeatHotkey").toBool()) repeatLines << tr("启动键：%1").arg(repeat.value("hotkey").toString());
+    for (const auto& value : keys_.model()->rows()) {
+        const auto row = value.toMap();
+        const QString option = QStringList{"repeatToggle", "repeatHold", "repeatIndependent", "repeatSequence", "repeatLongPress"}[row.value("mode").toInt()];
+        if (overlayOptions_.value(option).toBool())
+            repeatLines << tr("%1：%2").arg(row.value("modeText").toString(), row.value("keyText").toString());
+    }
+    if (overlayOptions_.value("repeatSequenceHotkey").toBool() && repeat.value("hasSequenceKey").toBool())
+        repeatLines << tr("切换键：%1").arg(repeat.value("sequenceKey").toString());
+    if (overlayOptions_.value("repeatPauseKeys").toBool() && !repeat.value("pauseKeys").toList().isEmpty())
+        repeatLines << tr("暂停键：%1").arg(repeat.value("pauseKeys").toStringList().join("、"));
+    if (overlayOptions_.value("macroHotkey").toBool()) macroLines << tr("触发键：%1").arg(macro.value("hotkey").toString());
+    if (overlayOptions_.value("macroTriggerMode").toBool()) macroLines << (macro.value("triggerMode").toInt() == 0 ? tr("开关触发") : tr("按压触发"));
+    if (overlayOptions_.value("macroLoopCount").toBool())
+        macroLines << (macro.value("loopCount").toInt() == 0 ? tr("循环次数：无限") : tr("循环次数：%1").arg(macro.value("loopCount").toInt()));
+    if (overlayOptions_.value("macroPauseKeys").toBool() && !macro.value("pauseKeys").toList().isEmpty())
+        macroLines << tr("暂停键：%1").arg(macro.value("pauseKeys").toStringList().join("、"));
+    return {{"showRepeat", keys_.model()->state().value("overlayEnabled")},
+        {"showMacro", macros_.model()->state().value("overlayEnabled")},
+        {"repeatActive", keys_.model()->state().value("running")},
+        {"macroActive", macros_.model()->state().value("running")}, {"gameGatePaused", false},
+        {"repeatTitle", tr("按键连发")}, {"macroTitle", tr("循环连发")},
+        {"repeatLines", repeatLines}, {"macroLines", macroLines},
+        {"contentPadding", 8}, {"fontFamily", QStringLiteral("Microsoft YaHei UI")}, {"fontPixelSize", 12},
+        {"text", Fluent::Colors::overlayText(dark)}, {"muted", Fluent::Colors::overlayTextSecondary(dark)},
+        {"panelColor", Fluent::Colors::overlayPanel(dark)}, {"accent", colors.accent},
+        {"accentBorder", colors.accentBorder}, {"warning", Fluent::Colors::warning()},
+        {"opacity", overlayOptions_.value("opacity", 70)}, {"locked", overlayLocked_}};
+}
+
+void PreviewController::toggleLock() { overlayLocked_ = !overlayLocked_; emit overlayChanged(); }
+void PreviewController::setPickerPoint(qreal x, qreal y) { pickerPoint_ = QPointF(x, y); emit pickerChanged(); }
+void PreviewController::endPicking() { pickerVisible_ = false; emit pickerChanged(); }
+
+QVariantMap PreviewController::hintState() const {
+    return {{"x", pickerPoint_.x()}, {"y", pickerPoint_.y()},
+        {"right", window_ ? window_->width() : 780}, {"bottom", window_ ? window_->height() : 600},
+        {"screenWidth", window_ ? window_->width() : 780},
+        {"text", tr("坐标拾取界面预览\n点击或按 Esc 返回")}, {"surface", Fluent::Colors::workspacePanel()},
+        {"textColor", Fluent::Colors::workspaceText()}, {"border", Fluent::Colors::workspaceLine()},
+        {"fontFamily", QStringLiteral("Microsoft YaHei UI")}};
+}

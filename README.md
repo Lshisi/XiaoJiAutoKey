@@ -128,6 +128,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -
 
 脚本会自动下载并校验 Qt 源码、导入 MSVC x64 环境、下载 Ninja、编译并安装到 `D:\Qt\6.8.3-static`。完整说明见 [Qt 6 静态构建规范](docs/build-qt6-static.md)。
 
+可用独立的 Qt 6.8.3 预览程序查看完整主窗口、全部主页面及常用弹窗。Mac 执行 `./scripts/preview-macos.sh`，Windows 使用 `scripts/preview-windows.ps1`；环境准备和仅编译命令见 [界面预览](docs/ui-preview.md)。
+
 主窗口标题栏、六个主页面、剪贴板分享提示条、状态悬浮窗和悬浮窗锁定按钮均使用 QML。标题栏保留原有拖动、最小化和关闭确认；分享提示条保留点击导入、关闭抑制和 8 秒自动隐藏，位置随窗口尺寸自动调整。原生窗口负责 Windows 消息、托盘、鼠标穿透和 DPI 协调。悬浮窗以单个着色器绘制通透底、弧面轮廓、交互高光和阴影；不采集桌面或游戏画面，不包含背景实时折射，也不是苹果原生 Liquid Glass 材质。调整透明度只影响玻璃底，不会使文字一起变淡。
 
 按键录制、配置命名与确认、退出确认、悬浮窗设置、音效、进程管理、导入导出、更新、驱动自检和卸载进度等自定义弹窗的内容与控件均使用 QML；`QDialog` 仅承载原生窗口、模态和屏幕约束，系统文件选择器保留原生交互。按键引擎及按键方案格式不变。

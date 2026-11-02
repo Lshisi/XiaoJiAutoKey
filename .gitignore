@@ -2,6 +2,8 @@
 build/
 build-qt6-dyn/
 build-qt6/
+build-qml-preview/
+build-qml-preview-windows/
 dist/
 firmware/pico/build/
 firmware/ch552/build/

@@ -87,6 +87,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 - 项目级 `qt-qml` 技能入口为 `.agents/skills/qt-qml/SKILL.md`，来源为 `https://github.com/theqtcompanyrnd/agent-skills`。进行 QML 源码编写或修改前先阅读该技能，并以用户要求和本项目规则为优先。
 - 安装技能不代表已经迁移 Qt 版本或 UI 架构；不要为安装技能附带启动应用、预览服务或修改业务与按键引擎。
 
+## 界面预览维护
+
+- `preview/` 是 Mac 和 Windows 共用的全界面预览入口，Qt 版本与正式程序保持一致，当前为 6.8.3。环境与使用方式见 `docs/ui-preview.md`。
+- 预览直接加载 `src/qml/` 中的正式页面、弹窗、通用控件和主题，并复用图标提供器及素材。样式在这些共用文件中修改，不复制 QML、不另写一套预览样式；`preview/` 只负责窗口承载和示例状态、操作的适配。
+- 新增或修改页面、弹窗、导航、模型字段及交互时，同步调整 `preview/` 中对应的模型、示例数据和入口，保证六个主页面、常用弹窗、悬浮窗、引导和坐标拾取都能查看。新增 QML、SVG 或图标提供器入口时，同步维护正式程序与预览的 CMake/资源注册。
+- 预览只操作内存中的示例数据，不读写用户 `config.json`，不启动按键引擎、不安装驱动、不注册全局钩子、不执行更新或联网请求。
+- 遵守用户不启动程序的要求。需要编译确认时，Mac 使用 `./scripts/preview-macos.sh --build-only`，Windows 使用 `scripts/preview-windows.ps1 -BuildOnly`；程序由用户自行启动。界面调整需考虑深浅色、门派切换、示例/空数据和窗口缩放。
+
 ## 深色模式
 
 - 所有页面、滚动区域、滚动视口、卡片、输入框、表格、弹窗和状态区都必须兼容系统深色模式。

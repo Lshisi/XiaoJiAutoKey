@@ -84,6 +84,23 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding) 
 void PreviewWorkspaceController::editProfile(const QString& action) {
     auto profiles = model_.state().value("profiles").toList();
     const int index = model_.state().value("profileIndex").toInt();
+    if (action == "profileDuplicate") {
+        const QString initialName = profiles[index].toMap().value("name").toString() + tr("（副本）");
+        dialog_.present("DialogName.qml", tr("复制配置"),
+            {{"message", tr("请输入示例配置名称")}, {"name", initialName}},
+            [this, profiles, index](const QVariantMap& values) mutable {
+                const QString name = values.value("name").toString().trimmed();
+                if (name.isEmpty()) return;
+                auto copied = profiles;
+                auto profile = profiles[index].toMap();
+                profile.insert("id", QString::number(nextId_++));
+                profile.insert("name", name);
+                copied.insert(index + 1, profile);
+                model_.update("profiles", copied);
+                model_.update("profileIndex", index + 1);
+            }, 360);
+        return;
+    }
     if (action == "profileDelete") {
         if (profiles.size() <= 1) {
             dialog_.message(tr("删除配置"), tr("至少保留一个示例配置。"));

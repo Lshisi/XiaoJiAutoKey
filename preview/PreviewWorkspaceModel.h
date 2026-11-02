@@ -38,9 +38,11 @@ public:
     Q_INVOKABLE void pauseKeyAddClicked() { emit requested("pause", {}); }
     Q_INVOKABLE void pauseKeyDeleteClicked(int index);
     Q_INVOKABLE void profileAddRequested() { emit requested("profileAdd", {}); }
+    Q_INVOKABLE void profileDuplicateRequested() { emit requested("profileDuplicate", {}); }
     Q_INVOKABLE void profileRenameRequested() { emit requested("profileRename", {}); }
     Q_INVOKABLE void profileDeleteRequested() { emit requested("profileDelete", {}); }
     Q_INVOKABLE void macroAddRequested() { emit requested("profileAdd", {}); }
+    Q_INVOKABLE void macroDuplicateRequested() { emit requested("profileDuplicate", {}); }
     Q_INVOKABLE void macroRenameRequested() { emit requested("profileRename", {}); }
     Q_INVOKABLE void macroDeleteRequested() { emit requested("profileDelete", {}); }
     Q_INVOKABLE void shareRequested() { emit requested("share", {}); }

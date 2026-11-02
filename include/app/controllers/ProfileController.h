@@ -21,6 +21,7 @@ public:
 
     ControllerResult switchProfile(std::uint64_t profileId);
     ControllerResult addProfile(const QString& name, std::uint64_t& createdProfileId);
+    ControllerResult duplicateActiveProfile(const QString& name, std::uint64_t& createdProfileId);
     ControllerResult renameActiveProfile(const QString& name);
     ControllerResult deleteActiveProfile(std::uint64_t& newActiveProfileId);
     ControllerResult setActiveProfileEnabled(bool enabled);

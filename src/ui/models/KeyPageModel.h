@@ -48,6 +48,7 @@ signals:
     void updateBadgeClicked();
     void profileSwitched(quint64 id);
     void profileAddRequested();
+    void profileDuplicateRequested();
     void profileRenameRequested();
     void profileDeleteRequested();
     void profileEnabledToggled(bool enabled);

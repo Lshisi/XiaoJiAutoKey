@@ -49,6 +49,7 @@ public:
 private:
     void onMacroSwitched(std::uint64_t macroId);
     void onMacroAdd();
+    void onMacroDuplicate();
     void onMacroRename();
     void onMacroDelete();
     void onMacroEnabledToggled(bool enabled);

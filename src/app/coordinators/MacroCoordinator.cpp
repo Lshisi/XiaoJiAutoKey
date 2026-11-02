@@ -21,6 +21,7 @@ void MacroCoordinator::bind(Context context) {
 
     connect(context_.page, &MacroPageModel::macroSwitched, this, &MacroCoordinator::onMacroSwitched);
     connect(context_.page, &MacroPageModel::macroAddRequested, this, &MacroCoordinator::onMacroAdd);
+    connect(context_.page, &MacroPageModel::macroDuplicateRequested, this, &MacroCoordinator::onMacroDuplicate);
     connect(context_.page, &MacroPageModel::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
     connect(context_.page, &MacroPageModel::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
     connect(context_.page, &MacroPageModel::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
@@ -95,6 +96,34 @@ void MacroCoordinator::onMacroAdd() {
     auto result = context_.controller->addMacro(name, createdMacroId);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u5faa\u73af\u5931\u8d25"), result.message);
+        return;
+    }
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
+void MacroCoordinator::onMacroDuplicate() {
+    if (!context_.inputHook || !context_.controller) return;
+    auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+
+    context_.inputHook->setDialogOpen(true);
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
+        QString::fromWCharArray(L"\u590d\u5236\u5faa\u73af"),
+        QString::fromWCharArray(L"\u65b0\u5faa\u73af\u540d\u79f0:"),
+        QString::fromStdWString(macro->name) + QString::fromWCharArray(L"\uff08\u526f\u672c\uff09"),
+        name);
+    context_.inputHook->setDialogOpen(false);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    stopAllForConfigChange();
+
+    std::uint64_t createdMacroId = 0;
+    auto result = context_.controller->duplicateActiveMacro(name, createdMacroId);
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u590d\u5236\u5faa\u73af\u5931\u8d25"), result.message);
         return;
     }
     if (context_.applyMacros) context_.applyMacros();

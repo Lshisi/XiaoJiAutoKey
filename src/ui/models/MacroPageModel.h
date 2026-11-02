@@ -26,6 +26,7 @@ signals:
     void stepMoveRequested(int from, int to);
     void macroSwitched(quint64 id);
     void macroAddRequested();
+    void macroDuplicateRequested();
     void macroRenameRequested();
     void macroDeleteRequested();
     void macroEnabledToggled(bool enabled);

@@ -43,6 +43,7 @@ public:
 private:
     void onProfileSwitched(std::uint64_t profileId);
     void onProfileAdd();
+    void onProfileDuplicate();
     void onProfileRename();
     void onProfileDelete();
     void onProfileEnabledToggled(bool enabled);

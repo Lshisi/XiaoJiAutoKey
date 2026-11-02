@@ -79,8 +79,26 @@ ControllerResult MacroController::addMacro(const QString& name, std::uint64_t& c
     macro.name = trimmed.toStdWString();
     macro.enabled = true;
     createdMacroId = macro.id;
-
     config_.macros.push_back(std::move(macro));
+    config_.activeMacroId = createdMacroId;
+    return ControllerResult::success();
+}
+
+ControllerResult MacroController::duplicateActiveMacro(const QString& name, std::uint64_t& createdMacroId) {
+    const auto* source = activeMacro();
+    if (!source) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty()) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a\u3002"));
+
+    MacroConfig macro = *source;
+    macro.id = nextMacroId(config_);
+    macro.name = trimmed.toStdWString();
+    createdMacroId = macro.id;
+
+    const auto sourcePosition = std::find_if(config_.macros.begin(), config_.macros.end(),
+        [source](const MacroConfig& item) { return item.id == source->id; });
+    config_.macros.insert(sourcePosition + 1, std::move(macro));
     config_.activeMacroId = createdMacroId;
     return ControllerResult::success();
 }

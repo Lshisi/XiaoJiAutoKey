@@ -19,6 +19,7 @@ void ProfileCoordinator::bind(Context context) {
 
     connect(context_.page, &KeyPageModel::profileSwitched, this, &ProfileCoordinator::onProfileSwitched);
     connect(context_.page, &KeyPageModel::profileAddRequested, this, &ProfileCoordinator::onProfileAdd);
+    connect(context_.page, &KeyPageModel::profileDuplicateRequested, this, &ProfileCoordinator::onProfileDuplicate);
     connect(context_.page, &KeyPageModel::profileRenameRequested, this, &ProfileCoordinator::onProfileRename);
     connect(context_.page, &KeyPageModel::profileDeleteRequested, this, &ProfileCoordinator::onProfileDelete);
     connect(context_.page, &KeyPageModel::profileEnabledToggled, this, &ProfileCoordinator::onProfileEnabledToggled);
@@ -73,6 +74,35 @@ void ProfileCoordinator::onProfileAdd() {
     auto result = context_.profileController->addProfile(name, createdProfileId);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u65b0\u5efa\u914d\u7f6e\u5931\u8d25"), result.message);
+        return;
+    }
+
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
+}
+
+void ProfileCoordinator::onProfileDuplicate() {
+    if (!context_.inputHook || !context_.profileController || !context_.macroController) return;
+    auto* profile = context_.profileController->activeProfile();
+    if (!profile) return;
+
+    context_.inputHook->setDialogOpen(true);
+    QString name;
+    const bool ok = ConfigNameDialog::getName(context_.parent,
+        QString::fromWCharArray(L"\u590d\u5236\u914d\u7f6e"),
+        QString::fromWCharArray(L"\u65b0\u914d\u7f6e\u540d\u79f0:"),
+        QString::fromStdWString(profile->name) + QString::fromWCharArray(L"\uff08\u526f\u672c\uff09"),
+        name);
+    context_.inputHook->setDialogOpen(false);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    stopEnginesForProfileChange();
+
+    std::uint64_t createdProfileId = 0;
+    auto result = context_.profileController->duplicateActiveProfile(name, createdProfileId);
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u590d\u5236\u914d\u7f6e\u5931\u8d25"), result.message);
         return;
     }
 

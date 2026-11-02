@@ -20,6 +20,7 @@ public:
     void ensureActiveMacro();
     ControllerResult switchMacro(std::uint64_t macroId);
     ControllerResult addMacro(const QString& name, std::uint64_t& createdMacroId);
+    ControllerResult duplicateActiveMacro(const QString& name, std::uint64_t& createdMacroId);
     ControllerResult renameActiveMacro(const QString& name);
     ControllerResult deleteActiveMacro(std::uint64_t& newActiveMacroId);
 

@@ -275,6 +275,7 @@ set(QML_FILES
     src/qml/NavIcon.qml
     src/qml/SidebarNavigation.qml
     src/qml/ProfileToolbar.qml
+    src/qml/ProfileMoreMenu.qml
     src/qml/RunPanel.qml
     src/qml/HotkeyPanel.qml
     src/qml/RepeatOptions.qml

@@ -70,6 +70,29 @@ ControllerResult ProfileController::addProfile(const QString& name, std::uint64_
     return ControllerResult::success();
 }
 
+ControllerResult ProfileController::duplicateActiveProfile(const QString& name, std::uint64_t& createdProfileId) {
+    const auto* source = activeProfile();
+    if (!source) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty()) return ControllerResult::failure(QString::fromWCharArray(L"\u914d\u7f6e\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a\u3002"));
+
+    ProfileConfig profile = *source;
+    profile.id = nextProfileId();
+    profile.name = trimmed.toStdWString();
+    std::uint64_t nextBindingId = 1;
+    for (auto& binding : profile.bindings) {
+        binding.id = nextBindingId++;
+    }
+
+    createdProfileId = profile.id;
+    const auto sourcePosition = std::find_if(config_.profiles.begin(), config_.profiles.end(),
+        [source](const ProfileConfig& item) { return item.id == source->id; });
+    config_.profiles.insert(sourcePosition + 1, std::move(profile));
+    config_.activeProfileId = createdProfileId;
+    return ControllerResult::success();
+}
+
 ControllerResult ProfileController::renameActiveProfile(const QString& name) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));

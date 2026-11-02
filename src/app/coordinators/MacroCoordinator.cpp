@@ -13,6 +13,21 @@
 
 #include <QDialog>
 
+#include <algorithm>
+
+namespace {
+std::vector<std::uint64_t> StepIds(const QVariantList& values) {
+    std::vector<std::uint64_t> ids;
+    ids.reserve(values.size());
+    for (const auto& value : values) {
+        bool ok = false;
+        const std::uint64_t id = value.toString().toULongLong(&ok);
+        if (ok) ids.push_back(id);
+    }
+    return ids;
+}
+}
+
 MacroCoordinator::MacroCoordinator(QObject* parent) : QObject(parent) {}
 
 void MacroCoordinator::bind(Context context) {
@@ -26,8 +41,12 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPageModel::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
     connect(context_.page, &MacroPageModel::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
     connect(context_.page, &MacroPageModel::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
+    connect(context_.page, &MacroPageModel::insertStepRequested, this, &MacroCoordinator::onMacroInsertStep);
     connect(context_.page, &MacroPageModel::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
     connect(context_.page, &MacroPageModel::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
+    connect(context_.page, &MacroPageModel::duplicateStepRequestedImpl, this, &MacroCoordinator::onMacroDuplicateStep);
+    connect(context_.page, &MacroPageModel::batchDuplicateRequestedImpl, this, &MacroCoordinator::onMacroBatchDuplicate);
+    connect(context_.page, &MacroPageModel::batchDeleteRequestedImpl, this, &MacroCoordinator::onMacroBatchDelete);
     connect(context_.page, &MacroPageModel::stepMoveRequested, this, &MacroCoordinator::onMacroMoveStep);
     connect(context_.page, &MacroPageModel::startStopClicked, this, &MacroCoordinator::onMacroStartStopClicked);
     connect(context_.page, &MacroPageModel::hotkeyClearClicked, this, &MacroCoordinator::onMacroHotkeyClearClicked);
@@ -217,6 +236,10 @@ void MacroCoordinator::onMacroEnabledToggled(bool enabled) {
 }
 
 void MacroCoordinator::onMacroAddStep() {
+    addStep(-1, false);
+}
+
+void MacroCoordinator::addStep(int insertIndex, bool focusCreated) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
 
     MacroStepDialog dialog(std::nullopt, context_.driverSupportsMouseMove, context_.parent);
@@ -232,8 +255,9 @@ void MacroCoordinator::onMacroAddStep() {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
+    std::uint64_t createdStepId = 0;
     auto result = context_.controller->addStep(editResult.key, editResult.name,
-        editResult.delayAfterMs, editResult.clickPos);
+        editResult.delayAfterMs, createdStepId, insertIndex, editResult.clickPos);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
@@ -241,13 +265,34 @@ void MacroCoordinator::onMacroAddStep() {
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshMacroPage) context_.refreshMacroPage();
+    if (focusCreated) context_.page->focusSteps({createdStepId});
 }
 
-void MacroCoordinator::onMacroEditStep(int stepIndex) {
+void MacroCoordinator::onMacroInsertStep(const QString& stepId, bool before) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
     auto* macro = context_.controller->activeMacro();
-    if (!macro || stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) return;
-    const auto& step = macro->steps[stepIndex];
+    if (!macro) return;
+    bool ok = false;
+    const std::uint64_t id = stepId.toULongLong(&ok);
+    if (!ok) return;
+    const auto stepIt = std::find_if(macro->steps.begin(), macro->steps.end(),
+        [id](const MacroStep& step) { return step.id == id; });
+    if (stepIt == macro->steps.end()) return;
+    addStep(before ? static_cast<int>(stepIt - macro->steps.begin())
+        : static_cast<int>(stepIt - macro->steps.begin()) + 1, true);
+}
+
+void MacroCoordinator::onMacroEditStep(const QString& stepId) {
+    if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+    bool ok = false;
+    const std::uint64_t id = stepId.toULongLong(&ok);
+    if (!ok) return;
+    const auto stepIt = std::find_if(macro->steps.begin(), macro->steps.end(),
+        [id](const MacroStep& step) { return step.id == id; });
+    if (stepIt == macro->steps.end()) return;
+    const auto& step = *stepIt;
 
     MacroStepDialog dialog(MacroStepEditResult{step.key,
         QString::fromStdWString(step.name), step.delayAfterMs, step.clickPos},
@@ -264,7 +309,7 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-    auto result = context_.controller->updateStep(stepIndex, editResult.key, editResult.name,
+    auto result = context_.controller->updateStep(id, editResult.key, editResult.name,
         editResult.delayAfterMs, editResult.clickPos);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
@@ -275,18 +320,66 @@ void MacroCoordinator::onMacroEditStep(int stepIndex) {
     if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
-void MacroCoordinator::onMacroDeleteStep(int stepIndex) {
+void MacroCoordinator::onMacroDeleteStep(const QString& stepId) {
     if (!context_.controller) return;
-    auto result = context_.controller->deleteStep(stepIndex);
+    bool ok = false;
+    const auto id = stepId.toULongLong(&ok);
+    if (!ok) return;
+    auto result = context_.controller->deleteStep(id);
     if (!result.ok) return;
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
-void MacroCoordinator::onMacroMoveStep(int fromIndex, int toIndex) {
+void MacroCoordinator::onMacroDuplicateStep(const QString& stepId) {
     if (!context_.controller) return;
-    auto result = context_.controller->moveStep(fromIndex, toIndex);
+    bool ok = false;
+    const auto id = stepId.toULongLong(&ok);
+    if (!ok) return;
+    std::vector<std::uint64_t> createdIds;
+    auto result = context_.controller->duplicateStep(id, createdIds);
+    if (!result.ok) return;
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+    context_.page->focusSteps(createdIds);
+}
+
+void MacroCoordinator::onMacroBatchDuplicate(const QVariantList& stepIds) {
+    if (!context_.controller || stepIds.isEmpty()) return;
+    std::vector<std::uint64_t> createdIds;
+    auto result = context_.controller->duplicateSteps(StepIds(stepIds), createdIds);
+    if (!result.ok) return;
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+    context_.page->selectSteps(createdIds);
+}
+
+void MacroCoordinator::onMacroBatchDelete(const QVariantList& stepIds) {
+    if (!context_.controller || !context_.inputHook || stepIds.isEmpty()) return;
+    context_.inputHook->setDialogOpen(true);
+    const bool confirmed = ConfigConfirmDialog::confirm(context_.parent,
+        QString::fromWCharArray(L"\u6279\u91cf\u5220\u9664\u6b65\u9aa4"),
+        QString::fromWCharArray(L"\u786e\u5b9a\u8981\u5220\u9664\u9009\u4e2d\u7684 %1 \u4e2a\u6b65\u9aa4\u5417\uff1f").arg(stepIds.size()),
+        QString::fromWCharArray(L"\u5220\u9664"));
+    context_.inputHook->setDialogOpen(false);
+    if (!confirmed) return;
+
+    auto result = context_.controller->deleteSteps(StepIds(stepIds));
+    if (!result.ok) return;
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
+void MacroCoordinator::onMacroMoveStep(const QString& stepId, int targetIndex) {
+    if (!context_.controller) return;
+    bool ok = false;
+    const auto id = stepId.toULongLong(&ok);
+    if (!ok) return;
+    auto result = context_.controller->moveStep(id, targetIndex);
     if (!result.ok) return;
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();

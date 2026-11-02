@@ -7,6 +7,10 @@ Rectangle {
     id: shell
     color: Theme.surfaceTint
     radius: 10
+    readonly property Item workspaceDialogAnchor: {
+        const page = pageLoader.status === Loader.Ready ? pageLoader.item : null
+        return page && page.dialogAnchor !== undefined ? page.dialogAnchor : null
+    }
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

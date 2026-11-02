@@ -18,7 +18,12 @@ Window {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-        AppShell { Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 560 }
+        AppShell {
+            id: appShell
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 560
+        }
         RowLayout {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.pageMargin
@@ -53,7 +58,10 @@ Window {
     }
     Loader {
         active: dialogModel.visible
-        sourceComponent: PreviewDialogWindow { ownerWindow: preview }
+        sourceComponent: PreviewDialogWindow {
+            ownerWindow: preview
+            anchorItem: appShell.workspaceDialogAnchor
+        }
     }
     Loader {
         active: appView.overlayVisible

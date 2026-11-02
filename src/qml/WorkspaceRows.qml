@@ -15,9 +15,8 @@ ListModel {
 
     function keyFor(entry) {
         if (entry.id !== undefined)
-            return "binding:" + entry.id
-        // Macro steps have no IDs; equal steps share a presentation identity.
-        return "step:" + JSON.stringify([entry.keyText, entry.delay, entry.positionHint])
+            return "row:" + entry.id
+        return "row:" + JSON.stringify([entry.keyText, entry.delay, entry.positionHint])
     }
 
     function rowFor(entry) {

@@ -1569,6 +1569,10 @@ void MainWindow::applyImportedSharePayload(const SharePayload& payload) {
     }
     for (auto macro : payload.macros) {
         macro.id = nextMacroId++;
+        std::uint64_t stepId = 0;
+        for (auto& step : macro.steps) {
+            step.id = ++stepId;
+        }
         for (const auto& existing : config_.macros) {
             if (existing.name == macro.name) {
                 macro.name += L"(\u5bfc\u5165)";

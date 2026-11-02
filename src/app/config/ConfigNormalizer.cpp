@@ -15,6 +15,17 @@ void ConfigNormalizer::normalize(AppConfig& config) {
     std::uint64_t nextMacro = nextMacroId(config);
     for (auto& macro : config.macros) {
         if (macro.id == 0) macro.id = nextMacro++;
+        std::vector<std::uint64_t> stepIds;
+        stepIds.reserve(macro.steps.size());
+        for (const auto& step : macro.steps) {
+            if (step.id != 0) stepIds.push_back(step.id);
+        }
+        std::sort(stepIds.begin(), stepIds.end());
+        const bool hasDuplicateStepIds = std::adjacent_find(stepIds.begin(), stepIds.end()) != stepIds.end();
+        if (stepIds.size() != macro.steps.size() || hasDuplicateStepIds) {
+            std::uint64_t nextStep = nextStepId(macro);
+            for (auto& step : macro.steps) step.id = nextStep++;
+        }
         for (auto& step : macro.steps) {
             step.delayAfterMs = std::max(step.delayAfterMs, kMinDelayMs);
         }
@@ -39,6 +50,12 @@ std::uint64_t ConfigNormalizer::nextBindingId(const ProfileConfig& profile) {
     for (const auto& binding : profile.bindings) {
         maxId = std::max(maxId, binding.id);
     }
+    return maxId + 1;
+}
+
+std::uint64_t ConfigNormalizer::nextStepId(const MacroConfig& macro) {
+    std::uint64_t maxId = 0;
+    for (const auto& step : macro.steps) maxId = std::max(maxId, step.id);
     return maxId + 1;
 }
 

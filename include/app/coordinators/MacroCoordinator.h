@@ -54,9 +54,13 @@ private:
     void onMacroDelete();
     void onMacroEnabledToggled(bool enabled);
     void onMacroAddStep();
-    void onMacroEditStep(int stepIndex);
-    void onMacroDeleteStep(int stepIndex);
-    void onMacroMoveStep(int fromIndex, int toIndex);
+    void onMacroInsertStep(const QString& stepId, bool before);
+    void onMacroEditStep(const QString& stepId);
+    void onMacroDeleteStep(const QString& stepId);
+    void onMacroDuplicateStep(const QString& stepId);
+    void onMacroBatchDuplicate(const QVariantList& stepIds);
+    void onMacroBatchDelete(const QVariantList& stepIds);
+    void onMacroMoveStep(const QString& stepId, int targetIndex);
     void onMacroStartStopClicked();
     void onMacroHotkeyClearClicked();
     void onMacroModeChanged(int modeIndex);
@@ -66,6 +70,7 @@ private:
     void onPauseKeyAdd();
     void onPauseKeyDelete(int index);
     void stopAllForConfigChange();
+    void addStep(int insertIndex, bool focusCreated);
 
     Context context_;
     bool lastMacroRunning_ = false;

@@ -15,6 +15,7 @@ public:
     [[nodiscard]] const MacroConfig* macroById(std::uint64_t macroId) const;
     [[nodiscard]] std::uint64_t nextMacroId() const;
     [[nodiscard]] static std::uint64_t nextMacroId(const AppConfig& config);
+    [[nodiscard]] static std::uint64_t nextStepId(const MacroConfig& macro);
 
     void resetActiveMacro();
     void ensureActiveMacro();
@@ -27,11 +28,15 @@ public:
     ControllerResult setActiveMacroEnabled(bool enabled);
 
     ControllerResult addStep(const KeyDescriptor& key, const QString& name, int delayAfterMs,
+        std::uint64_t& createdStepId, int insertIndex = -1, const ClickPosition& clickPos = {});
+    ControllerResult updateStep(std::uint64_t stepId, const KeyDescriptor& key, const QString& name, int delayAfterMs,
         const ClickPosition& clickPos = {});
-    ControllerResult updateStep(int stepIndex, const KeyDescriptor& key, const QString& name, int delayAfterMs,
-        const ClickPosition& clickPos = {});
-    ControllerResult deleteStep(int stepIndex);
-    ControllerResult moveStep(int fromIndex, int toIndex);
+    ControllerResult deleteStep(std::uint64_t stepId);
+    ControllerResult deleteSteps(const std::vector<std::uint64_t>& stepIds);
+    ControllerResult duplicateStep(std::uint64_t stepId, std::vector<std::uint64_t>& createdStepIds);
+    ControllerResult duplicateSteps(const std::vector<std::uint64_t>& stepIds,
+        std::vector<std::uint64_t>& createdStepIds);
+    ControllerResult moveStep(std::uint64_t stepId, int targetIndex);
     ControllerResult addPauseKey(const KeyDescriptor& key);
     ControllerResult deletePauseKey(int index);
 

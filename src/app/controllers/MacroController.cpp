@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 #include <algorithm>
+#include <iterator>
 
 MacroController::MacroController(AppConfig& config) : config_(config) {}
 
@@ -41,6 +42,12 @@ std::uint64_t MacroController::nextMacroId() const {
 std::uint64_t MacroController::nextMacroId(const AppConfig& config) {
     std::uint64_t maxId = 0;
     for (const auto& macro : config.macros) maxId = std::max(maxId, macro.id);
+    return maxId + 1;
+}
+
+std::uint64_t MacroController::nextStepId(const MacroConfig& macro) {
+    std::uint64_t maxId = 0;
+    for (const auto& step : macro.steps) maxId = std::max(maxId, step.id);
     return maxId + 1;
 }
 
@@ -94,6 +101,8 @@ ControllerResult MacroController::duplicateActiveMacro(const QString& name, std:
     MacroConfig macro = *source;
     macro.id = nextMacroId(config_);
     macro.name = trimmed.toStdWString();
+    std::uint64_t stepId = 0;
+    for (auto& step : macro.steps) step.id = ++stepId;
     createdMacroId = macro.id;
 
     const auto sourcePosition = std::find_if(config_.macros.begin(), config_.macros.end(),
@@ -172,7 +181,7 @@ ControllerResult MacroController::validateTriggerKey(const MacroConfig& macro, c
 }
 
 ControllerResult MacroController::addStep(const KeyDescriptor& key, const QString& name, int delayAfterMs,
-    const ClickPosition& clickPos) {
+    std::uint64_t& createdStepId, int insertIndex, const ClickPosition& clickPos) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
@@ -181,19 +190,25 @@ ControllerResult MacroController::addStep(const KeyDescriptor& key, const QStrin
 
     delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
     MacroStep step;
+    step.id = nextStepId(*macro);
     step.key = key;
     step.name = name.trimmed().toStdWString();
     step.delayAfterMs = delayAfterMs;
     step.clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
-    macro->steps.push_back(std::move(step));
+    createdStepId = step.id;
+    const int count = static_cast<int>(macro->steps.size());
+    if (insertIndex < 0 || insertIndex > count) macro->steps.push_back(std::move(step));
+    else macro->steps.insert(macro->steps.begin() + insertIndex, std::move(step));
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor& key, const QString& name, int delayAfterMs,
+ControllerResult MacroController::updateStep(std::uint64_t stepId, const KeyDescriptor& key, const QString& name, int delayAfterMs,
     const ClickPosition& clickPos) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
-    if (stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) {
+    const auto stepIt = std::find_if(macro->steps.begin(), macro->steps.end(),
+        [stepId](const MacroStep& step) { return step.id == stepId; });
+    if (stepIt == macro->steps.end()) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
     }
 
@@ -201,37 +216,91 @@ ControllerResult MacroController::updateStep(int stepIndex, const KeyDescriptor&
     if (!validation.ok) return validation;
 
     delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
-    macro->steps[stepIndex].key = key;
-    macro->steps[stepIndex].name = name.trimmed().toStdWString();
-    macro->steps[stepIndex].delayAfterMs = delayAfterMs;
-    macro->steps[stepIndex].clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
+    stepIt->key = key;
+    stepIt->name = name.trimmed().toStdWString();
+    stepIt->delayAfterMs = delayAfterMs;
+    stepIt->clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::deleteStep(int stepIndex) {
+ControllerResult MacroController::deleteStep(std::uint64_t stepId) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
-    if (stepIndex < 0 || stepIndex >= static_cast<int>(macro->steps.size())) {
-        return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
-    }
 
-    macro->steps.erase(macro->steps.begin() + stepIndex);
+    const auto oldSize = macro->steps.size();
+    macro->steps.erase(
+        std::remove_if(macro->steps.begin(), macro->steps.end(),
+            [stepId](const MacroStep& step) { return step.id == stepId; }),
+        macro->steps.end());
+    return oldSize == macro->steps.size()
+        ? ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"))
+        : ControllerResult::success();
+}
+
+ControllerResult MacroController::deleteSteps(const std::vector<std::uint64_t>& stepIds) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    const auto oldSize = macro->steps.size();
+    macro->steps.erase(
+        std::remove_if(macro->steps.begin(), macro->steps.end(),
+            [&stepIds](const MacroStep& step) {
+                return std::find(stepIds.begin(), stepIds.end(), step.id) != stepIds.end();
+            }),
+        macro->steps.end());
+    return oldSize == macro->steps.size()
+        ? ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"))
+        : ControllerResult::success();
+}
+
+ControllerResult MacroController::duplicateStep(std::uint64_t stepId,
+    std::vector<std::uint64_t>& createdStepIds) {
+    return duplicateSteps({stepId}, createdStepIds);
+}
+
+ControllerResult MacroController::duplicateSteps(const std::vector<std::uint64_t>& stepIds,
+    std::vector<std::uint64_t>& createdStepIds) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    std::vector<MacroStep> copies;
+    int insertIndex = -1;
+    for (std::size_t index = 0; index < macro->steps.size(); ++index) {
+        const auto& step = macro->steps[index];
+        if (std::find(stepIds.begin(), stepIds.end(), step.id) == stepIds.end()) continue;
+        MacroStep copy = step;
+        copy.id = nextStepId(*macro) + copies.size();
+        copies.push_back(std::move(copy));
+        insertIndex = static_cast<int>(index) + 1;
+    }
+    if (copies.empty()) return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+
+    createdStepIds.reserve(copies.size());
+    for (const auto& step : copies) createdStepIds.push_back(step.id);
+    macro->steps.insert(macro->steps.begin() + insertIndex,
+        std::make_move_iterator(copies.begin()), std::make_move_iterator(copies.end()));
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::moveStep(int fromIndex, int toIndex) {
+ControllerResult MacroController::moveStep(std::uint64_t stepId, int targetIndex) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
     const int count = static_cast<int>(macro->steps.size());
-    if (fromIndex < 0 || fromIndex >= count || toIndex < 0 || toIndex >= count) {
+    if (targetIndex < 0 || targetIndex >= count) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
     }
-    if (fromIndex == toIndex) return ControllerResult::success();
+    const auto stepIt = std::find_if(macro->steps.begin(), macro->steps.end(),
+        [stepId](const MacroStep& step) { return step.id == stepId; });
+    if (stepIt == macro->steps.end()) {
+        return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+    }
+    const int fromIndex = static_cast<int>(stepIt - macro->steps.begin());
+    if (fromIndex == targetIndex) return ControllerResult::success();
 
-    MacroStep step = macro->steps[fromIndex];
-    macro->steps.erase(macro->steps.begin() + fromIndex);
-    macro->steps.insert(macro->steps.begin() + toIndex, step);
+    MacroStep step = *stepIt;
+    macro->steps.erase(stepIt);
+    macro->steps.insert(macro->steps.begin() + targetIndex, std::move(step));
     return ControllerResult::success();
 }
 

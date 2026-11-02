@@ -11,17 +11,63 @@ PreviewWorkspaceController::PreviewWorkspaceController(bool macro, PreviewDialog
 void PreviewWorkspaceController::handle(const QString& action, const QVariant& argument) {
     if (action == "add" || action == "edit") {
         editRow(argument, action == "add");
+    } else if (action == "insertBefore" || action == "insertAfter") {
+        const int index = rowIndexById(argument.toString());
+        if (index >= 0) editRow({}, true, action == "insertBefore" ? index : index + 1, true);
+    } else if (action == "duplicate") {
+        const int index = rowIndexById(argument.toString());
+        if (index < 0) return;
+        auto rows = model_.rows();
+        auto copied = rows[index].toMap();
+        const QString createdId = QString::number(nextId_++);
+        copied.insert("id", createdId);
+        rows.insert(index + 1, copied);
+        model_.setRows(rows);
+        model_.focusSteps({createdId});
     } else if (action == "remove") {
         dialog_.present("DialogMessage.qml", tr("删除按键"), {{"message", tr("确认删除这个示例按键？")}},
             [this, argument](const QVariantMap&) {
                 auto rows = model_.rows();
-                const int index = model_.macroMode() ? argument.toInt() : [&]() {
+                const int index = [&]() {
                     for (int i = 0; i < rows.size(); ++i)
                         if (rows[i].toMap().value("id").toString() == argument.toString()) return i;
                     return -1;
                 }();
                 if (index >= 0 && index < rows.size()) rows.removeAt(index);
                 model_.setRows(rows);
+            }, 360, true);
+    } else if (action == "batchDuplicate") {
+        const auto selected = argument.toList();
+        if (selected.isEmpty()) return;
+        auto rows = model_.rows();
+        QVariantList copies;
+        int lastIndex = -1;
+        for (int index = 0; index < rows.size(); ++index) {
+            if (!selected.contains(rows[index].toMap().value("id"))) continue;
+            auto copied = rows[index].toMap();
+            copied.insert("id", QString::number(nextId_++));
+            copies.push_back(copied);
+            lastIndex = index;
+        }
+        if (copies.isEmpty()) return;
+        for (int index = 0; index < copies.size(); ++index)
+            rows.insert(lastIndex + 1 + index, copies[index]);
+        model_.setRows(rows);
+        QStringList createdIds;
+        for (const auto& copy : copies) createdIds.push_back(copy.toMap().value("id").toString());
+        model_.selectSteps(createdIds);
+    } else if (action == "batchDelete") {
+        const auto selected = argument.toList();
+        if (selected.isEmpty()) return;
+        dialog_.present("DialogMessage.qml", tr("批量删除步骤"),
+            {{"message", tr("确认删除选中的 %1 个示例步骤？").arg(selected.size())}},
+            [this, selected](const QVariantMap&) {
+                QVariantList rows;
+                for (const auto& value : model_.rows()) {
+                    if (!selected.contains(value.toMap().value("id"))) rows.append(value);
+                }
+                model_.setRows(rows);
+                model_.clearStepSelection();
             }, 360, true);
     } else if (action.startsWith("profile")) {
         editProfile(action);
@@ -48,14 +94,17 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
     }
 }
 
-void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding) {
+int PreviewWorkspaceController::rowIndexById(const QString& id) const {
     const auto rows = model_.rows();
-    int index = adding ? -1 : argument.toInt();
-    if (!adding && !model_.macroMode()) {
-        index = -1;
-        for (int i = 0; i < rows.size(); ++i)
-            if (rows[i].toMap().value("id").toString() == argument.toString()) index = i;
+    for (int index = 0; index < rows.size(); ++index) {
+        if (rows[index].toMap().value("id").toString() == id) return index;
     }
+    return -1;
+}
+
+void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, int insertIndex, bool focusCreated) {
+    const auto rows = model_.rows();
+    int index = adding ? -1 : rowIndexById(argument.toString());
     if (!adding && (index < 0 || index >= rows.size())) return;
     const auto row = adding ? QVariantMap{} : rows[index].toMap();
     const int mode = adding ? 0 : row.value("mode").toInt();
@@ -68,7 +117,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding) 
         {"positionVisible", true}, {"isMouse", row.value("isMouse").toBool()}, {"fixed", false},
         {"supportsPosition", true}, {"positionHint", tr("示例固定点位：50%，50%")}};
     dialog_.present("DialogKeyEditor.qml", adding ? tr("添加按键") : tr("编辑按键"), fields,
-        [this, index, row](const QVariantMap& values) {
+        [this, index, row, insertIndex, focusCreated](const QVariantMap& values) {
             const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
             auto updated = row;
             const int mode = values.value("mode").toInt();
@@ -88,10 +137,13 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding) 
             updated.insert("delay", mode == 4 ? QVariant(QStringLiteral("—")) : QVariant(std::max(1, values.value("delay").toString().toInt())));
             updated.insert("positionHint", values.value("fixed").toBool() ? values.value("positionHint").toString() : QString());
             auto rows = model_.rows();
-            if (index < 0) rows.append(updated);
-            else rows[index] = updated;
+            if (index < 0) {
+                if (insertIndex >= 0) rows.insert(insertIndex, updated);
+                else rows.append(updated);
+            } else rows[index] = updated;
             model_.setRows(rows);
-        }, 500);
+            if (focusCreated) model_.focusSteps({updated.value("id").toString()});
+        }, 420);
 }
 
 void PreviewWorkspaceController::editProfile(const QString& action) {

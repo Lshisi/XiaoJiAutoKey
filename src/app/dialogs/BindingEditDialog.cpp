@@ -20,7 +20,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
         fields.insert("anchorX", existing->clickPos.anchorX);
         fields.insert("anchorY", existing->clickPos.anchorY);
     }
-    prepareEditor(fields, std::move(supportsMouseMove), QSize(460, 300));
+    prepareEditor(fields, std::move(supportsMouseMove), QSize(420, 300));
 }
 BindingEditResult BindingEditDialog::editResult() const {
     const int selected = value("mode").toInt();

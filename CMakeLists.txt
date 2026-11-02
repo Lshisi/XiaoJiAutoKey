@@ -288,6 +288,7 @@ set(QML_FILES
     src/qml/BindingRow.qml
     src/qml/KeyCell.qml
     src/qml/MacroStepRow.qml
+    src/qml/MacroStepMenu.qml
     src/qml/WorkspaceRows.qml
     src/qml/WorkspaceTable.qml
     src/qml/KeyWorkspace.qml

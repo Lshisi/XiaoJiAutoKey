@@ -11,6 +11,8 @@ public:
     void update(const QString& field, const QVariant& value);
     void setRows(const QVariantList& rows);
     QVariantList rows() const;
+    void selectSteps(const QStringList& ids);
+    void focusSteps(const QStringList& ids);
 
     Q_INVOKABLE void selectProfile(const QString& id);
     Q_INVOKABLE void editBinding(const QString& id) { emit requested("edit", id); }
@@ -18,9 +20,27 @@ public:
     Q_INVOKABLE void enableBinding(const QString& id, bool enabled);
     Q_INVOKABLE void addRequested() { emit requested("add", {}); }
     Q_INVOKABLE void addStepRequested() { emit requested("add", {}); }
-    Q_INVOKABLE void editStepRequested(int index) { emit requested("edit", index); }
-    Q_INVOKABLE void deleteStepRequested(int index) { emit requested("remove", index); }
-    Q_INVOKABLE void stepMoveRequested(int from, int to);
+    Q_INVOKABLE void editStepRequested(const QString& id) { emit requested("edit", id); }
+    Q_INVOKABLE void deleteStepRequested(const QString& id) { emit requested("remove", id); }
+    Q_INVOKABLE void insertStepBeforeRequested(const QString& id) { emit requested("insertBefore", id); }
+    Q_INVOKABLE void insertStepAfterRequested(const QString& id) { emit requested("insertAfter", id); }
+    Q_INVOKABLE void duplicateStepRequested(const QString& id) { emit requested("duplicate", id); }
+    Q_INVOKABLE void stepMoveRequested(const QString& id, int to);
+    Q_INVOKABLE void clearStepSelection() {
+        update("selectedStepIds", QStringList{});
+        update("focusStepIds", QStringList{});
+    }
+    Q_INVOKABLE void setAllStepsSelected(bool selected) {
+        QStringList ids;
+        if (selected) {
+            const auto steps = state_.value("steps").toList();
+            for (const auto& step : steps) ids.append(step.toMap().value("id").toString());
+        }
+        update("selectedStepIds", ids);
+    }
+    Q_INVOKABLE void toggleStepSelection(const QString& id);
+    Q_INVOKABLE void batchDuplicateRequested() { emit requested("batchDuplicate", state_.value("selectedStepIds")); }
+    Q_INVOKABLE void batchDeleteRequested() { emit requested("batchDelete", state_.value("selectedStepIds")); }
     Q_INVOKABLE void startStopClicked() { setValue("running", !state_.value("running").toBool()); }
     Q_INVOKABLE void profileEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void macroEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }

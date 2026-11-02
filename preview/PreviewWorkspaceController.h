@@ -17,9 +17,10 @@ signals:
 
 private:
     void handle(const QString& action, const QVariant& argument);
-    void editRow(const QVariant& argument, bool adding);
+    void editRow(const QVariant& argument, bool adding, int insertIndex = -1, bool focusCreated = false);
     void editProfile(const QString& action);
     void editShortcut(const QString& kind);
+    [[nodiscard]] int rowIndexById(const QString& id) const;
 
     PreviewWorkspaceModel model_;
     PreviewDialogModel& dialog_;

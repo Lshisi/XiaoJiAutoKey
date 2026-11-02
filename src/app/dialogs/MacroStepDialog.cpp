@@ -13,7 +13,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
         fields.insert("anchorX", existing->clickPos.anchorX);
         fields.insert("anchorY", existing->clickPos.anchorY);
     }
-    prepareEditor(fields, std::move(supportsMouseMove), QSize(460, 300));
+    prepareEditor(fields, std::move(supportsMouseMove), QSize(420, 300));
 }
 MacroStepEditResult MacroStepDialog::editResult() const {
     return {*capturedKey(), value("name").toString().trimmed(), value("delay").toString().toInt(), clickPosition()};

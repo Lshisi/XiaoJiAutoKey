@@ -6,30 +6,69 @@ import XiaoJi.UI
 ColumnLayout {
     id: editor
     readonly property var fields: dialogModel.dialogState
+    readonly property real labelWidth: Math.max(62, keyLabel.implicitWidth, modeLabel.implicitWidth,
+        delayLabel.implicitWidth, nameLabel.implicitWidth)
     spacing: Theme.formGap
-    GridLayout {
+    RowLayout {
         Layout.fillWidth: true
-        columns: editor.fields.modeVisible ? 4 : 2
-        columnSpacing: 12
-        rowSpacing: Theme.formGap
-        QuietLabel { text: qsTr("按键:") }
-        ActionButton { Layout.fillWidth: true; Layout.minimumWidth: 0; text: editor.fields.keyText; onClicked: dialogModel.dispatch("record") }
-        QuietLabel { visible: editor.fields.modeVisible; text: qsTr("模式:") }
-        QuietCombo {
+        Layout.minimumWidth: 0
+        uniformCellSizes: true
+        spacing: 12
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            spacing: 12
+            QuietLabel {
+                id: keyLabel
+                Layout.minimumWidth: editor.labelWidth
+                Layout.maximumWidth: editor.labelWidth
+                text: qsTr("按键:")
+                wrapMode: Text.NoWrap
+            }
+            ActionButton {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                text: editor.fields.keyText
+                onClicked: dialogModel.dispatch("record")
+            }
+        }
+        RowLayout {
             visible: editor.fields.modeVisible
             Layout.fillWidth: true
-            Layout.minimumWidth: 100
-            model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式"), qsTr("长按模式")]
-            currentIndex: editor.fields.mode
-            onActivated: dialogModel.edit("mode", currentIndex)
-            Accessible.name: qsTr("连发模式")
+            Layout.minimumWidth: 0
+            spacing: 12
+            QuietLabel {
+                id: modeLabel
+                Layout.minimumWidth: editor.labelWidth
+                Layout.maximumWidth: editor.labelWidth
+                text: qsTr("模式:")
+                wrapMode: Text.NoWrap
+            }
+            QuietCombo {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式"), qsTr("长按模式")]
+                currentIndex: editor.fields.mode
+                onActivated: dialogModel.edit("mode", currentIndex)
+                Accessible.name: qsTr("连发模式")
+            }
         }
-        QuietLabel { visible: editor.fields.needsDelay; text: qsTr("间隔(ms):") }
+    }
+    RowLayout {
+        visible: editor.fields.needsDelay
+        Layout.fillWidth: true
+        spacing: 12
+        QuietLabel {
+            id: delayLabel
+            Layout.minimumWidth: editor.labelWidth
+            Layout.maximumWidth: editor.labelWidth
+            text: qsTr("间隔(ms):")
+            wrapMode: Text.NoWrap
+        }
         QuietTextField {
             property bool clearedOnClick: false
-            visible: editor.fields.needsDelay
             Layout.fillWidth: true
-            Layout.columnSpan: editor.fields.modeVisible ? 3 : 1
+            Layout.minimumWidth: 0
             text: editor.fields.delay
             validator: IntValidator { bottom: 1; top: 2147483647 }
             inputMethodHints: Qt.ImhDigitsOnly
@@ -44,29 +83,41 @@ ColumnLayout {
             }
             onAccepted: dialogModel.dispatch("accept")
         }
-        QuietLabel { visible: editor.fields.nameVisible; text: qsTr("名称:") }
+    }
+    RowLayout {
+        visible: editor.fields.nameVisible
+        Layout.fillWidth: true
+        spacing: 12
+        QuietLabel {
+            id: nameLabel
+            Layout.minimumWidth: editor.labelWidth
+            Layout.maximumWidth: editor.labelWidth
+            text: qsTr("名称:")
+            wrapMode: Text.NoWrap
+        }
         QuietTextField {
-            visible: editor.fields.nameVisible
             Layout.fillWidth: true
-            Layout.columnSpan: editor.fields.modeVisible ? 3 : 1
+            Layout.minimumWidth: 0
             text: editor.fields.name
             placeholderText: qsTr("选填，例如单体宏")
             Accessible.name: qsTr("按键名称")
             onTextEdited: dialogModel.edit("name", text)
         }
+    }
+    RowLayout {
+        visible: editor.fields.modeVisible
+        Layout.fillWidth: true
+        uniformCellSizes: true
+        spacing: 12
         RowLayout {
-            visible: editor.fields.modeVisible
-            Layout.columnSpan: 2
             Layout.fillWidth: true
-            QuietLabel { Layout.fillWidth: true; text: qsTr("启用此按键") }
+            QuietLabel { Layout.fillWidth: true; text: qsTr("启用此按键"); wrapMode: Text.NoWrap }
             QuietSwitch { checked: editor.fields.enabled; onClicked: dialogModel.edit("enabled", checked); Accessible.name: qsTr("启用此按键") }
         }
         RowLayout {
-            visible: editor.fields.modeVisible && editor.fields.mode === 1
-            Layout.columnSpan: 2
             Layout.fillWidth: true
-            QuietLabel { Layout.fillWidth: true; text: qsTr("参与按压优先") }
-            QuietSwitch { checked: editor.fields.priority; onClicked: dialogModel.edit("priority", checked); Accessible.name: qsTr("参与按压优先") }
+            QuietLabel { visible: editor.fields.mode === 1; Layout.fillWidth: true; text: qsTr("参与按压优先"); wrapMode: Text.NoWrap }
+            QuietSwitch { visible: editor.fields.mode === 1; checked: editor.fields.priority; onClicked: dialogModel.edit("priority", checked); Accessible.name: qsTr("参与按压优先") }
         }
     }
     QuietLabel {

@@ -11,6 +11,9 @@ Item {
     property real contentLeftPadding: Theme.cardPadding - 1
     property real contentRightPadding: Theme.cardPadding - 1
     readonly property bool animateRows: rowModel.initialized && !rowModel.replacing && visible && Theme.motionEnabled
+    readonly property bool allStepsSelected: table.macroMode && table.page.state.steps.length > 0
+        && table.page.state.selectedStepIds.length === table.page.state.steps.length
+    property string lastFocusKey: ""
     Connections {
         target: onboardingModel
         function onStateChanged() {
@@ -38,9 +41,11 @@ Item {
         readonly property real rowWidth: Math.max(0, list.width)
         readonly property real contentLeftPadding: table.contentLeftPadding
         readonly property real contentRightPadding: table.contentRightPadding + tableScrollBar.implicitWidth
-        readonly property int leadingWidth: table.macroMode ? Theme.iconSize : 42
+        readonly property int leadingWidth: table.macroMode ? 2 * Theme.compactIconSize : 42
         readonly property int actionPadding: 4
-        readonly property int actionWidth: 2 * Theme.iconSize + 2 * actionPadding
+        readonly property int actionWidth: table.macroMode
+            ? 3 * Theme.iconSize + 2 * actionPadding
+            : 2 * Theme.iconSize + 2 * actionPadding
         readonly property real minimumKeyWidth: Math.max(64, columnMetrics.advanceWidth(qsTr("侧键1")) + 22)
         readonly property real minimumModeWidth: Math.max(40, columnMetrics.advanceWidth(qsTr("模式")) + 12)
         readonly property real minimumPriorityWidth: Math.max(34, columnMetrics.advanceWidth(qsTr("优先")) + 10)
@@ -67,7 +72,25 @@ Item {
                 anchors.leftMargin: tableColumns.contentLeftPadding
                 anchors.rightMargin: tableColumns.contentRightPadding
                 spacing: 0
-                QuietLabel { Layout.minimumWidth: tableColumns.leadingWidth; Layout.maximumWidth: tableColumns.leadingWidth; text: table.macroMode ? "" : qsTr("状态"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.leadingWidth; Layout.maximumWidth: tableColumns.leadingWidth; text: qsTr("状态"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                Item {
+                    visible: table.macroMode
+                    Layout.minimumWidth: Theme.compactIconSize
+                    Layout.maximumWidth: Theme.compactIconSize
+                    QuietCheck {
+                        anchors.centerIn: parent
+                        spacing: 0
+                        checked: table.allStepsSelected
+                        enabled: table.macroMode && !table.page.state.running && table.page.state.steps.length > 0
+                        Accessible.name: qsTr("选择全部步骤")
+                        onClicked: table.page.setAllStepsSelected(checked)
+                    }
+                }
+                Item {
+                    visible: table.macroMode
+                    Layout.minimumWidth: Theme.compactIconSize
+                    Layout.maximumWidth: Theme.compactIconSize
+                }
                 QuietLabel { Layout.minimumWidth: tableColumns.keyWidth; Layout.maximumWidth: tableColumns.keyWidth; text: qsTr("按键"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.nameWidth; Layout.maximumWidth: tableColumns.nameWidth; text: qsTr("名称"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted; wrapMode: Text.NoWrap; elide: Text.ElideRight }
                 QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.modeWidth; Layout.maximumWidth: tableColumns.modeWidth; text: qsTr("模式"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
@@ -104,6 +127,26 @@ Item {
                 OpacityAnimator { from: 0; to: 1; duration: Theme.fadeDuration; easing.type: Easing.OutCubic }
             }
             ScrollBar.vertical: QuietScrollBar { id: tableScrollBar }
+        }
+        Connections {
+            target: table.page
+            function onStateChanged() {
+                Qt.callLater(table.focusSteps)
+            }
+        }
+    }
+    function focusSteps() {
+        const focusKey = JSON.stringify(page.state.focusStepIds || [])
+        if (focusKey === lastFocusKey) return
+        lastFocusKey = focusKey
+        const ids = page.state.focusStepIds || []
+        if (!ids.length) return
+        for (let index = 0; index < rowModel.count; ++index) {
+            if (ids.indexOf(rowModel.get(index).rowData.id) >= 0) {
+                list.currentIndex = index
+                list.positionViewAtIndex(index, ListView.Contain)
+                return
+            }
         }
     }
     Item {

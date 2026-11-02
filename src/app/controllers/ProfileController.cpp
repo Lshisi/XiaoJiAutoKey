@@ -266,13 +266,14 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
 }
 
 ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> bindingId,
-    const KeyDescriptor& key, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
+    const KeyDescriptor& key, const QString& name, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
     const ClickPosition& clickPos) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
+    const std::wstring effectiveName = name.trimmed().toStdWString();
     const ClickPosition effectiveClickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
 
     for (const auto& binding : profile->bindings) {
@@ -306,6 +307,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
         for (auto& binding : profile->bindings) {
             if (binding.id == *bindingId) {
                 binding.key = key;
+                binding.name = effectiveName;
                 binding.mode = mode;
                 binding.delayMs = delayMs;
                 binding.enabled = enabled;
@@ -320,6 +322,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     KeyBinding binding;
     binding.id = nextBindingId(*profile);
     binding.key = key;
+    binding.name = effectiveName;
     binding.mode = mode;
     binding.delayMs = delayMs;
     binding.enabled = enabled;

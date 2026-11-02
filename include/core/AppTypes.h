@@ -55,6 +55,7 @@ struct KeyBinding {
     std::uint64_t id = 0;
     bool enabled = true;
     KeyDescriptor key;
+    std::wstring name;
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = kDefaultDelayMs;
     bool suppressMixedMode = false;
@@ -92,6 +93,7 @@ enum class MacroTriggerMode {
 
 struct MacroStep {
     KeyDescriptor key;
+    std::wstring name;
     int delayAfterMs = kDefaultDelayMs;
     ClickPosition clickPos;  // 仅鼠标键使用
 };
@@ -139,6 +141,7 @@ struct MacroOverlayOptions {
     bool showTriggerMode = false;
     bool showLoopCount = true;
     bool showPauseKeys = false;
+    bool showCurrentStep = true;
 };
 
 struct AppConfig {

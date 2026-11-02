@@ -19,7 +19,7 @@ signals:
 protected:
     void setCapturedKey(KeyDescriptor key);
     void prepareEditor(QVariantMap fields, std::function<bool()> supportsMouseMove = {},
-        const QSize& initialSize = QSize(420, 250));
+        const QSize& initialSize = QSize(420, 290));
     ClickPosition clickPosition() const;
     void handleAction(const QString& action, const QVariant& value) override;
     void editField(const QString& field, const QVariant& value) override;

@@ -15,8 +15,13 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings) {
     for (const auto& binding : bindings) {
         hasSequence |= binding.mode == RepeatMode::Sequence;
         const bool fixed = binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed();
+        const std::wstring keyName = GetKeyDisplayName(binding.key);
+        const std::wstring displayName = binding.name.empty()
+            ? keyName : keyName + L" · " + binding.name;
         rows.push_back(QVariantMap{{"id", QString::number(binding.id)}, {"enabled", binding.enabled},
-            {"keyText", QString::fromStdWString(GetKeyDisplayName(binding.key))},
+            {"keyText", QString::fromStdWString(keyName)},
+            {"name", QString::fromStdWString(binding.name)},
+            {"keyDisplayText", QString::fromStdWString(displayName)},
             {"modeText", QString::fromStdWString(RepeatModeToText(binding.mode))},
             {"priorityText", binding.mode == RepeatMode::Hold
                 ? (binding.suppressMixedMode ? QStringLiteral("×") : QStringLiteral("✓")) : QStringLiteral("—")},

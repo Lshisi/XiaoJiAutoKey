@@ -12,6 +12,7 @@ StatusOverlaySettingsDialog::StatusOverlaySettingsDialog(const AppConfig& config
         {"repeatPauseKeys", config.repeatOverlay.showPauseKeys},
         {"macroHotkey", config.macroOverlay.showHotkey}, {"macroTriggerMode", config.macroOverlay.showTriggerMode},
         {"macroLoopCount", config.macroOverlay.showLoopCount}, {"macroPauseKeys", config.macroOverlay.showPauseKeys},
+        {"macroCurrentStep", config.macroOverlay.showCurrentStep},
         {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}
     }, QSize(400, 400), true);
 }
@@ -19,7 +20,8 @@ StatusOverlaySettings StatusOverlaySettingsDialog::settings() const {
     return {{value("repeatHotkey").toBool(), value("repeatIndependent").toBool(), value("repeatHold").toBool(),
         value("repeatToggle").toBool(), value("repeatSequence").toBool(), value("repeatSequenceHotkey").toBool(),
         value("repeatPauseKeys").toBool(), value("repeatLongPress").toBool()},
-        {value("macroHotkey").toBool(), value("macroTriggerMode").toBool(), value("macroLoopCount").toBool(), value("macroPauseKeys").toBool()},
+        {value("macroHotkey").toBool(), value("macroTriggerMode").toBool(), value("macroLoopCount").toBool(),
+            value("macroPauseKeys").toBool(), value("macroCurrentStep").toBool()},
         value("opacity").toInt(), value("nativeBlur").toBool()};
 }
 void StatusOverlaySettingsDialog::editField(const QString& field, const QVariant& argument) {

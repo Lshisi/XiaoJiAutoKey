@@ -157,6 +157,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         binding.id = GetUInt64Field(*entry, "id").value_or(0);
         binding.enabled = GetBoolField(*entry, "enabled").value_or(true);
         binding.key = *key;
+        if (auto name = GetStringField(*entry, "name")) binding.name = ToWide(*name);
         binding.delayMs = std::max(*delay, kMinDelayMs);
         const auto mode = GetStringField(*entry, "mode").value_or("toggle");
         if (mode == "hold") binding.mode = RepeatMode::Hold;
@@ -220,6 +221,7 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                 for (const auto& stepItem : *stepsArr) {
                     if (auto* stepObj = stepItem.AsObject()) {
                         MacroStep step;
+                        if (auto name = GetStringField(*stepObj, "name")) step.name = ToWide(*name);
                         if (auto keyText = GetStringField(*stepObj, "key")) {
                             auto k = StorageToKeyDescriptor(ToWide(*keyText));
                             if (k.has_value()) step.key = *k;
@@ -256,6 +258,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("id", static_cast<double>(b.id));
         entry.emplace("enabled", b.enabled);
         entry.emplace("key", ToUtf8(KeyDescriptorToStorage(b.key)));
+        if (!b.name.empty()) entry.emplace("name", ToUtf8(b.name));
         const char* mode = "toggle";
         if (b.mode == RepeatMode::Hold) mode = "hold";
         else if (b.mode == RepeatMode::Independent) mode = "independent";
@@ -301,6 +304,7 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
         for (const auto& step : macro.steps) {
             jsonlite::Object stepObj;
             stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
+            if (!step.name.empty()) stepObj.emplace("name", ToUtf8(step.name));
             stepObj.emplace("delayAfterMs", step.delayAfterMs);
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
@@ -450,6 +454,8 @@ AppConfig ConfigStore::Load() const {
         config.macroOverlay.showLoopCount = *value;
     if (const auto value = GetBoolField(*object, "macroOverlayShowPauseKeys"); value.has_value())
         config.macroOverlay.showPauseKeys = *value;
+    if (const auto value = GetBoolField(*object, "macroOverlayShowCurrentStep"); value.has_value())
+        config.macroOverlay.showCurrentStep = *value;
 
     if (const auto startupStr = GetStringField(*object, "startupAction"); startupStr.has_value()) {
         config.startupAction = *startupStr == "tray"
@@ -634,6 +640,7 @@ bool ConfigStore::Save(
     root.emplace("macroOverlayShowTriggerMode", config.macroOverlay.showTriggerMode);
     root.emplace("macroOverlayShowLoopCount", config.macroOverlay.showLoopCount);
     root.emplace("macroOverlayShowPauseKeys", config.macroOverlay.showPauseKeys);
+    root.emplace("macroOverlayShowCurrentStep", config.macroOverlay.showCurrentStep);
 
     root.emplace("startupAction",
         std::string(config.startupAction == StartupAction::Window ? "window" : "tray"));

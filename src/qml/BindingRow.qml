@@ -28,7 +28,7 @@ Item {
                 anchors.centerIn: parent
                 spacing: 0
                 checked: root.entry.enabled
-                Accessible.name: qsTr("启用 %1").arg(root.entry.keyText)
+                Accessible.name: qsTr("启用 %1").arg(root.entry.keyDisplayText)
                 onClicked: root.page.enableBinding(root.entry.id, checked)
             }
         }
@@ -36,7 +36,7 @@ Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: root.columns.fieldWidth
-            text: root.entry.keyText
+            text: root.entry.keyDisplayText
             description: root.entry.positionHint
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.modeText; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
@@ -50,8 +50,8 @@ Item {
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: root.columns.actionPadding }
-        IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyText); onClicked: root.page.editBinding(root.entry.id) }
-        IconButton { iconName: "delete"; hint: qsTr("删除 %1").arg(root.entry.keyText); onClicked: root.page.removeBinding(root.entry.id) }
+        IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyDisplayText); onClicked: root.page.editBinding(root.entry.id) }
+        IconButton { iconName: "delete"; hint: qsTr("删除 %1").arg(root.entry.keyDisplayText); onClicked: root.page.removeBinding(root.entry.id) }
         Item { Layout.preferredWidth: root.columns.actionPadding }
     }
 }

@@ -61,7 +61,7 @@ Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: root.columns.fieldWidth
-            text: root.entry.keyText
+            text: root.entry.keyDisplayText
             description: root.entry.positionHint
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }

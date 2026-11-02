@@ -77,7 +77,7 @@ void PageRefreshCoordinator::refreshMacro() {
     if (macro) {
         context_.view->macroPage()->setMacroEnabled(macro->enabled);
         context_.view->macroPage()->setNote(QString::fromStdWString(macro->note));
-        context_.view->macroPage()->setSteps(macro->steps);
+        context_.view->macroPage()->setSteps(macro->steps, profile);
         context_.view->macroPage()->setPauseKeys(macro->pauseKeys);
         context_.view->macroPage()->setMode(macro->triggerMode);
         context_.view->macroPage()->setLoopCount(macro->loopCount);

@@ -2,6 +2,7 @@
 #include "dialogs/KeyCaptureDialogBase.h"
 struct MacroStepEditResult {
     KeyDescriptor key;
+    QString name;
     int delayAfterMs = kDefaultDelayMs;
     ClickPosition clickPos;
 };

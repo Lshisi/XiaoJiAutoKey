@@ -15,7 +15,9 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
         {"positionVisible", true},
         {"supportsPosition", supportsMouseMove_ && supportsMouseMove_()}, {"positionHint", tr("未拾取")},
         {"fixed", false}, {"modeVisible", false}, {"needsDelay", true}, {"mode", 0},
-        {"enabled", true}, {"priority", true}, {"modeGuideVisible", false}, {"delay", QString::number(kDefaultDelayMs)}};
+        {"enabled", true}, {"priority", true}, {"modeGuideVisible", false},
+        {"nameVisible", false}, {"name", QString()},
+        {"delay", QString::number(kDefaultDelayMs)}};
     QVariantMap values = defaults;
     for (auto it = fields.cbegin(); it != fields.cend(); ++it) values.insert(it.key(), it.value());
     clickPos_.fixedPosition = values.value("fixed").toBool();
@@ -44,6 +46,7 @@ ClickPosition KeyCaptureDialogBase::clickPosition() const {
 }
 void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argument) {
     if (field == "delay") setValue(field, argument.toString());
+    else if (field == "name") setValue(field, argument.toString());
     else if (field == "mode" && argument.toInt() >= 0
         && argument.toInt() <= static_cast<int>(RepeatMode::LongPress)) {
         setValue(field, argument.toInt());

@@ -209,6 +209,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             jsonlite::Object bindingObj;
             bindingObj.emplace("enabled", binding.enabled);
             bindingObj.emplace("key", EncodeKey(binding.key));
+            if (!binding.name.empty()) bindingObj.emplace("name", WideToUtf8(binding.name));
             const char* mode = "toggle";
             if (binding.mode == RepeatMode::Hold) mode = "hold";
             else if (binding.mode == RepeatMode::Independent) mode = "independent";
@@ -253,6 +254,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
         for (const auto& step : macro.steps) {
             jsonlite::Object stepObj;
             stepObj.emplace("key", EncodeKey(step.key));
+            if (!step.name.empty()) stepObj.emplace("name", WideToUtf8(step.name));
             stepObj.emplace("delayAfterMs", ClampDelay(step.delayAfterMs));
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
@@ -331,6 +333,9 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             KeyBinding binding;
                             binding.enabled = BoolField(*bindingObj, "enabled").value_or(true);
                             binding.key = *key;
+                            if (auto name = StringField(*bindingObj, "name")) {
+                                if (name->size() <= 64) binding.name = Utf8ToWide(*name);
+                            }
                             const auto mode = StringField(*bindingObj, "mode").value_or("toggle");
                             if (mode == "hold") binding.mode = RepeatMode::Hold;
                             else if (mode == "independent") binding.mode = RepeatMode::Independent;
@@ -402,6 +407,9 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             if (!key.has_value()) continue;
                             MacroStep step;
                             step.key = *key;
+                            if (auto name = StringField(*stepObj, "name")) {
+                                if (name->size() <= 64) step.name = Utf8ToWide(*name);
+                            }
                             step.delayAfterMs = ClampDelay(IntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs));
                             if (step.key.device == InputDevice::Mouse) {
                                 if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
@@ -601,10 +609,12 @@ constexpr const char* kTokenFaction = "\u95e8\u6d3e";          // 门派
 constexpr const char* kTokenProfile = "\u65b9\u6848";          // 方案
 constexpr const char* kTokenProfileSettings = "\u65b9\u6848\u8bbe\u7f6e";  // 方案设置
 constexpr const char* kTokenBinding = "\u8fde\u53d1";          // 连发
+constexpr const char* kTokenBindingName = "\u8fde\u53d1\u540d\u79f0";    // 连发名称
 constexpr const char* kTokenMacro = "\u5b8f";                  // 宏
 constexpr const char* kTokenNote = "\u5907\u6ce8";
 constexpr const char* kTokenMacroSettings = "\u5b8f\u8bbe\u7f6e";          // 宏设置
 constexpr const char* kTokenSteps = "\u6b65\u9aa4";            // 步骤
+constexpr const char* kTokenStepName = "\u6b65\u9aa4\u540d\u79f0";        // 步骤名称
 constexpr const char* kKeyEnabled = "\u542f\u7528";            // 启用
 constexpr const char* kKeyMixedMode = "\u8fde\u53d1\u4f18\u5148";          // 连发优先
 constexpr const char* kKeyWasd = "WASD\u9632\u5361";           // WASD防卡
@@ -652,6 +662,20 @@ bool ParseKeyedToken(const std::string& token, std::string& key, std::string& va
     }
     key = token.substr(0, pos);
     value = token.substr(pos + 1);
+    return true;
+}
+
+bool ParseIndexedName(const std::string& value, std::size_t& index, std::wstring& name) {
+    const auto space = value.find(' ');
+    if (space == std::string::npos || space == 0 || space + 1 >= value.size()) return false;
+    index = static_cast<std::size_t>(std::atoi(value.substr(0, space).c_str()));
+    jsonlite::Value parsed;
+    std::string error;
+    if (!jsonlite::Parse(value.substr(space + 1), parsed, error) || !parsed.IsString()) return false;
+    const auto* text = parsed.AsString();
+    if (!text || text->empty() || text->size() > 64) return false;
+    index = static_cast<std::size_t>(std::atoi(value.substr(0, space).c_str()));
+    name = Utf8ToWide(*text);
     return true;
 }
 
@@ -732,7 +756,8 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
             }
         }
         out += std::string(kTokenProfileSettings) + ":" + settings + "\n";
-        for (const auto& binding : profile.bindings) {
+        for (std::size_t bindingIndex = 0; bindingIndex < profile.bindings.size(); ++bindingIndex) {
+            const auto& binding = profile.bindings[bindingIndex];
             std::string line = std::string(kTokenBinding) + ": " + EncodeKey(binding.key);
             if (binding.mode == RepeatMode::Hold) line += std::string(" ") + kModeHold;
             else if (binding.mode == RepeatMode::Independent) line += std::string(" ") + kModeIndependent;
@@ -753,6 +778,10 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
                     + PercentValue(std::clamp(binding.clickPos.anchorY, 0.0, 1.0));
             }
             out += line + "\n";
+            if (!binding.name.empty()) {
+                out += std::string(kTokenBindingName) + ": " + std::to_string(bindingIndex)
+                    + " " + jsonlite::Stringify(WideToUtf8(binding.name)) + "\n";
+            }
         }
     }
     for (const auto& macro : payload.macros) {
@@ -787,6 +816,11 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
         }
         if (!steps.empty()) {
             out += std::string(kTokenSteps) + ":" + steps + "\n";
+        }
+        for (std::size_t index = 0; index < macro.steps.size(); ++index) {
+            if (macro.steps[index].name.empty()) continue;
+            out += std::string(kTokenStepName) + ": " + std::to_string(index)
+                + " " + jsonlite::Stringify(WideToUtf8(macro.steps[index].name)) + "\n";
         }
     }
     return out;
@@ -900,6 +934,13 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
             currentProfile->bindings.push_back(binding);
             continue;
         }
+        if (StartsWithKey(line, kTokenBindingName, value) && currentProfile != nullptr) {
+            std::size_t index = 0;
+            std::wstring name;
+            if (!ParseIndexedName(value, index, name)) return std::nullopt;
+            if (index < currentProfile->bindings.size()) currentProfile->bindings[index].name = name;
+            continue;
+        }
         if (StartsWithKey(line, kTokenMacroSettings, value) && currentMacro != nullptr) {
             for (const auto& token : SplitTokens(value)) {
                 std::string tokenKey;
@@ -951,6 +992,13 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 }
                 currentMacro->steps.push_back(step);
             }
+            continue;
+        }
+        if (StartsWithKey(line, kTokenStepName, value) && currentMacro != nullptr) {
+            std::size_t index = 0;
+            std::wstring name;
+            if (!ParseIndexedName(value, index, name)) return std::nullopt;
+            if (index < currentMacro->steps.size()) currentMacro->steps[index].name = name;
             continue;
         }
         if (StartsWithKey(line, kTokenNote, value)) {

@@ -15,7 +15,8 @@ ColumnLayout {
     ]
     readonly property var macroOptions: [
         { field: "macroHotkey", label: qsTr("触发快捷键") }, { field: "macroTriggerMode", label: qsTr("触发模式") },
-        { field: "macroLoopCount", label: qsTr("循环次数") }, { field: "macroPauseKeys", label: qsTr("暂停快捷键") }
+        { field: "macroLoopCount", label: qsTr("循环次数") }, { field: "macroCurrentStep", label: qsTr("当前步骤") },
+        { field: "macroPauseKeys", label: qsTr("暂停快捷键") }
     ]
     spacing: Theme.cardGap
     TabBar {

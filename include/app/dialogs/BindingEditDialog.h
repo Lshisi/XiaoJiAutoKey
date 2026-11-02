@@ -2,6 +2,7 @@
 #include "dialogs/KeyCaptureDialogBase.h"
 struct BindingEditResult {
     KeyDescriptor key;
+    QString name;
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = kDefaultDelayMs;
     bool enabled = true;

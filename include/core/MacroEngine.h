@@ -26,6 +26,7 @@ struct MacroRuntime {
 struct MacroStatus {
     bool running = false;
     bool paused = false;
+    int currentStep = -1;
 };
 
 class MacroEngine {

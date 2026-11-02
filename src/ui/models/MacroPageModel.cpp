@@ -7,11 +7,24 @@ MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
         {"triggerMode", 0}, {"loopCount", 0}};
 }
 
-void MacroPageModel::setSteps(const std::vector<MacroStep>& steps) {
+void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, const ProfileConfig* profile) {
     QVariantList rows;
     for (const auto& step : steps) {
         const bool fixed = step.key.device == InputDevice::Mouse && step.clickPos.IsFixed();
-        rows.push_back(QVariantMap{{"keyText", QString::fromStdWString(GetKeyDisplayName(step.key))},
+        std::wstring name = step.name;
+        if (name.empty() && profile) {
+            for (const auto& binding : profile->bindings) {
+                if (binding.mode == RepeatMode::Sequence && binding.key == step.key && !binding.name.empty()) {
+                    name = binding.name;
+                    break;
+                }
+            }
+        }
+        const std::wstring keyName = GetKeyDisplayName(step.key);
+        const std::wstring displayName = name.empty() ? keyName : keyName + L" · " + name;
+        rows.push_back(QVariantMap{{"keyText", QString::fromStdWString(keyName)},
+            {"name", QString::fromStdWString(name)},
+            {"keyDisplayText", QString::fromStdWString(displayName)},
             {"delay", step.delayAfterMs}, {"positionHint", fixed
                 ? tr("固定点位：%1%，%2%")
                     .arg(step.clickPos.anchorX * 100, 0, 'f', 1)

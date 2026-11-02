@@ -29,7 +29,7 @@ ColumnLayout {
     QuietLabel {
         Layout.fillWidth: true
         visible: sharing.fields.notePreview.length > 0
-        text: qsTr("配置备注")
+        text: qsTr("配置信息")
         color: Theme.muted
     }
     QuietTextArea {
@@ -38,6 +38,6 @@ ColumnLayout {
         implicitHeight: 72
         text: sharing.fields.notePreview
         readOnly: true
-        Accessible.name: qsTr("分享配置的备注")
+        Accessible.name: qsTr("分享配置的备注和名称")
     }
 }

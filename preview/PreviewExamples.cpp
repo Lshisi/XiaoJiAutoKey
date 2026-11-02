@@ -72,7 +72,9 @@ QVariantMap PreviewController::overlayState() const {
         const auto row = value.toMap();
         const QString option = QStringList{"repeatToggle", "repeatHold", "repeatIndependent", "repeatSequence", "repeatLongPress"}[row.value("mode").toInt()];
         if (overlayOptions_.value(option).toBool())
-            repeatLines << tr("%1：%2").arg(row.value("modeText").toString(), row.value("keyText").toString());
+            repeatLines << tr("%1：%2").arg(row.value("modeText").toString(),
+                row.value("name").toString().isEmpty() ? row.value("keyText").toString()
+                    : tr("%1（%2）").arg(row.value("name").toString(), row.value("keyText").toString()));
     }
     if (overlayOptions_.value("repeatSequenceHotkey").toBool() && repeat.value("hasSequenceKey").toBool())
         repeatLines << tr("切换键：%1").arg(repeat.value("sequenceKey").toString());
@@ -82,6 +84,12 @@ QVariantMap PreviewController::overlayState() const {
     if (overlayOptions_.value("macroTriggerMode").toBool()) macroLines << (macro.value("triggerMode").toInt() == 0 ? tr("开关触发") : tr("按压触发"));
     if (overlayOptions_.value("macroLoopCount").toBool())
         macroLines << (macro.value("loopCount").toInt() == 0 ? tr("循环次数：无限") : tr("循环次数：%1").arg(macro.value("loopCount").toInt()));
+    if (overlayOptions_.value("macroCurrentStep").toBool() && !macros_.model()->rows().isEmpty()) {
+        const auto step = macros_.model()->rows().first().toMap();
+        macroLines << (step.value("name").toString().isEmpty()
+            ? tr("当前：%1").arg(step.value("keyText").toString())
+            : tr("当前：%1（%2）").arg(step.value("name").toString(), step.value("keyText").toString()));
+    }
     if (overlayOptions_.value("macroPauseKeys").toBool() && !macro.value("pauseKeys").toList().isEmpty())
         macroLines << tr("暂停键：%1").arg(macro.value("pauseKeys").toStringList().join("、"));
     return {{"showRepeat", keys_.model()->state().value("overlayEnabled")},

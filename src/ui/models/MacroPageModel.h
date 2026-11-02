@@ -7,7 +7,7 @@ class MacroPageModel final : public PageModel {
     Q_OBJECT
 public:
     explicit MacroPageModel(QObject* parent = nullptr);
-    void setSteps(const std::vector<MacroStep>& steps);
+    void setSteps(const std::vector<MacroStep>& steps, const ProfileConfig* profile = nullptr);
     void setMacroEnabled(bool value) { setValue("profileEnabled", value); }
     void setNote(const QString& value) { setValue("note", value); }
     void setRunning(bool value);

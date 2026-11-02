@@ -112,6 +112,32 @@ QString keyText(const std::optional<KeyDescriptor>& key) {
     return key ? QString::fromStdWString(GetKeyDisplayName(*key)) : QStringLiteral("[-]");
 }
 
+QString bindingText(const ProfileConfig* profile, const KeyDescriptor& key) {
+    const QString keyName = QString::fromStdWString(GetKeyDisplayName(key));
+    if (!profile) return keyName;
+    const auto matched = std::find_if(profile->bindings.begin(), profile->bindings.end(),
+        [&key](const KeyBinding& binding) { return binding.enabled && binding.key == key; });
+    if (matched == profile->bindings.end() || matched->name.empty()) return keyName;
+    return QObject::tr("%1（%2）")
+        .arg(QString::fromStdWString(matched->name), keyName);
+}
+
+QString bindingText(const ProfileConfig* profile, const KeyBinding& binding) {
+    const QString keyName = QString::fromStdWString(GetKeyDisplayName(binding.key));
+    return binding.name.empty() ? keyName
+        : QObject::tr("%1（%2）").arg(QString::fromStdWString(binding.name), keyName);
+}
+
+QString textSummary(const QStringList& values, const QString& prefix,
+    const QFontMetrics& metrics, int availableWidth) {
+    QStringList names;
+    for (int index = 0; index < std::min<int>(2, values.size()); ++index) names << values[index];
+    const QString suffix = values.size() > 2
+        ? QObject::tr(" 等%1键").arg(values.size()) : QString();
+    const int budget = std::max(0, availableWidth - metrics.horizontalAdvance(prefix + suffix));
+    return prefix + metrics.elidedText(names.join(QStringLiteral(", ")), Qt::ElideRight, budget) + suffix;
+}
+
 QString keySummary(const std::vector<KeyDescriptor>& keys, const QString& prefix,
     const QFontMetrics& metrics, int availableWidth) {
     QStringList names;
@@ -140,28 +166,32 @@ QStringList repeatLines(const ProfileConfig* profile, const RepeaterStatus& stat
         : status.holdPriorityActive ? QObject::tr("（让位）") : QString();
     if (options.showIndependent && hasMode(RepeatMode::Independent))
         lines << QObject::tr("独立%1：%2").arg(modeState, status.independentKey
-            ? keyText(status.independentKey) : QObject::tr("未激活"));
+            ? bindingText(profile, *status.independentKey) : QObject::tr("未激活"));
     if (options.showHold && hasMode(RepeatMode::Hold))
         lines << (status.holdKeys.empty() ? QObject::tr("按压：未按压")
-            : keySummary(status.holdKeys, QObject::tr("按压："), metrics, availableWidth));
+            : [&]() {
+                QStringList names;
+                for (const auto& key : status.holdKeys) names << bindingText(profile, key);
+                return textSummary(names, QObject::tr("按压："), metrics, availableWidth);
+            }());
     if (options.showToggle && hasMode(RepeatMode::Toggle)) {
-        std::vector<KeyDescriptor> keys;
+        QStringList names;
         for (const auto& binding : profile->bindings)
-            if (binding.enabled && binding.mode == RepeatMode::Toggle) keys.push_back(binding.key);
-        lines << keySummary(keys, QObject::tr("开关%1：").arg(modeState), metrics, availableWidth);
+            if (binding.enabled && binding.mode == RepeatMode::Toggle) names << bindingText(profile, binding);
+        lines << textSummary(names, QObject::tr("开关%1：").arg(modeState), metrics, availableWidth);
     }
     if (options.showLongPress && hasMode(RepeatMode::LongPress)) {
-        std::vector<KeyDescriptor> keys;
+        QStringList names;
         for (const auto& binding : profile->bindings)
-            if (binding.enabled && binding.mode == RepeatMode::LongPress) keys.push_back(binding.key);
-        lines << keySummary(keys, QObject::tr("长按%1：").arg(modeState), metrics, availableWidth);
+            if (binding.enabled && binding.mode == RepeatMode::LongPress) names << bindingText(profile, binding);
+        lines << textSummary(names, QObject::tr("长按%1：").arg(modeState), metrics, availableWidth);
     }
     if (options.showSequence && hasMode(RepeatMode::Sequence)) {
         QString selected = QObject::tr("未激活");
         for (const auto& binding : profile->bindings) {
             if (binding.enabled && binding.mode == RepeatMode::Sequence
                 && status.sequenceTaskId && binding.id == *status.sequenceTaskId) {
-                selected = QString::fromStdWString(GetKeyDisplayName(binding.key));
+                selected = bindingText(profile, binding);
                 break;
             }
         }
@@ -174,7 +204,8 @@ QStringList repeatLines(const ProfileConfig* profile, const RepeaterStatus& stat
     return lines;
 }
 
-QStringList macroLines(const MacroConfig* macro, const MacroOverlayOptions& options,
+QStringList macroLines(const MacroConfig* macro, const MacroStatus& status, const ProfileConfig* profile,
+    const MacroOverlayOptions& options,
     const QFontMetrics& metrics, int availableWidth) {
     if (!macro) return {};
     QStringList lines;
@@ -197,6 +228,22 @@ QStringList macroLines(const MacroConfig* macro, const MacroOverlayOptions& opti
         }
     }
     if (!trigger.isEmpty()) lines << trigger;
+    if (options.showCurrentStep && status.running
+        && status.currentStep >= 0 && status.currentStep < static_cast<int>(macro->steps.size())) {
+        const auto& step = macro->steps[status.currentStep];
+        const QString keyName = QString::fromStdWString(GetKeyDisplayName(step.key));
+        QString name = QString::fromStdWString(step.name);
+        if (name.isEmpty() && profile) {
+            const auto matched = std::find_if(profile->bindings.begin(), profile->bindings.end(),
+                [&step](const KeyBinding& binding) {
+                    return binding.mode == RepeatMode::Sequence && binding.key == step.key && !binding.name.empty();
+                });
+            if (matched != profile->bindings.end()) name = QString::fromStdWString(matched->name);
+        }
+        lines << (name.isEmpty()
+            ? QObject::tr("当前：%1").arg(keyName)
+            : QObject::tr("当前：%1（%2）").arg(name, keyName));
+    }
     if (options.showPauseKeys && !macro->pauseKeys.empty())
         lines << keySummary(macro->pauseKeys, QObject::tr("暂停键："), metrics, availableWidth);
     return lines;
@@ -364,7 +411,7 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     state.insert("repeatTitle", tr("连发：%1").arg(repeatState));
     state.insert("macroTitle", tr("循环：%1").arg(macroState));
     state.insert("repeatLines", repeatLines(profile, repeat, config.repeatOverlay, metrics, textWidth));
-    state.insert("macroLines", macroLines(macro, config.macroOverlay, metrics, textWidth));
+    state.insert("macroLines", macroLines(macro, macroStatus, profile, config.macroOverlay, metrics, textWidth));
     state.insert("repeatActive", repeat.running && (!repeatPaused || !repeat.holdKeys.empty()));
     state.insert("macroActive", macroStatus.running && !macroStatus.paused);
     const bool materialDark = Fluent::Theme::isDarkMode();

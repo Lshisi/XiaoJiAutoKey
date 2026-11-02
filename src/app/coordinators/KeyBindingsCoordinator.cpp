@@ -258,7 +258,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         if (auto idx = findBindingIndex(*bindingId)) {
             const auto& binding = profile->bindings[*idx];
             existing = BindingEditResult{
-                binding.key, binding.mode, binding.delayMs, binding.enabled,
+                binding.key, QString::fromStdWString(binding.name), binding.mode, binding.delayMs, binding.enabled,
                 binding.suppressMixedMode, binding.clickPos};
         }
     }
@@ -281,6 +281,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
     auto result = context_.controller->upsertBinding(
         bindingId,
         editResult.key,
+        editResult.name,
         editResult.mode,
         editResult.delayMs,
         editResult.enabled,

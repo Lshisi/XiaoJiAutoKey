@@ -44,6 +44,16 @@ ColumnLayout {
             }
             onAccepted: dialogModel.dispatch("accept")
         }
+        QuietLabel { visible: editor.fields.nameVisible; text: qsTr("名称:") }
+        QuietTextField {
+            visible: editor.fields.nameVisible
+            Layout.fillWidth: true
+            Layout.columnSpan: editor.fields.modeVisible ? 3 : 1
+            text: editor.fields.name
+            placeholderText: qsTr("选填，例如单体宏")
+            Accessible.name: qsTr("按键名称")
+            onTextEdited: dialogModel.edit("name", text)
+        }
         RowLayout {
             visible: editor.fields.modeVisible
             Layout.columnSpan: 2

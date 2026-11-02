@@ -15,7 +15,8 @@ PreviewController::PreviewController(QObject* parent)
         {"repeatHotkey", true}, {"repeatIndependent", true}, {"repeatHold", true},
         {"repeatToggle", true}, {"repeatLongPress", true}, {"repeatSequence", true},
         {"repeatSequenceHotkey", true}, {"repeatPauseKeys", true},
-        {"macroHotkey", true}, {"macroTriggerMode", true}, {"macroLoopCount", true}, {"macroPauseKeys", true}};
+        {"macroHotkey", true}, {"macroTriggerMode", true}, {"macroLoopCount", true},
+        {"macroCurrentStep", true}, {"macroPauseKeys", true}};
     const auto workspaceChanged = [this]() { emit activityIconChanged(); emit overlayChanged(); };
     connect(keys_.model(), &PageModel::stateChanged, this, workspaceChanged);
     connect(macros_.model(), &PageModel::stateChanged, this, workspaceChanged);

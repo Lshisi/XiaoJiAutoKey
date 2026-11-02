@@ -349,7 +349,7 @@ MacroStatus MacroEngine::GetStatus(std::uint64_t macroId) const {
     const auto it = std::find_if(macros_.begin(), macros_.end(),
         [macroId](const MacroRuntime& rt) { return rt.config.id == macroId; });
     const bool running = it != macros_.end() && it->config.enabled && it->active;
-    return {running, running && IsPauseActive()};
+    return {running, running && IsPauseActive(), running ? it->currentStep : -1};
 }
 
 std::chrono::steady_clock::time_point MacroEngine::Now() {

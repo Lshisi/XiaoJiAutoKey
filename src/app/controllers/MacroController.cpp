@@ -114,13 +114,6 @@ ControllerResult MacroController::renameActiveMacro(const QString& name) {
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::setActiveMacroNote(const QString& note) {
-    auto* macro = activeMacro();
-    if (!macro) return ControllerResult::failure(QStringLiteral("循环配置不存在。"));
-    macro->note = note.trimmed().toStdWString();
-    return ControllerResult::success();
-}
-
 ControllerResult MacroController::deleteActiveMacro(std::uint64_t& newActiveMacroId) {
     if (config_.macros.size() <= 1) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u5b8f\u914d\u7f6e\u3002"));

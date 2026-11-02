@@ -7,9 +7,8 @@ class MacroPageModel final : public PageModel {
     Q_OBJECT
 public:
     explicit MacroPageModel(QObject* parent = nullptr);
-    void setSteps(const std::vector<MacroStep>& steps, const ProfileConfig* profile = nullptr);
+    void setSteps(const std::vector<MacroStep>& steps);
     void setMacroEnabled(bool value) { setValue("profileEnabled", value); }
-    void setNote(const QString& value) { setValue("note", value); }
     void setRunning(bool value);
     void setHotkeyText(const QString& value) { setValue("hotkey", value); }
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
@@ -29,7 +28,6 @@ signals:
     void macroAddRequested();
     void macroDuplicateRequested();
     void macroRenameRequested();
-    void noteEditRequested();
     void macroDeleteRequested();
     void macroEnabledToggled(bool enabled);
     void shareRequested();

@@ -28,16 +28,16 @@ ColumnLayout {
     QuietLabel { Layout.fillWidth: true; text: sharing.fields.status; color: Theme.muted; font.pixelSize: 12 }
     QuietLabel {
         Layout.fillWidth: true
-        visible: sharing.fields.notePreview.length > 0
-        text: qsTr("配置信息")
+        visible: sharing.fields.namePreview.length > 0
+        text: qsTr("按键名称")
         color: Theme.muted
     }
     QuietTextArea {
         Layout.fillWidth: true
-        visible: sharing.fields.notePreview.length > 0
+        visible: sharing.fields.namePreview.length > 0
         implicitHeight: 72
-        text: sharing.fields.notePreview
+        text: sharing.fields.namePreview
         readOnly: true
-        Accessible.name: qsTr("分享配置的备注和名称")
+        Accessible.name: qsTr("分享配置中的按键名称")
     }
 }

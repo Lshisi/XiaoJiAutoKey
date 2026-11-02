@@ -101,7 +101,6 @@ struct MacroStep {
 struct MacroConfig {
     std::uint64_t id = 0;
     std::wstring name;
-    std::wstring note;
     std::vector<MacroStep> steps;
     std::vector<KeyDescriptor> pauseKeys;
     MacroTriggerMode triggerMode = MacroTriggerMode::Toggle;
@@ -113,7 +112,6 @@ struct MacroConfig {
 struct ProfileConfig {
     std::uint64_t id = 0;
     std::wstring name;
-    std::wstring note;
     bool enabled = true;
     std::optional<KeyDescriptor> controlHotkey;
     int defaultDelayMs = kDefaultDelayMs;

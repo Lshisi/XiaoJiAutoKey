@@ -27,7 +27,8 @@ Item {
         anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
         IconButton {
-            Layout.preferredWidth: root.columns.leadingWidth
+            Layout.minimumWidth: root.columns.leadingWidth
+            Layout.maximumWidth: root.columns.leadingWidth
             iconName: "drag-handle"
             hint: qsTr("拖动排序；Alt+↑/↓ 调整步骤位置")
             Accessible.name: qsTr("步骤 %1 的排序手柄").arg(root.rowIndex + 1)
@@ -58,13 +59,13 @@ Item {
             }
         }
         KeyCell {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            Layout.preferredWidth: root.columns.fieldWidth
-            text: root.entry.keyDisplayText
+            Layout.minimumWidth: root.columns.keyWidth
+            Layout.maximumWidth: root.columns.keyWidth
+            text: root.entry.keyText
             description: root.entry.positionHint
         }
-        QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
+        NameCell { Layout.minimumWidth: root.columns.nameWidth; Layout.maximumWidth: root.columns.nameWidth; name: root.entry.name }
+        QuietLabel { Layout.minimumWidth: root.columns.delayWidth; Layout.maximumWidth: root.columns.delayWidth; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: root.columns.actionPadding }
         IconButton { iconName: "edit"; hint: qsTr("编辑步骤"); onClicked: root.page.editStepRequested(root.rowIndex) }
         IconButton { iconName: "delete"; hint: qsTr("删除步骤"); onClicked: root.page.deleteStepRequested(root.rowIndex) }

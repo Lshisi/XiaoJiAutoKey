@@ -11,7 +11,7 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
             : existing->mode == RepeatMode::Sequence ? 3
             : existing->mode == RepeatMode::LongPress ? 4 : 0;
         fields.insert("mode", mode);
-        fields.insert("name", QString::fromStdWString(existing->name));
+        fields.insert("name", existing->name);
         fields.insert("needsDelay", existing->mode != RepeatMode::LongPress);
         fields.insert("delay", QString::number(existing->delayMs));
         fields.insert("enabled", existing->enabled);

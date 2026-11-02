@@ -22,7 +22,6 @@ public:
     ControllerResult addMacro(const QString& name, std::uint64_t& createdMacroId);
     ControllerResult duplicateActiveMacro(const QString& name, std::uint64_t& createdMacroId);
     ControllerResult renameActiveMacro(const QString& name);
-    ControllerResult setActiveMacroNote(const QString& note);
     ControllerResult deleteActiveMacro(std::uint64_t& newActiveMacroId);
 
     ControllerResult setActiveMacroEnabled(bool enabled);

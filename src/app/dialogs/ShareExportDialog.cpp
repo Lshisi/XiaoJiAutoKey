@@ -1,5 +1,5 @@
 #include "dialogs/ShareExportDialog.h"
-#include "dialogs/ShareNotePreview.h"
+#include "dialogs/ShareNamePreview.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QStringList>
@@ -47,7 +47,7 @@ ShareExportDialog::ShareExportDialog(const QString& title, const SharePayload& p
     setWindowTitle(title);
     summary_ = PayloadSummary(payload);
     present("DialogShare.qml", {{"exporting", true}, {"format", 0}, {"code", QString()}, {"status", summary_},
-        {"notePreview", ShareNotePreview(payload)},
+        {"namePreview", ShareNamePreview(payload)},
         {"actions", QVariantList{button("copy", tr("复制")), button("cancel", tr("关闭"), false)}}}, QSize(480, 360));
     refreshExport();
 }

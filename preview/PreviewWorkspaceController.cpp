@@ -35,8 +35,14 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
     } else if (action == "update") {
         emit aboutRequested();
     } else if (action == "share") {
+        QStringList names;
+        for (const auto& value : model_.rows()) {
+            const auto row = value.toMap();
+            if (!row.value("name").toString().isEmpty())
+                names << tr("%1：%2").arg(row.value("keyText").toString(), row.value("name").toString());
+        }
         dialog_.present("DialogShare.qml", tr("导出配置"), {{"exporting", true}, {"format", 1},
-            {"notePreview", model_.state().value("note")},
+            {"namePreview", names.join(QStringLiteral("\n"))},
             {"code", tr("【界面预览示例】\n默认配置\n按键 1：开关模式，10ms\n按键 侧键1：按压模式，10ms")},
             {"status", tr("此处展示导出窗口，内容为预览示例。")}});
     }
@@ -91,23 +97,6 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding) 
 void PreviewWorkspaceController::editProfile(const QString& action) {
     auto profiles = model_.state().value("profiles").toList();
     const int index = model_.state().value("profileIndex").toInt();
-    if (action == "profileNote") {
-        const auto profile = profiles[index].toMap();
-        dialog_.present("DialogConfigNote.qml", tr("配置备注"),
-            {{"name", profile.value("name")}, {"note", profile.value("note")}},
-            [this, profiles, index](const QVariantMap& values) mutable {
-                auto updated = profiles[index].toMap();
-                updated.insert("note", values.value("note").toString().trimmed());
-                profiles[index] = updated;
-                model_.update("profiles", profiles);
-            }, 420);
-        auto actions = dialog_.dialogState().value("actions").toList();
-        auto save = actions[0].toMap();
-        save.insert("text", tr("保存"));
-        actions[0] = save;
-        dialog_.edit("actions", actions);
-        return;
-    }
     if (action == "profileDuplicate") {
         const QString initialName = profiles[index].toMap().value("name").toString() + tr("（副本）");
         dialog_.present("DialogName.qml", tr("复制配置"),
@@ -144,7 +133,7 @@ void PreviewWorkspaceController::editProfile(const QString& action) {
             const QString name = values.value("name").toString().trimmed();
             if (name.isEmpty()) return;
             if (action == "profileAdd") {
-                profiles.append(QVariantMap{{"id", QString::number(nextId_++)}, {"name", name}, {"note", QString()}});
+                profiles.append(QVariantMap{{"id", QString::number(nextId_++)}, {"name", name}});
                 model_.update("profiles", profiles);
                 model_.update("profileIndex", profiles.size() - 1);
             } else {

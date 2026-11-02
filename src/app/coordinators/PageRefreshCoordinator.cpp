@@ -31,7 +31,6 @@ void PageRefreshCoordinator::refreshAll() {
 
     context_.view->keyPage()->setBindings(profile->bindings);
     context_.view->keyPage()->setProfileEnabled(profile->enabled);
-    context_.view->keyPage()->setNote(QString::fromStdWString(profile->note));
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
     context_.view->keyPage()->setHotkeyText(hotkeyText);
     context_.view->keyPage()->setBeepEnabled(context_.config->beepEnabled);
@@ -76,8 +75,7 @@ void PageRefreshCoordinator::refreshMacro() {
     auto* macro = context_.activeMacro ? context_.activeMacro() : nullptr;
     if (macro) {
         context_.view->macroPage()->setMacroEnabled(macro->enabled);
-        context_.view->macroPage()->setNote(QString::fromStdWString(macro->note));
-        context_.view->macroPage()->setSteps(macro->steps, profile);
+        context_.view->macroPage()->setSteps(macro->steps);
         context_.view->macroPage()->setPauseKeys(macro->pauseKeys);
         context_.view->macroPage()->setMode(macro->triggerMode);
         context_.view->macroPage()->setLoopCount(macro->loopCount);
@@ -87,7 +85,6 @@ void PageRefreshCoordinator::refreshMacro() {
         context_.view->macroPage()->setHotkeyText(hotkeyText);
     } else {
         context_.view->macroPage()->setMacroEnabled(false);
-        context_.view->macroPage()->setNote(QString());
         context_.view->macroPage()->setSteps({});
         context_.view->macroPage()->setPauseKeys({});
         context_.view->macroPage()->setMode(MacroTriggerMode::Toggle);

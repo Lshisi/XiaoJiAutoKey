@@ -104,13 +104,6 @@ ControllerResult ProfileController::renameActiveProfile(const QString& name) {
     return ControllerResult::success();
 }
 
-ControllerResult ProfileController::setActiveProfileNote(const QString& note) {
-    auto* profile = activeProfile();
-    if (!profile) return ControllerResult::failure(QStringLiteral("没有可用的配置方案。"));
-    profile->note = note.trimmed().toStdWString();
-    return ControllerResult::success();
-}
-
 ControllerResult ProfileController::deleteActiveProfile(std::uint64_t& newActiveProfileId) {
     if (config_.profiles.size() <= 1) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u81f3\u5c11\u9700\u8981\u4fdd\u7559\u4e00\u4e2a\u914d\u7f6e\u65b9\u6848\u3002"));

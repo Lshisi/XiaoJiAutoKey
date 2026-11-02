@@ -2,24 +2,16 @@
 
 MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"steps", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
-        {"profileEnabled", false}, {"note", QString()}, {"running", false}, {"hotkey", tr("未设置")},
+        {"profileEnabled", false}, {"running", false}, {"hotkey", tr("未设置")},
         {"beepEnabled", true}, {"overlayEnabled", false}, {"pauseKeys", QVariantList{}},
         {"triggerMode", 0}, {"loopCount", 0}};
 }
 
-void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, const ProfileConfig* profile) {
+void MacroPageModel::setSteps(const std::vector<MacroStep>& steps) {
     QVariantList rows;
     for (const auto& step : steps) {
         const bool fixed = step.key.device == InputDevice::Mouse && step.clickPos.IsFixed();
-        std::wstring name = step.name;
-        if (name.empty() && profile) {
-            for (const auto& binding : profile->bindings) {
-                if (binding.mode == RepeatMode::Sequence && binding.key == step.key && !binding.name.empty()) {
-                    name = binding.name;
-                    break;
-                }
-            }
-        }
+        const std::wstring& name = step.name;
         const std::wstring keyName = GetKeyDisplayName(step.key);
         const std::wstring displayName = name.empty() ? keyName : keyName + L" · " + name;
         rows.push_back(QVariantMap{{"keyText", QString::fromStdWString(keyName)},

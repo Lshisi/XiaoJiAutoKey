@@ -45,7 +45,6 @@ private:
     void onProfileAdd();
     void onProfileDuplicate();
     void onProfileRename();
-    void onNoteEdit();
     void onProfileDelete();
     void onProfileEnabledToggled(bool enabled);
     void stopEnginesForProfileChange();

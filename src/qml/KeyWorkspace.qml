@@ -30,7 +30,6 @@ Item {
                 anchors.fill: parent
                 spacing: 10
                 ProfileToolbar { id: profileToolbar; Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
-                ProfileNoteSummary { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredWidth: 0; page: workspace.page }
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 8

@@ -204,7 +204,7 @@ QStringList repeatLines(const ProfileConfig* profile, const RepeaterStatus& stat
     return lines;
 }
 
-QStringList macroLines(const MacroConfig* macro, const MacroStatus& status, const ProfileConfig* profile,
+QStringList macroLines(const MacroConfig* macro, const MacroStatus& status,
     const MacroOverlayOptions& options,
     const QFontMetrics& metrics, int availableWidth) {
     if (!macro) return {};
@@ -232,14 +232,7 @@ QStringList macroLines(const MacroConfig* macro, const MacroStatus& status, cons
         && status.currentStep >= 0 && status.currentStep < static_cast<int>(macro->steps.size())) {
         const auto& step = macro->steps[status.currentStep];
         const QString keyName = QString::fromStdWString(GetKeyDisplayName(step.key));
-        QString name = QString::fromStdWString(step.name);
-        if (name.isEmpty() && profile) {
-            const auto matched = std::find_if(profile->bindings.begin(), profile->bindings.end(),
-                [&step](const KeyBinding& binding) {
-                    return binding.mode == RepeatMode::Sequence && binding.key == step.key && !binding.name.empty();
-                });
-            if (matched != profile->bindings.end()) name = QString::fromStdWString(matched->name);
-        }
+        const QString name = QString::fromStdWString(step.name);
         lines << (name.isEmpty()
             ? QObject::tr("当前：%1").arg(keyName)
             : QObject::tr("当前：%1（%2）").arg(name, keyName));
@@ -411,7 +404,7 @@ void StatusOverlayWindow::updateStatus(const AppConfig& config, const ProfileCon
     state.insert("repeatTitle", tr("连发：%1").arg(repeatState));
     state.insert("macroTitle", tr("循环：%1").arg(macroState));
     state.insert("repeatLines", repeatLines(profile, repeat, config.repeatOverlay, metrics, textWidth));
-    state.insert("macroLines", macroLines(macro, macroStatus, profile, config.macroOverlay, metrics, textWidth));
+    state.insert("macroLines", macroLines(macro, macroStatus, config.macroOverlay, metrics, textWidth));
     state.insert("repeatActive", repeat.running && (!repeatPaused || !repeat.holdKeys.empty()));
     state.insert("macroActive", macroStatus.running && !macroStatus.paused);
     const bool materialDark = Fluent::Theme::isDarkMode();

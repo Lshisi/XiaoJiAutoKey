@@ -156,8 +156,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/ConfigConfirmDialog.h
     include/app/dialogs/ConfigNameDialog.h
-    include/app/dialogs/ConfigNoteDialog.h
-    include/app/dialogs/ShareNotePreview.h
+    include/app/dialogs/ShareNamePreview.h
     include/app/dialogs/DriverSelfCheckDialog.h
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/GameProcessDialog.h
@@ -220,7 +219,6 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/dialogs/QmlDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
     src/app/dialogs/ConfigNameDialog.cpp
-    src/app/dialogs/ConfigNoteDialog.cpp
     src/app/dialogs/DialogChrome.cpp
     src/app/dialogs/DriverSelfCheckDialog.cpp
     src/app/dialogs/BindingEditDialog.cpp
@@ -279,7 +277,7 @@ set(QML_FILES
     src/qml/SidebarNavigation.qml
     src/qml/ProfileToolbar.qml
     src/qml/ProfileMoreMenu.qml
-    src/qml/ProfileNoteSummary.qml
+    src/qml/NameCell.qml
     src/qml/RunPanel.qml
     src/qml/HotkeyPanel.qml
     src/qml/RepeatOptions.qml
@@ -308,7 +306,6 @@ set(QML_FILES
     src/qml/DialogShell.qml
     src/qml/DialogMessage.qml
     src/qml/DialogName.qml
-    src/qml/DialogConfigNote.qml
     src/qml/DialogClose.qml
     src/qml/DialogKeyEditor.qml
     src/qml/DialogOverlaySettings.qml

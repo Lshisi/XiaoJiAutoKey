@@ -7,7 +7,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
     fields.insert("nameVisible", true);
     if (existing) {
         setCapturedKey(existing->key);
-        fields.insert("name", QString::fromStdWString(existing->name));
+        fields.insert("name", existing->name);
         fields.insert("delay", QString::number(existing->delayAfterMs));
         fields.insert("fixed", existing->clickPos.IsFixed());
         fields.insert("anchorX", existing->clickPos.anchorX);

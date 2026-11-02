@@ -25,8 +25,8 @@ ComboBox {
     indicator: QuietIcon {
         x: control.width - width - 10
         y: (control.height - height) / 2
-        glyph: "\uE70D"
-        font.pixelSize: 10
+        name: "chevron-down"
+        pixelSize: Theme.smallIconGlyphSize
         color: Theme.muted
         rotation: control.popup.visible ? 180 : 0
         Behavior on rotation {

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import QtQuick.Effects
 import XiaoJi.UI
 
 ActionButton {
@@ -30,20 +29,10 @@ ActionButton {
             visible: root.sidebar
             Layout.preferredWidth: 34
             Layout.preferredHeight: 34
-            Image {
-                id: symbol
+            FactionSymbol {
                 anchors.fill: parent
-                source: Theme.colors.factionIcon
-                sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-                fillMode: Image.PreserveAspectFit
-                visible: !Theme.dark
-            }
-            MultiEffect {
-                anchors.fill: parent
-                source: symbol
-                colorization: 1
-                colorizationColor: Theme.text
-                visible: Theme.dark && symbol.status === Image.Ready
+                iconSource: Theme.colors.factionIcon
+                tintColor: Theme.text
             }
         }
         QuietLabel {
@@ -54,14 +43,11 @@ ActionButton {
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
         }
-        Text {
+        QuietIcon {
             visible: !root.sidebar
-            text: "\uE70D"
-            font.family: Theme.iconFamily
-            font.pixelSize: 10
-            renderType: Text.NativeRendering
+            name: "chevron-down"
+            pixelSize: Theme.smallIconGlyphSize
             color: Theme.muted
-            Accessible.ignored: true
         }
     }
     Popup {
@@ -98,18 +84,14 @@ ActionButton {
                 onClicked: { appView.selectFaction(modelData.id); factionPopup.close() }
                 contentItem: RowLayout {
                     spacing: 6
-                    Text {
+                    QuietIcon {
                         Layout.preferredWidth: 12
                         Layout.preferredHeight: 16
                         Layout.alignment: Qt.AlignVCenter
                         opacity: option.highlighted ? 1 : 0
-                        text: "\uE73E"
-                        font.family: Theme.iconFamily
-                        font.pixelSize: 10
-                        renderType: Text.NativeRendering
+                        name: "check"
+                        pixelSize: Theme.smallIconGlyphSize
                         color: Theme.accent
-                        verticalAlignment: Text.AlignVCenter
-                        Accessible.ignored: true
                     }
                     Item {
                         Layout.preferredWidth: 16
@@ -117,21 +99,10 @@ ActionButton {
                         Layout.minimumWidth: 16
                         Layout.maximumWidth: 16
                         Layout.alignment: Qt.AlignVCenter
-                        Image {
-                            id: optionSymbol
+                        FactionSymbol {
                             anchors.fill: parent
-                            source: option.modelData.icon
-                            sourceSize: Qt.size(16, 16)
-                            fillMode: Image.PreserveAspectFit
-                            visible: !Theme.dark
-                            Accessible.ignored: true
-                        }
-                        MultiEffect {
-                            anchors.fill: parent
-                            source: optionSymbol
-                            colorization: 1
-                            colorizationColor: option.highlighted ? Theme.accent : Theme.text
-                            visible: Theme.dark && optionSymbol.status === Image.Ready
+                            iconSource: option.modelData.icon
+                            tintColor: option.highlighted ? Theme.accent : Theme.text
                         }
                     }
                     QuietLabel {

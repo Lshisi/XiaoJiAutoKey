@@ -5,6 +5,7 @@
 #include "RepeaterEngine.h"
 #include "dialogs/AppMessageDialog.h"
 #include "ui/styles/DesignTokens.h"
+#include "ui/components/QmlIconProvider.h"
 
 #include <Windows.h>
 #include <dwmapi.h>
@@ -15,6 +16,7 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
@@ -89,6 +91,7 @@ bool dragButtonDown() {
 }
 
 void configureQuickSurface(QQuickWidget* view) {
+    view->engine()->addImageProvider(QStringLiteral("app-icons"), new QmlIconProvider);
     QSurfaceFormat format = view->format();
     format.setAlphaBufferSize(8);
     view->setFormat(format);

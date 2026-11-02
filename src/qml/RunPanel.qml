@@ -34,9 +34,9 @@ QuietCard {
                 spacing: 6
                 Item { Layout.fillWidth: true }
                 QuietIcon {
-                    glyph: root.pageState.running ? "\uE71A" : "\uE768"
+                    name: root.pageState.running ? "stop" : "play"
                     color: runButton.foregroundColor
-                    font.pixelSize: 12
+                    pixelSize: Theme.iconGlyphSize
                     Layout.preferredWidth: 12
                     Layout.preferredHeight: 12
                 }

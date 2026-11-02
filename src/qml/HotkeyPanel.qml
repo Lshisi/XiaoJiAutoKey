@@ -25,21 +25,21 @@ QuietCard {
                 onClicked: root.page.hotkeyEditClicked()
                 hint: qsTr("点击后按下要设置的快捷键")
             }
-            IconButton { glyph: "\uE74D"; hint: qsTr("清除启停快捷键"); enabled: !root.page.state.running && root.hasHotkey; onClicked: root.page.hotkeyClearClicked() }
+            IconButton { iconName: "delete"; hint: qsTr("清除启停快捷键"); enabled: !root.page.state.running && root.hasHotkey; onClicked: root.page.hotkeyClearClicked() }
         }
         RowLayout {
             Layout.fillWidth: true
             spacing: 3
             QuietCheck { text: qsTr("开启提示音"); enabled: !root.page.state.running; checked: root.page.state.beepEnabled; onClicked: root.page.beepToggled(checked) }
             Item { Layout.fillWidth: true }
-            IconButton { glyph: "\uE189"; hint: qsTr("提示音设置"); enabled: !root.page.state.running; onClicked: root.page.soundSettingsClicked() }
+            IconButton { iconName: "music"; hint: qsTr("提示音设置"); enabled: !root.page.state.running; onClicked: root.page.soundSettingsClicked() }
         }
         RowLayout {
             Layout.fillWidth: true
             spacing: 3
             QuietCheck { text: qsTr("显示到浮窗"); enabled: !root.page.state.running; checked: root.page.state.overlayEnabled; onClicked: root.page.statusOverlayToggled(checked) }
             Item { Layout.fillWidth: true }
-            IconButton { glyph: "\uE713"; hint: qsTr("悬浮窗设置"); onClicked: root.page.statusOverlaySettingsClicked() }
+            IconButton { iconName: "settings"; hint: qsTr("悬浮窗设置"); onClicked: root.page.statusOverlaySettingsClicked() }
         }
     }
 }

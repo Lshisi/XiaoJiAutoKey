@@ -50,8 +50,8 @@ Item {
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: root.columns.actionPadding }
-        IconButton { glyph: "\uE70F"; hint: qsTr("编辑 %1").arg(root.entry.keyText); onClicked: root.page.editBinding(root.entry.id) }
-        IconButton { glyph: "\uE74D"; hint: qsTr("删除 %1").arg(root.entry.keyText); onClicked: root.page.removeBinding(root.entry.id) }
+        IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyText); onClicked: root.page.editBinding(root.entry.id) }
+        IconButton { iconName: "delete"; hint: qsTr("删除 %1").arg(root.entry.keyText); onClicked: root.page.removeBinding(root.entry.id) }
         Item { Layout.preferredWidth: root.columns.actionPadding }
     }
 }

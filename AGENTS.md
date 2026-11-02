@@ -79,6 +79,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 - 区分主要操作、次要操作和图标操作：右侧启动/停止为主要操作，新增和保存等动作按当前任务的重要性设置层级，不让一组按钮中的所有动作都使用高饱和填充。
 - 运行中的停止操作仍位于原启动位置，不移动、不隐藏。hover、pressed、disabled 和键盘焦点必须清晰且克制，不能仅用颜色变化表达运行状态。
 - 图标按钮必须提供明确的 tooltip 和可访问名称；删除等危险操作不要紧贴主要操作，沿用现有确认与安全措施。
+- 控件和导航图标统一使用 `assets/icons/` 中的 SVG，通过 `QmlIconProvider`、`QuietIcon.qml` 和通用按钮组件显示；门派徽记使用 `FactionSymbol.qml`。正式程序和预览共用资源及组件，不依赖 Windows 图标字体，也不单独维护预览图标。
 - 按钮组、表单行和卡片遵循下方已有间距与对齐规则，避免为装饰增加嵌套容器。
 
 ## QML 技能

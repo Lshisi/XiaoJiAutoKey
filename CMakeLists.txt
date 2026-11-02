@@ -89,6 +89,7 @@ set(CORE_SOURCES
 )
 
 set(UI_COMPONENT_SOURCES
+    src/ui/components/QmlIconProvider.cpp
     src/ui/components/ScreenPointPicker.cpp
 )
 
@@ -102,6 +103,7 @@ set(UI_MODEL_SOURCES
 )
 
 set(UI_COMPONENT_HEADERS
+    src/ui/components/QmlIconProvider.h
     src/ui/components/ScreenPointPicker.h
 )
 
@@ -264,6 +266,7 @@ set(QML_FILES
     src/qml/QuietScrollView.qml
     src/qml/QuietCard.qml
     src/qml/FactionPicker.qml
+    src/qml/FactionSymbol.qml
     src/qml/NavIcon.qml
     src/qml/SidebarNavigation.qml
     src/qml/ProfileToolbar.qml

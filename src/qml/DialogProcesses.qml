@@ -20,7 +20,7 @@ ColumnLayout {
             onActivated: { if (currentIndex > 0) dialogModel.dispatch("selectProcess", currentText) }
             Accessible.name: qsTr("运行中的进程")
         }
-        IconButton { glyph: "\uE72C"; hint: qsTr("刷新进程列表"); onClicked: dialogModel.dispatch("refreshProcesses") }
+        IconButton { iconName: "refresh"; hint: qsTr("刷新进程列表"); onClicked: dialogModel.dispatch("refreshProcesses") }
     }
     RowLayout {
         Layout.fillWidth: true
@@ -42,7 +42,7 @@ ColumnLayout {
             width: list.width - 12
             height: 40
             QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; text: processRow.modelData; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-            IconButton { glyph: "\uE74D"; hint: qsTr("删除进程 %1").arg(processRow.modelData); onClicked: dialogModel.dispatch("remove", processRow.index) }
+            IconButton { iconName: "delete"; hint: qsTr("删除进程 %1").arg(processRow.modelData); onClicked: dialogModel.dispatch("remove", processRow.index) }
         }
         ScrollBar.vertical: QuietScrollBar {}
     }

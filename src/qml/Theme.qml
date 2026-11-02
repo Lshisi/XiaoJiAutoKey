@@ -68,5 +68,4 @@ QtObject {
     readonly property int popupEnterDuration: 50
     readonly property int popupExitDuration: 30
     readonly property string fontFamily: "Microsoft YaHei UI"
-    readonly property string iconFamily: "Segoe MDL2 Assets"
 }

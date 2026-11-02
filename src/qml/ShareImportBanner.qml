@@ -22,9 +22,9 @@ Button {
     }
     contentItem: RowLayout {
         spacing: 8
-        Text { text: "\uE896"; font.family: Theme.iconFamily; font.pixelSize: 16; renderType: Text.NativeRendering; color: Theme.accent; Accessible.ignored: true }
+        QuietIcon { name: "import"; pixelSize: Theme.navGlyphSize; color: Theme.accent }
         QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; text: qsTr("检测到剪贴板中的分享配置"); elide: Text.ElideRight; wrapMode: Text.NoWrap }
         QuietLabel { text: qsTr("点击导入"); color: Theme.accent }
-        IconButton { glyph: "\uE711"; hint: qsTr("关闭分享提示"); onClicked: shareBannerModel.dismiss() }
+        IconButton { iconName: "close"; hint: qsTr("关闭分享提示"); onClicked: shareBannerModel.dismiss() }
     }
 }

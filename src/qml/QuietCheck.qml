@@ -23,10 +23,10 @@ CheckBox {
         border.color: !control.enabled ? Theme.border : control.visualFocus || control.checked ? Theme.accent : control.hovered ? Theme.accentBorder : Theme.border
         QuietIcon {
             anchors.centerIn: parent
-            glyph: "\uE73E"
+            name: "check"
             visible: control.checked
             color: control.enabled ? Theme.accentForeground : Theme.muted
-            font.pixelSize: 12
+            pixelSize: Theme.iconGlyphSize
         }
     }
     contentItem: QuietLabel {

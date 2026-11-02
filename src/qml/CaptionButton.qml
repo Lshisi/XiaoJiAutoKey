@@ -5,19 +5,15 @@ import XiaoJi.UI
 IconButton {
     id: control
     property bool closeAction: false
-    glyph: closeAction ? "\uE711" : "\uE921"
+    iconName: closeAction ? "close" : "minimize"
     hint: closeAction ? qsTr("关闭") : qsTr("最小化")
     implicitWidth: 40
-    font.pixelSize: 10
-    contentItem: Text {
-        text: control.glyph
-        font: control.font
-        renderType: Text.NativeRendering
+    iconPixelSize: Theme.smallIconGlyphSize
+    contentItem: QuietIcon {
+        name: control.iconName
+        pixelSize: control.iconPixelSize
         color: control.closeAction && (control.hovered || control.down)
             ? (Theme.dark ? Theme.background : Theme.field) : Theme.text
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        Accessible.ignored: true
     }
     background: Rectangle {
         radius: Theme.buttonRadius

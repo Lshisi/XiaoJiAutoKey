@@ -43,11 +43,11 @@ RowLayout {
     RowLayout {
         Layout.fillWidth: false
         spacing: 2
-        IconButton { glyph: "\uE710"; hint: qsTr("新增配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroAddRequested() : root.page.profileAddRequested() }
-        IconButton { glyph: "\uE8AC"; hint: qsTr("重命名配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroRenameRequested() : root.page.profileRenameRequested() }
-        IconButton { Layout.leftMargin: 4; glyph: "\uE74D"; hint: qsTr("删除配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroDeleteRequested() : root.page.profileDeleteRequested() }
+        IconButton { iconName: "add"; hint: qsTr("新增配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroAddRequested() : root.page.profileAddRequested() }
+        IconButton { iconName: "rename"; hint: qsTr("重命名配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroRenameRequested() : root.page.profileRenameRequested() }
+        IconButton { Layout.leftMargin: 4; iconName: "delete"; hint: qsTr("删除配置"); enabled: !root.page.state.running; onClicked: root.macroMode ? root.page.macroDeleteRequested() : root.page.profileDeleteRequested() }
         IconButton {
-            glyph: "\uE72D"
+            iconName: "export"
             hint: root.macroMode ? qsTr("导出当前宏") : qsTr("导出当前方案")
             onClicked: root.page.shareRequested()
         }

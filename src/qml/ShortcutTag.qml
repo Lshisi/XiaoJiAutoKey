@@ -48,7 +48,7 @@ Rectangle {
         rightPadding: 0
         topPadding: 0
         bottomPadding: 0
-        glyph: "\uE711"
+        iconName: "close"
         hint: root.removeHint
         onClicked: root.removeRequested()
     }

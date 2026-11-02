@@ -45,7 +45,7 @@ Item {
                     ActionButton {
                         id: addButton
                         text: qsTr("添加按键")
-                        leadingGlyph: "\uE710"
+                        leadingIcon: "add"
                         compact: true
                         enabled: !workspace.page.state.running
                         onClicked: workspace.macroMode ? workspace.page.addStepRequested() : workspace.page.addRequested()

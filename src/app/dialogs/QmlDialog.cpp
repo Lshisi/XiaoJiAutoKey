@@ -1,10 +1,12 @@
 #include "dialogs/QmlDialog.h"
 #include "dialogs/DialogChrome.h"
 #include "ui/styles/QmlTheme.h"
+#include "ui/components/QmlIconProvider.h"
 
 #include <QCloseEvent>
 #include <QKeyEvent>
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
@@ -24,6 +26,7 @@ QmlDialog::QmlDialog(QWidget* parent) : QDialog(parent) {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     quick_ = new QQuickWidget(this);
+    quick_->engine()->addImageProvider(QStringLiteral("app-icons"), new QmlIconProvider);
     quick_->setObjectName(QStringLiteral("dialogQuickView"));
     QSurfaceFormat format = quick_->format();
     format.setAlphaBufferSize(8);

@@ -27,7 +27,7 @@ ColumnLayout {
             }
             IconButton {
                 compact: true
-                glyph: "\uE710"
+                iconName: "add"
                 hint: qsTr("设置切换键")
                 enabled: !root.page.state.running
                 onClicked: root.page.sequenceSwitchKeyAddClicked()
@@ -44,7 +44,7 @@ ColumnLayout {
                 Layout.maximumWidth: implicitWidth
                 page: root.page
             }
-            IconButton { compact: true; glyph: "\uE710"; hint: qsTr("添加暂停键"); enabled: !root.page.state.running; onClicked: root.page.pauseKeyAddClicked() }
+            IconButton { compact: true; iconName: "add"; hint: qsTr("添加暂停键"); enabled: !root.page.state.running; onClicked: root.page.pauseKeyAddClicked() }
             Item { Layout.fillWidth: true; Layout.preferredWidth: 0 }
         }
     }

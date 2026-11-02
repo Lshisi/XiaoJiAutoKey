@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -48,20 +47,10 @@ QuietScrollView {
                         Item {
                             Layout.preferredWidth: 36
                             Layout.preferredHeight: 36
-                            Image {
-                                id: factionSymbol
+                            FactionSymbol {
                                 anchors.fill: parent
-                                source: Theme.colors.factionIcon
-                                sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
-                                fillMode: Image.PreserveAspectFit
-                                visible: !Theme.dark
-                            }
-                            MultiEffect {
-                                anchors.fill: parent
-                                source: factionSymbol
-                                colorization: 1
-                                colorizationColor: Theme.text
-                                visible: Theme.dark && factionSymbol.status === Image.Ready
+                                iconSource: Theme.colors.factionIcon
+                                tintColor: Theme.text
                             }
                         }
                         ColumnLayout {

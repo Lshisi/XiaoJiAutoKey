@@ -107,8 +107,8 @@ Item {
             spacing: 8
             QuietIcon {
                 Layout.alignment: Qt.AlignHCenter
-                glyph: "\uE765"
-                font.pixelSize: 28
+                name: "keyboard"
+                pixelSize: 28
                 color: Theme.muted
                 opacity: 0.6
                 Layout.bottomMargin: 4

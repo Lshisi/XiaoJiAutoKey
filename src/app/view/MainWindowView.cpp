@@ -1,6 +1,7 @@
 #include "view/MainWindowView.h"
 #include "dialogs/AppMessageDialog.h"
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QQmlError>
 #include <QQuickWidget>
 #include <QDesktopServices>
@@ -18,6 +19,7 @@
 #include "ui/models/SettingsPageModel.h"
 #include "ui/styles/DesignTokens.h"
 #include "ui/styles/QmlTheme.h"
+#include "ui/components/QmlIconProvider.h"
 #include "dialogs/QmlDialog.h"
 #include "FactionTheme.h"
 
@@ -251,6 +253,7 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     layout->setSpacing(0);
     shareBanner_ = new ShareImportBannerModel(this);
     quickWidget_ = new QQuickWidget(central);
+    quickWidget_->engine()->addImageProvider(QStringLiteral("app-icons"), new QmlIconProvider);
     quickWidget_->setObjectName(QStringLiteral("mainQuickView"));
     quickWidget_->setResizeMode(QQuickWidget::SizeRootObjectToView);
     quickWidget_->setFocusPolicy(Qt::StrongFocus);

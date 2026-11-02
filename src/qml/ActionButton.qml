@@ -10,9 +10,8 @@ Button {
     property bool accented: false
     property bool compact: false
     property bool destructive: false
-    property string leadingGlyph: ""
-    property int textRenderType: Theme.textRenderType
-    readonly property int glyphSize: leadingGlyph === "\uE710" || leadingGlyph === "\uE711"
+    property string leadingIcon: ""
+    readonly property int leadingIconSize: leadingIcon === "add" || leadingIcon === "close"
         ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     property string hint: ""
     readonly property color foregroundColor: !enabled ? Theme.muted
@@ -32,14 +31,17 @@ Button {
     focusPolicy: Qt.TabFocus
     Accessible.name: text.length ? text : hint
     contentItem: RowLayout {
-        spacing: control.leadingGlyph.length ? 6 : 0
-        QuietIcon {
-            visible: control.leadingGlyph.length > 0
-            glyph: control.leadingGlyph
-            color: caption.color
-            font.pixelSize: control.glyphSize
-            Layout.preferredWidth: control.glyphSize
-            Layout.preferredHeight: control.glyphSize
+        spacing: control.leadingIcon.length ? 6 : 0
+        Loader {
+            active: control.leadingIcon.length > 0
+            visible: active
+            Layout.preferredWidth: control.leadingIconSize
+            Layout.preferredHeight: control.leadingIconSize
+            sourceComponent: QuietIcon {
+                name: control.leadingIcon
+                color: control.foregroundColor
+                pixelSize: control.leadingIconSize
+            }
         }
         Text {
             id: caption
@@ -48,7 +50,7 @@ Button {
             text: control.text
             textFormat: Text.PlainText
             font: control.font
-            renderType: control.textRenderType
+            renderType: Theme.textRenderType
             renderTypeQuality: Theme.textRenderQuality
             color: control.foregroundColor
             horizontalAlignment: Text.AlignHCenter

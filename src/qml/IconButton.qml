@@ -2,9 +2,9 @@ import QtQuick
 import XiaoJi.UI
 
 ActionButton {
-    required property string glyph
-    text: glyph
-    textRenderType: Text.NativeRendering
+    id: control
+    required property string iconName
+    property int iconPixelSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     quiet: true
     implicitWidth: compact ? Theme.compactIconSize : Theme.iconSize
     implicitHeight: compact ? Theme.compactIconSize : Theme.iconSize
@@ -12,7 +12,10 @@ ActionButton {
     rightPadding: 4
     topPadding: 4
     bottomPadding: 4
-    font.family: Theme.iconFamily
-    font.pixelSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     Accessible.name: hint
+    contentItem: QuietIcon {
+        name: control.iconName
+        color: control.foregroundColor
+        pixelSize: control.iconPixelSize
+    }
 }

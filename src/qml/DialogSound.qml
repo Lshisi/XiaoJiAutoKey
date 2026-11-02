@@ -22,8 +22,8 @@ ColumnLayout {
                 hint: qsTr("选择自定义音效")
                 onClicked: dialogModel.dispatch("chooseSound", soundRow.modelData.running)
             }
-            IconButton { glyph: "\uE768"; hint: qsTr("试听音效"); onClicked: dialogModel.dispatch("previewSound", soundRow.modelData.running) }
-            IconButton { glyph: "\uE74D"; hint: qsTr("恢复内置音效"); onClicked: dialogModel.dispatch("resetSound", soundRow.modelData.running) }
+            IconButton { iconName: "play"; hint: qsTr("试听音效"); onClicked: dialogModel.dispatch("previewSound", soundRow.modelData.running) }
+            IconButton { iconName: "delete"; hint: qsTr("恢复内置音效"); onClicked: dialogModel.dispatch("resetSound", soundRow.modelData.running) }
         }
     }
     RowLayout {

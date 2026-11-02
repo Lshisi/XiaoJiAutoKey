@@ -28,7 +28,7 @@ Item {
         spacing: 0
         IconButton {
             Layout.preferredWidth: root.columns.leadingWidth
-            glyph: "\uE700"
+            iconName: "drag-handle"
             hint: qsTr("拖动排序；Alt+↑/↓ 调整步骤位置")
             Accessible.name: qsTr("步骤 %1 的排序手柄").arg(root.rowIndex + 1)
             Keys.onPressed: event => {
@@ -66,8 +66,8 @@ Item {
         }
         QuietLabel { Layout.fillWidth: true; Layout.preferredWidth: root.columns.fieldWidth; Layout.minimumWidth: 0; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         Item { Layout.preferredWidth: root.columns.actionPadding }
-        IconButton { glyph: "\uE70F"; hint: qsTr("编辑步骤"); onClicked: root.page.editStepRequested(root.rowIndex) }
-        IconButton { glyph: "\uE74D"; hint: qsTr("删除步骤"); onClicked: root.page.deleteStepRequested(root.rowIndex) }
+        IconButton { iconName: "edit"; hint: qsTr("编辑步骤"); onClicked: root.page.editStepRequested(root.rowIndex) }
+        IconButton { iconName: "delete"; hint: qsTr("删除步骤"); onClicked: root.page.deleteStepRequested(root.rowIndex) }
         Item { Layout.preferredWidth: root.columns.actionPadding }
     }
 }

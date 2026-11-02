@@ -3,6 +3,29 @@
 <qresource>
     <file>assets/icon.png</file>
     <file>assets/icon-active.png</file>
+    <file>assets/icons/add.svg</file>
+    <file>assets/icons/close.svg</file>
+    <file>assets/icons/minimize.svg</file>
+    <file>assets/icons/edit.svg</file>
+    <file>assets/icons/delete.svg</file>
+    <file>assets/icons/rename.svg</file>
+    <file>assets/icons/export.svg</file>
+    <file>assets/icons/import.svg</file>
+    <file>assets/icons/check.svg</file>
+    <file>assets/icons/chevron-down.svg</file>
+    <file>assets/icons/play.svg</file>
+    <file>assets/icons/stop.svg</file>
+    <file>assets/icons/refresh.svg</file>
+    <file>assets/icons/music.svg</file>
+    <file>assets/icons/keyboard.svg</file>
+    <file>assets/icons/repeat.svg</file>
+    <file>assets/icons/bar-chart.svg</file>
+    <file>assets/icons/monitor.svg</file>
+    <file>assets/icons/settings.svg</file>
+    <file>assets/icons/info.svg</file>
+    <file>assets/icons/drag-handle.svg</file>
+    <file>assets/icons/lock.svg</file>
+    <file>assets/icons/unlock.svg</file>
     <file>assets/factions/shaolin.svg</file>
     <file>assets/factions/wanhua.svg</file>
     <file>assets/factions/qixiu.svg</file>

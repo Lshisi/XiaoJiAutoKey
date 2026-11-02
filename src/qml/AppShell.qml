@@ -43,6 +43,7 @@ Rectangle {
                         switch (appView.currentPage) {
                         case "keys": return "KeyPage.qml"
                         case "macro": return "MacroPage.qml"
+                        case "usage": return "UsagePage.qml"
                         case "driver": return "DriverPage.qml"
                         case "settings": return "SettingsPage.qml"
                         case "about": return "AboutPage.qml"

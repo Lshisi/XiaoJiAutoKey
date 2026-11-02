@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -171,6 +172,7 @@ struct AppConfig {
     // Latest version seen through a manual update check; only used to keep
     // the update badge visible across restarts. Never triggers a check.
     std::string latestKnownVersion;
+    std::map<std::string, std::int64_t> dailyUsageMs;
 
     std::wstring customSoundOn;
     std::wstring customSoundOff;

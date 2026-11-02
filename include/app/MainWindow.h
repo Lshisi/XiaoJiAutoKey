@@ -30,6 +30,7 @@
 #include "coordinators/DriverSelfCheckCoordinator.h"
 #include "coordinators/OnboardingCoordinator.h"
 #include "coordinators/UpdateCoordinator.h"
+#include "coordinators/UsageStatisticsCoordinator.h"
 #include "services/AppPaths.h"
 #include "services/AutoStartService.h"
 #include "services/UpdateService.h"
@@ -154,6 +155,7 @@ private:
     PageRefreshCoordinator pageRefreshCoordinator_;
     CloseCoordinator closeCoordinator_;
     EngineStateCoordinator engineStateCoordinator_;
+    UsageStatisticsCoordinator usageStatisticsCoordinator_;
     UpdateService updateService_;
     UpdateCoordinator updateCoordinator_;
     QTimer runtimeVisualRefreshTimer_;

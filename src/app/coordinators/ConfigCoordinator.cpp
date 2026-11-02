@@ -21,6 +21,7 @@ void ConfigCoordinator::load() {
 
 bool ConfigCoordinator::save(bool showError, std::uint32_t lockTimeoutMs) {
     if (!context_.config) return false;
+    if (context_.beforeSave) context_.beforeSave();
 
     std::wstring error;
     if (!store_.Save(*context_.config, error, lockTimeoutMs)) {

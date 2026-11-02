@@ -13,6 +13,7 @@ QuietIcon {
         switch (iconId) {
         case "keys": return "keyboard"
         case "macro": return "repeat"
+        case "usage": return "bar-chart"
         case "driver": return "monitor"
         case "settings": return "settings"
         case "about": return "info"

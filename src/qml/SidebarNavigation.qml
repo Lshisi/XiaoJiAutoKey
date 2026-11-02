@@ -35,6 +35,7 @@ Item {
             model: [
                 { page: "keys", title: qsTr("按键连发") },
                 { page: "macro", title: qsTr("循环连发") },
+                { page: "usage", title: qsTr("使用统计") },
                 { page: "driver", title: qsTr("驱动管理") },
                 { page: "settings", title: qsTr("全局设置") },
                 { page: "about", title: qsTr("关于软件") }

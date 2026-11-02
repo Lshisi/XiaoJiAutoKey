@@ -261,6 +261,7 @@ bool MainWindow::Initialize() {
         return false;
     }
     configCoordinator_.load();
+    usageStatisticsCoordinator_.initialize(config_, *view_.usagePage());
     updateCoordinator_.restoreBadgeFromConfig();
     if (config_.backgroundAutoRun) {
         config_.backgroundAutoRun = false;
@@ -1058,6 +1059,13 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
             rawInput_.handleNativeMessage(msg, result);
         }
         switch (msg->message) {
+        case WM_POWERBROADCAST:
+            if (msg->wParam == PBT_APMSUSPEND) {
+                usageStatisticsCoordinator_.setSuspended(true);
+            } else if (msg->wParam == PBT_APMRESUMEAUTOMATIC || msg->wParam == PBT_APMRESUMESUSPEND) {
+                usageStatisticsCoordinator_.setSuspended(false);
+            }
+            break;
         case WM_QUERYENDSESSION:
             systemShutdownRequested_ = true;
             prepareForSystemShutdown();
@@ -1403,15 +1411,20 @@ void MainWindow::syncQtGeometryWithNativeWindow() {
 void MainWindow::refreshStatusOverlay() {
     auto* profile = profileController_.activeProfile();
     auto* macro = macroController_.activeMacro();
-    const bool repeatRunning = engine_.IsToolRunning();
-    const bool macroRunning = macro ? macroEngine_.IsRunning(macro->id) : false;
-    statusOverlay_.setGameGatePaused(
-        config_.gameGateEnabled && !gameWatcher_.IsGameForeground()
-        && (repeatRunning || macroRunning));
+    const auto repeatStatus = engine_.GetStatus();
+    const auto macroStatus = macro ? macroEngine_.GetStatus(macro->id) : MacroStatus{};
+    const bool repeatRunning = repeatStatus.running;
+    const bool macroRunning = macroStatus.running;
+    const bool gameGatePaused = config_.gameGateEnabled && !gameWatcher_.IsGameForeground();
+    const bool repeatActive = repeatRunning && (!repeatStatus.paused || !repeatStatus.holdKeys.empty());
+    const bool macroActive = macroRunning && !macroStatus.paused;
+    usageStatisticsCoordinator_.updateRunning(!gameGatePaused
+        && (repeatActive || macroActive));
+    statusOverlay_.setGameGatePaused(gameGatePaused && (repeatRunning || macroRunning));
     if (config_.statusOverlayShowRepeat || config_.statusOverlayShowMacro) {
-        const auto repeatStatus = config_.statusOverlayShowRepeat ? engine_.GetStatus() : RepeaterStatus{};
-        const auto macroStatus = config_.statusOverlayShowMacro && macro ? macroEngine_.GetStatus(macro->id) : MacroStatus{};
-        statusOverlay_.updateStatus(config_, profile, macro, repeatStatus, macroStatus);
+        statusOverlay_.updateStatus(config_, profile, macro,
+            config_.statusOverlayShowRepeat ? repeatStatus : RepeaterStatus{},
+            config_.statusOverlayShowMacro ? macroStatus : MacroStatus{});
     } else {
         statusOverlay_.setOverlayEnabled(false);
     }

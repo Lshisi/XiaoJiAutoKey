@@ -20,6 +20,7 @@ public:
         AppConfig* config = nullptr;
         std::function<void()> refreshHookState;
         std::function<void()> saved;
+        std::function<void()> beforeSave;
     };
 
     explicit ConfigCoordinator(std::filesystem::path configPath, QObject* parent = nullptr);

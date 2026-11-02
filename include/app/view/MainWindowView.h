@@ -10,6 +10,7 @@ class QMainWindow;
 class QMenu;
 class QQuickWidget;
 class AboutPageModel;
+class UsagePageModel;
 class KeyPageModel;
 class MacroPageModel;
 class DriverPageModel;
@@ -56,6 +57,7 @@ public:
     DriverPageModel* driverPage() const { return driverPage_; }
     SettingsPageModel* settingsPage() const { return settingsPage_; }
     AboutPageModel* aboutPage() const { return aboutPage_; }
+    UsagePageModel* usagePage() const { return usagePage_; }
     QSystemTrayIcon* trayIcon() const { return trayIcon_; }
 
 signals:
@@ -76,6 +78,7 @@ private:
     DriverPageModel* driverPage_ = nullptr;
     SettingsPageModel* settingsPage_ = nullptr;
     AboutPageModel* aboutPage_ = nullptr;
+    UsagePageModel* usagePage_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
     QIcon idleIcon_;

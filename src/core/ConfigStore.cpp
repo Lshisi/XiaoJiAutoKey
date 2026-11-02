@@ -2,7 +2,10 @@
 
 #include "JsonLite.h"
 
+#include <QDate>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <fstream>
 #include <sstream>
 #include <system_error>
@@ -368,6 +371,21 @@ AppConfig ConfigStore::Load() const {
     }
 
     // Global settings
+    if (const auto it = object->find("dailyUsageMs"); it != object->end()) {
+        if (const auto* days = it->second.AsObject()) {
+            for (const auto& [date, value] : *days) {
+                const QString key = QString::fromStdString(date);
+                const QDate day = QDate::fromString(key, Qt::ISODate);
+                const auto* milliseconds = value.AsNumber();
+                if (day.isValid() && day.year() > 0 && day.toString(Qt::ISODate) == key
+                    && milliseconds && std::isfinite(*milliseconds)
+                    && *milliseconds > 0
+                    && *milliseconds < static_cast<double>(std::numeric_limits<std::int64_t>::max())) {
+                    config.dailyUsageMs.emplace(date, static_cast<std::int64_t>(*milliseconds));
+                }
+            }
+        }
+    }
     if (const auto backgroundAutoRun = GetBoolField(*object, "backgroundAutoRun"); backgroundAutoRun.has_value())
         config.backgroundAutoRun = *backgroundAutoRun;
     if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
@@ -574,6 +592,12 @@ bool ConfigStore::Save(
     onboarding.emplace("macroStep", std::clamp(config.onboardingMacroStep, 0, 2));
     onboarding.emplace("seenTips", config.onboardingSeenTips & 7);
     root.emplace("onboarding", std::move(onboarding));
+
+    jsonlite::Object usage;
+    for (const auto& [date, milliseconds] : config.dailyUsageMs) {
+        usage.emplace(date, static_cast<double>(milliseconds));
+    }
+    root.emplace("dailyUsageMs", std::move(usage));
 
     // Global settings
     root.emplace("backgroundAutoRun", config.backgroundAutoRun);

@@ -32,6 +32,7 @@ set(MOC_HEADERS
     include/app/coordinators/CloseCoordinator.h
     include/app/coordinators/ConfigCoordinator.h
     include/app/coordinators/EngineStateCoordinator.h
+    include/app/coordinators/UsageStatisticsCoordinator.h
     include/app/coordinators/DriverSelfCheckCoordinator.h
     include/app/coordinators/OnboardingCoordinator.h
     include/app/dialogs/BindingEditDialog.h
@@ -54,6 +55,7 @@ set(MOC_HEADERS
     src/ui/models/DriverPageModel.h
     src/ui/models/SettingsPageModel.h
     src/ui/models/AboutPageModel.h
+    src/ui/models/UsagePageModel.h
     src/ui/models/ShareImportBannerModel.h
     include/app/coordinators/UpdateCoordinator.h
     include/app/services/UpdateService.h
@@ -99,6 +101,7 @@ set(UI_MODEL_SOURCES
     src/ui/models/DriverPageModel.cpp
     src/ui/models/SettingsPageModel.cpp
     src/ui/models/AboutPageModel.cpp
+    src/ui/models/UsagePageModel.cpp
     src/ui/models/ShareImportBannerModel.cpp
 )
 
@@ -108,6 +111,7 @@ set(UI_COMPONENT_HEADERS
 )
 
 set(UI_MODEL_HEADERS
+    src/ui/models/UsagePageModel.h
     src/ui/models/ShareImportBannerModel.h
     src/ui/models/KeyPageModel.h
     src/ui/models/MacroPageModel.h
@@ -189,6 +193,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/coordinators/CloseCoordinator.cpp
     src/app/coordinators/ConfigCoordinator.cpp
     src/app/coordinators/EngineStateCoordinator.cpp
+    src/app/coordinators/UsageStatisticsCoordinator.cpp
     src/app/coordinators/DriverSelfCheckCoordinator.cpp
     src/app/coordinators/OnboardingCoordinator.cpp
     src/app/coordinators/UpdateCoordinator.cpp
@@ -285,6 +290,9 @@ set(QML_FILES
     src/qml/KeyWorkspace.qml
     src/qml/KeyPage.qml
     src/qml/MacroPage.qml
+    src/qml/UsagePage.qml
+    src/qml/UsageHeatmap.qml
+    src/qml/UsageMonthlyTrend.qml
     src/qml/DriverPage.qml
     src/qml/SettingsPage.qml
     src/qml/AboutPage.qml

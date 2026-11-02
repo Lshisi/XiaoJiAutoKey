@@ -40,8 +40,16 @@ bool MainWindow::setupUi() {
         this,
         &config_,
         [this]() { engineHookCoordinator_.refreshState(); },
-        [this]() { onboardingCoordinator_.scheduleRefresh(); }
+        [this]() {
+            usageStatisticsCoordinator_.markSaved();
+            onboardingCoordinator_.scheduleRefresh();
+        },
+        [this]() { usageStatisticsCoordinator_.recordElapsed(); }
     });
+    connect(&usageStatisticsCoordinator_, &UsageStatisticsCoordinator::saveRequested, this,
+        [this]() { configCoordinator_.save(false, 500); });
+    connect(qApp, &QCoreApplication::aboutToQuit, this,
+        [this]() { usageStatisticsCoordinator_.finish(); });
 
     pageRefreshCoordinator_.bind(PageRefreshCoordinator::Context{
         &view_,

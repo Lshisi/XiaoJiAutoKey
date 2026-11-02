@@ -13,6 +13,7 @@
 
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/AboutPageModel.h"
+#include "ui/models/UsagePageModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
@@ -244,6 +245,7 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     driverPage_ = new DriverPageModel(this);
     settingsPage_ = new SettingsPageModel(this);
     aboutPage_ = new AboutPageModel(this);
+    usagePage_ = new UsagePageModel(this);
 
     auto* central = new QWidget(window);
     central->setObjectName("mainWindowRoot");
@@ -267,6 +269,7 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     context->setContextProperty("driverPageModel", driverPage_);
     context->setContextProperty("settingsPageModel", settingsPage_);
     context->setContextProperty("aboutPageModel", aboutPage_);
+    context->setContextProperty("usagePageModel", usagePage_);
     context->setContextProperty("shareBannerModel", shareBanner_);
     updateFactionVisuals(window);
     quickWidget_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/Main.qml")));
@@ -320,7 +323,8 @@ void MainWindowView::navigateTo(const QString& pageId) {
 }
 
 void MainWindowView::selectPage(const QString& pageId) {
-    if (pageId != "keys" && pageId != "macro" && pageId != "driver" && pageId != "settings" && pageId != "about") return;
+    if (pageId != "keys" && pageId != "macro" && pageId != "usage" && pageId != "driver"
+        && pageId != "settings" && pageId != "about") return;
     emit pageSelected(pageId);
 }
 

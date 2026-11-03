@@ -9,7 +9,9 @@ constexpr int kWasdProtectionMinIntervalMs = 35;
 constexpr int kLongPressFocusSettleMs = 50;
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
-    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
+    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32)
+        | (static_cast<std::uint64_t>(key.modifiers) << 40)
+        | key.code;
 }
 
 bool IsWasdKey(const KeyDescriptor& key) {
@@ -167,7 +169,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
 
-    if (sequenceSwitchKey_.has_value() && *sequenceSwitchKey_ == key) {
+    if (sequenceSwitchKey_.has_value() && KeyMatchesEvent(*sequenceSwitchKey_, key)) {
         if (!sequenceSwitchDown_) {
             sequenceSwitchDown_ = true;
             AdvanceSequenceSelectionLocked();
@@ -178,7 +180,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
 
     // 暂停键追踪
     for (const auto& pk : pauseKeys_) {
-        if (pk == key) {
+        if (KeyMatchesEvent(pk, key)) {
             pauseKeysDown_.insert(key);
             break;
         }
@@ -238,13 +240,44 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     const auto encoded = EncodeKey(key);
     const bool independentBinding = IsIndependentBinding(key);
 
-    if (sequenceSwitchKey_.has_value() && *sequenceSwitchKey_ == key) {
+    if (IsKeyboardModifierKey(key)) {
+        const auto modifierMask = ModifierMaskFromKey(key);
+        const auto usesModifier = [modifierMask](const KeyDescriptor& item) {
+            return (item.modifiers & modifierMask) != 0;
+        };
+        std::erase_if(physicalDown_, [&usesModifier](const KeyDescriptor& item) { return usesModifier(item); });
+        std::erase_if(pauseKeysDown_, usesModifier);
+        std::erase_if(holdPhysicalDown_, usesModifier);
+        std::erase_if(independentDown_, usesModifier);
+        if (independentActiveKey_.has_value() && usesModifier(*independentActiveKey_)) {
+            independentActiveKey_.reset();
+        }
+        if (sequenceSwitchKey_.has_value() && usesModifier(*sequenceSwitchKey_)) {
+            sequenceSwitchDown_ = false;
+        }
+        for (auto& task : tasks_) {
+            if (!task.config.enabled || task.config.mode != RepeatMode::LongPress
+                || !task.isDown || !usesModifier(task.config.key)) {
+                continue;
+            }
+            driver_.SendUp(task.config.key, InputSource::Repeater);
+            task.isDown = false;
+            task.downTime = {};
+            task.lastUpTime = {};
+        }
+        SyncSourceActiveKeysLocked();
+        return;
+    }
+
+    if (sequenceSwitchKey_.has_value() && SamePrimaryKey(*sequenceSwitchKey_, key)) {
         sequenceSwitchDown_ = false;
         return;
     }
 
     // 暂停键追踪
-    pauseKeysDown_.erase(key);
+    std::erase_if(pauseKeysDown_, [&key](const KeyDescriptor& item) {
+        return SamePrimaryKey(item, key);
+    });
 
     if (independentBinding) {
         auto independentIgnoreIt = independentUpIgnoreCount_.find(encoded);
@@ -252,8 +285,12 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
             --independentIgnoreIt->second;
             return;
         }
-        independentDown_.erase(key);
-        physicalDown_.erase(key);
+    std::erase_if(independentDown_, [&key](const KeyDescriptor& item) {
+        return SamePrimaryKey(item, key);
+    });
+    std::erase_if(physicalDown_, [&key](const KeyDescriptor& item) {
+        return SamePrimaryKey(item, key);
+    });
         return;
     }
 
@@ -265,7 +302,9 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
             // SendTap产生的KEYUP，不移除
         } else {
             // 真实物理松开
-            holdPhysicalDown_.erase(key);
+            std::erase_if(holdPhysicalDown_, [&key](const KeyDescriptor& item) {
+                return SamePrimaryKey(item, key);
+            });
         }
     }
 
@@ -275,15 +314,17 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
         --it->second;
         return;
     }
-    physicalDown_.erase(key);
+    std::erase_if(physicalDown_, [&key](const KeyDescriptor& item) {
+        return SamePrimaryKey(item, key);
+    });
     for (auto& task : tasks_) {
         if (!task.config.enabled || task.config.mode != RepeatMode::LongPress
-            || task.config.key != key || !task.isDown) {
+            || !SamePrimaryKey(task.config.key, key) || !task.isDown) {
             continue;
         }
         // A physical release can invalidate the held key even while our down is tracked.
         // Release the driver's old state so the worker can send a fresh held down.
-        driver_.SendUp(key, InputSource::Repeater);
+        driver_.SendUp(task.config.key, InputSource::Repeater);
         task.isDown = false;
         task.downTime = {};
         task.lastUpTime = {};
@@ -316,13 +357,15 @@ void RepeaterEngine::BeforeSendLocked(const KeyDescriptor& key) {
 
 bool RepeaterEngine::IsHoldBinding(const KeyDescriptor& key) const {
     return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
-        return t.config.enabled && t.config.mode == RepeatMode::Hold && t.config.key == key;
+        return t.config.enabled && t.config.mode == RepeatMode::Hold
+            && KeyMatchesEvent(t.config.key, key);
     });
 }
 
 bool RepeaterEngine::IsIndependentBinding(const KeyDescriptor& key) const {
     return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
-        return t.config.enabled && t.config.mode == RepeatMode::Independent && t.config.key == key;
+        return t.config.enabled && t.config.mode == RepeatMode::Independent
+            && KeyMatchesEvent(t.config.key, key);
     });
 }
 

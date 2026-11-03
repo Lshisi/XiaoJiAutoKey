@@ -55,6 +55,13 @@ ColumnLayout {
             }
         }
     }
+    QuietLabel {
+        Layout.fillWidth: true
+        visible: editor.fields.captureHint !== undefined
+        text: editor.fields.captureHint
+        color: Theme.muted
+        wrapMode: Text.WordWrap
+    }
     RowLayout {
         visible: editor.fields.needsDelay
         Layout.fillWidth: true

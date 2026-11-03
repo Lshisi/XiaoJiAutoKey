@@ -9,6 +9,7 @@ class KeyCaptureDialogBase : public QmlDialog {
 public:
     explicit KeyCaptureDialogBase(QWidget* parent = nullptr);
     void handleCapturedKey(quint64 encodedKey);
+    void handleModifierReleased(KeyDescriptor key);
     std::optional<KeyDescriptor> capturedKey() const { return capturedKey_; }
     void setPrimaryMouseButtonsAllowed(bool allowed) { allowPrimaryMouseButtons_ = allowed; }
     void setModeGuideCallbacks(std::function<bool(RepeatMode)> shouldShow,
@@ -26,6 +27,7 @@ protected:
 private:
     void updateModeGuide();
     void dismissModeGuide();
+    void showModifierPending(const KeyDescriptor& key);
     std::optional<KeyDescriptor> capturedKey_;
     std::function<bool()> supportsMouseMove_;
     ClickPosition clickPos_;

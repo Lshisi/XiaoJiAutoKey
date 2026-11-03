@@ -33,6 +33,76 @@ ControllerResult sequenceSwitchConflict(const KeyDescriptor& key) {
 
 namespace ActiveConfigValidator {
 
+ControllerResult validateKeyCombination(const KeyDescriptor& key) {
+    if (IsReservedKeyCombination(key)) {
+        return failure(QString::fromWCharArray(L"“%1”是 Windows 系统保留组合，不能配置为小叽按键。")
+            .arg(KeyName(key)));
+    }
+    return ControllerResult::success();
+}
+
+ControllerResult validateModifierOverlap(
+    const KeyDescriptor& immediateKey,
+    const wchar_t* immediateOwner,
+    const KeyDescriptor& combinationKey,
+    const wchar_t* combinationOwner) {
+    if (!IsKeyboardModifierKey(immediateKey) || immediateKey.modifiers != 0) {
+        return ControllerResult::success();
+    }
+    const auto modifier = ModifierMaskFromKey(immediateKey);
+    if ((combinationKey.modifiers & modifier) == 0) return ControllerResult::success();
+
+    return failure(QString::fromWCharArray(
+        L"单独“%1”已用作%2，会在组合键“%3”按下主键前先行生效；请更换其中一个。")
+        .arg(KeyName(immediateKey), QString::fromWCharArray(immediateOwner),
+            KeyName(combinationKey), QString::fromWCharArray(combinationOwner)));
+}
+
+ControllerResult validateProfileModifierOverlaps(const ProfileConfig* profile) {
+    if (!profile || !profile->enabled) return ControllerResult::success();
+
+    const auto validateImmediate = [&](const KeyDescriptor& immediateKey, const wchar_t* owner) {
+        for (const auto& binding : profile->bindings) {
+            if (!binding.enabled) continue;
+            auto validation = validateModifierOverlap(immediateKey, owner,
+                binding.key, L"连发按键");
+            if (!validation.ok) return validation;
+        }
+        return ControllerResult::success();
+    };
+
+    if (profile->controlHotkey.has_value()) {
+        auto validation = validateImmediate(*profile->controlHotkey, L"启停快捷键");
+        if (!validation.ok) return validation;
+    }
+    if (profile->sequenceSwitchKey.has_value()) {
+        auto validation = validateImmediate(*profile->sequenceSwitchKey, L"切换键");
+        if (!validation.ok) return validation;
+    }
+    for (const auto& pauseKey : profile->pauseKeys) {
+        auto validation = validateImmediate(pauseKey, L"暂停键");
+        if (!validation.ok) return validation;
+    }
+    return ControllerResult::success();
+}
+
+ControllerResult validateMacroModifierOverlaps(const MacroConfig* macro) {
+    if (!macro || !macro->enabled) return ControllerResult::success();
+    for (const auto& pauseKey : macro->pauseKeys) {
+        if (macro->triggerKey.has_value()) {
+            auto validation = validateModifierOverlap(
+                pauseKey, L"暂停键", *macro->triggerKey, L"触发快捷键");
+            if (!validation.ok) return validation;
+        }
+        for (const auto& step : macro->steps) {
+            if (!step.enabled) continue;
+            auto validation = validateModifierOverlap(pauseKey, L"暂停键", step.key, L"循环步骤");
+            if (!validation.ok) return validation;
+        }
+    }
+    return ControllerResult::success();
+}
+
 ControllerResult validateChildKeyCandidate(
     const KeyDescriptor& key,
     const ProfileConfig* profile,
@@ -171,6 +241,11 @@ ControllerResult validateActiveHotkeys(const ProfileConfig* profile, const Macro
         auto validation = validateSequenceSwitchKeyCandidate(*profile->sequenceSwitchKey, profile, macro);
         if (!validation.ok) return validation;
     }
+
+    auto profileModifierValidation = validateProfileModifierOverlaps(profile);
+    if (!profileModifierValidation.ok) return profileModifierValidation;
+    auto macroModifierValidation = validateMacroModifierOverlaps(macro);
+    if (!macroModifierValidation.ok) return macroModifierValidation;
 
     return ControllerResult::success();
 }

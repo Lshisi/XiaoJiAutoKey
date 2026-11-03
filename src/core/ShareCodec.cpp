@@ -107,22 +107,32 @@ std::string WideToUtf8(const std::wstring& text) {
 #endif
 }
 
-// ── 按键编码（与 config.json 的 "K:<vk>" / "M:<vk>" 一致）──
+// ── 按键编码（与 config.json 的 "K:<vk>" / "K:<vk>+Ctrl+Shift" 一致）──
 std::string EncodeKey(const KeyDescriptor& key) {
     std::string prefix = key.device == InputDevice::Mouse ? "M:" : "K:";
-    return prefix + std::to_string(key.code);
+    std::string result = prefix + std::to_string(key.code);
+    if ((key.modifiers & kKeyModifierCtrl) != 0) result += "+Ctrl";
+    if ((key.modifiers & kKeyModifierShift) != 0) result += "+Shift";
+    if ((key.modifiers & kKeyModifierAlt) != 0) result += "+Alt";
+    return result;
 }
 
 std::optional<KeyDescriptor> DecodeKey(const std::string& text) {
     if (text.size() < 3 || (text[0] != 'K' && text[0] != 'M') || text[1] != ':') {
         return std::nullopt;
     }
-    if (!std::all_of(text.begin() + 2, text.end(), [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+    const auto firstModifier = text.find('+', 2);
+    const std::string codeText = text.substr(2, firstModifier == std::string::npos
+        ? std::string::npos : firstModifier - 2);
+    if (codeText.empty()
+        || !std::all_of(codeText.begin(), codeText.end(), [](unsigned char ch) {
+            return std::isdigit(ch) != 0;
+        })) {
         return std::nullopt;
     }
     unsigned long value = 0;
     try {
-        value = std::stoul(text.substr(2));
+        value = std::stoul(codeText);
     } catch (...) {
         return std::nullopt;
     }
@@ -132,6 +142,29 @@ std::optional<KeyDescriptor> DecodeKey(const std::string& text) {
     KeyDescriptor key;
     key.device = text[0] == 'M' ? InputDevice::Mouse : InputDevice::Keyboard;
     key.code = static_cast<std::uint32_t>(value);
+    if (firstModifier != std::string::npos) {
+        if (text.back() == '+') return std::nullopt;
+        std::size_t start = firstModifier + 1;
+        while (start <= text.size()) {
+            const auto end = text.find('+', start);
+            const auto part = text.substr(start, end == std::string::npos
+                ? std::string::npos : end - start);
+            if (part == "Ctrl") {
+                if ((key.modifiers & kKeyModifierCtrl) != 0) return std::nullopt;
+                key.modifiers |= kKeyModifierCtrl;
+            } else if (part == "Shift") {
+                if ((key.modifiers & kKeyModifierShift) != 0) return std::nullopt;
+                key.modifiers |= kKeyModifierShift;
+            } else if (part == "Alt") {
+                if ((key.modifiers & kKeyModifierAlt) != 0) return std::nullopt;
+                key.modifiers |= kKeyModifierAlt;
+            }
+            else return std::nullopt;
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    }
+    key = NormalizeKeyDescriptor(key);
     return key;
 }
 

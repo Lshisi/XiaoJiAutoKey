@@ -20,6 +20,7 @@ public:
     struct Context {
         GlobalInputHook* hook = nullptr;
         RawInputManager* rawInput = nullptr;
+        std::function<void(const KeyDescriptor&, bool)> notePhysicalKey;
         RepeaterEngine* repeaterEngine = nullptr;
         MacroEngine* macroEngine = nullptr;
         std::function<void()> toggleRepeatRunning;

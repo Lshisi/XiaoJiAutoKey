@@ -129,6 +129,13 @@ void GlobalInputHook::runHookLoop() {
     MSG msg;
     PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
     hookThreadId_ = GetCurrentThreadId();
+    physicalKeyboardModifiers_ = 0;
+    if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierCtrl;
+    if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierCtrl;
+    if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierShift;
+    if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierShift;
+    if (GetAsyncKeyState(VK_LMENU) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierAlt;
+    if (GetAsyncKeyState(VK_RMENU) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierAlt;
     keyboardHook_ = SetWindowsHookExW(WH_KEYBOARD_LL, &GlobalInputHook::KeyboardHookProc, nullptr, 0);
     mouseHook_ = SetWindowsHookExW(WH_MOUSE_LL, &GlobalInputHook::MouseHookProc, nullptr, 0);
     {
@@ -159,12 +166,21 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     if (code < 0 || !g_hookInstance) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
     const KeyDescriptor key = KeyboardHookKeyDescriptor(info->vkCode, info->scanCode, info->flags);
+    const bool modifierEvent = IsKeyboardModifierKey(key);
     const bool pressed = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
     const bool released = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
     if (!pressed && !released) return CallNextHookEx(nullptr, code, wParam, lParam);
     if (info->flags & LLKHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
+    KeyDescriptor event = key;
+    if (modifierEvent) {
+        const auto mask = ModifierMaskFromKey(key);
+        if (pressed) hook->physicalKeyboardModifiers_ |= mask;
+        else hook->physicalKeyboardModifiers_ &= static_cast<std::uint8_t>(~mask);
+    } else {
+        event.modifiers = hook->physicalKeyboardModifiers_;
+    }
     const ULONGLONG nowTick = GetTickCount64();
     const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
     if (nowTick < ignoreUntil) {
@@ -185,7 +201,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     }
 
     const bool blockPhysicalInput = repeatRunning && !captureActive && !hook->dialogOpen_.load()
-        && physicalInputFilter && physicalInputFilter(key);
+        && physicalInputFilter && physicalInputFilter(event);
     if (!blockPhysicalInput && !captureActive && hook->rawKeyboardActive_.load()) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
@@ -204,14 +220,33 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     }
 
     if (captureActive && pressed) {
-        const auto encoded = EncodeKey(key);
-        QMetaObject::invokeMethod(hook, [hook, encoded] { emit hook->capturedKey(encoded); }, Qt::QueuedConnection);
+        if (modifierEvent) {
+            QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+                emit hook->captureModifierChanged(key, pressed);
+            }, Qt::QueuedConnection);
+            return 1;
+        }
+        const auto encoded = EncodeKey(event);
+        QMetaObject::invokeMethod(hook, [hook, encoded] {
+            emit hook->capturedKey(encoded);
+        }, Qt::QueuedConnection);
+        return 1;
+    }
+
+    if (captureActive && !pressed && modifierEvent) {
+        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
+            emit hook->captureModifierChanged(key, pressed);
+        }, Qt::QueuedConnection);
         return 1;
     }
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
+    const bool isControlHotkey = controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, event);
+    if (!pressed && modifierEvent && controlHotkey.has_value()
+        && (controlHotkey->modifiers & ModifierMaskFromKey(key)) != 0) {
+        hook->controlHotkeyPressed_ = false;
+    }
     if (isControlHotkey) {
         if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
             postControlHotkeyEvent(hook);
@@ -219,12 +254,12 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
             hook->controlHotkeyPressed_ = false;
         }
     } else if (repeatRunning) {
-        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->physicalKeyChanged(key, pressed);
+        QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+            emit hook->physicalKeyChanged(event, pressed);
         }, Qt::QueuedConnection);
     }
-    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-        emit hook->macroTriggerChanged(key, pressed);
+    QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+        emit hook->macroTriggerChanged(event, pressed);
     }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
@@ -239,6 +274,8 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     const bool pressed = IsMouseDownMessage(wParam);
 
     auto* hook = g_hookInstance;
+    KeyDescriptor event = key;
+    event.modifiers = hook->physicalKeyboardModifiers_;
     std::optional<KeyDescriptor> controlHotkey;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
     std::function<bool(const KeyDescriptor&)> physicalInputFilter;
@@ -265,7 +302,7 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     const bool repeatRunning = hook->repeatRunning_.load();
 
     if (repeatRunning && !captureActive && !hook->dialogOpen_.load()
-        && physicalInputFilter && physicalInputFilter(key)) {
+        && physicalInputFilter && physicalInputFilter(event)) {
         if (!pressed) {
             QMetaObject::invokeMethod(hook, [hook, key] {
                 emit hook->physicalKeyChanged(key, false);
@@ -279,14 +316,14 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
 
     if (captureActive && pressed) {
         if (GetTickCount64() - captureStartedTick < 150) return CallNextHookEx(nullptr, code, wParam, lParam);
-        const auto encoded = EncodeKey(key);
+        const auto encoded = EncodeKey(event);
         QMetaObject::invokeMethod(hook, [hook, encoded] { emit hook->capturedKey(encoded); }, Qt::QueuedConnection);
         return 1;
     }
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
-    const bool isControlHotkey = controlHotkey.has_value() && *controlHotkey == key;
+    const bool isControlHotkey = controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, event);
     if (isControlHotkey) {
         if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
             postControlHotkeyEvent(hook);
@@ -294,12 +331,12 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
             hook->controlHotkeyPressed_ = false;
         }
     } else if (repeatRunning) {
-        QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-            emit hook->physicalKeyChanged(key, pressed);
+        QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+            emit hook->physicalKeyChanged(event, pressed);
         }, Qt::QueuedConnection);
     }
-    QMetaObject::invokeMethod(hook, [hook, key, pressed] {
-        emit hook->macroTriggerChanged(key, pressed);
+    QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+        emit hook->macroTriggerChanged(event, pressed);
     }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);

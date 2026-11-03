@@ -31,9 +31,15 @@ constexpr int kMinDelayMs = 1;
 constexpr int kDefaultDelayMs = 10;
 constexpr int kInputPulseWidthMs = 5;
 
+constexpr std::uint8_t kKeyModifierCtrl = 0x01;
+constexpr std::uint8_t kKeyModifierShift = 0x02;
+constexpr std::uint8_t kKeyModifierAlt = 0x04;
+
 struct KeyDescriptor {
     InputDevice device = InputDevice::Keyboard;
     std::uint32_t code = 0;
+    // 组合键的必需修饰键；物理事件中表示事件发生时的修饰键快照。
+    std::uint8_t modifiers = 0;
 
     [[nodiscard]] bool IsValid() const noexcept {
         return code != 0;
@@ -206,6 +212,13 @@ std::wstring ToWide(const std::string& text);
 std::string ToUtf8(const std::wstring& text);
 
 std::wstring GetKeyDisplayName(const KeyDescriptor& key);
+[[nodiscard]] bool IsKeyboardModifierKey(const KeyDescriptor& key) noexcept;
+[[nodiscard]] std::uint8_t ModifierMaskFromKey(const KeyDescriptor& key) noexcept;
+[[nodiscard]] std::wstring ModifierPrefix(std::uint8_t modifiers);
+[[nodiscard]] bool SamePrimaryKey(const KeyDescriptor& left, const KeyDescriptor& right) noexcept;
+[[nodiscard]] bool KeyMatchesEvent(const KeyDescriptor& binding, const KeyDescriptor& event) noexcept;
+[[nodiscard]] std::vector<KeyDescriptor> ExpandKeyComponents(const KeyDescriptor& key);
+[[nodiscard]] bool IsReservedKeyCombination(const KeyDescriptor& key) noexcept;
 std::wstring RepeatModeToText(RepeatMode mode);
 bool IsToggleLikeRepeatMode(RepeatMode mode) noexcept;
 std::wstring DeviceToText(InputDevice device);

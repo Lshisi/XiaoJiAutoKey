@@ -12,6 +12,7 @@
 class InputDriverRouter final : public InputDriver {
 public:
     void SetDriver(InputDriver* driver) noexcept;
+    void NotePhysicalKey(const KeyDescriptor& key, bool pressed);
     [[nodiscard]] InputDriver* CurrentDriver() const noexcept;
 
     [[nodiscard]] bool IsReady() const noexcept override;
@@ -41,14 +42,17 @@ private:
     static std::uint64_t EncodeKey(const KeyDescriptor& key) noexcept;
     static KeyDescriptor DecodeKey(std::uint64_t encoded) noexcept;
     static std::uint64_t ArbitrationDiagKey(std::uint64_t encoded, InputSource src) noexcept;
+    [[nodiscard]] static std::vector<KeyDescriptor> KeyComponents(const KeyDescriptor& key);
     SourceState& StateFor(InputSource src);
     const SourceState& StateFor(InputSource src) const;
     void RecomputeOwnersLocked();
     bool SendDownLocked(const KeyDescriptor& key, InputSource src);
+    bool SendComboDownLocked(const KeyDescriptor& key, InputSource src);
     void RestoreHeldKeysLocked(InputSource src);
     void PublishHeldKeysLocked();
     bool ReleaseForwardedKeyLocked(std::uint64_t encoded);
     void NoteArbitrationSkipLocked(std::uint64_t encoded, InputSource src, const char* reason);
+    [[nodiscard]] bool IsPhysicalModifierActiveLocked(std::uint8_t modifiers) const;
 
     mutable std::mutex mutex_;
     InputDriver* driver_ = nullptr;
@@ -59,6 +63,7 @@ private:
     SourceState macroState_;
     std::uint64_t nextActivationOrder_ = 1;
     std::unordered_map<std::uint64_t, InputSource> owners_;
+    std::atomic<std::uint8_t> physicalModifiers_{0};
     std::unordered_map<std::uint64_t, InputSource> forwardedDown_;
     // 仲裁跳过诊断：记录每个 (key, source) 首次被静默跳过，恢复正常注入后清除，避免高频刷日志。
     std::unordered_set<std::uint64_t> arbitrationSkipDiag_;

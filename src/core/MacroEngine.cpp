@@ -7,7 +7,17 @@
 
 namespace {
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
-    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
+    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32)
+        | (static_cast<std::uint64_t>(key.modifiers) << 40)
+        | key.code;
+}
+
+KeyDescriptor DecodeKey(std::uint64_t encoded) {
+    KeyDescriptor key;
+    key.device = ((encoded >> 32) & 0x1) != 0 ? InputDevice::Mouse : InputDevice::Keyboard;
+    key.code = static_cast<std::uint32_t>(encoded & 0xFFFFFFFFull);
+    key.modifiers = static_cast<std::uint8_t>((encoded >> 40) & 0xFFull);
+    return key;
 }
 }  // namespace
 
@@ -71,12 +81,13 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
         const auto encoded = EncodeKey(key);
 
     for (auto& rt : macros_) {
-        if (std::find(rt.config.pauseKeys.begin(), rt.config.pauseKeys.end(), key) != rt.config.pauseKeys.end()) {
+        if (std::any_of(rt.config.pauseKeys.begin(), rt.config.pauseKeys.end(),
+            [&key](const KeyDescriptor& pauseKey) { return KeyMatchesEvent(pauseKey, key); })) {
             pauseKeysDown_.insert(encoded);
         }
         if (!rt.config.enabled) continue;
         if (!rt.config.triggerKey.has_value()) continue;
-        if (*rt.config.triggerKey != key) continue;
+        if (!KeyMatchesEvent(*rt.config.triggerKey, key)) continue;
 
         const auto firstStep = std::find_if(rt.config.steps.begin(), rt.config.steps.end(),
             [](const MacroStep& step) { return step.enabled; });
@@ -125,22 +136,48 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
     std::vector<KeyDescriptor> releases;
     {
         std::lock_guard lock(mutex_);
-        const auto encoded = EncodeKey(key);
-        triggerHeld_[encoded] = false;
-        pauseKeysDown_.erase(encoded);
+        const auto stopHoldTrigger = [&](MacroRuntime& runtime) {
+            if (runtime.config.triggerMode != MacroTriggerMode::Hold) return;
+            QueueCurrentRelease(runtime, releases);
+            ResetRuntime(runtime);
+        };
 
-    for (auto& rt : macros_) {
-        if (!rt.config.enabled) continue;
-        if (!rt.config.triggerKey.has_value()) continue;
-        if (*rt.config.triggerKey != key) continue;
+        if (IsKeyboardModifierKey(key)) {
+            const auto modifierMask = ModifierMaskFromKey(key);
+            const auto usesModifier = [modifierMask](const KeyDescriptor& item) {
+                return (item.modifiers & modifierMask) != 0;
+            };
+            std::erase_if(pauseKeysDown_, [&usesModifier](const std::uint64_t encodedKey) {
+                return usesModifier(DecodeKey(encodedKey));
+            });
+            for (auto& [triggerEncoded, held] : triggerHeld_) {
+                if (usesModifier(DecodeKey(triggerEncoded))) held = false;
+            }
+            for (auto& rt : macros_) {
+                if (!rt.config.enabled || !rt.config.triggerKey.has_value()
+                    || !usesModifier(*rt.config.triggerKey)) {
+                    continue;
+                }
+                stopHoldTrigger(rt);
+            }
+            SyncSourceActiveKeysLocked();
+        } else {
+            for (auto& [triggerEncoded, held] : triggerHeld_) {
+                if (SamePrimaryKey(DecodeKey(triggerEncoded), key)) held = false;
+            }
+            std::erase_if(pauseKeysDown_, [&key](const std::uint64_t encodedKey) {
+                return SamePrimaryKey(DecodeKey(encodedKey), key);
+            });
+            for (auto& rt : macros_) {
+                if (!rt.config.enabled) continue;
+                if (!rt.config.triggerKey.has_value()) continue;
+                if (!SamePrimaryKey(*rt.config.triggerKey, key)) continue;
 
-        if (rt.config.triggerMode == MacroTriggerMode::Hold) {
-            // 按压模式：松开停止
-            QueueCurrentRelease(rt, releases);
-            ResetRuntime(rt);
+                stopHoldTrigger(rt);
+            }
+            SyncSourceActiveKeysLocked();
         }
-    }
-        SyncSourceActiveKeysLocked();
+
     }
 
     for (const auto& release : releases) {

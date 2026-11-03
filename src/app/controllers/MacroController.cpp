@@ -1,8 +1,33 @@
 #include "controllers/MacroController.h"
 
+#include "config/ActiveConfigValidator.h"
+
 #include <Windows.h>
 #include <algorithm>
 #include <iterator>
+
+namespace {
+
+ControllerResult validatePauseKeyAgainstSteps(const KeyDescriptor& key, const MacroConfig& macro) {
+    for (const auto& step : macro.steps) {
+        if (!step.enabled) continue;
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            key, L"暂停键", step.key, L"循环步骤");
+        if (!validation.ok) return validation;
+    }
+    return ControllerResult::success();
+}
+
+ControllerResult validateKeyAgainstPauseKeys(const KeyDescriptor& key, const MacroConfig& macro) {
+    for (const auto& pauseKey : macro.pauseKeys) {
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            pauseKey, L"暂停键", key, L"循环步骤");
+        if (!validation.ok) return validation;
+    }
+    return ControllerResult::success();
+}
+
+}
 
 MacroController::MacroController(AppConfig& config) : config_(config) {}
 
@@ -146,11 +171,20 @@ ControllerResult MacroController::setActiveMacroEnabled(bool enabled) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
+    if (enabled) {
+        MacroConfig candidate = *macro;
+        candidate.enabled = true;
+        auto validation = ActiveConfigValidator::validateMacroModifierOverlaps(&candidate);
+        if (!validation.ok) return validation;
+    }
+
     macro->enabled = enabled;
     return ControllerResult::success();
 }
 
 ControllerResult MacroController::validateStepKey(const MacroConfig& macro, const KeyDescriptor& key) const {
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validateKeyAgainstPauseKeys(key, macro); !validation.ok) return validation;
     if (macro.triggerKey.has_value() && *macro.triggerKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }
@@ -163,6 +197,8 @@ ControllerResult MacroController::validateStepKey(const MacroConfig& macro, cons
 }
 
 ControllerResult MacroController::validateTriggerKey(const MacroConfig& macro, const KeyDescriptor& key) const {
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validateKeyAgainstPauseKeys(key, macro); !validation.ok) return validation;
     if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
     }
@@ -247,6 +283,12 @@ ControllerResult MacroController::updateSteps(const std::vector<std::uint64_t>& 
         }
     }
     if (!found) return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+    {
+        MacroConfig candidate = *macro;
+        candidate.steps = candidates;
+        auto validation = ActiveConfigValidator::validateMacroModifierOverlaps(&candidate);
+        if (!validation.ok) return validation;
+    }
     macro->steps = std::move(candidates);
     return ControllerResult::success();
 }
@@ -336,6 +378,8 @@ ControllerResult MacroController::addPauseKey(const KeyDescriptor& key) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validatePauseKeyAgainstSteps(key, *macro); !validation.ok) return validation;
     if (macro->triggerKey.has_value() && *macro->triggerKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }

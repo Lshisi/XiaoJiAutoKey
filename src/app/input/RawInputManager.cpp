@@ -158,6 +158,13 @@ bool RawInputManager::registerWindow(HWND hwnd) {
     mouseActive_ = registerDevice(0x02);    // Mouse
     hwnd_ = hwnd;
     deviceCache_.clear();
+    keyboardModifiers_ = 0;
+    if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) keyboardModifiers_ |= kKeyModifierCtrl;
+    if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) keyboardModifiers_ |= kKeyModifierCtrl;
+    if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) keyboardModifiers_ |= kKeyModifierShift;
+    if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) keyboardModifiers_ |= kKeyModifierShift;
+    if (GetAsyncKeyState(VK_LMENU) & 0x8000) keyboardModifiers_ |= kKeyModifierAlt;
+    if (GetAsyncKeyState(VK_RMENU) & 0x8000) keyboardModifiers_ |= kKeyModifierAlt;
     return keyboardActive_ && mouseActive_;
 }
 
@@ -231,7 +238,15 @@ bool RawInputManager::handleNativeMessage(MSG* message, qintptr* result) {
         if (!key.IsValid()) {
             return false;
         }
-        emit keyboardChanged(key, pressed);
+        KeyDescriptor event = key;
+        const auto modifierMask = ModifierMaskFromKey(key);
+        if (modifierMask != 0) {
+            if (pressed) keyboardModifiers_ |= modifierMask;
+            else keyboardModifiers_ &= static_cast<std::uint8_t>(~modifierMask);
+        } else {
+            event.modifiers = keyboardModifiers_;
+        }
+        emit keyboardChanged(event, pressed);
     } else if (raw.header.dwType == RIM_TYPEMOUSE && mouseActive_) {
         emitRawMouseChanges(raw.data.mouse);
     } else {
@@ -305,7 +320,7 @@ KeyDescriptor RawInputManager::rawKeyboardKeyDescriptor(const RAWKEYBOARD& keybo
 void RawInputManager::emitRawMouseChanges(const RAWMOUSE& mouse) {
     const USHORT flags = mouse.usButtonFlags;
     const auto emitButton = [this, flags](USHORT downFlag, USHORT upFlag, std::uint32_t vk) {
-        const KeyDescriptor key{InputDevice::Mouse, vk};
+        KeyDescriptor key{InputDevice::Mouse, vk, keyboardModifiers_};
         if ((flags & downFlag) != 0) emit mouseChanged(key, true);
         if ((flags & upFlag) != 0) emit mouseChanged(key, false);
     };

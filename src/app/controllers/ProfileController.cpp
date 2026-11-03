@@ -5,6 +5,41 @@
 #include <Windows.h>
 #include <algorithm>
 
+namespace {
+
+ControllerResult validateImmediateKeyAgainstBindings(
+    const KeyDescriptor& key, const wchar_t* owner, const ProfileConfig& profile) {
+    for (const auto& binding : profile.bindings) {
+        if (!binding.enabled) continue;
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            key, owner, binding.key, L"连发按键");
+        if (!validation.ok) return validation;
+    }
+    return ControllerResult::success();
+}
+
+ControllerResult validateCombinationAgainstImmediateKeys(
+    const KeyDescriptor& key, const ProfileConfig& profile) {
+    if (profile.controlHotkey.has_value()) {
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            *profile.controlHotkey, L"启停快捷键", key, L"连发按键");
+        if (!validation.ok) return validation;
+    }
+    if (profile.sequenceSwitchKey.has_value()) {
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            *profile.sequenceSwitchKey, L"切换键", key, L"连发按键");
+        if (!validation.ok) return validation;
+    }
+    for (const auto& pauseKey : profile.pauseKeys) {
+        auto validation = ActiveConfigValidator::validateModifierOverlap(
+            pauseKey, L"暂停键", key, L"连发按键");
+        if (!validation.ok) return validation;
+    }
+    return ControllerResult::success();
+}
+
+}
+
 ProfileController::ProfileController(AppConfig& config) : config_(config) {}
 
 ProfileConfig* ProfileController::activeProfile() {
@@ -129,6 +164,13 @@ ControllerResult ProfileController::setActiveProfileEnabled(bool enabled) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
+    if (enabled) {
+        ProfileConfig candidate = *profile;
+        candidate.enabled = true;
+        auto validation = ActiveConfigValidator::validateProfileModifierOverlaps(&candidate);
+        if (!validation.ok) return validation;
+    }
+
     profile->enabled = enabled;
     return ControllerResult::success();
 }
@@ -137,6 +179,10 @@ ControllerResult ProfileController::setControlHotkey(const KeyDescriptor& key) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validateImmediateKeyAgainstBindings(key, L"启停快捷键", *profile); !validation.ok) {
+        return validation;
+    }
     if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u542f\u505c\u5feb\u6377\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
     }
@@ -166,6 +212,10 @@ ControllerResult ProfileController::setSequenceSwitchKey(const KeyDescriptor& ke
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validateImmediateKeyAgainstBindings(key, L"切换键", *profile); !validation.ok) {
+        return validation;
+    }
     if (key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u5207\u6362\u952e\u4e0d\u80fd\u8bbe\u7f6e\u4e3a\u9f20\u6807\u5de6\u952e\u6216\u53f3\u952e\u3002"));
     }
@@ -242,6 +292,9 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
     for (auto& binding : profile->bindings) {
         if (binding.id == id) {
             if (enabled) {
+                if (auto validation = validateCombinationAgainstImmediateKeys(binding.key, *profile); !validation.ok) {
+                    return validation;
+                }
                 if (profile->controlHotkey.has_value() && *profile->controlHotkey == binding.key) {
                     return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
                 }
@@ -272,6 +325,12 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (enabled) {
+        if (auto validation = validateCombinationAgainstImmediateKeys(key, *profile); !validation.ok) {
+            return validation;
+        }
+    }
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
     const std::wstring effectiveName = name.trimmed().toStdWString();
@@ -389,6 +448,8 @@ ControllerResult ProfileController::updateBindings(const std::vector<std::uint64
 
     auto activeValidation = ActiveConfigValidator::validateActiveHotkeys(&candidateProfile, activeMacro);
     if (!activeValidation.ok) return activeValidation;
+    auto modifierValidation = ActiveConfigValidator::validateProfileModifierOverlaps(&candidateProfile);
+    if (!modifierValidation.ok) return modifierValidation;
     profile->bindings = std::move(candidates);
     return ControllerResult::success();
 }
@@ -397,6 +458,10 @@ ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
+    if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (auto validation = validateImmediateKeyAgainstBindings(key, L"暂停键", *profile); !validation.ok) {
+        return validation;
+    }
     if (profile->controlHotkey.has_value() && *profile->controlHotkey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }

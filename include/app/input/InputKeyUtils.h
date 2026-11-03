@@ -7,13 +7,16 @@
 #include <windowsx.h>
 
 inline std::uint64_t EncodeKey(const KeyDescriptor& key) {
-    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
+    return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32)
+        | (static_cast<std::uint64_t>(key.modifiers) << 40)
+        | key.code;
 }
 
 inline KeyDescriptor DecodeKey(std::uint64_t value) {
     KeyDescriptor key;
     key.device = ((value >> 32) & 0x1) != 0 ? InputDevice::Mouse : InputDevice::Keyboard;
     key.code = static_cast<std::uint32_t>(value & 0xFFFFFFFFull);
+    key.modifiers = static_cast<std::uint8_t>((value >> 40) & 0xFFull);
     return key;
 }
 

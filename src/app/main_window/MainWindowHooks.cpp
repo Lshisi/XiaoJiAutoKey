@@ -11,12 +11,16 @@ void MainWindow::setupHooks() {
         return inputDriver_.ConsumeSelfInjected(key, pressed);
     });
     inputHook_.setPhysicalInputFilter([this](const KeyDescriptor& key) {
+        inputDriver_.NotePhysicalKey(key, true);
         return inputDriver_.IsHeldDown(key);
     });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{
         &inputHook_,
         &rawInput_,
+        [this](const KeyDescriptor& key, bool pressed) {
+            inputDriver_.NotePhysicalKey(key, pressed);
+        },
         &engine_,
         &macroEngine_,
         [this]() {

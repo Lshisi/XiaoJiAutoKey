@@ -41,5 +41,6 @@ private:
     HWND hwnd_ = nullptr;
     bool keyboardActive_ = false;
     bool mouseActive_ = false;
+    std::uint8_t keyboardModifiers_ = 0;
     std::unordered_map<HANDLE, DeviceInfo> deviceCache_;
 };

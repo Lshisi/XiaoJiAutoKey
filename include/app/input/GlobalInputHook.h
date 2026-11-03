@@ -38,6 +38,7 @@ public:
 
 signals:
     void capturedKey(quint64 encodedKey);
+    void captureModifierChanged(KeyDescriptor key, bool pressed);
     void controlHotkeyPressed();
     void physicalKeyChanged(KeyDescriptor key, bool pressed);
     void macroTriggerChanged(KeyDescriptor key, bool pressed);
@@ -63,6 +64,7 @@ private:
 
     mutable std::mutex stateMutex_;
     std::optional<KeyDescriptor> controlHotkey_;
+    std::uint8_t physicalKeyboardModifiers_ = 0;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
     std::function<bool(const KeyDescriptor&)> physicalInputFilter_;
     bool captureActive_ = false;

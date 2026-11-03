@@ -76,7 +76,9 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         if (action == "accept" && accepted) accepted(state_);
     } else if (action == "record") {
         recording_ = true;
+        pendingModifierKeys_.clear();
         edit("keyText", tr("请按键或点击鼠标…"));
+        edit("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
     } else if (action == "pick") {
         edit("positionHint", tr("示例固定点位：50%，50%"));
     } else if (action == "dismissModeGuide") {
@@ -105,13 +107,35 @@ void PreviewDialogModel::startWindowMove() {
 
 bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
     if (!visible_ || !recording_) return QObject::eventFilter(watched, event);
+    const auto isModifierKey = [](int key) {
+        return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt;
+    };
     QString key;
     if (event->type() == QEvent::KeyPress) {
         const auto* pressed = static_cast<QKeyEvent*>(event);
         if (pressed->key() == Qt::Key_Escape) { dispatch("cancel"); return true; }
+        if (isModifierKey(pressed->key())) {
+            pendingModifierKeys_.append(pressed->key());
+            edit("keyText", QKeySequence(pressed->keyCombination()).toString(QKeySequence::PortableText)
+                + tr(" 已按住，再按主键"));
+            return true;
+        }
         key = QKeySequence(pressed->keyCombination()).toString(QKeySequence::PortableText);
+    } else if (event->type() == QEvent::KeyRelease) {
+        const auto* released = static_cast<QKeyEvent*>(event);
+        if (!isModifierKey(released->key()) || pendingModifierKeys_.isEmpty()) {
+            return QObject::eventFilter(watched, event);
+        }
+        pendingModifierKeys_.removeAll(released->key());
+        if (!pendingModifierKeys_.isEmpty()) return true;
+        key = QKeySequence(released->key()).toString(QKeySequence::PortableText);
     } else if (event->type() == QEvent::MouseButtonPress) {
-        switch (static_cast<QMouseEvent*>(event)->button()) {
+        const auto* pressed = static_cast<QMouseEvent*>(event);
+        QString prefix;
+        if ((pressed->modifiers() & Qt::ControlModifier) != 0) prefix += QStringLiteral("Ctrl+");
+        if ((pressed->modifiers() & Qt::ShiftModifier) != 0) prefix += QStringLiteral("Shift+");
+        if ((pressed->modifiers() & Qt::AltModifier) != 0) prefix += QStringLiteral("Alt+");
+        switch (pressed->button()) {
         case Qt::LeftButton: key = tr("左键"); break;
         case Qt::RightButton: key = tr("右键"); break;
         case Qt::MiddleButton: key = tr("中键"); break;
@@ -119,9 +143,11 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
         case Qt::XButton2: key = tr("侧键2"); break;
         default: return false;
         }
+        key = prefix + key;
     }
     if (key.isEmpty()) return QObject::eventFilter(watched, event);
     recording_ = false;
+    pendingModifierKeys_.clear();
     state_.insert("isMouse", event->type() == QEvent::MouseButtonPress);
     edit("keyText", key);
     return true;

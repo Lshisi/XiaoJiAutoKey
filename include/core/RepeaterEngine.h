@@ -15,7 +15,9 @@
 
 struct KeyDescriptorHash {
     std::size_t operator()(const KeyDescriptor& k) const noexcept {
-        return (static_cast<std::uint64_t>(k.device) << 32) ^ k.code;
+        return (static_cast<std::uint64_t>(k.device) << 32)
+            ^ (static_cast<std::uint64_t>(k.modifiers) << 40)
+            ^ k.code;
     }
 };
 

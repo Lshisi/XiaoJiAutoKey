@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QVariantMap>
+#include <QList>
 #include <functional>
 
 class PreviewDialogModel final : public QObject {
@@ -32,4 +33,5 @@ private:
     std::function<void(const QVariantMap&)> accepted_;
     bool visible_ = false;
     bool recording_ = false;
+    QList<int> pendingModifierKeys_;
 };

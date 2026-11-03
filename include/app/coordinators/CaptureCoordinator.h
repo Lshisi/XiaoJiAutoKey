@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <functional>
+#include <vector>
 
 class GlobalInputHook;
 class KeyCaptureDialogBase;
@@ -47,6 +48,7 @@ public:
     void startMacroHotkeyCapture();
     void runKeyCaptureDialog(KeyCaptureDialogBase& dialog);
     void handleCapturedKey(quint64 encodedKey);
+    void handleCapturedKey(const KeyDescriptor& key);
     void cancelCapture();
 
     [[nodiscard]] bool captureActive() const;
@@ -54,8 +56,10 @@ public:
 private:
     void updateHotkeyText();
     void handleDecodedKey(const KeyDescriptor& key);
+    void handleRawCaptureChanged(const KeyDescriptor& key, bool pressed);
 
     Context context_;
     std::optional<Target> target_;
     KeyCaptureDialogBase* activeDialog_ = nullptr;
+    std::vector<KeyDescriptor> captureModifiers_;
 };

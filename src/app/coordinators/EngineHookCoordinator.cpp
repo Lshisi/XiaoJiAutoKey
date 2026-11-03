@@ -66,6 +66,7 @@ void EngineHookCoordinator::syncInputModes() {
 }
 
 void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool pressed) {
+    if (context_.notePhysicalKey) context_.notePhysicalKey(key, pressed);
     if (context_.captureActive && context_.captureActive()) {
         return;
     }
@@ -74,7 +75,11 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
     }
 
     const auto controlHotkey = context_.controlHotkey ? context_.controlHotkey() : std::nullopt;
-    if (controlHotkey.has_value() && *controlHotkey == key) {
+    if (!pressed && IsKeyboardModifierKey(key) && controlHotkey.has_value()
+        && (controlHotkey->modifiers & ModifierMaskFromKey(key)) != 0) {
+        rawControlHotkeyPressed_ = false;
+    }
+    if (controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, key)) {
         if (pressed && !rawControlHotkeyPressed_) {
             rawControlHotkeyPressed_ = true;
             handleControlHotkeyPressed();
@@ -89,6 +94,7 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
 }
 
 void EngineHookCoordinator::handlePhysicalChanged(const KeyDescriptor& key, bool pressed) {
+    if (context_.notePhysicalKey) context_.notePhysicalKey(key, pressed);
     if (!context_.repeaterEngine) return;
     if (context_.repeatRunning && !context_.repeatRunning()) return;
     if (pressed) context_.repeaterEngine->OnPhysicalDown(key);
@@ -117,6 +123,7 @@ void EngineHookCoordinator::handleControlHotkeyPressed() {
 }
 
 void EngineHookCoordinator::handleMacroTriggerChanged(const KeyDescriptor& key, bool pressed) {
+    if (context_.notePhysicalKey) context_.notePhysicalKey(key, pressed);
     if (!context_.macroEngine) return;
     if (pressed) {
         if (context_.onboardingActive && context_.onboardingActive()
@@ -126,7 +133,7 @@ void EngineHookCoordinator::handleMacroTriggerChanged(const KeyDescriptor& key, 
             return;
         }
         const auto triggerKey = context_.macroTriggerKey ? context_.macroTriggerKey() : std::nullopt;
-        if (triggerKey.has_value() && *triggerKey == key
+        if (triggerKey.has_value() && KeyMatchesEvent(*triggerKey, key)
             && !context_.macroEngine->HasActiveMacro()
             && context_.validateActiveConfig) {
             auto validation = context_.validateActiveConfig();

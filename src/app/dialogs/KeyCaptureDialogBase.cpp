@@ -11,6 +11,7 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
     const QSize& initialSize) {
     supportsMouseMove_ = std::move(supportsMouseMove);
     const QVariantMap defaults{{"keyText", capturedKey_ ? QString::fromStdWString(GetKeyDisplayName(*capturedKey_)) : tr("点击录制")},
+        {"captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。")},
         {"isMouse", capturedKey_ && capturedKey_->device == InputDevice::Mouse},
         {"positionVisible", true},
         {"supportsPosition", supportsMouseMove_ && supportsMouseMove_()}, {"positionHint", tr("未拾取")},
@@ -34,10 +35,25 @@ void KeyCaptureDialogBase::setCapturedKey(KeyDescriptor key) {
 }
 void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
     const auto key = DecodeKey(encodedKey);
+    if (IsKeyboardModifierKey(key)) {
+        showModifierPending(key);
+        return;
+    }
     if (!allowPrimaryMouseButtons_ && key.device == InputDevice::Mouse && (key.code == VK_LBUTTON || key.code == VK_RBUTTON)) {
         setValue("keyText", capturedKey_ ? QString::fromStdWString(GetKeyDisplayName(*capturedKey_)) : tr("点击录制"));
         return;
     }
+    setCapturedKey(key);
+    emit keyAccepted();
+}
+
+void KeyCaptureDialogBase::showModifierPending(const KeyDescriptor& key) {
+    setValue("keyText", QString::fromStdWString(ModifierPrefix(ModifierMaskFromKey(key)))
+        + tr("已按住，再按主键"));
+    setValue("captureHint", tr("录制组合键：先按住 Ctrl／Shift／Alt，再按主键；松开修饰键则录制单独修饰键。"));
+}
+
+void KeyCaptureDialogBase::handleModifierReleased(KeyDescriptor key) {
     setCapturedKey(key);
     emit keyAccepted();
 }
@@ -68,6 +84,7 @@ void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argum
 void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& argument) {
     if (action == "record") {
         setValue("keyText", tr("录制中"));
+        setValue("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
         emit keyCaptureRequested();
     } else if (action == "pick" && supportsMouseMove_ && supportsMouseMove_() && value("fixed").toBool()) {
         const auto point = ScreenPointPicker::pick(this);

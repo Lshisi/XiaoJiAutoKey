@@ -2,10 +2,37 @@
 
 #include "DiagLog.h"
 
+#include <Windows.h>
+
 #include <chrono>
+#include <algorithm>
 #include <cstdio>
 #include <thread>
 #include <utility>
+
+namespace {
+
+constexpr std::uint8_t kPhysicalCtrlLeft = 0x10;
+constexpr std::uint8_t kPhysicalCtrlRight = 0x20;
+constexpr std::uint8_t kPhysicalShiftLeft = 0x40;
+constexpr std::uint8_t kPhysicalShiftRight = 0x80;
+constexpr std::uint8_t kPhysicalAltLeft = 0x01;
+constexpr std::uint8_t kPhysicalAltRight = 0x02;
+
+std::uint8_t PhysicalModifierKeyBit(const KeyDescriptor& key) {
+    if (key.device != InputDevice::Keyboard) return 0;
+    switch (key.code) {
+    case VK_LCONTROL: return kPhysicalCtrlLeft;
+    case VK_RCONTROL: return kPhysicalCtrlRight;
+    case VK_LSHIFT: return kPhysicalShiftLeft;
+    case VK_RSHIFT: return kPhysicalShiftRight;
+    case VK_LMENU: return kPhysicalAltLeft;
+    case VK_RMENU: return kPhysicalAltRight;
+    default: return 0;
+    }
+}
+
+}
 
 void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
@@ -16,6 +43,21 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     repeaterState_.heldKeys.clear();
     macroState_.heldKeys.clear();
     arbitrationSkipDiag_.clear();
+}
+
+void InputDriverRouter::NotePhysicalKey(const KeyDescriptor& key, bool pressed) {
+    const auto bit = PhysicalModifierKeyBit(key);
+    if (bit == 0) return;
+    auto modifiers = physicalModifiers_.load(std::memory_order_relaxed);
+    while (true) {
+        const auto next = pressed
+            ? static_cast<std::uint8_t>(modifiers | bit)
+            : static_cast<std::uint8_t>(modifiers & ~bit);
+        if (physicalModifiers_.compare_exchange_weak(modifiers, next,
+            std::memory_order_relaxed, std::memory_order_relaxed)) {
+            return;
+        }
+    }
 }
 
 InputDriver* InputDriverRouter::CurrentDriver() const noexcept {
@@ -41,16 +83,33 @@ bool InputDriverRouter::SendTap(const KeyDescriptor& key, InputSource src) {
 
 bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
-    return SendDownLocked(key, src);
+    return SendComboDownLocked(key, src);
 }
 
 bool InputDriverRouter::SendHeldDown(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
-    if (IsArbitratedSource(src) && StateFor(src).activeKeys.count(EncodeKey(key)) > 0) {
-        StateFor(src).heldKeys.insert(EncodeKey(key));
+    std::vector<std::uint64_t> heldKeys;
+    if (IsArbitratedSource(src)) {
+        auto& state = StateFor(src);
+        const auto components = KeyComponents(key);
+        const bool allActive = std::all_of(components.begin(), components.end(),
+            [&state](const KeyDescriptor& component) {
+                return state.activeKeys.count(EncodeKey(component)) > 0;
+            });
+        if (allActive) {
+            for (const auto& component : components) {
+                const auto encoded = EncodeKey(component);
+                heldKeys.push_back(encoded);
+                state.heldKeys.insert(encoded);
+            }
+        }
     }
-    const bool sent = SendDownLocked(key, src);
+    const bool sent = SendComboDownLocked(key, src);
     PublishHeldKeysLocked();
+    if (!sent && IsArbitratedSource(src)) {
+        auto& state = StateFor(src);
+        for (const auto encoded : heldKeys) state.heldKeys.erase(encoded);
+    }
     return sent;
 }
 
@@ -87,20 +146,78 @@ bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src
     return true;
 }
 
-bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
-    std::lock_guard lock(mutex_);
-    if (IsArbitratedSource(src) && StateFor(src).heldKeys.erase(EncodeKey(key)) > 0) {
-        PublishHeldKeysLocked();
-    }
+bool InputDriverRouter::SendComboDownLocked(const KeyDescriptor& key, InputSource src) {
     if (!driver_) return false;
-    if (!IsArbitratedSource(src)) return driver_->SendUp(key, src);
+    const auto components = KeyComponents(key);
+    if (components.empty()) return false;
 
-    const auto encoded = EncodeKey(key);
-    const auto forwarded = forwardedDown_.find(encoded);
-    if (forwarded == forwardedDown_.end() || forwarded->second != src) {
+    if (!IsArbitratedSource(src)) {
+        std::vector<KeyDescriptor> sent;
+        sent.reserve(components.size());
+        for (const auto& component : components) {
+            const auto modifierMask = ModifierMaskFromKey(component);
+            if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
+            if (!driver_->SendDown(component, src)) {
+                for (auto it = sent.rbegin(); it != sent.rend(); ++it) {
+                    driver_->SendUp(*it, src);
+                }
+                return false;
+            }
+            sent.push_back(component);
+        }
         return true;
     }
-    return ReleaseForwardedKeyLocked(encoded);
+
+    std::vector<std::uint64_t> sent;
+    sent.reserve(components.size());
+    for (const auto& component : components) {
+        const auto modifierMask = ModifierMaskFromKey(component);
+        if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
+        const auto encoded = EncodeKey(component);
+        if (!SendDownLocked(component, src)) {
+            for (auto it = sent.rbegin(); it != sent.rend(); ++it) {
+                const auto forwarded = forwardedDown_.find(*it);
+                if (forwarded != forwardedDown_.end() && forwarded->second == src) {
+                    ReleaseForwardedKeyLocked(*it);
+                }
+            }
+            return false;
+        }
+        sent.push_back(encoded);
+    }
+    return true;
+}
+
+bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
+    std::lock_guard lock(mutex_);
+    const auto components = KeyComponents(key);
+    if (IsArbitratedSource(src)) {
+        auto& state = StateFor(src);
+        bool changed = false;
+        for (const auto& component : components) {
+            changed |= state.heldKeys.erase(EncodeKey(component)) > 0;
+        }
+        if (changed) PublishHeldKeysLocked();
+    }
+    if (!driver_) return false;
+    if (!IsArbitratedSource(src)) {
+        bool ok = true;
+        for (auto it = components.rbegin(); it != components.rend(); ++it) {
+            const auto modifierMask = ModifierMaskFromKey(*it);
+            if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
+            ok = driver_->SendUp(*it, src) && ok;
+        }
+        return ok;
+    }
+
+    bool ok = true;
+    for (auto it = components.rbegin(); it != components.rend(); ++it) {
+        const auto encoded = EncodeKey(*it);
+        const auto forwarded = forwardedDown_.find(encoded);
+        if (forwarded == forwardedDown_.end() || forwarded->second != src) continue;
+        ok = ReleaseForwardedKeyLocked(encoded) && ok;
+    }
+    return ok;
 }
 
 bool InputDriverRouter::SendMouseMove(int deltaX, int deltaY, InputSource src) {
@@ -122,7 +239,9 @@ void InputDriverRouter::SetSourceActiveKeys(InputSource src, const std::vector<K
 
     std::unordered_set<std::uint64_t> desiredKeys;
     for (const auto& key : keys) {
-        if (key.IsValid()) desiredKeys.insert(EncodeKey(key));
+        for (const auto& component : KeyComponents(key)) {
+            if (component.IsValid()) desiredKeys.insert(EncodeKey(component));
+        }
     }
 
     for (auto it = state.activeKeys.begin(); it != state.activeKeys.end();) {
@@ -177,7 +296,12 @@ bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool press
 
 bool InputDriverRouter::IsHeldDown(const KeyDescriptor& key) const noexcept {
     const auto heldKeys = heldDownKeys_.load();
-    return heldKeys && heldKeys->count(EncodeKey(key)) > 0;
+    if (!heldKeys) return false;
+    const auto components = KeyComponents(key);
+    return std::all_of(components.begin(), components.end(),
+        [&heldKeys](const KeyDescriptor& component) {
+            return heldKeys->count(EncodeKey(component)) > 0;
+        });
 }
 
 bool InputDriverRouter::IsArbitratedSource(InputSource src) noexcept {
@@ -186,6 +310,10 @@ bool InputDriverRouter::IsArbitratedSource(InputSource src) noexcept {
 
 std::uint64_t InputDriverRouter::EncodeKey(const KeyDescriptor& key) noexcept {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
+}
+
+std::vector<KeyDescriptor> InputDriverRouter::KeyComponents(const KeyDescriptor& key) {
+    return ExpandKeyComponents(key);
 }
 
 std::uint64_t InputDriverRouter::ArbitrationDiagKey(std::uint64_t encoded, InputSource src) noexcept {
@@ -244,7 +372,10 @@ void InputDriverRouter::RecomputeOwnersLocked() {
 void InputDriverRouter::RestoreHeldKeysLocked(InputSource src) {
     // A held key has no repeat pulse to retry after the earlier owner stops.
     for (const auto encoded : StateFor(src).heldKeys) {
-        SendDownLocked(DecodeKey(encoded), src);
+        const auto key = DecodeKey(encoded);
+        const auto modifierMask = ModifierMaskFromKey(key);
+        if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
+        SendDownLocked(key, src);
     }
 }
 
@@ -288,4 +419,22 @@ void InputDriverRouter::NoteArbitrationSkipLocked(std::uint64_t encoded, InputSo
         key.device == InputDevice::Mouse ? "mouse" : "keyboard",
         key.code);
     DiagLog::Write(line);
+}
+
+bool InputDriverRouter::IsPhysicalModifierActiveLocked(std::uint8_t modifiers) const {
+    if (modifiers == 0) return false;
+    const auto physical = physicalModifiers_.load(std::memory_order_relaxed);
+    if ((modifiers & kKeyModifierCtrl) != 0
+        && (physical & (kPhysicalCtrlLeft | kPhysicalCtrlRight)) != 0) {
+        return true;
+    }
+    if ((modifiers & kKeyModifierShift) != 0
+        && (physical & (kPhysicalShiftLeft | kPhysicalShiftRight)) != 0) {
+        return true;
+    }
+    if ((modifiers & kKeyModifierAlt) != 0
+        && (physical & (kPhysicalAltLeft | kPhysicalAltRight)) != 0) {
+        return true;
+    }
+    return false;
 }

@@ -12,6 +12,7 @@
 #include "ui/models/MacroPageModel.h"
 #include "ui/models/SettingsPageModel.h"
 
+#include <algorithm>
 #include <QMetaObject>
 #include <QPointer>
 #include <Windows.h>
@@ -22,27 +23,71 @@ void CaptureCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (context_.rawInput) {
         connect(context_.rawInput, &RawInputManager::keyboardChanged, this, [this](const KeyDescriptor& key, bool pressed) {
-            if (!pressed || !target_.has_value()) {
-                return;
-            }
-            const auto encoded = EncodeKey(key);
-            if (*target_ == Target::DialogKey && activeDialog_) {
-                QPointer<KeyCaptureDialogBase> dialog = activeDialog_;
-                QMetaObject::invokeMethod(this, [this, dialog, encoded]() {
-                    if (!target_.has_value() || *target_ != Target::DialogKey || !dialog) {
-                        return;
-                    }
-                    dialog->handleCapturedKey(encoded);
-                    target_.reset();
-                    if (context_.refreshHookState) context_.refreshHookState();
-                }, Qt::QueuedConnection);
-                return;
-            }
-            QMetaObject::invokeMethod(this, [this, encoded]() {
-                handleCapturedKey(encoded);
-            }, Qt::QueuedConnection);
+            handleRawCaptureChanged(key, pressed);
         });
     }
+    if (context_.inputHook) {
+        connect(context_.inputHook, &GlobalInputHook::captureModifierChanged, this,
+            [this](const KeyDescriptor& key, bool pressed) {
+                if (!target_.has_value()) return;
+                if (pressed) {
+                    if (std::none_of(captureModifiers_.begin(), captureModifiers_.end(),
+                        [&key](const KeyDescriptor& item) { return SamePrimaryKey(item, key); })) {
+                        captureModifiers_.push_back(key);
+                    }
+                    if (*target_ == Target::DialogKey && activeDialog_) {
+                        activeDialog_->handleCapturedKey(EncodeKey(key));
+                    }
+                    return;
+                }
+
+                std::erase_if(captureModifiers_, [&key](const KeyDescriptor& item) {
+                    return SamePrimaryKey(item, key);
+                });
+                if (!captureModifiers_.empty()) return;
+                if (*target_ == Target::DialogKey && activeDialog_) {
+                    activeDialog_->handleModifierReleased(key);
+                    target_.reset();
+                    captureModifiers_.clear();
+                    if (context_.refreshHookState) context_.refreshHookState();
+                    return;
+                }
+                handleCapturedKey(key);
+            });
+    }
+}
+
+void CaptureCoordinator::handleRawCaptureChanged(const KeyDescriptor& key, bool pressed) {
+    if (!target_.has_value()) return;
+
+    if (IsKeyboardModifierKey(key)) {
+        if (pressed) {
+            if (std::none_of(captureModifiers_.begin(), captureModifiers_.end(),
+                [&key](const KeyDescriptor& item) { return SamePrimaryKey(item, key); })) {
+                captureModifiers_.push_back(key);
+            }
+            if (*target_ == Target::DialogKey && activeDialog_) {
+                activeDialog_->handleCapturedKey(EncodeKey(key));
+            }
+            return;
+        }
+
+        std::erase_if(captureModifiers_, [&key](const KeyDescriptor& item) {
+            return SamePrimaryKey(item, key);
+        });
+        if (!captureModifiers_.empty()) return;
+        if (*target_ == Target::DialogKey && activeDialog_) {
+            activeDialog_->handleModifierReleased(key);
+            target_.reset();
+            if (context_.refreshHookState) context_.refreshHookState();
+            return;
+        }
+        handleCapturedKey(key);
+        return;
+    }
+
+    if (!pressed) return;
+    handleCapturedKey(key);
 }
 
 bool CaptureCoordinator::captureActive() const {
@@ -51,6 +96,7 @@ bool CaptureCoordinator::captureActive() const {
 
 void CaptureCoordinator::startMainHotkeyCapture() {
     target_ = Target::MainHotkey;
+    captureModifiers_.clear();
     if (context_.refreshHookState) context_.refreshHookState();
     if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
     updateHotkeyText();
@@ -58,6 +104,7 @@ void CaptureCoordinator::startMainHotkeyCapture() {
 
 void CaptureCoordinator::startMacroHotkeyCapture() {
     target_ = Target::MacroHotkey;
+    captureModifiers_.clear();
     if (context_.refreshHookState) context_.refreshHookState();
     if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
     if (context_.macroPage) {
@@ -74,11 +121,13 @@ void CaptureCoordinator::runKeyCaptureDialog(KeyCaptureDialogBase& dialog) {
         }
         dialog.handleCapturedKey(encodedKey);
         target_.reset();
+        captureModifiers_.clear();
         if (context_.refreshHookState) context_.refreshHookState();
     });
     auto requestConn = connect(&dialog, &KeyCaptureDialogBase::keyCaptureRequested, this, [this, &dialog]() {
         activeDialog_ = &dialog;
         target_ = Target::DialogKey;
+        captureModifiers_.clear();
         if (context_.refreshHookState) context_.refreshHookState();
         if (context_.inputHook) context_.inputHook->setCaptureStartedTick(GetTickCount64());
     });
@@ -91,23 +140,38 @@ void CaptureCoordinator::runKeyCaptureDialog(KeyCaptureDialogBase& dialog) {
     disconnect(requestConn);
     activeDialog_ = nullptr;
     target_.reset();
+    captureModifiers_.clear();
     if (context_.refreshHookState) context_.refreshHookState();
     updateHotkeyText();
 }
 
 void CaptureCoordinator::handleCapturedKey(quint64 encodedKey) {
-    handleDecodedKey(DecodeKey(encodedKey));
+    handleCapturedKey(DecodeKey(encodedKey));
+}
+
+void CaptureCoordinator::handleCapturedKey(const KeyDescriptor& key) {
+    captureModifiers_.clear();
+    handleDecodedKey(key);
 }
 
 void CaptureCoordinator::cancelCapture() {
     if (!target_.has_value()) return;
     target_.reset();
+    captureModifiers_.clear();
     if (context_.refreshHookState) context_.refreshHookState();
     updateHotkeyText();
 }
 
 void CaptureCoordinator::handleDecodedKey(const KeyDescriptor& key) {
     if (!target_.has_value()) return;
+
+    if (*target_ == Target::DialogKey && activeDialog_) {
+        activeDialog_->handleCapturedKey(EncodeKey(key));
+        target_.reset();
+        captureModifiers_.clear();
+        if (context_.refreshHookState) context_.refreshHookState();
+        return;
+    }
 
     if (*target_ == Target::MainHotkey) {
         target_.reset();

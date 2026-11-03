@@ -102,6 +102,7 @@ Item {
             Row {
                 anchors.centerIn: parent
                 visible: !root.selectionActive
+                spacing: 0
                 IconButton {
                     iconName: "edit"
                     hint: qsTr("编辑步骤")
@@ -112,12 +113,8 @@ Item {
                     stepId: root.entry.id
                     actionsEnabled: root.enabled
                 }
-                ActionButton {
-                    width: root.columns.deleteWidth
-                    height: Math.max(Theme.iconSize, implicitHeight)
-                    text: qsTr("删除")
-                    compact: true
-                    quiet: true
+                IconButton {
+                    iconName: "delete"
                     hint: qsTr("删除步骤")
                     onClicked: root.page.deleteStepRequested(root.entry.id)
                 }

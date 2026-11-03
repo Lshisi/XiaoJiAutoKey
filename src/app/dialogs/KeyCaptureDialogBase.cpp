@@ -90,7 +90,10 @@ void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& a
             bool ok = false;
             const int delay = value("delay").toString().toInt(&ok);
             if (!ok || delay < kMinDelayMs) {
-                AppMessageDialog::warning(this, tr("参数无效"), tr("间隔必须是不小于 1 的整数。"));
+                AppMessageDialog::warning(this, tr("参数无效"),
+                    value("macroStep").toBool()
+                        ? tr("松开后间隔必须是不小于 1 的整数。")
+                        : tr("间隔必须是不小于 1 的整数。"));
                 return;
             }
         }

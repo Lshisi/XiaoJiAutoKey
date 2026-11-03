@@ -247,7 +247,7 @@ void OnboardingCoordinator::refresh() {
         if (step_ == 0) {
             title = tr("按顺序执行一组按键");
             body = tr("循环连发会依次执行列表中的按键，再按设置重复。点击“添加按键”录入步骤，使用行内箭头调整顺序。");
-            hint = tr("每步间隔表示当前步骤按下到下一步骤按下的时间，默认 %1ms。").arg(kDefaultDelayMs);
+            hint = tr("每步会按下约 5ms 后松开，间隔是松开后到下一步的时间，默认 %1ms。").arg(kDefaultDelayMs);
             target = QStringLiteral("add");
             actionText = tr("添加步骤");
             canNext = currentMacro && !currentMacro->steps.empty();

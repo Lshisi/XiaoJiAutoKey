@@ -167,6 +167,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
     const auto row = adding ? QVariantMap{} : rows[index].toMap();
     const int mode = adding ? 0 : row.value("mode").toInt();
     QVariantMap fields{{"keyText", adding ? QStringLiteral("A") : row.value("keyText")},
+        {"macroStep", model_.macroMode()},
         {"nameVisible", true}, {"name", adding ? QString() : row.value("name")},
         {"mode", mode}, {"modeVisible", !model_.macroMode()}, {"needsDelay", mode != 4},
         {"delay", mode == 4 || adding ? QStringLiteral("10") : row.value("delay").toString()},

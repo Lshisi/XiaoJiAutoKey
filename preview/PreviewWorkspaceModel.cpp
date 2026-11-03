@@ -1,4 +1,6 @@
 #include "PreviewWorkspaceModel.h"
+#include "MacroTiming.h"
+
 #include <QStringList>
 #include <algorithm>
 
@@ -17,6 +19,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
         {"hasSequenceKey", false}, {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false},
         {"updateVersion", QString()}, {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QStringList{}}, {"selectedBindingIds", QStringList{}}, {"focusStepIds", QStringList{}}};
+    state_.insert("timingText", QString());
     QVariantList rows;
     if (demo) {
         const QStringList keys{QStringLiteral("1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift")};
@@ -68,6 +71,9 @@ void PreviewWorkspaceModel::setRows(const QVariantList& rows) {
         }
         state_.insert("selectedBindingIds", validSelectedIds);
     }
+    if (macro_) {
+        refreshTiming();
+    }
     setValue(macro_ ? "steps" : "bindings", rows);
 }
 
@@ -114,6 +120,18 @@ void PreviewWorkspaceModel::startStopClicked() {
     setValue("running", !state_.value("running").toBool());
 }
 
+void PreviewWorkspaceModel::modeChanged(int value) {
+    state_.insert("triggerMode", value);
+    refreshTiming();
+    emit stateChanged();
+}
+
+void PreviewWorkspaceModel::loopCountChanged(int value) {
+    state_.insert("loopCount", value);
+    refreshTiming();
+    emit stateChanged();
+}
+
 void PreviewWorkspaceModel::stepMoveRequested(const QString& id, int to) {
     auto steps = rows();
     int from = -1;
@@ -154,4 +172,23 @@ void PreviewWorkspaceModel::pauseKeyDeleteClicked(int index) {
     if (index < 0 || index >= keys.size()) return;
     keys.removeAt(index);
     setValue("pauseKeys", keys);
+}
+
+MacroConfig PreviewWorkspaceModel::timingConfig() const {
+    MacroConfig macro;
+    macro.triggerMode = state_.value("triggerMode").toInt() == 1
+        ? MacroTriggerMode::Hold : MacroTriggerMode::Toggle;
+    macro.loopCount = state_.value("loopCount").toInt();
+    for (const auto& value : state_.value("steps").toList()) {
+        const auto row = value.toMap();
+        MacroStep step;
+        step.enabled = row.value("enabled").toBool();
+        step.delayAfterMs = row.value("delay").toString().toInt();
+        macro.steps.push_back(std::move(step));
+    }
+    return macro;
+}
+
+void PreviewWorkspaceModel::refreshTiming() {
+    state_.insert("timingText", QString::fromStdWString(FormatMacroTimingSummary(timingConfig())));
 }

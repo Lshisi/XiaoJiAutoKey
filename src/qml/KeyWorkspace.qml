@@ -109,6 +109,11 @@ Item {
                     contentLeftPadding: Math.max(0, listCard.leftPadding - 1)
                     contentRightPadding: Math.max(0, listCard.rightPadding - 1)
                 }
+                MacroTimingSummary {
+                    visible: workspace.macroMode
+                    Layout.fillWidth: true
+                    page: workspace.page
+                }
                 ShortcutBar { id: shortcutBar; Layout.fillWidth: true; page: workspace.page; macroMode: workspace.macroMode }
             }
         }

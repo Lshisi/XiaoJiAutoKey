@@ -56,7 +56,7 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: 12
         QuietCheck {
-            text: editor.fields.macroMode ? qsTr("修改间隔(ms)") : qsTr("修改延迟(ms)")
+            text: editor.fields.macroMode ? qsTr("修改松开后间隔(ms)") : qsTr("修改延迟(ms)")
             checked: editor.fields.modifyDelay
             onToggled: dialogModel.edit("modifyDelay", checked)
         }
@@ -67,7 +67,7 @@ ColumnLayout {
             text: editor.fields.delay
             validator: IntValidator { bottom: 1; top: 2147483647 }
             inputMethodHints: Qt.ImhDigitsOnly
-            Accessible.name: qsTr("批量间隔，毫秒")
+            Accessible.name: editor.fields.macroMode ? qsTr("批量修改松开后间隔，毫秒") : qsTr("批量间隔，毫秒")
             onTextEdited: dialogModel.edit("delay", text)
             onAccepted: dialogModel.dispatch("accept")
         }
@@ -95,6 +95,13 @@ ColumnLayout {
         visible: !editor.fields.macroMode
         Layout.fillWidth: true
         text: qsTr("按压优先只应用于按压模式；长按模式不修改连发间隔。")
+        color: Theme.muted
+        wrapMode: Text.Wrap
+    }
+    QuietLabel {
+        visible: editor.fields.macroMode
+        Layout.fillWidth: true
+        text: qsTr("循环间隔是松开后到进入下一步的时间；末步间隔计入循环。")
         color: Theme.muted
         wrapMode: Text.Wrap
     }

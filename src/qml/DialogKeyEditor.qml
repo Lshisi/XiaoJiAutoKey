@@ -6,6 +6,7 @@ import XiaoJi.UI
 ColumnLayout {
     id: editor
     readonly property var fields: dialogModel.dialogState
+    readonly property bool macroStep: editor.fields.macroStep === true
     readonly property real labelWidth: Math.max(62, keyLabel.implicitWidth, modeLabel.implicitWidth,
         delayLabel.implicitWidth, nameLabel.implicitWidth)
     spacing: Theme.formGap
@@ -62,7 +63,7 @@ ColumnLayout {
             id: delayLabel
             Layout.minimumWidth: editor.labelWidth
             Layout.maximumWidth: editor.labelWidth
-            text: qsTr("间隔(ms):")
+            text: editor.macroStep ? qsTr("松开后间隔(ms):") : qsTr("间隔(ms):")
             wrapMode: Text.NoWrap
         }
         QuietTextField {
@@ -72,7 +73,7 @@ ColumnLayout {
             text: editor.fields.delay
             validator: IntValidator { bottom: 1; top: 2147483647 }
             inputMethodHints: Qt.ImhDigitsOnly
-            Accessible.name: qsTr("按键间隔，毫秒")
+            Accessible.name: editor.macroStep ? qsTr("循环步骤松开后间隔，毫秒") : qsTr("按键间隔，毫秒")
             onTextEdited: dialogModel.edit("delay", text)
             onPressed: {
                 if (!clearedOnClick) {
@@ -132,6 +133,13 @@ ColumnLayout {
             default: return qsTr("启动后按设定间隔反复点击此键，停止时结束。")
             }
         }
+        color: Theme.muted
+        wrapMode: Text.Wrap
+    }
+    QuietLabel {
+        Layout.fillWidth: true
+        visible: editor.macroStep
+        text: qsTr("每步按下约 5ms 后松开，再等待此间隔进入下一步；末步间隔计入循环时长。")
         color: Theme.muted
         wrapMode: Text.Wrap
     }

@@ -1,11 +1,14 @@
 #include "MacroPageModel.h"
 
+#include "MacroTiming.h"
+
 MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"steps", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
         {"profileEnabled", false}, {"running", false}, {"hotkey", tr("未设置")},
         {"beepEnabled", true}, {"overlayEnabled", false}, {"pauseKeys", QVariantList{}},
         {"triggerMode", 0}, {"loopCount", 0},
-        {"selectedStepIds", QVariantList{}}, {"focusStepIds", QVariantList{}}};
+        {"selectedStepIds", QVariantList{}}, {"focusStepIds", QVariantList{}},
+        {"timingText", QString()}};
 }
 
 QVariantList MacroPageModel::idList(const std::vector<std::uint64_t>& ids) {
@@ -40,6 +43,8 @@ void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, std::uint64_t
                     .arg(step.clickPos.anchorY * 100, 0, 'f', 1) : QString()}});
     }
     state_.insert("selectedStepIds", validSelectedIds);
+    steps_ = steps;
+    updateTimingSummary();
     setValue("steps", rows);
 }
 
@@ -68,6 +73,20 @@ void MacroPageModel::setRunning(bool value) {
     if (state_.value("running").toBool() != value) setValue("running", value);
 }
 
+void MacroPageModel::setMode(MacroTriggerMode value) {
+    triggerMode_ = value;
+    state_.insert("triggerMode", static_cast<int>(value));
+    updateTimingSummary();
+    emit stateChanged();
+}
+
+void MacroPageModel::setLoopCount(int value) {
+    loopCount_ = value;
+    state_.insert("loopCount", value);
+    updateTimingSummary();
+    emit stateChanged();
+}
+
 void MacroPageModel::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
     QVariantList values;
     for (const auto& key : keys) values.push_back(QString::fromStdWString(GetKeyDisplayName(key)));
@@ -83,4 +102,18 @@ void MacroPageModel::setMacroProfiles(const std::vector<std::pair<std::uint64_t,
     }
     state_.insert("profileIndex", activeIndex);
     setValue("profiles", values);
+}
+
+void MacroPageModel::updateTimingSummary() {
+    MacroConfig macro;
+    macro.steps = steps_;
+    macro.triggerMode = triggerMode_;
+    macro.loopCount = loopCount_;
+    setValueIfChanged("timingText", QString::fromStdWString(FormatMacroTimingSummary(macro)));
+}
+
+void MacroPageModel::setValueIfChanged(const QString& name, const QVariant& value) {
+    if (state_.value(name) == value) return;
+    state_.insert(name, value);
+    emit stateChanged();
 }

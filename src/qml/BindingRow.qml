@@ -71,8 +71,9 @@ Item {
             Row {
                 anchors.centerIn: parent
                 visible: !root.selectionActive
+                spacing: 0
                 IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyDisplayText); onClicked: root.page.editBinding(root.entry.id) }
-                ActionButton { width: root.columns.deleteWidth; height: Math.max(Theme.iconSize, implicitHeight); text: qsTr("删除"); compact: true; quiet: true; hint: qsTr("删除 %1").arg(root.entry.keyDisplayText); onClicked: root.page.removeBinding(root.entry.id) }
+                IconButton { iconName: "delete"; hint: qsTr("删除 %1").arg(root.entry.keyDisplayText); onClicked: root.page.removeBinding(root.entry.id) }
             }
         }
     }

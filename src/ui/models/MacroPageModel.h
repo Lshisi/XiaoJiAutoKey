@@ -16,8 +16,8 @@ public:
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
     void setStatusOverlayEnabled(bool value) { setValue("overlayEnabled", value); }
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
-    void setMode(MacroTriggerMode value) { setValue("triggerMode", static_cast<int>(value)); }
-    void setLoopCount(int value) { setValue("loopCount", value); }
+    void setMode(MacroTriggerMode value);
+    void setLoopCount(int value);
     void setMacroProfiles(const std::vector<std::pair<std::uint64_t, QString>>& macros, std::uint64_t activeId);
     Q_INVOKABLE void selectProfile(const QString& id) { emit macroSwitched(id.toULongLong()); }
     Q_INVOKABLE void clearStepSelection() {
@@ -75,5 +75,10 @@ signals:
 
 private:
     static QVariantList idList(const std::vector<std::uint64_t>& ids);
+    void updateTimingSummary();
+    void setValueIfChanged(const QString& name, const QVariant& value);
     std::uint64_t stepsMacroId_ = 0;
+    std::vector<MacroStep> steps_;
+    MacroTriggerMode triggerMode_ = MacroTriggerMode::Toggle;
+    int loopCount_ = 0;
 };

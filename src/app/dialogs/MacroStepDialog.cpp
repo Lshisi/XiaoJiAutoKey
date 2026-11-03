@@ -4,6 +4,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStepEditResult> existing,
     setPrimaryMouseButtonsAllowed(true);
     setWindowTitle(existing ? tr("编辑步骤") : tr("添加步骤"));
     QVariantMap fields;
+    fields.insert("macroStep", true);
     fields.insert("nameVisible", true);
     if (existing) {
         setCapturedKey(existing->key);

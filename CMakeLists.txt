@@ -85,6 +85,7 @@ set(CORE_SOURCES
     src/core/InputDriverRouter.cpp
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
+    src/core/MacroTiming.cpp
     src/core/Ch552UsbDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
@@ -175,6 +176,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/core/ForegroundWatcher.h
     include/core/ShareCodec.h
     include/core/MacroEngine.h
+    include/core/MacroTiming.h
     include/core/InputDriver.h
     include/core/InputDriverRouter.h
     include/core/Ch552UsbDriver.h
@@ -293,6 +295,7 @@ set(QML_FILES
     src/qml/MacroStepMenu.qml
     src/qml/WorkspaceRows.qml
     src/qml/WorkspaceTable.qml
+    src/qml/MacroTimingSummary.qml
     src/qml/WorkspaceEnabledCell.qml
     src/qml/KeyWorkspace.qml
     src/qml/KeyPage.qml

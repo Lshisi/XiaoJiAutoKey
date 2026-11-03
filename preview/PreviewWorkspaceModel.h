@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AppTypes.h"
 #include "ui/models/PageModel.h"
 
 class PreviewWorkspaceModel final : public PageModel {
@@ -66,8 +67,8 @@ public:
     Q_INVOKABLE void mixedModeToggled(bool enabled) { setValue("mixedMode", enabled); }
     Q_INVOKABLE void wasdProtectionToggled(bool enabled) { setValue("wasdProtection", enabled); }
     Q_INVOKABLE void rememberSequencePositionChanged(bool enabled) { setValue("rememberSequencePosition", enabled); }
-    Q_INVOKABLE void modeChanged(int value) { setValue("triggerMode", value); }
-    Q_INVOKABLE void loopCountChanged(int value) { setValue("loopCount", value); }
+    Q_INVOKABLE void modeChanged(int value);
+    Q_INVOKABLE void loopCountChanged(int value);
     Q_INVOKABLE void hotkeyEditClicked() { emit requested("hotkey", {}); }
     Q_INVOKABLE void hotkeyClearClicked() { setValue("hotkey", tr("未设置")); }
     Q_INVOKABLE void sequenceSwitchKeyAddClicked() { emit requested("sequence", {}); }
@@ -91,5 +92,7 @@ signals:
     void requested(const QString& action, const QVariant& argument);
 
 private:
+    [[nodiscard]] MacroConfig timingConfig() const;
+    void refreshTiming();
     bool macro_;
 };

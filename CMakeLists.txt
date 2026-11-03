@@ -34,6 +34,7 @@ set(MOC_HEADERS
     include/app/coordinators/EngineStateCoordinator.h
     include/app/coordinators/UsageStatisticsCoordinator.h
     include/app/coordinators/DriverSelfCheckCoordinator.h
+    include/app/dialogs/DriverDiagnosticDialog.h
     include/app/coordinators/OnboardingCoordinator.h
     include/app/dialogs/BindingEditDialog.h
     include/app/dialogs/BatchEditDialog.h
@@ -129,6 +130,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/config/ActiveConfigValidator.h
     include/app/controllers/ControllerResult.h
     include/app/config/ConfigNormalizer.h
+    include/app/diagnostics/DriverDiagnosticReport.h
     include/app/coordinators/SettingsCoordinator.h
     include/app/coordinators/DriverCoordinator.h
     include/app/coordinators/ProfileCoordinator.h
@@ -199,6 +201,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/coordinators/EngineStateCoordinator.cpp
     src/app/coordinators/UsageStatisticsCoordinator.cpp
     src/app/coordinators/DriverSelfCheckCoordinator.cpp
+    src/app/diagnostics/DriverDiagnosticReport.cpp
     src/app/coordinators/OnboardingCoordinator.cpp
     src/app/coordinators/UpdateCoordinator.cpp
     src/app/controllers/MacroController.cpp
@@ -224,6 +227,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/dialogs/ConfigNameDialog.cpp
     src/app/dialogs/DialogChrome.cpp
     src/app/dialogs/DriverSelfCheckDialog.cpp
+    src/app/dialogs/DriverDiagnosticDialog.cpp
     src/app/dialogs/BindingEditDialog.cpp
     src/app/dialogs/BatchEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp

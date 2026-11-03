@@ -221,7 +221,8 @@ bool MainWindow::setupUi() {
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },
         [this](bool open) { inputHook_.setDialogOpen(open); },
-        [this]() { driverSelfCheckCoordinator_.open(); }
+        [this]() { driverSelfCheckCoordinator_.open(); },
+        [this]() { driverSelfCheckCoordinator_.openDiagnostic(); }
     });
     driverSelfCheckCoordinator_.bind(DriverSelfCheckCoordinator::Context{
         this,
@@ -231,6 +232,18 @@ bool MainWindow::setupUi() {
             auto status = ddRuntimeService_.Inspect(driver_);
             status.lastError = activeInputDriverError();
             return status;
+        },
+        [this]() {
+            auto* profile = profileController_.activeProfile();
+            auto* macro = macroController_.activeMacro();
+            DriverRuntimeDiagnosticState state;
+            state.keyProfileEnabled = profile && profile->enabled;
+            state.macroEnabled = macro && macro->enabled;
+            state.keyEngineRunning = engine_.IsToolRunning();
+            state.macroEngineRunning = macroEngine_.HasActiveMacro();
+            state.gameGateEnabled = config_.gameGateEnabled;
+            state.gameGatePaused = config_.gameGateEnabled && !gameWatcher_.IsGameForeground();
+            return state;
         },
         [this](bool open) { inputHook_.setDialogOpen(open); }
     });

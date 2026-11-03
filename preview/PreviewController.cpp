@@ -48,6 +48,8 @@ PreviewController::PreviewController(QObject* parent)
             }, 400, true);
     });
     connect(&driverPage_, &DriverPageModel::selfCheckRequested, this, &PreviewController::showDriverReport);
+    connect(&driverPage_, &DriverPageModel::diagnosticsInfoRequested,
+        this, &PreviewController::showDiagnosticReport);
     connect(&driverPage_, &DriverPageModel::refreshRequested, this, &PreviewController::refreshDriver);
     connect(&aboutPage_, &AboutPageModel::checkUpdateRequested, this, [this]() {
         aboutPage_.setChecking();

@@ -15,10 +15,12 @@ public:
     void setBusy(bool value) { setValue("busy", value); }
     Q_INVOKABLE void selectMode(int value);
     Q_INVOKABLE void uninstallMode(int value);
+    Q_INVOKABLE void diagnosticsRequested() { emit diagnosticsInfoRequested(); }
 
 signals:
     void driverModeChanged(DriverMode mode);
     void refreshRequested();
     void uninstallDriverRequested(DriverMode mode);
     void selfCheckRequested();
+    void diagnosticsInfoRequested();
 };

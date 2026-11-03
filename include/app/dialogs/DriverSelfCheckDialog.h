@@ -5,7 +5,7 @@
 class DriverSelfCheckDialog : public QmlDialog {
     Q_OBJECT
 public:
-    enum class Action { None = 0, OpenSecurityCenter };
+    enum class Action { None = 0, OpenDiagnostics, OpenSecurityCenter };
     Q_ENUM(Action)
     enum class Severity { Info = 0, Ok, Warning, Danger };
     struct Conclusion {

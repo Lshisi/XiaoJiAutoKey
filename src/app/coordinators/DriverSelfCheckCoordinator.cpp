@@ -15,7 +15,8 @@ using Action = DriverSelfCheckDialog::Action;
 using Conclusion = DriverSelfCheckDialog::Conclusion;
 
 QVector<QPair<Action, QString>> closeActions() {
-    return {{Action::None, QString::fromWCharArray(L"\u5173\u95ed")}};
+    return {{Action::OpenDiagnostics, QString::fromWCharArray(L"\u8bca\u65ad\u4fe1\u606f")},
+        {Action::None, QString::fromWCharArray(L"\u5173\u95ed")}};
 }
 
 QString modeText(DriverMode mode) {
@@ -75,16 +76,44 @@ void DriverSelfCheckCoordinator::open() {
     dialog_->exec();
 }
 
-void DriverSelfCheckCoordinator::runDiagnosis(DriverSelfCheckDialog* dialog) {
-    dialog->beginCheck();
+void DriverSelfCheckCoordinator::openDiagnostic() {
+    if (!context_.parentWidget || !context_.config) return;
+    if (diagnosticDialog_) {
+        diagnosticDialog_->showNormal();
+        diagnosticDialog_->raise();
+        diagnosticDialog_->activateWindow();
+        return;
+    }
+    if (context_.setDialogOpen) context_.setDialogOpen(true);
 
+    diagnosticDialog_ = new DriverDiagnosticDialog(context_.parentWidget);
+    connect(diagnosticDialog_, &QDialog::finished, this, [this]() {
+        if (context_.setDialogOpen) context_.setDialogOpen(false);
+        if (diagnosticDialog_) diagnosticDialog_->deleteLater();
+    });
+    connect(diagnosticDialog_, &QObject::destroyed, this, [this]() { diagnosticDialog_ = nullptr; });
+
+    runDiagnosticReport(diagnosticDialog_);
+    diagnosticDialog_->exec();
+}
+
+std::shared_ptr<DriverSelfCheckCoordinator::Snapshot> DriverSelfCheckCoordinator::collectSnapshot() const {
     // Inspect 与驱动页刷新同源同量级，留在主线程；事件日志等纯系统读取放后台。
-    const auto snapshot = std::make_shared<Snapshot>();
+    auto snapshot = std::make_shared<Snapshot>();
     snapshot->mode = context_.config->driverMode;
     snapshot->uninstalledByUser = context_.config->IsDriverUninstalledByUser(snapshot->mode);
     snapshot->driverReady = context_.driverReady ? context_.driverReady() : false;
     snapshot->status = context_.inspectRuntime ? context_.inspectRuntime()
                                                : DdRuntimeService::RuntimeStatus{};
+    snapshot->runtimeState = context_.inspectRuntimeState ? context_.inspectRuntimeState()
+                                                          : DriverRuntimeDiagnosticState{};
+    return snapshot;
+}
+
+void DriverSelfCheckCoordinator::runDiagnosis(DriverSelfCheckDialog* dialog) {
+    dialog->beginCheck();
+
+    const auto snapshot = collectSnapshot();
 
     const bool runtimeExists = snapshot->mode == DriverMode::Hid
         ? snapshot->status.hidRuntimeExists : snapshot->status.legacyRuntimeExists;
@@ -102,7 +131,33 @@ void DriverSelfCheckCoordinator::runDiagnosis(DriverSelfCheckDialog* dialog) {
     connect(thread, &QThread::finished, this, [this, dialogPtr, thread, snapshot]() {
         thread->deleteLater();
         if (!dialogPtr) return;
+        snapshot->guardsInspected = true;
         dialogPtr->setConclusion(buildConclusion(*snapshot));
+    }, Qt::QueuedConnection);
+    thread->start();
+}
+
+void DriverSelfCheckCoordinator::runDiagnosticReport(DriverDiagnosticDialog* dialog) {
+    dialog->beginReport();
+    const auto snapshot = collectSnapshot();
+    const QPointer<DriverDiagnosticDialog> dialogPtr(dialog);
+    auto* thread = QThread::create([snapshot]() {
+        snapshot->guards = CodeIntegrityInspector::Inspect(true);
+    });
+    thread->setParent(this);
+    connect(thread, &QThread::finished, this, [this, dialogPtr, thread, snapshot]() {
+        thread->deleteLater();
+        if (!dialogPtr) return;
+        snapshot->guardsInspected = true;
+        DriverDiagnosticInput input;
+        input.mode = snapshot->mode;
+        input.driverReady = snapshot->driverReady;
+        input.uninstalledByUser = snapshot->uninstalledByUser;
+        input.guardsInspected = snapshot->guardsInspected;
+        input.runtime = snapshot->status;
+        input.guards = snapshot->guards;
+        input.state = snapshot->runtimeState;
+        dialogPtr->setReport(FormatDriverDiagnosticReport(BuildDriverDiagnosticReport(input)));
     }, Qt::QueuedConnection);
     thread->start();
 }
@@ -257,7 +312,12 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
 }
 
 void DriverSelfCheckCoordinator::handleAction(DriverSelfCheckDialog* dialog, Action action) {
-    if (action != Action::OpenSecurityCenter) {
+    if (action == Action::OpenDiagnostics) {
+        dialog->close();
+        openDiagnostic();
+        return;
+    }
+    if (action == Action::None) {
         dialog->close();
         return;
     }

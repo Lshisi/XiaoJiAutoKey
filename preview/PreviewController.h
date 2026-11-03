@@ -75,6 +75,7 @@ private:
     void navigate(const QString& page);
     void refreshDriver();
     void showDriverReport();
+    void showDiagnosticReport();
     void showProcesses();
     void showOverlaySettings(bool macro);
     void showUpdateProgress();

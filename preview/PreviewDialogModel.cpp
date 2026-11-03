@@ -94,6 +94,8 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         const int index = argument.toInt();
         if (index >= 0 && index < processes.size()) processes.removeAt(index);
         edit("processes", processes);
+    } else if (action == "copy") {
+        edit("status", tr("已复制（界面预览示例，不访问系统剪贴板）"));
     }
 }
 

@@ -67,6 +67,10 @@ void DriverCoordinator::bind(Context context) {
         if (context_.openSelfCheck) context_.openSelfCheck();
     });
 
+    connect(context_.page, &DriverPageModel::diagnosticsInfoRequested, this, [this]() {
+        if (context_.openDiagnostics) context_.openDiagnostics();
+    });
+
     connect(context_.page, &DriverPageModel::uninstallDriverRequested, this, [this](DriverMode mode) {
         if (mode == DriverMode::Usb) {
             return;

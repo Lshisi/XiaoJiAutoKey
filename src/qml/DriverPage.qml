@@ -54,6 +54,7 @@ QuietScrollView {
                     Layout.fillWidth: true
                     spacing: 8
                     QuietHeading { text: qsTr("当前状态"); Layout.fillWidth: true }
+                    ActionButton { text: qsTr("诊断信息"); quiet: true; enabled: !root.page.state.busy; onClicked: root.page.diagnosticsRequested() }
                     ActionButton { text: qsTr("一键自检"); primary: true; enabled: !root.page.state.busy; onClicked: root.page.selfCheckRequested() }
                     ActionButton { visible: root.page.state.ddInstalled; primary: true; text: qsTr("卸载 DD"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(0) }
                     ActionButton { visible: root.page.state.hidInstalled; primary: true; text: qsTr("卸载 HID"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(1) }

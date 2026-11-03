@@ -12,6 +12,55 @@ void PreviewController::showDriverReport() {
             {"progressIndeterminate", false}, {"progressValue", 0.0}, {"progressText", QString()}}, {}, 500);
 }
 
+void PreviewController::showDiagnosticReport() {
+    const QString mode = QStringList{"DD", "HID", "USB"}[static_cast<int>(driverMode_)];
+    const bool ready = driverMode_ == DriverMode::Legacy ? ddInstalled_
+        : driverMode_ == DriverMode::Hid ? hidInstalled_ : demoData_;
+    const QString report = tr("［小叽按键诊断信息（界面预览示例）］\n"
+        "生成时间: 示例时间\n\n"
+        "［基础环境］\n"
+        "软件版本: V%1\n"
+        "操作系统: Windows（示例）\n"
+        "系统架构: x64\n"
+        "进程架构: x64\n\n"
+        "［驱动状态］\n"
+        "当前模式: %2\n"
+        "驱动就绪: %3\n"
+        "主动卸载后停用自动安装: 否\n\n"
+        "［运行库与设备］\n"
+        "驱动目录: 示例状态\n"
+        "DD32.dll / DD64.dll: 示例状态\n"
+        "HID 运行库与服务: 示例状态\n"
+        "USB 设备: 示例状态\n\n"
+        "［最近错误］\n无\n\n"
+        "［安全环境］\n"
+        "内存完整性运行中: 示例状态\n"
+        "易受攻击驱动阻止列表: 示例状态\n"
+        "近 7 天相关拦截记录: 无\n\n"
+        "［运行配置］\n"
+        "按键配置启用: %4\n"
+        "循环配置启用: %5\n"
+        "按键引擎运行中: %6\n"
+        "循环引擎运行中: %7\n"
+        "仅游戏前台生效: 否\n\n"
+        "说明: 正式程序不包含个人路径、剪贴板内容和完整配置；此处仅展示界面预览。")
+        .arg(version(), mode, ready ? tr("是") : tr("否"),
+            keys_.model()->state().value("profileEnabled").toBool() ? tr("是") : tr("否"),
+            macros_.model()->state().value("profileEnabled").toBool() ? tr("是") : tr("否"),
+            keys_.model()->state().value("running").toBool() ? tr("是") : tr("否"),
+            macros_.model()->state().value("running").toBool() ? tr("是") : tr("否"));
+
+    dialog_.present("DialogShare.qml", tr("诊断信息"),
+        {{"exporting", true}, {"format", 0}, {"formatVisible", false}, {"diagnostic", true},
+            {"code", report}, {"namePreview", QString()},
+            {"status", tr("界面预览示例，不访问系统驱动。")}}, {}, 500);
+    dialog_.edit("actions", QVariantList{
+        QVariantMap{{"id", "copy"}, {"text", tr("复制")}, {"primary", true},
+            {"danger", false}, {"enabled", true}},
+        QVariantMap{{"id", "cancel"}, {"text", tr("关闭")}, {"primary", false},
+            {"danger", false}, {"enabled", true}}});
+}
+
 void PreviewController::showProcesses() {
     dialog_.present("DialogProcesses.qml", tr("管理游戏进程"),
         {{"runningProcesses", QStringList{"jx3clientx64.exe", "mumuplayer.exe", "game.exe"}},

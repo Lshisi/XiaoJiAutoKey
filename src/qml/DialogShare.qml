@@ -5,9 +5,11 @@ import XiaoJi.UI
 ColumnLayout {
     id: sharing
     readonly property var fields: dialogModel.dialogState
+    readonly property bool formatVisible: sharing.fields.formatVisible === undefined
+        ? sharing.fields.exporting : sharing.fields.formatVisible
     spacing: 12
     QuietCombo {
-        visible: sharing.fields.exporting
+        visible: sharing.formatVisible
         Layout.fillWidth: true
         model: [qsTr("分享码（XJK1:…，适合发送）"), qsTr("文本配方（可读，适合论坛正文）")]
         currentIndex: sharing.fields.format
@@ -23,7 +25,9 @@ ColumnLayout {
         readOnly: sharing.fields.exporting
         placeholderText: qsTr("粘贴分享码（XJK1:…）或文本配方，识别后确认导入")
         onEdited: value => dialogModel.edit("code", value)
-        Accessible.name: sharing.fields.exporting ? qsTr("导出的配置内容") : qsTr("要导入的配置内容")
+        Accessible.name: sharing.fields.diagnostic
+            ? qsTr("诊断信息内容")
+            : (sharing.fields.exporting ? qsTr("导出的配置内容") : qsTr("要导入的配置内容"))
     }
     QuietLabel { Layout.fillWidth: true; text: sharing.fields.status; color: Theme.muted; font.pixelSize: 12 }
     QuietLabel {

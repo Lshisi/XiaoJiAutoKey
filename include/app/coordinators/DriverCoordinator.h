@@ -33,6 +33,8 @@ public:
         std::function<void(bool)> setDialogOpen;
         // 打开驱动自检向导（DriverSelfCheckCoordinator::open）。
         std::function<void()> openSelfCheck;
+        // 打开驱动诊断报告（DriverSelfCheckCoordinator::openDiagnostic）。
+        std::function<void()> openDiagnostics;
     };
 
     explicit DriverCoordinator(QObject* parent = nullptr);

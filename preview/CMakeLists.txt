@@ -33,6 +33,8 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     ${PROJECT_ROOT}/src/ui/models/ShareImportBannerModel.cpp
     ${PROJECT_ROOT}/src/core/FactionTheme.cpp
     ${PROJECT_ROOT}/src/core/MacroTiming.cpp
+    ${PROJECT_ROOT}/src/core/MacroActions.cpp
+    ${PROJECT_ROOT}/src/core/MacroRecording.cpp
     ${PROJECT_ROOT}/src/ui/components/QmlIconProvider.h
     ${PROJECT_ROOT}/src/ui/components/QmlIconProvider.cpp
 )

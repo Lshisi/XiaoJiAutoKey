@@ -1,14 +1,11 @@
 #pragma once
 #include "dialogs/KeyCaptureDialogBase.h"
-struct MacroStepEditResult {
-    KeyDescriptor key;
-    QString name;
-    int delayAfterMs = kDefaultDelayMs;
-    ClickPosition clickPos;
-};
 class MacroStepDialog : public KeyCaptureDialogBase {
     Q_OBJECT
 public:
-    MacroStepDialog(std::optional<MacroStepEditResult> existing, std::function<bool()> driverSupportsMouseMove, QWidget* parent = nullptr);
-    MacroStepEditResult editResult() const;
+    MacroStepDialog(std::optional<MacroStep> existing, std::function<bool()> driverSupportsMouseMove, QWidget* parent = nullptr);
+    MacroStep editResult() const;
+protected:
+    void editField(const QString& field, const QVariant& value) override;
+    void handleAction(const QString& action, const QVariant& value) override;
 };

@@ -1,6 +1,7 @@
 #include "MacroPageModel.h"
 
 #include "MacroTiming.h"
+#include "MacroActions.h"
 
 MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"steps", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
@@ -8,7 +9,7 @@ MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
         {"beepEnabled", true}, {"overlayEnabled", false}, {"pauseKeys", QVariantList{}},
         {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QVariantList{}}, {"focusStepIds", QVariantList{}},
-        {"timingText", QString()}};
+        {"timingText", QString()}, {"executionError", QString()}};
 }
 
 QVariantList MacroPageModel::idList(const std::vector<std::uint64_t>& ids) {
@@ -30,14 +31,14 @@ void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, std::uint64_t
     for (const auto& step : steps) {
         const bool fixed = step.key.device == InputDevice::Mouse && step.clickPos.IsFixed();
         const std::wstring& name = step.name;
-        const std::wstring keyName = GetKeyDisplayName(step.key);
+        const std::wstring keyName = MacroStepText(step, MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L"");
         const std::wstring displayName = name.empty() ? keyName : keyName + L" · " + name;
         const QString id = QString::number(step.id);
         if (selectedIds.contains(id)) validSelectedIds.push_back(id);
         rows.push_back(QVariantMap{{"id", id}, {"enabled", step.enabled}, {"keyText", QString::fromStdWString(keyName)},
             {"name", QString::fromStdWString(name)},
             {"keyDisplayText", QString::fromStdWString(displayName)},
-            {"delay", step.delayAfterMs}, {"positionHint", fixed
+            {"delay", step.action == MacroAction::Wait ? QVariant(QStringLiteral("—")) : QVariant(step.delayAfterMs)}, {"positionHint", fixed
                 ? tr("固定点位：%1%，%2%")
                     .arg(step.clickPos.anchorX * 100, 0, 'f', 1)
                     .arg(step.clickPos.anchorY * 100, 0, 'f', 1) : QString()}});

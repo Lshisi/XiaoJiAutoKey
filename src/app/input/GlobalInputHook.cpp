@@ -181,6 +181,26 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     } else {
         event.modifiers = hook->physicalKeyboardModifiers_;
     }
+    if (key.code == VK_F10 && hook->recordingStopKeyDown_) {
+        if (released) hook->recordingStopKeyDown_ = false;
+        return 1;
+    }
+    if (hook->recordingActive_.load()) {
+        if (key.code == VK_F10 && pressed) {
+            hook->recordingStopKeyDown_ = true;
+            hook->recordingActive_ = false;
+            QMetaObject::invokeMethod(hook, [hook] { emit hook->recordingStopRequested(); }, Qt::QueuedConnection);
+            return 1;
+        }
+        DWORD process = 0;
+        GetWindowThreadProcessId(GetForegroundWindow(), &process);
+        if (process != GetCurrentProcessId()) {
+            const RecordedInput input{key, pressed, 0, GetTickCount64(), {}};
+            QMetaObject::invokeMethod(hook, [hook, input] { emit hook->inputRecorded(input); }, Qt::QueuedConnection);
+        }
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+
     const ULONGLONG nowTick = GetTickCount64();
     const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();
     if (nowTick < ignoreUntil) {
@@ -268,6 +288,34 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM lParam) {
     if (code < 0 || !g_hookInstance) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<MSLLHOOKSTRUCT*>(lParam);
+
+    auto* recordingHook = g_hookInstance;
+    if (recordingHook->recordingActive_.load()) {
+        if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
+        DWORD process = 0;
+        GetWindowThreadProcessId(WindowFromPoint(info->pt), &process);
+        if (process != GetCurrentProcessId()
+            && (IsMouseDownMessage(wParam) || IsMouseUpMessage(wParam) || wParam == WM_MOUSEWHEEL)) {
+            RecordedInput input;
+            input.key = MouseMessageToDescriptor(wParam, *info);
+            input.pressed = IsMouseDownMessage(wParam);
+            input.timeMs = GetTickCount64();
+            if (wParam == WM_MOUSEWHEEL) input.wheelDelta = static_cast<short>(HIWORD(info->mouseData));
+            MONITORINFO monitor{};
+            monitor.cbSize = sizeof(monitor);
+            if (GetMonitorInfoW(MonitorFromPoint(info->pt, MONITOR_DEFAULTTONEAREST), &monitor)) {
+                const auto& rect = monitor.rcMonitor;
+                if (rect.right > rect.left && rect.bottom > rect.top) {
+                    input.position = {true, double(info->pt.x - rect.left) / (rect.right - rect.left),
+                        double(info->pt.y - rect.top) / (rect.bottom - rect.top)};
+                }
+            }
+            QMetaObject::invokeMethod(recordingHook, [recordingHook, input] {
+                emit recordingHook->inputRecorded(input);
+            }, Qt::QueuedConnection);
+        }
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
     if (!IsMouseDownMessage(wParam) && !IsMouseUpMessage(wParam)) return CallNextHookEx(nullptr, code, wParam, lParam);
     const KeyDescriptor key = MouseMessageToDescriptor(wParam, *info);
     if (!key.IsValid()) return CallNextHookEx(nullptr, code, wParam, lParam);
@@ -340,4 +388,8 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     }, Qt::QueuedConnection);
 
     return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+void GlobalInputHook::setRecordingActive(bool active) {
+    recordingActive_ = active;
 }

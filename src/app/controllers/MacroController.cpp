@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "controllers/MacroController.h"
 
 #include "config/ActiveConfigValidator.h"
@@ -216,46 +217,60 @@ ControllerResult MacroController::validateTriggerKey(const MacroConfig& macro, c
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::addStep(const KeyDescriptor& key, const QString& name, int delayAfterMs,
-    std::uint64_t& createdStepId, int insertIndex, const ClickPosition& clickPos) {
+ControllerResult MacroController::addStep(const MacroStep& value, std::uint64_t& createdStepId, int insertIndex) {
     auto* macro = activeMacro();
-    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
-
-    auto validation = validateStepKey(*macro, key);
-    if (!validation.ok) return validation;
-
-    delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
-    MacroStep step;
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"循环不存在。"));
+    MacroStep step = value;
+    if (macro->steps.size() >= kMaxMacroSteps)
+        return ControllerResult::failure(QStringLiteral("循环最多包含 512 步。"));
+    NormalizeMacroStep(step);
+    if (MacroActionNeedsKey(step.action)) {
+        auto validation = validateStepKey(*macro, step.key);
+        if (!validation.ok) return validation;
+    }
     step.id = nextStepId(*macro);
-    step.key = key;
-    step.name = name.trimmed().toStdWString();
-    step.delayAfterMs = delayAfterMs;
-    step.clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
     createdStepId = step.id;
     const int count = static_cast<int>(macro->steps.size());
     if (insertIndex < 0 || insertIndex > count) macro->steps.push_back(std::move(step));
     else macro->steps.insert(macro->steps.begin() + insertIndex, std::move(step));
     return ControllerResult::success();
 }
-
-ControllerResult MacroController::updateStep(std::uint64_t stepId, const KeyDescriptor& key, const QString& name, int delayAfterMs,
-    const ClickPosition& clickPos) {
+ControllerResult MacroController::updateStep(std::uint64_t stepId, const MacroStep& value) {
     auto* macro = activeMacro();
-    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
-    const auto stepIt = std::find_if(macro->steps.begin(), macro->steps.end(),
-        [stepId](const MacroStep& step) { return step.id == stepId; });
-    if (stepIt == macro->steps.end()) {
-        return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"循环不存在。"));
+    auto found = std::find_if(macro->steps.begin(), macro->steps.end(),
+        [stepId](const auto& step) { return step.id == stepId; });
+    if (found == macro->steps.end()) return ControllerResult::failure(QString::fromWCharArray(L"步骤不存在。"));
+    MacroStep step = value;
+    NormalizeMacroStep(step);
+    if (MacroActionNeedsKey(step.action)) {
+        auto validation = validateStepKey(*macro, step.key);
+        if (!validation.ok) return validation;
     }
-
-    auto validation = validateStepKey(*macro, key);
-    if (!validation.ok) return validation;
-
-    delayAfterMs = std::max(delayAfterMs, kMinDelayMs);
-    stepIt->key = key;
-    stepIt->name = name.trimmed().toStdWString();
-    stepIt->delayAfterMs = delayAfterMs;
-    stepIt->clickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
+    step.id = stepId;
+    step.enabled = found->enabled;
+    *found = std::move(step);
+    return ControllerResult::success();
+}
+ControllerResult MacroController::appendRecordedSteps(const std::vector<MacroStep>& steps) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"循环不存在。"));
+    if (macro->steps.size() + steps.size() > kMaxMacroSteps)
+        return ControllerResult::failure(QStringLiteral("循环最多包含 512 步。"));
+    auto candidates = macro->steps;
+    auto id = nextStepId(*macro);
+    for (auto step : steps) {
+        NormalizeMacroStep(step);
+        if (MacroActionNeedsKey(step.action)) {
+            auto validation = validateStepKey(*macro, step.key);
+            if (!validation.ok) return validation;
+        }
+        step.id = id++;
+        candidates.push_back(std::move(step));
+    }
+    const auto error = ValidateMacroSteps(candidates);
+    if (!error.empty()) return ControllerResult::failure(QString::fromStdWString(error));
+    macro->steps = std::move(candidates);
     return ControllerResult::success();
 }
 
@@ -264,7 +279,7 @@ ControllerResult MacroController::setStepEnabled(std::uint64_t stepId, bool enab
 }
 
 ControllerResult MacroController::updateSteps(const std::vector<std::uint64_t>& stepIds, std::optional<int> delayAfterMs,
-    std::optional<bool> enabled) {
+    std::optional<bool> enabled, std::optional<int> durationMs) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
 
@@ -273,9 +288,10 @@ ControllerResult MacroController::updateSteps(const std::vector<std::uint64_t>& 
     for (auto& step : candidates) {
         if (std::find(stepIds.begin(), stepIds.end(), step.id) == stepIds.end()) continue;
         found = true;
-        if (delayAfterMs.has_value()) step.delayAfterMs = std::max(*delayAfterMs, kMinDelayMs);
+        if (delayAfterMs && step.action != MacroAction::Wait) step.delayAfterMs = std::max(*delayAfterMs, 0);
+        if (durationMs && (step.action == MacroAction::Hold || step.action == MacroAction::Wait)) step.durationMs = std::max(*durationMs, 1);
         if (enabled.has_value()) {
-            if (*enabled) {
+            if (*enabled && MacroActionNeedsKey(step.action)) {
                 const auto validation = validateStepKey(*macro, step.key);
                 if (!validation.ok) return validation;
             }
@@ -344,6 +360,8 @@ ControllerResult MacroController::duplicateSteps(const std::vector<std::uint64_t
         insertIndex = static_cast<int>(index) + 1;
     }
     if (copies.empty()) return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+    if (macro->steps.size() + copies.size() > kMaxMacroSteps)
+        return ControllerResult::failure(QStringLiteral("循环最多包含 512 步。"));
 
     createdStepIds.reserve(copies.size());
     for (const auto& step : copies) createdStepIds.push_back(step.id);

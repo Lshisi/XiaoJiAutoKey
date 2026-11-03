@@ -371,7 +371,11 @@ void InputDriverRouter::RecomputeOwnersLocked() {
 
 void InputDriverRouter::RestoreHeldKeysLocked(InputSource src) {
     // A held key has no repeat pulse to retry after the earlier owner stops.
-    for (const auto encoded : StateFor(src).heldKeys) {
+    std::vector<std::uint64_t> held(StateFor(src).heldKeys.begin(), StateFor(src).heldKeys.end());
+    std::stable_sort(held.begin(), held.end(), [](const auto left, const auto right) {
+        return IsKeyboardModifierKey(DecodeKey(left)) > IsKeyboardModifierKey(DecodeKey(right));
+    });
+    for (const auto encoded : held) {
         const auto key = DecodeKey(encoded);
         const auto modifierMask = ModifierMaskFromKey(key);
         if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
@@ -437,4 +441,13 @@ bool InputDriverRouter::IsPhysicalModifierActiveLocked(std::uint8_t modifiers) c
         return true;
     }
     return false;
+}
+
+bool InputDriverRouter::SendMouseWheel(int delta, InputSource src) {
+    std::lock_guard lock(mutex_);
+    return driver_ && driver_->SendMouseWheel(delta, src);
+}
+bool InputDriverRouter::SupportsMouseWheel() const {
+    std::lock_guard lock(mutex_);
+    return driver_ && driver_->SupportsMouseWheel();
 }

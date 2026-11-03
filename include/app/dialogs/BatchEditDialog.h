@@ -12,6 +12,7 @@ public:
     [[nodiscard]] std::optional<bool> enabled() const;
     [[nodiscard]] std::optional<RepeatMode> mode() const;
     [[nodiscard]] std::optional<int> delayMs() const;
+    [[nodiscard]] std::optional<int> durationMs() const;
     [[nodiscard]] std::optional<bool> participatePriority() const;
 
 protected:

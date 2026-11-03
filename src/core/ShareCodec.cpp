@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "ShareCodec.h"
 
 #include "JsonLite.h"
@@ -284,10 +285,13 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
         jsonlite::Array steps;
         for (const auto& step : macro.steps) {
             jsonlite::Object stepObj;
-            stepObj.emplace("key", EncodeKey(step.key));
+            stepObj.emplace("action", MacroActionStorage(step.action));
+            stepObj.emplace("durationMs", step.durationMs);
+            stepObj.emplace("wheelDelta", step.wheelDelta);
+            if (MacroActionNeedsKey(step.action)) stepObj.emplace("key", EncodeKey(step.key));
             stepObj.emplace("enabled", step.enabled);
             if (!step.name.empty()) stepObj.emplace("name", WideToUtf8(step.name));
-            stepObj.emplace("delayAfterMs", ClampDelay(step.delayAfterMs));
+            stepObj.emplace("delayAfterMs", std::max(0, step.delayAfterMs));
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
                 clickObj.emplace("mode", std::string("fixed"));
@@ -429,19 +433,24 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                 }
                 if (const auto stepsIt = entry->find("steps"); stepsIt != entry->end()) {
                     if (const auto* steps = stepsIt->second.AsArray()) {
+                        if (steps->size() > ShareCodec::kMaxStepsPerMacro) return std::nullopt;
                         for (const auto& stepItem : *steps) {
                             const auto* stepObj = stepItem.AsObject();
                             if (!stepObj) continue;
-                            if (macro.steps.size() >= ShareCodec::kMaxStepsPerMacro) break;
+                            const auto action = ParseMacroAction(StringField(*stepObj, "action").value_or("click"));
+                            if (!action) return std::nullopt;
                             auto key = DecodeKeyField(*stepObj, "key");
-                            if (!key.has_value()) continue;
+                            if (MacroActionNeedsKey(*action) && !key) return std::nullopt;
                             MacroStep step;
+                            step.action = *action;
+                            step.durationMs = IntField(*stepObj, "durationMs").value_or(500);
+                            step.wheelDelta = IntField(*stepObj, "wheelDelta").value_or(120);
                             step.enabled = BoolField(*stepObj, "enabled").value_or(true);
-                            step.key = *key;
+                            if (key) step.key = *key;
                             if (auto name = StringField(*stepObj, "name")) {
                                 if (name->size() <= 64) step.name = Utf8ToWide(*name);
                             }
-                            step.delayAfterMs = ClampDelay(IntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs));
+                            step.delayAfterMs = std::max(0, IntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs));
                             if (step.key.device == InputDevice::Mouse) {
                                 if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
                                     if (const auto* clickObj = clickIt->second.AsObject()) {
@@ -455,6 +464,10 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                                     }
                                 }
                             }
+                            if (step.durationMs < 1 || (step.action == MacroAction::Wheel
+                                && (step.wheelDelta == 0 || step.wheelDelta % 120 != 0
+                                    || step.wheelDelta < -12000 || step.wheelDelta > 12000))) return std::nullopt;
+                            NormalizeMacroStep(step);
                             macro.steps.push_back(step);
                         }
                     }
@@ -831,8 +844,10 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
         out += std::string(kTokenMacroSettings) + ":" + settings + "\n";
         std::string steps;
         for (const auto& step : macro.steps) {
-            steps += std::string(" ") + (step.enabled ? "" : "!")
-                + EncodeKey(step.key) + "+" + std::to_string(ClampDelay(step.delayAfterMs));
+            steps += std::string(" ") + (step.enabled ? "" : "!") + MacroActionStorage(step.action)
+                + "/" + (MacroActionNeedsKey(step.action) ? EncodeKey(step.key) : "-")
+                + "/" + std::to_string(step.durationMs) + "/" + std::to_string(step.delayAfterMs)
+                + "/" + std::to_string(step.wheelDelta);
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
                 // 固定点位后缀 @x%,y%；旧版本解析到延迟即止，可安全忽略
                 steps += "@" + PercentValue(std::clamp(step.clickPos.anchorX, 0.0, 1.0))
@@ -990,34 +1005,45 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
         }
         if (StartsWithKey(line, kTokenSteps, value) && currentMacro != nullptr) {
             for (const auto& token : SplitTokens(value)) {
-                if (currentMacro->steps.size() >= kMaxStepsPerMacro) break;
-                const auto plus = token.rfind('+');
-                if (plus == std::string::npos) continue;
-                const bool enabled = token.front() != '!';
-                const std::size_t keyStart = enabled ? 0 : 1;
-                auto key = DecodeKey(token.substr(keyStart, plus - keyStart));
-                if (!key.has_value()) continue;
-                const std::string delayPart = token.substr(plus + 1);
+                if (currentMacro->steps.size() >= kMaxStepsPerMacro) return std::nullopt;
                 MacroStep step;
-                step.enabled = enabled;
-                step.key = *key;
-                step.delayAfterMs = ClampDelay(std::atoi(delayPart.c_str()));
-                const auto at = delayPart.find('@');
-                if (at != std::string::npos && step.key.device == InputDevice::Mouse) {
-                    const std::string pointPart = delayPart.substr(at + 1);
-                    const auto comma = pointPart.find(',');
-                    if (comma != std::string::npos) {
-                        char* xEnd = nullptr;
-                        char* yEnd = nullptr;
-                        const double x = std::strtod(pointPart.substr(0, comma).c_str(), &xEnd);
-                        const double y = std::strtod(pointPart.substr(comma + 1).c_str(), &yEnd);
-                        if (xEnd != pointPart.substr(0, comma).c_str() && yEnd != pointPart.substr(comma + 1).c_str()) {
-                            step.clickPos.fixedPosition = true;
-                            step.clickPos.anchorX = std::clamp(x, 0.0, 1.0);
-                            step.clickPos.anchorY = std::clamp(y, 0.0, 1.0);
-                        }
-                    }
+                step.enabled = token.front() != '!';
+                const std::string value = token.substr(step.enabled ? 0 : 1);
+                const auto at = value.find('@');
+                const auto body = value.substr(0, at);
+                std::vector<std::string> parts;
+                std::size_t start = 0;
+                while (true) {
+                    auto end = body.find('/', start);
+                    parts.push_back(body.substr(start, end == std::string::npos ? end : end - start));
+                    if (end == std::string::npos) break;
+                    start = end + 1;
                 }
+                if (parts.size() != 5) return std::nullopt;
+                const auto action = ParseMacroAction(parts[0]);
+                if (!action) return std::nullopt;
+                step.action = *action;
+                if (MacroActionNeedsKey(step.action)) {
+                    const auto key = DecodeKey(parts[1]);
+                    if (!key) return std::nullopt;
+                    step.key = *key;
+                }
+                try {
+                    step.durationMs = std::stoi(parts[2]);
+                    step.delayAfterMs = std::stoi(parts[3]);
+                    step.wheelDelta = std::stoi(parts[4]);
+                    if (at != std::string::npos && step.key.device == InputDevice::Mouse) {
+                        auto point = value.substr(at + 1);
+                        auto comma = point.find(',');
+                        if (comma == std::string::npos) return std::nullopt;
+                        step.clickPos = {true, std::clamp(std::stod(point.substr(0, comma)), 0.0, 1.0),
+                            std::clamp(std::stod(point.substr(comma + 1)), 0.0, 1.0)};
+                    }
+                } catch (...) { return std::nullopt; }
+                if (step.durationMs < 1 || step.delayAfterMs < 0 || (step.action == MacroAction::Wheel
+                    && (step.wheelDelta == 0 || step.wheelDelta % 120 != 0
+                        || step.wheelDelta < -12000 || step.wheelDelta > 12000))) return std::nullopt;
+                NormalizeMacroStep(step);
                 currentMacro->steps.push_back(step);
             }
             continue;

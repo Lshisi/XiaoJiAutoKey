@@ -29,12 +29,11 @@ public:
 
     ControllerResult setActiveMacroEnabled(bool enabled);
 
-    ControllerResult addStep(const KeyDescriptor& key, const QString& name, int delayAfterMs,
-        std::uint64_t& createdStepId, int insertIndex = -1, const ClickPosition& clickPos = {});
-    ControllerResult updateStep(std::uint64_t stepId, const KeyDescriptor& key, const QString& name, int delayAfterMs,
-        const ClickPosition& clickPos = {});
+    ControllerResult addStep(const MacroStep& step, std::uint64_t& createdStepId, int insertIndex = -1);
+    ControllerResult updateStep(std::uint64_t stepId, const MacroStep& step);
+    ControllerResult appendRecordedSteps(const std::vector<MacroStep>& steps);
     ControllerResult updateSteps(const std::vector<std::uint64_t>& stepIds, std::optional<int> delayAfterMs,
-        std::optional<bool> enabled);
+        std::optional<bool> enabled, std::optional<int> durationMs = std::nullopt);
     ControllerResult setStepEnabled(std::uint64_t stepId, bool enabled);
     ControllerResult deleteStep(std::uint64_t stepId);
     ControllerResult deleteSteps(const std::vector<std::uint64_t>& stepIds);

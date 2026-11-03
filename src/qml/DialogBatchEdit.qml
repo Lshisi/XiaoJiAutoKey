@@ -56,7 +56,7 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: 12
         QuietCheck {
-            text: editor.fields.macroMode ? qsTr("修改松开后间隔(ms)") : qsTr("修改延迟(ms)")
+            text: editor.fields.macroMode ? qsTr("修改动作后间隔(ms)") : qsTr("修改延迟(ms)")
             checked: editor.fields.modifyDelay
             onToggled: dialogModel.edit("modifyDelay", checked)
         }
@@ -65,9 +65,9 @@ ColumnLayout {
             Layout.preferredWidth: 100
             enabled: editor.fields.modifyDelay
             text: editor.fields.delay
-            validator: IntValidator { bottom: 1; top: 2147483647 }
+            validator: IntValidator { bottom: editor.fields.macroMode ? 0 : 1; top: 2147483647 }
             inputMethodHints: Qt.ImhDigitsOnly
-            Accessible.name: editor.fields.macroMode ? qsTr("批量修改松开后间隔，毫秒") : qsTr("批量间隔，毫秒")
+            Accessible.name: editor.fields.macroMode ? qsTr("批量修改动作后间隔，毫秒") : qsTr("批量间隔，毫秒")
             onTextEdited: dialogModel.edit("delay", text)
             onAccepted: dialogModel.dispatch("accept")
         }
@@ -91,6 +91,26 @@ ColumnLayout {
         }
     }
 
+    RowLayout {
+        visible: editor.fields.macroMode
+        Layout.fillWidth: true
+        spacing: 12
+        QuietCheck {
+            text: qsTr("修改保持/等待时长(ms)")
+            checked: editor.fields.modifyDuration
+            onToggled: dialogModel.edit("modifyDuration", checked)
+        }
+        Item { Layout.fillWidth: true }
+        QuietTextField {
+            Layout.preferredWidth: 100
+            enabled: editor.fields.modifyDuration
+            text: editor.fields.duration
+            validator: IntValidator { bottom: 1; top: 2147483647 }
+            onTextEdited: dialogModel.edit("duration", text)
+            Accessible.name: qsTr("批量保持或等待时长，毫秒")
+        }
+    }
+
     QuietLabel {
         visible: !editor.fields.macroMode
         Layout.fillWidth: true
@@ -101,7 +121,7 @@ ColumnLayout {
     QuietLabel {
         visible: editor.fields.macroMode
         Layout.fillWidth: true
-        text: qsTr("循环间隔是松开后到进入下一步的时间；末步间隔计入循环。")
+        text: qsTr("动作后间隔不应用于纯等待；时长只应用于保持和等待动作。")
         color: Theme.muted
         wrapMode: Text.Wrap
     }

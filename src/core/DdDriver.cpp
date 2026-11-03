@@ -407,6 +407,7 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
 
     ddBtn_ = reinterpret_cast<DD_btn_t>(::GetProcAddress(module_, "DD_btn"));
     ddKey_ = reinterpret_cast<DD_key_t>(::GetProcAddress(module_, "DD_key"));
+    ddWheel_ = reinterpret_cast<DD_btn_t>(::GetProcAddress(module_, "DD_whl"));
     ddToDc_ = reinterpret_cast<DD_todc_t>(::GetProcAddress(module_, "DD_todc"));
     if (ddBtn_ == nullptr || ddKey_ == nullptr || ddToDc_ == nullptr) {
         lastError_ = L"DD DLL is missing required exports";
@@ -519,6 +520,7 @@ void DdDriver::Unload() {
     ddBtn_ = nullptr;
     ddKey_ = nullptr;
     ddToDc_ = nullptr;
+    ddWheel_ = nullptr;
     ddMov_ = nullptr;
     ddMovR_ = nullptr;
     runtimeKind_ = RuntimeKind::Unknown;
@@ -534,6 +536,7 @@ void DdDriver::SwapWith(DdDriver& other) {
     std::swap(ddBtn_, other.ddBtn_);
     std::swap(ddKey_, other.ddKey_);
     std::swap(ddToDc_, other.ddToDc_);
+    std::swap(ddWheel_, other.ddWheel_);
     std::swap(ddMov_, other.ddMov_);
     std::swap(ddMovR_, other.ddMovR_);
     std::swap(runtimeKind_, other.runtimeKind_);
@@ -1175,3 +1178,13 @@ bool DdDriver::IsSelfInjected(const KeyDescriptor& key) const {
     return (it->second.downCount > 0 && now - it->second.lastDownTick <= kSelfInjectedTtlMs) ||
         (it->second.upCount > 0 && now - it->second.lastUpTick <= kSelfInjectedTtlMs);
 }
+
+bool DdDriver::SendMouseWheel(int delta, InputSource) {
+    std::lock_guard ioLock(ioMutex_);
+    if (!IsReady() || !ddWheel_ || delta == 0 || delta % 120 != 0) return false;
+    for (int count = std::abs(delta / 120); count > 0; --count) {
+        if (ddWheel_(delta > 0 ? 1 : 2) != 1) return false;
+    }
+    return true;
+}
+bool DdDriver::SupportsMouseWheel() const { return ddWheel_ != nullptr; }

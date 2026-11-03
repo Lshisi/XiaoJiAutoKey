@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShareCodec.h"
+#include "MacroActions.h"
 
 #include <QCoreApplication>
 #include <QStringList>
@@ -25,7 +26,8 @@ inline QString ShareNamePreview(const SharePayload& payload) {
         for (const auto& step : macro.steps) {
             if (step.name.empty()) continue;
             names << QCoreApplication::translate("ShareNamePreview", "%1：%2")
-                .arg(QString::fromStdWString(GetKeyDisplayName(step.key)),
+                .arg(QString::fromStdWString(MacroStepText(step,
+                        MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L"")),
                     QString::fromStdWString(step.name));
         }
         if (!names.isEmpty()) {

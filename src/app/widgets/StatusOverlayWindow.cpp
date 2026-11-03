@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "widgets/StatusOverlayWindow.h"
 
 #include "FactionTheme.h"
@@ -231,7 +232,7 @@ QStringList macroLines(const MacroConfig* macro, const MacroStatus& status,
     if (options.showCurrentStep && status.running
         && status.currentStep >= 0 && status.currentStep < static_cast<int>(macro->steps.size())) {
         const auto& step = macro->steps[status.currentStep];
-        const QString keyName = QString::fromStdWString(GetKeyDisplayName(step.key));
+        const QString keyName = QString::fromStdWString(MacroStepText(step, MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L""));
         const QString name = QString::fromStdWString(step.name);
         lines << (name.isEmpty()
             ? QObject::tr("当前：%1").arg(keyName)

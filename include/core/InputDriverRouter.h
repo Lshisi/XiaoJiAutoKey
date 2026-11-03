@@ -23,6 +23,8 @@ public:
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
     [[nodiscard]] bool SupportsMouseMove() const override;
+    bool SendMouseWheel(int delta, InputSource src = InputSource::Injected) override;
+    [[nodiscard]] bool SupportsMouseWheel() const override;
     void SetSourceActiveKeys(InputSource src, const std::vector<KeyDescriptor>& keys) override;
     void ReleaseSource(InputSource src) override;
     void ReleaseAll() override;

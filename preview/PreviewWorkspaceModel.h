@@ -21,6 +21,7 @@ public:
     Q_INVOKABLE void enableBinding(const QString& id, bool enabled);
     Q_INVOKABLE void enableStep(const QString& id, bool enabled) { enableBinding(id, enabled); }
     Q_INVOKABLE void addRequested() { emit requested("add", {}); }
+    Q_INVOKABLE void recordMacroRequested() { emit requested("recordMacro", {}); }
     Q_INVOKABLE void addStepRequested() { emit requested("add", {}); }
     Q_INVOKABLE void editStepRequested(const QString& id) { emit requested("edit", id); }
     Q_INVOKABLE void deleteStepRequested(const QString& id) { emit requested("remove", id); }

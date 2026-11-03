@@ -5,6 +5,7 @@ BatchEditDialog::BatchEditDialog(bool macroMode, int count, QWidget* parent)
     setWindowTitle(macroMode ? tr("批量修改步骤") : tr("批量修改按键"));
     QVariantMap fields{{"macroMode", macroMode}, {"count", count},
         {"modifyDelay", false}, {"delay", QString::number(kDefaultDelayMs)},
+        {"modifyDuration", false}, {"duration", QStringLiteral("500")},
         {"modifyEnabled", false}, {"enabled", true},
         {"modifyMode", false}, {"mode", 0},
         {"modifyPriority", false}, {"priority", true},
@@ -32,7 +33,7 @@ std::optional<int> BatchEditDialog::delayMs() const {
     if (!value("modifyDelay").toBool()) return std::nullopt;
     bool ok = false;
     const int delay = value("delay").toString().toInt(&ok);
-    return ok && delay >= kMinDelayMs ? std::optional<int>(delay) : std::nullopt;
+    return ok && delay >= (macroMode_ ? 0 : kMinDelayMs) ? std::optional<int>(delay) : std::nullopt;
 }
 
 std::optional<bool> BatchEditDialog::participatePriority() const {
@@ -49,7 +50,7 @@ void BatchEditDialog::editField(const QString& field, const QVariant& argument) 
     if (field == QStringLiteral("mode")) {
         setValue(field, argument.toInt());
         if (argument.toInt() == static_cast<int>(RepeatMode::LongPress)) setValue("modifyDelay", false);
-    } else if (field == QStringLiteral("delay")) {
+    } else if (field == QStringLiteral("delay") || field == QStringLiteral("duration")) {
         setValue(field, argument.toString());
     } else {
         setValue(field, argument.toBool());
@@ -58,15 +59,20 @@ void BatchEditDialog::editField(const QString& field, const QVariant& argument) 
 }
 
 bool BatchEditDialog::canAccept() const {
-    bool changed = value("modifyDelay").toBool() || value("modifyEnabled").toBool();
+    bool changed = value("modifyDuration").toBool() || value("modifyDelay").toBool() || value("modifyEnabled").toBool();
     if (!macroMode_) {
         changed = changed || value("modifyMode").toBool() || value("modifyPriority").toBool();
     }
     if (!changed) return false;
+    if (value("modifyDuration").toBool()) {
+        bool parsed = false;
+        const int duration = value("duration").toString().toInt(&parsed);
+        if (!parsed || duration < 1) return false;
+    }
     if (!value("modifyDelay").toBool()) return true;
     bool ok = false;
     const int delay = value("delay").toString().toInt(&ok);
-    return ok && delay >= kMinDelayMs;
+    return ok && delay >= (macroMode_ ? 0 : kMinDelayMs);
 }
 
 void BatchEditDialog::updateAcceptAction() {
@@ -75,4 +81,9 @@ void BatchEditDialog::updateAcceptAction() {
     confirm.insert("enabled", canAccept());
     actions[0] = confirm;
     setValue("actions", actions);
+}
+
+std::optional<int> BatchEditDialog::durationMs() const {
+    if (!macroMode_ || !value("modifyDuration").toBool()) return std::nullopt;
+    return value("duration").toString().toInt();
 }

@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "config/ConfigNormalizer.h"
 
 #include <algorithm>
@@ -27,7 +28,7 @@ void ConfigNormalizer::normalize(AppConfig& config) {
             for (auto& step : macro.steps) step.id = nextStep++;
         }
         for (auto& step : macro.steps) {
-            step.delayAfterMs = std::max(step.delayAfterMs, kMinDelayMs);
+            NormalizeMacroStep(step);
         }
     }
     if (config.macros.empty()) {

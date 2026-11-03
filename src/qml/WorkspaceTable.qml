@@ -51,10 +51,10 @@ Item {
         readonly property int actionPadding: 4
         readonly property real actionWidth: (table.macroMode ? 3 : 2) * Theme.iconSize
             + 2 * actionPadding
-        readonly property real minimumKeyWidth: Math.max(64, columnMetrics.advanceWidth(qsTr("侧键1")) + 22)
+        readonly property real minimumKeyWidth: Math.max(table.macroMode ? 100 : 64, columnMetrics.advanceWidth(qsTr("侧键1")) + 22)
         readonly property real minimumModeWidth: Math.max(40, columnMetrics.advanceWidth(qsTr("模式")) + 12)
         readonly property real minimumPriorityWidth: Math.max(34, columnMetrics.advanceWidth(qsTr("优先")) + 10)
-        readonly property real minimumDelayWidth: Math.max(44, columnMetrics.advanceWidth(table.macroMode ? qsTr("间隔(松开后)") : qsTr("延迟")) + 12)
+        readonly property real minimumDelayWidth: Math.max(44, columnMetrics.advanceWidth(table.macroMode ? qsTr("间隔(ms)") : qsTr("延迟")) + 12)
         readonly property real dataWidth: Math.max(0, rowWidth - contentLeftPadding - contentRightPadding - leadingWidth - statusWidth - actionWidth)
         readonly property real minimumFieldsWidth: minimumKeyWidth + minimumDelayWidth
             + (table.macroMode ? 0 : minimumModeWidth + minimumPriorityWidth)
@@ -96,11 +96,11 @@ Item {
                     Layout.minimumWidth: Theme.compactIconSize
                     Layout.maximumWidth: Theme.compactIconSize
                 }
-                QuietLabel { Layout.minimumWidth: tableColumns.keyWidth; Layout.maximumWidth: tableColumns.keyWidth; text: qsTr("按键"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                QuietLabel { Layout.minimumWidth: tableColumns.keyWidth; Layout.maximumWidth: tableColumns.keyWidth; text: table.macroMode ? qsTr("动作") : qsTr("按键"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.nameWidth; Layout.maximumWidth: tableColumns.nameWidth; text: qsTr("名称"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted; wrapMode: Text.NoWrap; elide: Text.ElideRight }
                 QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.modeWidth; Layout.maximumWidth: tableColumns.modeWidth; text: qsTr("模式"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.priorityWidth; Layout.maximumWidth: tableColumns.priorityWidth; text: qsTr("优先"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
-                QuietLabel { Layout.minimumWidth: tableColumns.delayWidth; Layout.maximumWidth: tableColumns.delayWidth; text: table.macroMode ? qsTr("间隔(松开后)") : qsTr("延迟"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                QuietLabel { Layout.minimumWidth: tableColumns.delayWidth; Layout.maximumWidth: tableColumns.delayWidth; text: table.macroMode ? qsTr("间隔(ms)") : qsTr("延迟"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.statusWidth; Layout.maximumWidth: tableColumns.statusWidth; text: qsTr("启用"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.actionWidth; Layout.maximumWidth: tableColumns.actionWidth; text: qsTr("操作"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
             }
@@ -187,7 +187,7 @@ Item {
             }
             QuietLabel {
                 Layout.fillWidth: true
-                text: qsTr("点击“添加按键”，开始配置。")
+                text: table.macroMode ? qsTr("点击“添加步骤”，开始配置。") : qsTr("点击“添加按键”，开始配置。")
                 color: Theme.muted
                 horizontalAlignment: Text.AlignHCenter
             }

@@ -40,6 +40,8 @@ public:
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
     [[nodiscard]] bool SupportsMouseMove() const override;
+    bool SendMouseWheel(int delta, InputSource src = InputSource::Injected) override;
+    [[nodiscard]] bool SupportsMouseWheel() const override;
     void ReleaseAll() override;
     void ClearAllStates() override;  // Clear pressedKeys_ and selfInjected_ state.
     bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
@@ -79,6 +81,7 @@ private:
 
     HMODULE module_ = nullptr;
     DD_btn_t ddBtn_ = nullptr;
+    DD_btn_t ddWheel_ = nullptr;
     DD_key_t ddKey_ = nullptr;
     DD_todc_t ddToDc_ = nullptr;
     // 可选导出：DD_mov(绝对)/DD_movR(相对)，老版 DD DLL 可能没有。

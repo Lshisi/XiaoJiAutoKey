@@ -1,4 +1,5 @@
 #include "config/ActiveConfigValidator.h"
+#include "MacroActions.h"
 
 namespace {
 
@@ -53,7 +54,7 @@ ControllerResult validateModifierOverlap(
     if ((combinationKey.modifiers & modifier) == 0) return ControllerResult::success();
 
     return failure(QString::fromWCharArray(
-        L"单独“%1”已用作%2，会在组合键“%3”按下主键前先行生效；请更换其中一个。")
+        L"单独“%1”已用作%2，会在%4“%3”按下主键前先行生效；请更换其中一个。")
         .arg(KeyName(immediateKey), QString::fromWCharArray(immediateOwner),
             KeyName(combinationKey), QString::fromWCharArray(combinationOwner)));
 }

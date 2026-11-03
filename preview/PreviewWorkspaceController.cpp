@@ -77,6 +77,23 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
         dialog_.message(tr("无法启动"), tr("请先启用至少一个循环步骤。"));
     } else if (action.startsWith("profile")) {
         editProfile(action);
+    } else if (action == "recordMacro") {
+        model_.update("running", false);
+        dialog_.present("DialogMacroRecording.qml", tr("录制一轮（预览）"),
+            {{"stage", "ready"}, {"seconds", 3}, {"count", 0}, {"positions", false},
+                {"supportsPosition", true}, {"summary", QString()}, {"steps", QStringList{}}},
+            [this](const QVariantMap& values) {
+                auto rows = model_.rows();
+                for (const auto& value : values.value("recordedRows").toList()) {
+                    auto row = value.toMap();
+                    row.insert("id", QString::number(nextId_++));
+                    rows.append(row);
+                }
+                model_.setRows(rows);
+            }, 420);
+        dialog_.edit("actions", QVariantList{
+            QVariantMap{{"id", "start"}, {"text", tr("开始录制")}, {"primary", true}, {"enabled", true}},
+            QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"enabled", true}}});
     } else if (action == "hotkey" || action == "sequence" || action == "pause") {
         editShortcut(action);
     } else if (action == "sound") {
@@ -104,7 +121,7 @@ void PreviewWorkspaceController::editRows(const QVariantList& selected) {
     if (selected.isEmpty()) return;
     QVariantMap fields{{"macroMode", model_.macroMode()}, {"count", selected.size()},
         {"modifyDelay", false}, {"delay", QStringLiteral("10")},
-        {"modifyEnabled", false}, {"enabled", true},
+        {"modifyDuration", false}, {"duration", QStringLiteral("500")}, {"modifyEnabled", false}, {"enabled", true},
         {"modifyMode", false}, {"mode", 0},
         {"modifyPriority", false}, {"priority", true}};
     dialog_.present("DialogBatchEdit.qml",
@@ -119,8 +136,10 @@ void PreviewWorkspaceController::editRows(const QVariantList& selected) {
                     row.insert("enabled", values.value("enabled").toBool());
 
                 if (model_.macroMode()) {
-                    if (values.value("modifyDelay").toBool())
-                        row.insert("delay", std::max(1, values.value("delay").toString().toInt()));
+                    if (values.value("modifyDelay").toBool() && row.value("action").toInt() != 4)
+                        row.insert("delay", std::max(0, values.value("delay").toString().toInt()));
+                    if (values.value("modifyDuration").toBool() && (row.value("action").toInt() == 1 || row.value("action").toInt() == 4))
+                        row.insert("duration", values.value("duration").toInt());
                     value = row;
                     continue;
                 }
@@ -166,22 +185,28 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
     if (!adding && (index < 0 || index >= rows.size())) return;
     const auto row = adding ? QVariantMap{} : rows[index].toMap();
     const int mode = adding ? 0 : row.value("mode").toInt();
-    QVariantMap fields{{"keyText", adding ? QStringLiteral("A") : row.value("keyText")},
-        {"macroStep", model_.macroMode()},
+    QVariantMap fields{{"keyText", adding ? QStringLiteral("A") : row.value(model_.macroMode() ? "rawKeyText" : "keyText")},
+        {"macroStep", model_.macroMode()}, {"action", row.value("action", 0)},
+        {"duration", row.value("duration", 500).toString()}, {"wheelDirection", row.value("wheelDelta", 120).toInt() < 0 ? 1 : 0},
+        {"wheelCount", QString::number(std::abs(row.value("wheelDelta", 120).toInt() / 120))},
         {"nameVisible", true}, {"name", adding ? QString() : row.value("name")},
-        {"mode", mode}, {"modeVisible", !model_.macroMode()}, {"needsDelay", mode != 4},
-        {"delay", mode == 4 || adding ? QStringLiteral("10") : row.value("delay").toString()},
+        {"mode", mode}, {"modeVisible", !model_.macroMode()}, {"needsDelay", model_.macroMode() || mode != 4},
+        {"delay", mode == 4 || adding ? QStringLiteral("10") : QString::number(row.value("delay").toString().toInt())},
         {"enabled", adding || row.value("enabled").toBool()},
         {"priority", row.value("priorityKind").toString() == "enabled"}, {"modeGuideVisible", false},
         {"positionVisible", true}, {"isMouse", row.value("isMouse").toBool()}, {"fixed", false},
         {"supportsPosition", true}, {"positionHint", tr("示例固定点位：50%，50%")}};
-    dialog_.present("DialogKeyEditor.qml", adding ? tr("添加按键") : tr("编辑按键"), fields,
+    dialog_.present("DialogKeyEditor.qml", adding ? (model_.macroMode() ? tr("添加步骤") : tr("添加按键")) : (model_.macroMode() ? tr("编辑步骤") : tr("编辑按键")), fields,
         [this, index, row, insertIndex, focusCreated](const QVariantMap& values) {
             const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
             auto updated = row;
             const int mode = values.value("mode").toInt();
             if (index < 0) updated.insert("id", QString::number(nextId_++));
             updated.insert("keyText", values.value("keyText"));
+            updated.insert("rawKeyText", values.value("keyText"));
+            updated.insert("action", values.value("action", 0));
+            updated.insert("duration", values.value("duration", 500).toInt());
+            updated.insert("wheelDelta", values.value("wheelCount", 1).toInt() * (values.value("wheelDirection").toInt() == 1 ? -120 : 120));
             const QString name = values.value("name").toString().trimmed();
             updated.insert("name", name);
             updated.insert("keyDisplayText", name.isEmpty()
@@ -193,7 +218,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
             updated.insert("isMouse", values.value("isMouse"));
             updated.insert("priorityText", mode == 1 ? (values.value("priority").toBool() ? "✓" : "×") : "—");
             updated.insert("priorityKind", mode == 1 && values.value("priority").toBool() ? "enabled" : "muted");
-            updated.insert("delay", mode == 4 ? QVariant(QStringLiteral("—")) : QVariant(std::max(1, values.value("delay").toString().toInt())));
+            updated.insert("delay", !model_.macroMode() && mode == 4 ? QVariant(QStringLiteral("—")) : QVariant(std::max(model_.macroMode() ? 0 : 1, values.value("delay").toString().toInt())));
             updated.insert("positionHint", values.value("fixed").toBool() ? values.value("positionHint").toString() : QString());
             auto rows = model_.rows();
             if (index < 0) {

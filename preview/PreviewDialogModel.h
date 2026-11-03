@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QObject>
+#include "MacroRecording.h"
+#include <QTimer>
 #include <QVariantMap>
 #include <QList>
 #include <functional>
@@ -34,4 +36,7 @@ private:
     bool visible_ = false;
     bool recording_ = false;
     QList<int> pendingModifierKeys_;
+    MacroRecording macroRecording_;
+    QTimer recordingCountdown_;
+    void finishMacroRecording();
 };

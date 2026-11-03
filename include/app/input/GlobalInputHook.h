@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
+#include "MacroRecording.h"
 
 #include <QObject>
 #include <QEvent>
@@ -19,6 +20,8 @@ public:
     explicit GlobalInputHook(QObject* parent = nullptr);
     ~GlobalInputHook() override;
 
+    void setRecordingActive(bool active);
+    [[nodiscard]] bool isRecordingActive() const { return recordingActive_.load(); }
     bool start();
     void stop();
 
@@ -37,6 +40,8 @@ public:
     [[nodiscard]] bool isRawMouseActive() const noexcept;
 
 signals:
+    void inputRecorded(RecordedInput input);
+    void recordingStopRequested();
     void capturedKey(quint64 encodedKey);
     void captureModifierChanged(KeyDescriptor key, bool pressed);
     void controlHotkeyPressed();
@@ -52,6 +57,8 @@ private:
     static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK MouseHookProc(int code, WPARAM wParam, LPARAM lParam);
 
+    std::atomic<bool> recordingActive_{false};
+    bool recordingStopKeyDown_ = false;
     HHOOK keyboardHook_ = nullptr;
     HHOOK mouseHook_ = nullptr;
 
@@ -77,3 +84,5 @@ private:
     std::atomic<bool> controlHotkeyPressed_{false};
     std::atomic<ULONGLONG> startupIgnoreUntilTick_{0};
 };
+
+Q_DECLARE_METATYPE(RecordedInput)

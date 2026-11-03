@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <map>
 #include <optional>
 #include <string>
@@ -30,6 +31,7 @@ enum class InputSource {
 constexpr int kMinDelayMs = 1;
 constexpr int kDefaultDelayMs = 10;
 constexpr int kInputPulseWidthMs = 5;
+constexpr std::size_t kMaxMacroSteps = 512;
 
 constexpr std::uint8_t kKeyModifierCtrl = 0x01;
 constexpr std::uint8_t kKeyModifierShift = 0x02;
@@ -97,11 +99,16 @@ enum class MacroTriggerMode {
     Hold,
 };
 
+enum class MacroAction { Click, Hold, Down, Up, Wait, Wheel };
+
 struct MacroStep {
     std::uint64_t id = 0;
     bool enabled = true;
     KeyDescriptor key;
     std::wstring name;
+    MacroAction action = MacroAction::Click;
+    int durationMs = 500;
+    int wheelDelta = 120;
     int delayAfterMs = kDefaultDelayMs;
     ClickPosition clickPos;  // 仅鼠标键使用
 };

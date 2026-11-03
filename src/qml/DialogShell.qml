@@ -35,6 +35,7 @@ Item {
                 MouseArea { anchors.fill: parent; onPressed: dialogModel.startWindowMove(); Accessible.ignored: true }
             }
             CaptionButton {
+                objectName: "dialogCancel"
                 closeAction: true
                 enabled: shell.dialogData.closeAllowed
                 onClicked: dialogModel.dispatch("cancel")
@@ -61,6 +62,7 @@ Item {
                 model: shell.dialogData.actions
                 delegate: ActionButton {
                     required property var modelData
+                    objectName: "dialogAction_" + modelData.id
                     text: modelData.text
                     primary: modelData.primary
                     destructive: modelData.danger

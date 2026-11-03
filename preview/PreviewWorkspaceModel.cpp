@@ -1,5 +1,6 @@
 #include "PreviewWorkspaceModel.h"
 #include "MacroTiming.h"
+#include "MacroActions.h"
 
 #include <QStringList>
 #include <algorithm>
@@ -21,6 +22,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
         {"updateVersion", QString()}, {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QStringList{}}, {"selectedBindingIds", QStringList{}}, {"focusStepIds", QStringList{}}};
     state_.insert("timingText", QString());
+    state_.insert("executionError", QString());
     QVariantList rows;
     if (demo) {
         const QStringList keys{QStringLiteral("Ctrl+1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift")};
@@ -35,7 +37,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
                 {"priorityText", index == 1 ? QStringLiteral("✓") : QStringLiteral("—")},
                 {"priorityKind", index == 1 ? QStringLiteral("enabled") : QStringLiteral("muted")},
                 {"delay", index == 4 ? QVariant(QStringLiteral("—")) : QVariant(macro_ ? 100 : 10)},
-                {"positionHint", QString()}});
+                {"action", 0}, {"duration", 500}, {"wheelDelta", 120}, {"rawKeyText", keys[index]}, {"positionHint", QString()}});
         }
         state_.insert("pauseKeys", QVariantList{QStringLiteral("F9")});
     }
@@ -51,7 +53,21 @@ void PreviewWorkspaceModel::update(const QString& field, const QVariant& value) 
     emit stateChanged();
 }
 
-void PreviewWorkspaceModel::setRows(const QVariantList& rows) {
+void PreviewWorkspaceModel::setRows(const QVariantList& inputRows) {
+    QVariantList rows = inputRows;
+    if (macro_) {
+        for (auto& value : rows) {
+            auto row = value.toMap();
+            MacroStep step;
+            step.action = static_cast<MacroAction>(row.value("action").toInt());
+            step.durationMs = row.value("duration", 500).toInt();
+            step.wheelDelta = row.value("wheelDelta", 120).toInt();
+            row.insert("keyText", QString::fromStdWString(MacroStepText(step, row.value("rawKeyText").toString().toStdWString())));
+            row.insert("keyDisplayText", row.value("keyText"));
+            if (step.action == MacroAction::Wait) row.insert("delay", QStringLiteral("—"));
+            value = row;
+        }
+    }
     bool hasSequence = false;
     for (const auto& row : rows) hasSequence |= row.toMap().value("mode").toInt() == 3;
     state_.insert("hasSequenceBindings", hasSequence);
@@ -221,6 +237,9 @@ MacroConfig PreviewWorkspaceModel::timingConfig() const {
         MacroStep step;
         step.enabled = row.value("enabled").toBool();
         step.delayAfterMs = row.value("delay").toString().toInt();
+        step.action = static_cast<MacroAction>(row.value("action").toInt());
+        step.durationMs = row.value("duration", 500).toInt();
+        step.wheelDelta = row.value("wheelDelta", 120).toInt();
         macro.steps.push_back(std::move(step));
     }
     return macro;

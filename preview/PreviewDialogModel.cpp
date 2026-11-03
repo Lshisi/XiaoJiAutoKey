@@ -5,9 +5,25 @@
 #include <QKeySequence>
 #include <QMouseEvent>
 #include <QWindow>
+#include <QDateTime>
+#include <QWheelEvent>
+#include <QQuickItem>
+#include <QQuickWindow>
+#include "MacroActions.h"
 
 PreviewDialogModel::PreviewDialogModel(QObject* parent) : QObject(parent) {
     qApp->installEventFilter(this);
+    recordingCountdown_.setInterval(1000);
+    connect(&recordingCountdown_, &QTimer::timeout, this, [this] {
+        int seconds = state_.value("seconds").toInt() - 1;
+        edit("seconds", seconds);
+        if (seconds > 0) return;
+        recordingCountdown_.stop();
+        edit("stage", "recording");
+        edit("actions", QVariantList{
+            QVariantMap{{"id", "stop"}, {"text", tr("停止录制 F10")}, {"primary", true}, {"enabled", true}},
+            QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"enabled", true}}});
+    });
 }
 
 void PreviewDialogModel::present(const QString& page, const QString& title, QVariantMap fields,
@@ -49,26 +65,45 @@ void PreviewDialogModel::updateBatchEditActions() {
     if (state_.value("page").toString() != QStringLiteral("DialogBatchEdit.qml")) return;
 
     const bool macroMode = state_.value("macroMode").toBool();
-    bool changed = state_.value("modifyDelay").toBool() || state_.value("modifyEnabled").toBool();
+    bool changed = state_.value("modifyDuration").toBool() || state_.value("modifyDelay").toBool() || state_.value("modifyEnabled").toBool();
     if (!macroMode) {
         changed = changed || state_.value("modifyMode").toBool() || state_.value("modifyPriority").toBool();
     }
     bool validDelay = true;
+    bool validDuration = true;
     if (state_.value("modifyDelay").toBool()) {
         bool ok = false;
         const int delay = state_.value("delay").toString().toInt(&ok);
-        validDelay = ok && delay >= 1;
+        validDelay = ok && delay >= (macroMode ? 0 : 1);
+    }
+    if (macroMode && state_.value("modifyDuration").toBool()) {
+        bool ok = false;
+        const int duration = state_.value("duration").toString().toInt(&ok);
+        validDuration = ok && duration >= 1;
     }
 
     auto actions = state_.value("actions").toList();
     auto confirm = actions[0].toMap();
-    confirm.insert("enabled", changed && validDelay);
+    confirm.insert("enabled", changed && validDelay && validDuration);
     actions[0] = confirm;
     state_.insert("actions", actions);
 }
 
 void PreviewDialogModel::dispatch(const QString& action, const QVariant& argument) {
+    if (state_.value("page").toString() == "DialogMacroRecording.qml") {
+        if (action == "start") {
+            macroRecording_.clear();
+            edit("stage", "countdown");
+            edit("seconds", 3);
+            edit("count", 0);
+            edit("actions", QVariantList{QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"enabled", true}}});
+            recordingCountdown_.start();
+            return;
+        }
+        if (action == "stop") { finishMacroRecording(); return; }
+    }
     if (action == "accept" || action == "cancel" || action == "exit" || action == "tray") {
+        recordingCountdown_.stop();
         auto accepted = std::move(accepted_);
         visible_ = false;
         recording_ = false;
@@ -106,6 +141,40 @@ void PreviewDialogModel::startWindowMove() {
 }
 
 bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
+    if (visible_ && state_.value("page").toString() == "DialogMacroRecording.qml"
+        && state_.value("stage").toString() == "recording") {
+        auto* window = qobject_cast<QQuickWindow*>(watched);
+        if (!window) return QObject::eventFilter(watched, event);
+        RecordedInput input;
+        input.timeMs = static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch());
+        if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+            const auto* key = static_cast<QKeyEvent*>(event);
+            if (key->isAutoRepeat()) return true;
+            if (key->key() == Qt::Key_F10) {
+                if (event->type() == QEvent::KeyPress) finishMacroRecording();
+                return true;
+            }
+            input.key = {InputDevice::Keyboard, static_cast<std::uint32_t>(key->key())};
+            input.pressed = event->type() == QEvent::KeyPress;
+        } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
+            const auto* mouse = static_cast<QMouseEvent*>(event);
+            QQuickItem* item = window->contentItem();
+            while (auto* child = item->childAt(item->mapFromScene(mouse->position()).x(),
+                item->mapFromScene(mouse->position()).y())) item = child;
+            for (; item; item = item->parentItem()) {
+                if (item->objectName().startsWith("dialogAction_") || item->objectName() == "dialogCancel")
+                    return QObject::eventFilter(watched, event);
+            }
+            input.key = {InputDevice::Mouse, static_cast<std::uint32_t>(mouse->button())};
+            input.pressed = event->type() == QEvent::MouseButtonPress;
+            input.position = {true, 0.5, 0.5};
+        } else if (event->type() == QEvent::Wheel) input.wheelDelta = static_cast<QWheelEvent*>(event)->angleDelta().y();
+        else return QObject::eventFilter(watched, event);
+        macroRecording_.append(input, state_.value("positions").toBool());
+        edit("count", static_cast<int>(macroRecording_.eventCount()));
+        if (macroRecording_.atCapacity()) finishMacroRecording();
+        return event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease;
+    }
     if (!visible_ || !recording_) return QObject::eventFilter(watched, event);
     const auto isModifierKey = [](int key) {
         return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt;
@@ -151,4 +220,27 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
     state_.insert("isMouse", event->type() == QEvent::MouseButtonPress);
     edit("keyText", key);
     return true;
+}
+
+void PreviewDialogModel::finishMacroRecording() {
+    edit("stage", "review");
+    const auto steps = macroRecording_.finish(static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch()));
+    QVariantList rows;
+    QStringList descriptions;
+    for (const auto& step : steps) {
+        QString key = step.key.device == InputDevice::Keyboard
+            ? QKeySequence(static_cast<int>(step.key.code)).toString(QKeySequence::PortableText) : tr("鼠标键");
+        const QString actionText = QString::fromStdWString(MacroStepText(step, key.toStdWString()));
+        descriptions.append(actionText);
+        rows.push_back(QVariantMap{{"enabled", true}, {"rawKeyText", key}, {"keyText", actionText},
+            {"action", static_cast<int>(step.action)}, {"duration", step.durationMs}, {"wheelDelta", step.wheelDelta},
+            {"delay", step.delayAfterMs}, {"name", QString()}, {"positionHint", QString()}});
+    }
+    edit("recordedRows", rows);
+    edit("steps", descriptions);
+    edit("summary", tr("录制完成 · %1 步（仅预览窗口内输入）").arg(rows.size()));
+    edit("actions", QVariantList{
+        QVariantMap{{"id", "accept"}, {"text", tr("追加到循环")}, {"primary", true}, {"enabled", !rows.empty()}},
+        QVariantMap{{"id", "start"}, {"text", tr("重新录制")}, {"enabled", true}},
+        QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"enabled", true}}});
 }

@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "ConfigStore.h"
 
 #include "JsonLite.h"
@@ -220,6 +221,11 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                 for (const auto& stepItem : *stepsArr) {
                     if (auto* stepObj = stepItem.AsObject()) {
                         MacroStep step;
+                        const auto action = ParseMacroAction(GetStringField(*stepObj, "action").value_or("click"));
+                        if (!action) continue;
+                        step.action = *action;
+                        step.durationMs = GetIntField(*stepObj, "durationMs").value_or(500);
+                        step.wheelDelta = GetIntField(*stepObj, "wheelDelta").value_or(120);
                         step.id = GetUInt64Field(*stepObj, "id").value_or(0);
                         step.enabled = GetBoolField(*stepObj, "enabled").value_or(true);
                         if (auto name = GetStringField(*stepObj, "name")) step.name = ToWide(*name);
@@ -229,7 +235,7 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                         }
                         step.delayAfterMs = std::max(
                             GetIntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs),
-                            kMinDelayMs);
+                            0);
                         if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
                             if (const auto* clickObj = clickIt->second.AsObject()) {
                                 if (GetStringField(*clickObj, "mode").value_or("") == "fixed") {
@@ -241,7 +247,8 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                                 }
                             }
                         }
-                        if (step.key.IsValid()) macro.steps.push_back(step);
+                        NormalizeMacroStep(step);
+                        if (!MacroActionNeedsKey(step.action) || step.key.IsValid()) macro.steps.push_back(step);
                     }
                 }
             }
@@ -305,7 +312,10 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
             jsonlite::Object stepObj;
             stepObj.emplace("id", static_cast<double>(step.id));
             stepObj.emplace("enabled", step.enabled);
-            stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
+            stepObj.emplace("action", MacroActionStorage(step.action));
+            stepObj.emplace("durationMs", step.durationMs);
+            stepObj.emplace("wheelDelta", step.wheelDelta);
+            if (MacroActionNeedsKey(step.action)) stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
             if (!step.name.empty()) stepObj.emplace("name", ToUtf8(step.name));
             stepObj.emplace("delayAfterMs", step.delayAfterMs);
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {

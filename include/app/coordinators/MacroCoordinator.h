@@ -54,6 +54,7 @@ private:
     void onMacroDelete();
     void onMacroEnabledToggled(bool enabled);
     void onMacroAddStep();
+    void onRecordMacro();
     void onMacroInsertStep(const QString& stepId, bool before);
     void onMacroEditStep(const QString& stepId);
     void onMacroDeleteStep(const QString& stepId);

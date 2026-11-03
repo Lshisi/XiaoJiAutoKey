@@ -1,4 +1,5 @@
 #include "MacroTiming.h"
+#include "MacroActions.h"
 
 #include <algorithm>
 #include <array>
@@ -23,9 +24,7 @@ MacroTimingEstimate EstimateMacroTiming(const MacroConfig& macro) {
     for (const auto& step : macro.steps) {
         if (!step.enabled) continue;
         ++estimate.enabledStepCount;
-        const auto delay = static_cast<std::uint64_t>(
-            std::max(kMinDelayMs, step.delayAfterMs));
-        const auto stepDuration = delay + static_cast<std::uint64_t>(kInputPulseWidthMs);
+        const auto stepDuration = MacroStepDurationMs(step);
         if (stepDuration > std::numeric_limits<std::uint64_t>::max() - estimate.loopDurationMs)
             return estimate;
         estimate.loopDurationMs += stepDuration;

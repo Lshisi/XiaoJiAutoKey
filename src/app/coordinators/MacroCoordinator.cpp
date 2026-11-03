@@ -1,3 +1,4 @@
+#include "MacroActions.h"
 #include "coordinators/MacroCoordinator.h"
 
 #include "config/ActiveConfigValidator.h"
@@ -7,6 +8,7 @@
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/ConfigNameDialog.h"
 #include "dialogs/MacroStepDialog.h"
+#include "dialogs/MacroRecordingDialog.h"
 #include "dialogs/PauseKeyDialog.h"
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
@@ -41,6 +43,7 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPageModel::macroRenameRequested, this, &MacroCoordinator::onMacroRename);
     connect(context_.page, &MacroPageModel::macroDeleteRequested, this, &MacroCoordinator::onMacroDelete);
     connect(context_.page, &MacroPageModel::macroEnabledToggled, this, &MacroCoordinator::onMacroEnabledToggled);
+    connect(context_.page, &MacroPageModel::recordMacroRequested, this, &MacroCoordinator::onRecordMacro);
     connect(context_.page, &MacroPageModel::addStepRequested, this, &MacroCoordinator::onMacroAddStep);
     connect(context_.page, &MacroPageModel::insertStepRequested, this, &MacroCoordinator::onMacroInsertStep);
     connect(context_.page, &MacroPageModel::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
@@ -66,7 +69,9 @@ void MacroCoordinator::pollRunningState() {
     auto* macro = context_.controller->activeMacro();
     if (!macro) return;
 
-    const bool running = context_.engine->IsRunning(macro->id);
+    const auto status = context_.engine->GetStatus(macro->id);
+    context_.page->setExecutionError(QString::fromStdWString(status.error));
+    const bool running = status.running;
     context_.page->setRunning(running);
     if (running != lastMacroRunning_) {
         lastMacroRunning_ = running;
@@ -250,7 +255,7 @@ void MacroCoordinator::addStep(int insertIndex, bool focusCreated) {
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
-    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+    auto validation = !MacroActionNeedsKey(editResult.action) ? ControllerResult::success() : ActiveConfigValidator::validateChildKeyCandidate(
         editResult.key,
         context_.activeProfile ? context_.activeProfile() : nullptr,
         context_.controller->activeMacro());
@@ -259,8 +264,7 @@ void MacroCoordinator::addStep(int insertIndex, bool focusCreated) {
         return;
     }
     std::uint64_t createdStepId = 0;
-    auto result = context_.controller->addStep(editResult.key, editResult.name,
-        editResult.delayAfterMs, createdStepId, insertIndex, editResult.clickPos);
+    auto result = context_.controller->addStep(editResult, createdStepId, insertIndex);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
@@ -297,14 +301,13 @@ void MacroCoordinator::onMacroEditStep(const QString& stepId) {
     if (stepIt == macro->steps.end()) return;
     const auto& step = *stepIt;
 
-    MacroStepDialog dialog(MacroStepEditResult{step.key,
-        QString::fromStdWString(step.name), step.delayAfterMs, step.clickPos},
+    MacroStepDialog dialog(step,
         context_.driverSupportsMouseMove, context_.parent);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
     const auto editResult = dialog.editResult();
-    auto validation = ActiveConfigValidator::validateChildKeyCandidate(
+    auto validation = !MacroActionNeedsKey(editResult.action) ? ControllerResult::success() : ActiveConfigValidator::validateChildKeyCandidate(
         editResult.key,
         context_.activeProfile ? context_.activeProfile() : nullptr,
         macro);
@@ -312,8 +315,7 @@ void MacroCoordinator::onMacroEditStep(const QString& stepId) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), validation.message);
         return;
     }
-    auto result = context_.controller->updateStep(id, editResult.key, editResult.name,
-        editResult.delayAfterMs, editResult.clickPos);
+    auto result = context_.controller->updateStep(id, editResult);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
@@ -386,7 +388,7 @@ void MacroCoordinator::onMacroBatchEdit(const QVariantList& stepIds) {
     context_.inputHook->setDialogOpen(false);
     if (result != QDialog::Accepted) return;
 
-    auto editResult = context_.controller->updateSteps(StepIds(stepIds), dialog.delayMs(), dialog.enabled());
+    auto editResult = context_.controller->updateSteps(StepIds(stepIds), dialog.delayMs(), dialog.enabled(), dialog.durationMs());
     if (!editResult.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6279\u91cf\u4fee\u6539\u5931\u8d25"), editResult.message);
         if (context_.refreshMacroPage) context_.refreshMacroPage();
@@ -429,7 +431,9 @@ void MacroCoordinator::onMacroStartStopClicked() {
     if (!macro) return;
     if (!macro->enabled) return;
 
-    const bool running = context_.engine->IsRunning(macro->id);
+    const auto status = context_.engine->GetStatus(macro->id);
+    context_.page->setExecutionError(QString::fromStdWString(status.error));
+    const bool running = status.running;
     if (running) {
         context_.engine->StopAll();
         lastMacroRunning_ = false;
@@ -458,6 +462,15 @@ void MacroCoordinator::onMacroStartStopClicked() {
             }
         }
         context_.engine->OnTriggerDown(*macro->triggerKey);
+        if (macro->triggerMode == MacroTriggerMode::Toggle) context_.engine->OnTriggerUp(*macro->triggerKey);
+        const auto started = context_.engine->GetStatus(macro->id);
+        if (!started.running) {
+            context_.page->setExecutionError(QString::fromStdWString(started.error));
+            context_.page->setRunning(false);
+            if (!started.error.empty())
+                AppMessageDialog::warning(context_.parent, tr("无法启动"), QString::fromStdWString(started.error));
+            return;
+        }
         lastMacroRunning_ = true;
         if (context_.playToggleSound) context_.playToggleSound(true);
     }
@@ -551,4 +564,33 @@ void MacroCoordinator::stopAllForConfigChange() {
     if (context_.page) context_.page->setRunning(false);
     lastMacroRunning_ = false;
     if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
+}
+
+void MacroCoordinator::onRecordMacro() {
+    if (!context_.inputHook || !context_.controller || !context_.engine) return;
+    const auto* macro = context_.controller->activeMacro();
+    if (!macro) return;
+    if (macro->steps.size() + 4 > kMaxMacroSteps) {
+        AppMessageDialog::warning(context_.parent, tr("无法录制"), tr("循环最多包含 512 步，请先删除部分步骤。"));
+        return;
+    }
+    stopAllForConfigChange();
+    context_.inputHook->setDialogOpen(true);
+    MacroRecordingDialog dialog(*context_.inputHook,
+        context_.driverSupportsMouseMove && context_.driverSupportsMouseMove(), kMaxMacroSteps - macro->steps.size(), context_.parent);
+    const int result = dialog.exec();
+    context_.inputHook->setRecordingActive(false);
+    context_.inputHook->setDialogOpen(false);
+    if (result != QDialog::Accepted) return;
+    for (const auto& step : dialog.steps()) {
+        if (!MacroActionNeedsKey(step.action)) continue;
+        auto validation = ActiveConfigValidator::validateChildKeyCandidate(step.key,
+            context_.activeProfile ? context_.activeProfile() : nullptr, context_.controller->activeMacro());
+        if (!validation.ok) { AppMessageDialog::warning(context_.parent, tr("无法保存录制"), validation.message); return; }
+    }
+    const auto validation = context_.controller->appendRecordedSteps(dialog.steps());
+    if (!validation.ok) { AppMessageDialog::warning(context_.parent, tr("无法保存录制"), validation.message); return; }
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
 }

@@ -89,9 +89,17 @@ Item {
                             : workspace.page.clearBindingSelection()
                     }
                     ActionButton {
+                        visible: workspace.macroMode && !workspace.hasSelection
+                        text: qsTr("录制一轮")
+                        compact: true
+                        quiet: true
+                        enabled: !workspace.page.state.running
+                        onClicked: workspace.page.recordMacroRequested()
+                    }
+                    ActionButton {
                         id: addButton
                         visible: !workspace.hasSelection
-                        text: qsTr("添加按键")
+                        text: workspace.macroMode ? qsTr("添加步骤") : qsTr("添加按键")
                         leadingIcon: "add"
                         compact: true
                         enabled: !workspace.page.state.running

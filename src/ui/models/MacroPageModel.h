@@ -12,6 +12,7 @@ public:
     void focusSteps(const std::vector<std::uint64_t>& stepIds);
     void setMacroEnabled(bool value) { setValue("profileEnabled", value); }
     void setRunning(bool value);
+    void setExecutionError(const QString& value) { setValueIfChanged("executionError", value); }
     void setHotkeyText(const QString& value) { setValue("hotkey", value); }
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
     void setStatusOverlayEnabled(bool value) { setValue("overlayEnabled", value); }
@@ -44,6 +45,7 @@ public:
     Q_INVOKABLE void batchEditRequested() { emit batchEditRequestedImpl(state_.value("selectedStepIds").toList()); }
 
 signals:
+    void recordMacroRequested();
     void addStepRequested();
     void insertStepRequested(const QString& stepId, bool before);
     void editStepRequested(const QString& stepId);

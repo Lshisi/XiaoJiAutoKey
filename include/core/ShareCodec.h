@@ -28,7 +28,7 @@ public:
     static constexpr std::size_t kMaxProfiles = 32;
     static constexpr std::size_t kMaxBindingsPerProfile = 256;
     static constexpr std::size_t kMaxMacros = 64;
-    static constexpr std::size_t kMaxStepsPerMacro = 512;
+    static constexpr std::size_t kMaxStepsPerMacro = kMaxMacroSteps;
     static constexpr std::size_t kMaxPauseKeys = 32;
 
     [[nodiscard]] static std::string EncodeShareCode(const SharePayload& payload);

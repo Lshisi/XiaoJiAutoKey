@@ -43,6 +43,7 @@ set(MOC_HEADERS
     include/app/dialogs/CloseConfirmDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
+    include/app/dialogs/MacroRecordingDialog.h
     include/app/dialogs/PauseKeyDialog.h
     include/app/dialogs/SequenceSwitchKeyDialog.h
     include/app/dialogs/ShareExportDialog.h
@@ -87,6 +88,9 @@ set(CORE_SOURCES
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
     src/core/MacroTiming.cpp
+    src/core/MacroActions.cpp
+    src/core/MacroValidation.cpp
+    src/core/MacroRecording.cpp
     src/core/Ch552UsbDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
@@ -166,6 +170,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/dialogs/GameProcessDialog.h
     include/app/dialogs/KeyCaptureDialogBase.h
     include/app/dialogs/MacroStepDialog.h
+    include/app/dialogs/MacroRecordingDialog.h
     include/app/dialogs/PauseKeyDialog.h
     include/app/dialogs/SequenceSwitchKeyDialog.h
     include/app/dialogs/ShareExportDialog.h
@@ -234,6 +239,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/dialogs/GameProcessDialog.cpp
     src/app/dialogs/KeyCaptureDialogBase.cpp
     src/app/dialogs/MacroStepDialog.cpp
+    src/app/dialogs/MacroRecordingDialog.cpp
     src/app/dialogs/PauseKeyDialog.cpp
     src/app/dialogs/SequenceSwitchKeyDialog.cpp
     src/app/dialogs/ShareExportDialog.cpp
@@ -319,6 +325,8 @@ set(QML_FILES
     src/qml/DialogMessage.qml
     src/qml/DialogName.qml
     src/qml/DialogClose.qml
+    src/qml/DialogMacroRecording.qml
+    src/qml/DialogMacroParameters.qml
     src/qml/DialogKeyEditor.qml
     src/qml/DialogBatchEdit.qml
     src/qml/DialogOverlaySettings.qml

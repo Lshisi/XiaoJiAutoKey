@@ -24,6 +24,8 @@ public:
         return false;
     }
     [[nodiscard]] virtual bool SupportsMouseMove() const { return false; }
+    virtual bool SendMouseWheel(int delta, InputSource src = InputSource::Injected) { (void)delta; (void)src; return false; }
+    [[nodiscard]] virtual bool SupportsMouseWheel() const { return false; }
     virtual void SetSourceActiveKeys(InputSource, const std::vector<KeyDescriptor>&) {}
     virtual void ReleaseSource(InputSource) { ReleaseAll(); }
     virtual void ReleaseAll() = 0;

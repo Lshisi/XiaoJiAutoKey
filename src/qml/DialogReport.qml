@@ -15,6 +15,8 @@ ColumnLayout {
         text: bodyLabel.text
         textFormat: bodyLabel.textFormat
         font: bodyLabel.font
+        renderType: bodyLabel.renderType
+        renderTypeQuality: bodyLabel.renderTypeQuality
         wrapMode: Text.NoWrap
         Accessible.ignored: true
     }

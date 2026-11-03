@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import XiaoJi.UI
 
 Item {
     id: overlay
@@ -55,6 +56,9 @@ Item {
                 wrapMode: Text.Wrap
                 font.family: overlay.appearance.fontFamily
                 font.pixelSize: overlay.appearance.fontPixelSize
+                font.hintingPreference: Typography.fontHintingPreference
+                renderType: Typography.textRenderType
+                renderTypeQuality: Typography.textRenderQuality
                 color: overlay.appearance.warning
                 padding: 6
                 background: Rectangle {

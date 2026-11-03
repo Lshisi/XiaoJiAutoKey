@@ -26,7 +26,7 @@ Button {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
     font.weight: primary ? Theme.headingWeight : Font.Normal
-    font.hintingPreference: Font.PreferVerticalHinting
+    font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
     Accessible.name: text.length ? text : hint

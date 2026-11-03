@@ -54,19 +54,20 @@ QtObject {
     readonly property int dialogPadding: 24
     readonly property int dialogVerticalPadding: 18
     readonly property int formGap: 14
-    readonly property int bodyFontSize: 12
-    readonly property int captionFontSize: 11
-    readonly property int cardTitleFontSize: 15
-    readonly property int pageTitleFontSize: 19
+    readonly property int bodyFontSize: Typography.bodyFontSize
+    readonly property int captionFontSize: Typography.captionFontSize
+    readonly property int cardTitleFontSize: Typography.cardTitleFontSize
+    readonly property int pageTitleFontSize: Typography.pageTitleFontSize
     readonly property int iconGlyphSize: 12
     readonly property int navGlyphSize: 16
-    readonly property int headingWeight: Font.Medium
-    readonly property int textRenderType: Text.QtRendering
-    readonly property int textRenderQuality: Text.HighRenderTypeQuality
+    readonly property int headingWeight: Typography.headingWeight
+    readonly property int fontHintingPreference: Typography.fontHintingPreference
+    readonly property int textRenderType: Typography.textRenderType
+    readonly property int textRenderQuality: Typography.textRenderQuality
     readonly property bool motionEnabled: colors.motionEnabled && Qt.application.state === Qt.ApplicationActive
     readonly property int fadeDuration: Math.min(colors.fadeDuration, 100)
     readonly property int toggleDuration: 90
     readonly property int popupEnterDuration: 50
     readonly property int popupExitDuration: 30
-    readonly property string fontFamily: "Microsoft YaHei UI"
+    readonly property string fontFamily: Typography.fontFamily
 }

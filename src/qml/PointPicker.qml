@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import XiaoJi.UI
 
 Rectangle {
     id: picker
@@ -22,7 +23,10 @@ Rectangle {
             textFormat: Text.PlainText
             color: picker.hint.textColor
             font.family: picker.hint.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: Typography.bodyFontSize
+            font.hintingPreference: Typography.fontHintingPreference
+            renderType: Typography.textRenderType
+            renderTypeQuality: Typography.textRenderQuality
             wrapMode: Text.Wrap
         }
     }

@@ -259,6 +259,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
 set(QML_FILES
     src/qml/Main.qml
     src/qml/Theme.qml
+    src/qml/Typography.qml
     src/qml/AppShell.qml
     src/qml/OnboardingOverlay.qml
     src/qml/GuideHint.qml
@@ -338,6 +339,7 @@ foreach(qml_file IN LISTS QML_FILES)
     set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")
 endforeach()
 set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/qml/Typography.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(XiaoJiAutoKey
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml

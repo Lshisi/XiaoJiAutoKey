@@ -36,8 +36,8 @@ Window {
                 color: Theme.muted
                 font.pixelSize: Theme.captionFontSize
             }
-            CheckBox { text: qsTr("深色"); checked: Theme.dark; onToggled: appView.setDarkMode(checked) }
-            CheckBox { text: qsTr("示例数据"); checked: appView.demoData; onToggled: appView.setDemoData(checked) }
+            QuietCheck { text: qsTr("深色"); checked: Theme.dark; onToggled: appView.setDarkMode(checked) }
+            QuietCheck { text: qsTr("示例数据"); checked: appView.demoData; onToggled: appView.setDemoData(checked) }
             QuietCombo {
                 Layout.preferredWidth: 132
                 model: [qsTr("其它窗口预览…"), qsTr("关闭确认"), qsTr("导入配置"), qsTr("更新下载"),

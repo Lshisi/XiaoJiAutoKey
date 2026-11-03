@@ -9,6 +9,7 @@ CheckBox {
     padding: 2
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
+    font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     indicator: Rectangle {
         implicitWidth: 16

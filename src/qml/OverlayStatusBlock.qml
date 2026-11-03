@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import XiaoJi.UI
 
 ColumnLayout {
     id: block
@@ -33,9 +34,11 @@ ColumnLayout {
             font.family: block.appearance.fontFamily
             font.pixelSize: block.appearance.fontPixelSize
             font.weight: Font.DemiBold
+            font.hintingPreference: Typography.fontHintingPreference
             color: block.appearance.text
             elide: Text.ElideRight
-            renderType: Text.NativeRendering
+            renderType: Typography.textRenderType
+            renderTypeQuality: Typography.textRenderQuality
         }
         Item { visible: block.reserveLock; Layout.preferredWidth: 24 }
     }
@@ -55,9 +58,11 @@ ColumnLayout {
                 textFormat: Text.PlainText
                 font.family: block.appearance.fontFamily
                 font.pixelSize: block.appearance.fontPixelSize
+                font.hintingPreference: Typography.fontHintingPreference
                 color: block.appearance.muted
                 elide: Text.ElideRight
-                renderType: Text.NativeRendering
+                renderType: Typography.textRenderType
+                renderTypeQuality: Typography.textRenderQuality
             }
         }
     }

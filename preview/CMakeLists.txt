@@ -44,6 +44,7 @@ foreach(qml_file IN LISTS PREVIEW_QML_FILES)
     set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")
 endforeach()
 set_source_files_properties("${PROJECT_ROOT}/src/qml/Theme.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties("${PROJECT_ROOT}/src/qml/Typography.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(XiaoJiPreview
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml

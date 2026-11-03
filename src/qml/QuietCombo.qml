@@ -10,7 +10,7 @@ ComboBox {
     rightPadding: 28
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
-    font.hintingPreference: Font.PreferVerticalHinting
+    font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     contentItem: Text {
         text: control.displayText

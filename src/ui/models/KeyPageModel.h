@@ -17,6 +17,7 @@ public:
     void setWasdProtection(bool value) { setValue("wasdProtection", value); }
     void setRememberSequencePosition(bool value) { setValue("rememberSequencePosition", value); }
     void setSequenceSwitchKey(std::optional<KeyDescriptor> key);
+    void setSequenceSelection(std::optional<std::uint64_t> bindingId);
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
     void setUpdateBadge(const QString& value) { setValue("updateVersion", value); }
     void setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& profiles, std::uint64_t activeId);
@@ -73,5 +74,8 @@ signals:
     void batchDeleteRequestedImpl(const QVariantList& bindingIds);
 
 private:
+    void refreshSequenceSelection();
+
     std::uint64_t bindingsProfileId_ = 0;
+    std::optional<std::uint64_t> sequenceSelectedBindingId_;
 };

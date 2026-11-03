@@ -16,7 +16,8 @@ void PreviewWorkspaceModel::reset(bool demo) {
         {"hotkey", macro_ ? QStringLiteral("F8") : tr("侧键2")}, {"beepEnabled", true},
         {"overlayEnabled", false}, {"mixedMode", true}, {"wasdProtection", true},
         {"rememberSequencePosition", true}, {"sequenceKey", tr("未设置")},
-        {"hasSequenceKey", false}, {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false},
+        {"hasSequenceKey", false}, {"sequenceSelectionText", tr("未激活")},
+        {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false},
         {"updateVersion", QString()}, {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QStringList{}}, {"selectedBindingIds", QStringList{}}, {"focusStepIds", QStringList{}}};
     state_.insert("timingText", QString());
@@ -71,10 +72,9 @@ void PreviewWorkspaceModel::setRows(const QVariantList& rows) {
         }
         state_.insert("selectedBindingIds", validSelectedIds);
     }
-    if (macro_) {
-        refreshTiming();
-    }
     setValue(macro_ ? "steps" : "bindings", rows);
+    if (macro_) refreshTiming();
+    else refreshSequenceSelection();
 }
 
 void PreviewWorkspaceModel::selectSteps(const QStringList& ids) {
@@ -106,6 +106,43 @@ void PreviewWorkspaceModel::enableBinding(const QString& id, bool enabled) {
         }
     }
     setRows(bindings);
+}
+
+void PreviewWorkspaceModel::refreshSequenceSelection() {
+    QVariantList sequenceRows;
+    for (const auto& binding : rows()) {
+        const auto row = binding.toMap();
+        if (row.value("mode").toInt() == 3 && row.value("enabled").toBool()) {
+            sequenceRows.append(row);
+        }
+    }
+    if (sequenceRows.isEmpty()) {
+        sequenceSelectedBindingId_.clear();
+        setValue("sequenceSelectionText", tr("未激活"));
+        return;
+    }
+
+    bool found = false;
+    for (const auto& value : sequenceRows) {
+        if (value.toMap().value("id").toString() == sequenceSelectedBindingId_) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) sequenceSelectedBindingId_ = sequenceRows.first().toMap().value("id").toString();
+
+    for (int index = 0; index < sequenceRows.size(); ++index) {
+        const auto row = sequenceRows[index].toMap();
+        if (row.value("id").toString() != sequenceSelectedBindingId_) continue;
+        const QString keyText = row.value("keyText").toString();
+        const QString name = row.value("name").toString();
+        const QString bindingText = name.isEmpty() ? keyText : tr("%1（%2）").arg(name, keyText);
+        setValue("sequenceSelectionText", tr("%1/%2 · %3")
+            .arg(index + 1)
+            .arg(sequenceRows.size())
+            .arg(bindingText));
+        return;
+    }
 }
 
 void PreviewWorkspaceModel::startStopClicked() {

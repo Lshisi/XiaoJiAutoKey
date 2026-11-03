@@ -6,7 +6,8 @@ KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
         {"beepEnabled", true}, {"overlayEnabled", false}, {"mixedMode", false},
         {"wasdProtection", false}, {"rememberSequencePosition", true},
         {"sequenceKey", tr("未设置")}, {"hasSequenceKey", false},
-        {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false}, {"updateVersion", QString()}};
+        {"sequenceSelectionText", tr("未激活")}, {"pauseKeys", QVariantList{}},
+        {"hasSequenceBindings", false}, {"updateVersion", QString()}};
     state_.insert("selectedBindingIds", QVariantList{});
 }
 
@@ -29,6 +30,7 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uin
         const QString id = QString::number(binding.id);
         if (selectedIds.contains(id)) validSelectedIds.push_back(id);
         rows.push_back(QVariantMap{{"id", id}, {"enabled", binding.enabled},
+            {"mode", static_cast<int>(binding.mode)},
             {"keyText", QString::fromStdWString(keyName)},
             {"name", QString::fromStdWString(binding.name)},
             {"keyDisplayText", QString::fromStdWString(displayName)},
@@ -46,6 +48,7 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uin
     state_.insert("hasSequenceBindings", hasSequence);
     state_.insert("selectedBindingIds", validSelectedIds);
     setValue("bindings", rows);
+    refreshSequenceSelection();
 }
 
 void KeyPageModel::toggleBindingSelection(const QString& bindingId) {
@@ -64,6 +67,41 @@ void KeyPageModel::setRunning(bool value) {
 void KeyPageModel::setSequenceSwitchKey(std::optional<KeyDescriptor> key) {
     state_.insert("hasSequenceKey", key.has_value());
     setValue("sequenceKey", key ? QString::fromStdWString(GetKeyDisplayName(*key)) : tr("未设置"));
+}
+
+void KeyPageModel::setSequenceSelection(std::optional<std::uint64_t> bindingId) {
+    if (sequenceSelectedBindingId_ == bindingId) return;
+    sequenceSelectedBindingId_ = bindingId;
+    refreshSequenceSelection();
+}
+
+void KeyPageModel::refreshSequenceSelection() {
+    const auto rows = state_.value("bindings").toList();
+    QVariantList sequenceRows;
+    for (const auto& value : rows) {
+        const auto row = value.toMap();
+        if (row.value("mode").toInt() == static_cast<int>(RepeatMode::Sequence)
+            && row.value("enabled").toBool()) {
+            sequenceRows.push_back(row);
+        }
+    }
+
+    QString selectedText = tr("未激活");
+    if (sequenceSelectedBindingId_.has_value()) {
+        for (int index = 0; index < sequenceRows.size(); ++index) {
+            const auto row = sequenceRows[index].toMap();
+            if (row.value("id").toULongLong() != *sequenceSelectedBindingId_) continue;
+            const QString keyText = row.value("keyText").toString();
+            const QString name = row.value("name").toString();
+            const QString bindingText = name.isEmpty() ? keyText : tr("%1（%2）").arg(name, keyText);
+            selectedText = tr("%1/%2 · %3")
+                .arg(index + 1)
+                .arg(sequenceRows.size())
+                .arg(bindingText);
+            break;
+        }
+    }
+    setValue("sequenceSelectionText", selectedText);
 }
 
 void KeyPageModel::setPauseKeys(const std::vector<KeyDescriptor>& keys) {

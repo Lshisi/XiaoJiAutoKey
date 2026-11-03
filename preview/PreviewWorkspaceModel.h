@@ -94,5 +94,7 @@ signals:
 private:
     [[nodiscard]] MacroConfig timingConfig() const;
     void refreshTiming();
+    void refreshSequenceSelection();
     bool macro_;
+    QString sequenceSelectedBindingId_;
 };

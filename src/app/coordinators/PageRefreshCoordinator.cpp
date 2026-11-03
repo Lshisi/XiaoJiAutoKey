@@ -39,6 +39,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setWasdProtection(profile->wasdProtection);
     context_.view->keyPage()->setRememberSequencePosition(profile->rememberSequencePosition);
     context_.view->keyPage()->setSequenceSwitchKey(profile->sequenceSwitchKey);
+    context_.view->keyPage()->setSequenceSelection(context_.repeaterEngine->GetStatus().sequenceTaskId);
     context_.view->keyPage()->setPauseKeys(profile->pauseKeys);
 
     refreshProfiles();

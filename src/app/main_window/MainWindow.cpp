@@ -1428,6 +1428,9 @@ void MainWindow::refreshStatusOverlay() {
     } else {
         statusOverlay_.setOverlayEnabled(false);
     }
+    if (auto* keyPage = view_.keyPage()) {
+        keyPage->setSequenceSelection(repeatStatus.sequenceTaskId);
+    }
     view_.updateActivityIcons(this, repeatRunning, macroRunning);
 }
 

@@ -34,13 +34,17 @@ Item {
         anchors.leftMargin: root.columns.contentLeftPadding
         anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
-        QuietCheck {
+        Item {
             Layout.minimumWidth: Theme.compactIconSize
             Layout.maximumWidth: Theme.compactIconSize
-            spacing: 0
-            checked: root.selected
-            Accessible.name: qsTr("选择步骤 %1").arg(root.rowIndex + 1)
-            onClicked: root.page.toggleStepSelection(root.entry.id)
+            Layout.fillHeight: true
+            QuietCheck {
+                anchors.centerIn: parent
+                spacing: 0
+                checked: root.selected
+                Accessible.name: qsTr("选择步骤 %1").arg(root.rowIndex + 1)
+                onClicked: root.page.toggleStepSelection(root.entry.id)
+            }
         }
         IconButton {
             compact: true
@@ -83,25 +87,41 @@ Item {
         }
         NameCell { Layout.minimumWidth: root.columns.nameWidth; Layout.maximumWidth: root.columns.nameWidth; name: root.entry.name }
         QuietLabel { Layout.minimumWidth: root.columns.delayWidth; Layout.maximumWidth: root.columns.delayWidth; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-        Item { Layout.preferredWidth: root.columns.actionPadding }
-        IconButton {
-            visible: !root.selectionActive
-            iconName: "edit"
-            hint: qsTr("编辑步骤")
-            onClicked: root.page.editStepRequested(root.entry.id)
-        }
-        MacroStepMenu {
-            visible: !root.selectionActive
+        WorkspaceEnabledCell {
+            Layout.minimumWidth: root.columns.statusWidth
+            Layout.maximumWidth: root.columns.statusWidth
+            Layout.fillHeight: true
             page: root.page
-            stepId: root.entry.id
-            actionsEnabled: root.enabled
+            entry: root.entry
+            macroMode: true
         }
-        IconButton {
-            visible: !root.selectionActive
-            iconName: "delete"
-            hint: qsTr("删除步骤")
-            onClicked: root.page.deleteStepRequested(root.entry.id)
+        Item {
+            Layout.minimumWidth: root.columns.actionWidth
+            Layout.maximumWidth: root.columns.actionWidth
+            Layout.fillHeight: true
+            Row {
+                anchors.centerIn: parent
+                visible: !root.selectionActive
+                IconButton {
+                    iconName: "edit"
+                    hint: qsTr("编辑步骤")
+                    onClicked: root.page.editStepRequested(root.entry.id)
+                }
+                MacroStepMenu {
+                    page: root.page
+                    stepId: root.entry.id
+                    actionsEnabled: root.enabled
+                }
+                ActionButton {
+                    width: root.columns.deleteWidth
+                    height: Math.max(Theme.iconSize, implicitHeight)
+                    text: qsTr("删除")
+                    compact: true
+                    quiet: true
+                    hint: qsTr("删除步骤")
+                    onClicked: root.page.deleteStepRequested(root.entry.id)
+                }
+            }
         }
-        Item { Layout.preferredWidth: root.columns.actionPadding }
     }
 }

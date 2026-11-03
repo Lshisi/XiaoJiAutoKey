@@ -3,6 +3,7 @@
 #include "config/ActiveConfigValidator.h"
 #include "controllers/MacroController.h"
 #include "dialogs/AppMessageDialog.h"
+#include "dialogs/BatchEditDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/ConfigNameDialog.h"
 #include "dialogs/MacroStepDialog.h"
@@ -44,9 +45,11 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPageModel::insertStepRequested, this, &MacroCoordinator::onMacroInsertStep);
     connect(context_.page, &MacroPageModel::editStepRequested, this, &MacroCoordinator::onMacroEditStep);
     connect(context_.page, &MacroPageModel::deleteStepRequested, this, &MacroCoordinator::onMacroDeleteStep);
+    connect(context_.page, &MacroPageModel::stepEnabledToggled, this, &MacroCoordinator::onStepEnabledToggled);
     connect(context_.page, &MacroPageModel::duplicateStepRequestedImpl, this, &MacroCoordinator::onMacroDuplicateStep);
     connect(context_.page, &MacroPageModel::batchDuplicateRequestedImpl, this, &MacroCoordinator::onMacroBatchDuplicate);
     connect(context_.page, &MacroPageModel::batchDeleteRequestedImpl, this, &MacroCoordinator::onMacroBatchDelete);
+    connect(context_.page, &MacroPageModel::batchEditRequestedImpl, this, &MacroCoordinator::onMacroBatchEdit);
     connect(context_.page, &MacroPageModel::stepMoveRequested, this, &MacroCoordinator::onMacroMoveStep);
     connect(context_.page, &MacroPageModel::startStopClicked, this, &MacroCoordinator::onMacroStartStopClicked);
     connect(context_.page, &MacroPageModel::hotkeyClearClicked, this, &MacroCoordinator::onMacroHotkeyClearClicked);
@@ -374,6 +377,26 @@ void MacroCoordinator::onMacroBatchDelete(const QVariantList& stepIds) {
     if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
+void MacroCoordinator::onMacroBatchEdit(const QVariantList& stepIds) {
+    if (!context_.controller || !context_.inputHook || stepIds.isEmpty()) return;
+
+    context_.inputHook->setDialogOpen(true);
+    BatchEditDialog dialog(true, static_cast<int>(stepIds.size()), context_.parent);
+    const int result = dialog.exec();
+    context_.inputHook->setDialogOpen(false);
+    if (result != QDialog::Accepted) return;
+
+    auto editResult = context_.controller->updateSteps(StepIds(stepIds), dialog.delayMs(), dialog.enabled());
+    if (!editResult.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6279\u91cf\u4fee\u6539\u5931\u8d25"), editResult.message);
+        if (context_.refreshMacroPage) context_.refreshMacroPage();
+        return;
+    }
+    if (context_.applyMacros) context_.applyMacros();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
 void MacroCoordinator::onMacroMoveStep(const QString& stepId, int targetIndex) {
     if (!context_.controller) return;
     bool ok = false;
@@ -383,6 +406,20 @@ void MacroCoordinator::onMacroMoveStep(const QString& stepId, int targetIndex) {
     if (!result.ok) return;
     if (context_.applyMacros) context_.applyMacros();
     if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshMacroPage) context_.refreshMacroPage();
+}
+
+void MacroCoordinator::onStepEnabledToggled(const QString& stepId, bool enabled) {
+    if (!context_.controller || !context_.engine) return;
+    const auto* macro = context_.controller->activeMacro();
+    if (!macro || context_.engine->IsRunning(macro->id)) return;
+    const auto result = context_.controller->setStepEnabled(stepId.toULongLong(), enabled);
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, tr("无法修改步骤"), result.message);
+    } else {
+        if (context_.applyMacros) context_.applyMacros();
+        if (context_.saveConfig) context_.saveConfig();
+    }
     if (context_.refreshMacroPage) context_.refreshMacroPage();
 }
 
@@ -398,6 +435,11 @@ void MacroCoordinator::onMacroStartStopClicked() {
         lastMacroRunning_ = false;
         if (context_.playToggleSound) context_.playToggleSound(false);
     } else {
+        if (std::none_of(macro->steps.begin(), macro->steps.end(),
+            [](const MacroStep& step) { return step.enabled; })) {
+            AppMessageDialog::warning(context_.parent, tr("无法启动"), tr("请先启用至少一个循环步骤。"));
+            return;
+        }
         if (context_.canUseDdDriver && !context_.canUseDdDriver()) {
             if (context_.showDdUnavailableMessage) context_.showDdUnavailableMessage();
             return;

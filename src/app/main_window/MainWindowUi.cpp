@@ -107,7 +107,8 @@ bool MainWindow::setupUi() {
         [this]() { return macroController_.activeMacro(); },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { return inputDriver_.SupportsMouseMove(); }
+        [this]() { return inputDriver_.SupportsMouseMove(); },
+        &inputHook_
     });
 
     connect(view_.keyPage(), &KeyPageModel::shareRequested, this, [this]() {

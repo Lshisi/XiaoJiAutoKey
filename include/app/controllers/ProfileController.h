@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 class ProfileController {
 public:
@@ -35,10 +36,14 @@ public:
     ControllerResult setRememberSequencePosition(bool enabled);
 
     ControllerResult deleteBinding(std::uint64_t id);
+    ControllerResult deleteBindings(const std::vector<std::uint64_t>& ids);
     ControllerResult setBindingEnabled(std::uint64_t id, bool enabled);
     ControllerResult upsertBinding(std::optional<std::uint64_t> bindingId,
         const KeyDescriptor& key, const QString& name, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
         const ClickPosition& clickPos = ClickPosition{});
+    ControllerResult updateBindings(const std::vector<std::uint64_t>& ids, const MacroConfig* activeMacro,
+        std::optional<RepeatMode> mode, std::optional<int> delayMs, std::optional<bool> enabled,
+        std::optional<bool> participatePriority);
 
     ControllerResult addPauseKey(const KeyDescriptor& key);
     ControllerResult deletePauseKey(int index);

@@ -8,6 +8,7 @@
 #include <optional>
 
 class KeyCaptureDialogBase;
+class GlobalInputHook;
 class KeyPageModel;
 class ProfileController;
 class RepeaterEngine;
@@ -34,6 +35,7 @@ public:
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
         std::function<bool()> driverSupportsMouseMove;
+        GlobalInputHook* inputHook = nullptr;
     };
 
     explicit KeyBindingsCoordinator(QObject* parent = nullptr);
@@ -45,6 +47,8 @@ private:
     void onEditBinding(std::uint64_t id);
     void onDeleteBinding(std::uint64_t id);
     void onEnableToggled(std::uint64_t id, bool enabled);
+    void onBatchEdit(const QVariantList& bindingIds);
+    void onBatchDelete(const QVariantList& bindingIds);
     void onStartClicked();
     void onHotkeyEditClicked();
     void onHotkeyClearClicked();

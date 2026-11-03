@@ -1,5 +1,6 @@
 #include "PreviewWorkspaceModel.h"
 #include <QStringList>
+#include <algorithm>
 
 PreviewWorkspaceModel::PreviewWorkspaceModel(bool macro, QObject* parent) : PageModel(parent), macro_(macro) {
     reset(true);
@@ -15,7 +16,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
         {"rememberSequencePosition", true}, {"sequenceKey", tr("未设置")},
         {"hasSequenceKey", false}, {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false},
         {"updateVersion", QString()}, {"triggerMode", 0}, {"loopCount", 0},
-        {"selectedStepIds", QStringList{}}, {"focusStepIds", QStringList{}}};
+        {"selectedStepIds", QStringList{}}, {"selectedBindingIds", QStringList{}}, {"focusStepIds", QStringList{}}};
     QVariantList rows;
     if (demo) {
         const QStringList keys{QStringLiteral("1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift")};
@@ -58,6 +59,14 @@ void PreviewWorkspaceModel::setRows(const QVariantList& rows) {
             if (selectedIds.contains(id)) validSelectedIds.append(id);
         }
         state_.insert("selectedStepIds", validSelectedIds);
+    } else {
+        QStringList validSelectedIds;
+        const QStringList selectedIds = state_.value("selectedBindingIds").toStringList();
+        for (const auto& row : rows) {
+            const QString id = row.toMap().value("id").toString();
+            if (selectedIds.contains(id)) validSelectedIds.append(id);
+        }
+        state_.insert("selectedBindingIds", validSelectedIds);
     }
     setValue(macro_ ? "steps" : "bindings", rows);
 }
@@ -93,6 +102,18 @@ void PreviewWorkspaceModel::enableBinding(const QString& id, bool enabled) {
     setRows(bindings);
 }
 
+void PreviewWorkspaceModel::startStopClicked() {
+    const auto steps = rows();
+    if (macro_ && !state_.value("running").toBool()
+        && std::none_of(steps.begin(), steps.end(), [](const QVariant& step) {
+            return step.toMap().value("enabled").toBool();
+        })) {
+        emit requested("emptyMacro", {});
+        return;
+    }
+    setValue("running", !state_.value("running").toBool());
+}
+
 void PreviewWorkspaceModel::stepMoveRequested(const QString& id, int to) {
     auto steps = rows();
     int from = -1;
@@ -113,6 +134,14 @@ void PreviewWorkspaceModel::toggleStepSelection(const QString& id) {
     if (index >= 0) ids.removeAt(index);
     else ids.append(id);
     update("selectedStepIds", ids);
+}
+
+void PreviewWorkspaceModel::toggleBindingSelection(const QString& id) {
+    QStringList ids = state_.value("selectedBindingIds").toStringList();
+    const int index = ids.indexOf(id);
+    if (index >= 0) ids.removeAt(index);
+    else ids.append(id);
+    update("selectedBindingIds", ids);
 }
 
 void PreviewWorkspaceModel::sequenceSwitchKeyDeleteClicked() {

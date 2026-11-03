@@ -59,16 +59,22 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
     } else if (action == "batchDelete") {
         const auto selected = argument.toList();
         if (selected.isEmpty()) return;
-        dialog_.present("DialogMessage.qml", tr("批量删除步骤"),
-            {{"message", tr("确认删除选中的 %1 个示例步骤？").arg(selected.size())}},
+        dialog_.present("DialogMessage.qml", model_.macroMode() ? tr("批量删除步骤") : tr("批量删除按键"),
+            {{"message", model_.macroMode() ? tr("确认删除选中的 %1 个示例步骤？").arg(selected.size())
+                : tr("确认删除选中的 %1 个示例按键？").arg(selected.size())}},
             [this, selected](const QVariantMap&) {
                 QVariantList rows;
                 for (const auto& value : model_.rows()) {
                     if (!selected.contains(value.toMap().value("id"))) rows.append(value);
                 }
                 model_.setRows(rows);
-                model_.clearStepSelection();
+                if (model_.macroMode()) model_.clearStepSelection();
+                else model_.clearBindingSelection();
             }, 360, true);
+    } else if (action == "batchEdit") {
+        editRows(argument.toList());
+    } else if (action == "emptyMacro") {
+        dialog_.message(tr("无法启动"), tr("请先启用至少一个循环步骤。"));
     } else if (action.startsWith("profile")) {
         editProfile(action);
     } else if (action == "hotkey" || action == "sequence" || action == "pause") {
@@ -92,6 +98,58 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
             {"code", tr("【界面预览示例】\n默认配置\n按键 1：开关模式，10ms\n按键 侧键1：按压模式，10ms")},
             {"status", tr("此处展示导出窗口，内容为预览示例。")}});
     }
+}
+
+void PreviewWorkspaceController::editRows(const QVariantList& selected) {
+    if (selected.isEmpty()) return;
+    QVariantMap fields{{"macroMode", model_.macroMode()}, {"count", selected.size()},
+        {"modifyDelay", false}, {"delay", QStringLiteral("10")},
+        {"modifyEnabled", false}, {"enabled", true},
+        {"modifyMode", false}, {"mode", 0},
+        {"modifyPriority", false}, {"priority", true}};
+    dialog_.present("DialogBatchEdit.qml",
+        model_.macroMode() ? tr("批量修改步骤") : tr("批量修改按键"), fields,
+        [this, selected](const QVariantMap& values) {
+            auto rows = model_.rows();
+            for (auto& value : rows) {
+                auto row = value.toMap();
+                if (!selected.contains(row.value("id"))) continue;
+
+                if (values.value("modifyEnabled").toBool())
+                    row.insert("enabled", values.value("enabled").toBool());
+
+                if (model_.macroMode()) {
+                    if (values.value("modifyDelay").toBool())
+                        row.insert("delay", std::max(1, values.value("delay").toString().toInt()));
+                    value = row;
+                    continue;
+                }
+
+                const int originalMode = row.value("mode").toInt();
+                const int mode = values.value("modifyMode").toBool()
+                    ? values.value("mode").toInt() : originalMode;
+                if (values.value("modifyMode").toBool()) {
+                    static const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
+                    row.insert("mode", mode);
+                    row.insert("modeText", modes[mode]);
+                }
+                if (values.value("modifyDelay").toBool() && mode != 4)
+                    row.insert("delay", std::max(1, values.value("delay").toString().toInt()));
+                else if (mode == 4)
+                    row.insert("delay", QVariant(QStringLiteral("—")));
+
+                const bool participatesPriority = mode == 1
+                    && (values.value("modifyPriority").toBool()
+                        ? values.value("priority").toBool()
+                        : originalMode == 1 && row.value("priorityKind").toString() == QStringLiteral("enabled"));
+                row.insert("priorityText", mode == 1
+                    ? (participatesPriority ? QStringLiteral("✓") : QStringLiteral("×")) : QStringLiteral("—"));
+                row.insert("priorityKind", mode == 1 && participatesPriority
+                    ? QStringLiteral("enabled") : QStringLiteral("muted"));
+                value = row;
+            }
+            model_.setRows(rows);
+        }, model_.macroMode() ? 360 : 420);
 }
 
 int PreviewWorkspaceController::rowIndexById(const QString& id) const {

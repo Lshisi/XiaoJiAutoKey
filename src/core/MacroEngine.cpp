@@ -78,6 +78,11 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
         if (!rt.config.triggerKey.has_value()) continue;
         if (*rt.config.triggerKey != key) continue;
 
+        const auto firstStep = std::find_if(rt.config.steps.begin(), rt.config.steps.end(),
+            [](const MacroStep& step) { return step.enabled; });
+        if (firstStep == rt.config.steps.end()) continue;
+        const int firstStepIndex = static_cast<int>(firstStep - rt.config.steps.begin());
+
         if (rt.config.triggerMode == MacroTriggerMode::Toggle) {
             // 开关模式：按一次切换
             if (rt.active) {
@@ -85,7 +90,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 ResetRuntime(rt);
             } else {
                 rt.active = true;
-                rt.currentStep = 0;
+                rt.currentStep = firstStepIndex;
                 rt.loopsCompleted = 0;
                 rt.lastUpTime = {};
                 rt.waitingDelay = false;
@@ -96,7 +101,7 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
             // 按压模式：按下开始
             if (!rt.active) {
                 rt.active = true;
-                rt.currentStep = 0;
+                rt.currentStep = firstStepIndex;
                 rt.loopsCompleted = 0;
                 rt.lastUpTime = {};
                 rt.waitingDelay = false;
@@ -185,7 +190,7 @@ void MacroEngine::SyncSourceActiveKeysLocked() {
     for (const auto& runtime : macros_) {
         if (!runtime.active || !runtime.config.enabled) continue;
         for (const auto& step : runtime.config.steps) {
-            if (!step.key.IsValid()) continue;
+            if (!step.enabled || !step.key.IsValid()) continue;
             const auto encoded = EncodeKey(step.key);
             if (activeEncoded.insert(encoded).second) {
                 activeKeys.push_back(step.key);
@@ -235,8 +240,9 @@ void MacroEngine::WorkerLoop() {
 
             for (auto& rt : macros_) {
                 if (!rt.active || !rt.config.enabled) continue;
-                if (rt.config.steps.empty()) {
-                    rt.active = false;
+                if (std::none_of(rt.config.steps.begin(), rt.config.steps.end(),
+                    [](const MacroStep& step) { return step.enabled; })) {
+                    ResetRuntime(rt);
                     continue;
                 }
 
@@ -279,21 +285,20 @@ void MacroEngine::WorkerLoop() {
                     }
                     // 间隔结束，前进到下一步
                     rt.waitingDelay = false;
-                    rt.currentStep++;
-
-                    // 检查是否完成一轮
-                    if (rt.currentStep >= static_cast<int>(rt.config.steps.size())) {
-                        rt.currentStep = 0;
-                        rt.loopsCompleted++;
-
-                        // 检查循环次数限制（仅开关模式生效，按压模式持续执行直到松开）
-                        if (rt.config.triggerMode == MacroTriggerMode::Toggle
-                            && rt.config.loopCount > 0
-                            && rt.loopsCompleted >= rt.config.loopCount) {
-                            ResetRuntime(rt);
-                            continue;
+                    do {
+                        ++rt.currentStep;
+                        if (rt.currentStep >= static_cast<int>(rt.config.steps.size())) {
+                            rt.currentStep = 0;
+                            ++rt.loopsCompleted;
+                            if (rt.config.triggerMode == MacroTriggerMode::Toggle
+                                && rt.config.loopCount > 0
+                                && rt.loopsCompleted >= rt.config.loopCount) {
+                                ResetRuntime(rt);
+                                break;
+                            }
                         }
-                    }
+                    } while (!rt.config.steps[rt.currentStep].enabled);
+                    if (!rt.active) continue;
                 }
 
                 // 执行当前步骤：发送 down

@@ -3,9 +3,12 @@
 #include "config/ActiveConfigValidator.h"
 #include "controllers/ProfileController.h"
 #include "dialogs/AppMessageDialog.h"
+#include "dialogs/BatchEditDialog.h"
 #include "dialogs/BindingEditDialog.h"
+#include "dialogs/ConfigConfirmDialog.h"
 #include "dialogs/PauseKeyDialog.h"
 #include "dialogs/SequenceSwitchKeyDialog.h"
+#include "input/GlobalInputHook.h"
 #include "RepeaterEngine.h"
 #include "ui/models/KeyPageModel.h"
 
@@ -21,6 +24,8 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPageModel::editRequested, this, &KeyBindingsCoordinator::onEditBinding);
     connect(context_.page, &KeyPageModel::deleteRequested, this, &KeyBindingsCoordinator::onDeleteBinding);
     connect(context_.page, &KeyPageModel::enableToggled, this, &KeyBindingsCoordinator::onEnableToggled);
+    connect(context_.page, &KeyPageModel::batchEditRequestedImpl, this, &KeyBindingsCoordinator::onBatchEdit);
+    connect(context_.page, &KeyPageModel::batchDeleteRequestedImpl, this, &KeyBindingsCoordinator::onBatchDelete);
     connect(context_.page, &KeyPageModel::startStopClicked, this, &KeyBindingsCoordinator::onStartClicked);
     connect(context_.page, &KeyPageModel::hotkeyEditClicked, this, &KeyBindingsCoordinator::onHotkeyEditClicked);
     connect(context_.page, &KeyPageModel::hotkeyClearClicked, this, &KeyBindingsCoordinator::onHotkeyClearClicked);
@@ -50,7 +55,7 @@ void KeyBindingsCoordinator::onDeleteBinding(std::uint64_t id) {
     auto* profile = context_.controller->activeProfile();
     if (!profile) return;
 
-    context_.page->setBindings(profile->bindings);
+    context_.page->setBindings(profile->bindings, profile->id);
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();
@@ -87,7 +92,9 @@ void KeyBindingsCoordinator::onEnableToggled(std::uint64_t id, bool enabled) {
     }
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
-    context_.page->setBindings(context_.controller->activeProfile()->bindings);
+    auto* profile = context_.controller->activeProfile();
+    if (!profile) return;
+    context_.page->setBindings(profile->bindings, profile->id);
 }
 
 void KeyBindingsCoordinator::onStartClicked() {
@@ -113,8 +120,66 @@ void KeyBindingsCoordinator::onStartClicked() {
     context_.setRepeatRunning(shouldStart);
 }
 
+void KeyBindingsCoordinator::onBatchEdit(const QVariantList& bindingIds) {
+    if (!context_.controller || bindingIds.isEmpty()) return;
+
+    std::vector<std::uint64_t> ids;
+    ids.reserve(bindingIds.size());
+    for (const auto& value : bindingIds) {
+        bool ok = false;
+        const std::uint64_t id = value.toString().toULongLong(&ok);
+        if (ok) ids.push_back(id);
+    }
+    if (ids.empty()) return;
+
+    if (context_.inputHook) context_.inputHook->setDialogOpen(true);
+    BatchEditDialog dialog(false, static_cast<int>(ids.size()), context_.parent);
+    const int result = dialog.exec();
+    if (context_.inputHook) context_.inputHook->setDialogOpen(false);
+    if (result != QDialog::Accepted) return;
+
+    auto editResult = context_.controller->updateBindings(
+        ids,
+        context_.activeMacro ? context_.activeMacro() : nullptr,
+        dialog.mode(),
+        dialog.delayMs(),
+        dialog.enabled(),
+        dialog.participatePriority());
+    if (!editResult.ok) {
+        AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6279\u91cf\u4fee\u6539\u5931\u8d25"), editResult.message);
+        if (context_.refreshAll) context_.refreshAll();
+        return;
+    }
+
+    auto* profile = context_.controller->activeProfile();
+    if (!profile) return;
+    context_.page->setBindings(profile->bindings, profile->id);
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
+}
+
 void KeyBindingsCoordinator::onHotkeyEditClicked() {
     if (context_.startHotkeyCapture) context_.startHotkeyCapture();
+}
+
+void KeyBindingsCoordinator::onBatchDelete(const QVariantList& bindingIds) {
+    if (!context_.controller || !context_.inputHook || bindingIds.isEmpty()) return;
+    if (context_.engine && context_.engine->IsToolRunning()) return;
+    std::vector<std::uint64_t> ids;
+    for (const auto& value : bindingIds) ids.push_back(value.toString().toULongLong());
+
+    context_.inputHook->setDialogOpen(true);
+    const bool confirmed = ConfigConfirmDialog::confirm(context_.parent, tr("批量删除按键"),
+        tr("确定要删除选中的 %1 个按键吗？").arg(ids.size()), tr("删除"));
+    context_.inputHook->setDialogOpen(false);
+    if (!confirmed) return;
+
+    const auto result = context_.controller->deleteBindings(ids);
+    if (!result.ok) return;
+    if (context_.applyBindings) context_.applyBindings();
+    if (context_.saveConfig) context_.saveConfig();
+    if (context_.refreshAll) context_.refreshAll();
 }
 
 void KeyBindingsCoordinator::onHotkeyClearClicked() {
@@ -292,7 +357,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         return;
     }
 
-    context_.page->setBindings(profile->bindings);
+    context_.page->setBindings(profile->bindings, profile->id);
     if (context_.applyBindings) context_.applyBindings();
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshAll) context_.refreshAll();

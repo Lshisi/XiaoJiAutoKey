@@ -93,6 +93,7 @@ enum class MacroTriggerMode {
 
 struct MacroStep {
     std::uint64_t id = 0;
+    bool enabled = true;
     KeyDescriptor key;
     std::wstring name;
     int delayAfterMs = kDefaultDelayMs;

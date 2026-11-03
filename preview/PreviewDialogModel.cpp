@@ -38,8 +38,33 @@ void PreviewDialogModel::message(const QString& title, const QString& text, std:
 void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
     state_.insert(field, value);
     if (field == "mode") state_.insert("needsDelay", value.toInt() != 4);
+    if (field == "mode" && state_.value("page").toString() == QStringLiteral("DialogBatchEdit.qml")
+        && value.toInt() == 4) state_.insert("modifyDelay", false);
     if (field == "format") state_.insert("code", tr("【界面预览示例】\n默认配置\n按键 1：开关模式，10ms\n按键 侧键1：按压模式，10ms"));
+    updateBatchEditActions();
     emit dialogStateChanged();
+}
+
+void PreviewDialogModel::updateBatchEditActions() {
+    if (state_.value("page").toString() != QStringLiteral("DialogBatchEdit.qml")) return;
+
+    const bool macroMode = state_.value("macroMode").toBool();
+    bool changed = state_.value("modifyDelay").toBool() || state_.value("modifyEnabled").toBool();
+    if (!macroMode) {
+        changed = changed || state_.value("modifyMode").toBool() || state_.value("modifyPriority").toBool();
+    }
+    bool validDelay = true;
+    if (state_.value("modifyDelay").toBool()) {
+        bool ok = false;
+        const int delay = state_.value("delay").toString().toInt(&ok);
+        validDelay = ok && delay >= 1;
+    }
+
+    auto actions = state_.value("actions").toList();
+    auto confirm = actions[0].toMap();
+    confirm.insert("enabled", changed && validDelay);
+    actions[0] = confirm;
+    state_.insert("actions", actions);
 }
 
 void PreviewDialogModel::dispatch(const QString& action, const QVariant& argument) {

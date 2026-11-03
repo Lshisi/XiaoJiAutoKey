@@ -11,8 +11,11 @@ Item {
     property real contentLeftPadding: Theme.cardPadding - 1
     property real contentRightPadding: Theme.cardPadding - 1
     readonly property bool animateRows: rowModel.initialized && !rowModel.replacing && visible && Theme.motionEnabled
-    readonly property bool allStepsSelected: table.macroMode && table.page.state.steps.length > 0
-        && table.page.state.selectedStepIds.length === table.page.state.steps.length
+    readonly property var sourceRows: table.macroMode ? table.page.state.steps : table.page.state.bindings
+    readonly property var selectedIds: table.macroMode
+        ? table.page.state.selectedStepIds : table.page.state.selectedBindingIds
+    readonly property bool allRowsSelected: table.sourceRows.length > 0
+        && table.selectedIds.length === table.sourceRows.length
     property string lastFocusKey: ""
     Connections {
         target: onboardingModel
@@ -41,16 +44,19 @@ Item {
         readonly property real rowWidth: Math.max(0, list.width)
         readonly property real contentLeftPadding: table.contentLeftPadding
         readonly property real contentRightPadding: table.contentRightPadding + tableScrollBar.implicitWidth
-        readonly property int leadingWidth: table.macroMode ? 2 * Theme.compactIconSize : 42
+        readonly property real statusWidth: Math.max(Theme.iconSize + 8,
+            columnMetrics.advanceWidth(qsTr("启用")) + 12)
+        readonly property real leadingWidth: Theme.compactIconSize
+            + (table.macroMode ? Theme.compactIconSize : 0)
         readonly property int actionPadding: 4
-        readonly property int actionWidth: table.macroMode
-            ? 3 * Theme.iconSize + 2 * actionPadding
-            : 2 * Theme.iconSize + 2 * actionPadding
+        readonly property real deleteWidth: Math.max(Theme.iconSize, columnMetrics.advanceWidth(qsTr("删除")) + 16)
+        readonly property real actionWidth: (table.macroMode ? 2 : 1) * Theme.iconSize
+            + deleteWidth + 2 * actionPadding
         readonly property real minimumKeyWidth: Math.max(64, columnMetrics.advanceWidth(qsTr("侧键1")) + 22)
         readonly property real minimumModeWidth: Math.max(40, columnMetrics.advanceWidth(qsTr("模式")) + 12)
         readonly property real minimumPriorityWidth: Math.max(34, columnMetrics.advanceWidth(qsTr("优先")) + 10)
         readonly property real minimumDelayWidth: Math.max(44, columnMetrics.advanceWidth(table.macroMode ? qsTr("间隔 (ms)") : qsTr("延迟")) + 12)
-        readonly property real dataWidth: Math.max(0, rowWidth - contentLeftPadding - contentRightPadding - leadingWidth - actionWidth)
+        readonly property real dataWidth: Math.max(0, rowWidth - contentLeftPadding - contentRightPadding - leadingWidth - statusWidth - actionWidth)
         readonly property real minimumFieldsWidth: minimumKeyWidth + minimumDelayWidth
             + (table.macroMode ? 0 : minimumModeWidth + minimumPriorityWidth)
         readonly property real nameWidth: Math.min(Math.max(80, columnMetrics.advanceWidth(qsTr("名称")) + 40), Math.max(0, dataWidth - minimumFieldsWidth))
@@ -72,18 +78,18 @@ Item {
                 anchors.leftMargin: tableColumns.contentLeftPadding
                 anchors.rightMargin: tableColumns.contentRightPadding
                 spacing: 0
-                QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.leadingWidth; Layout.maximumWidth: tableColumns.leadingWidth; text: qsTr("状态"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 Item {
-                    visible: table.macroMode
                     Layout.minimumWidth: Theme.compactIconSize
                     Layout.maximumWidth: Theme.compactIconSize
                     QuietCheck {
                         anchors.centerIn: parent
                         spacing: 0
-                        checked: table.allStepsSelected
-                        enabled: table.macroMode && !table.page.state.running && table.page.state.steps.length > 0
-                        Accessible.name: qsTr("选择全部步骤")
-                        onClicked: table.page.setAllStepsSelected(checked)
+                        checked: table.allRowsSelected
+                        enabled: !table.page.state.running && table.sourceRows.length > 0
+                        Accessible.name: table.macroMode ? qsTr("选择全部步骤") : qsTr("选择全部按键")
+                        onClicked: table.macroMode
+                            ? table.page.setAllStepsSelected(checked)
+                            : table.page.setAllBindingsSelected(checked)
                     }
                 }
                 Item {
@@ -96,6 +102,7 @@ Item {
                 QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.modeWidth; Layout.maximumWidth: tableColumns.modeWidth; text: qsTr("模式"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { visible: !table.macroMode; Layout.minimumWidth: tableColumns.priorityWidth; Layout.maximumWidth: tableColumns.priorityWidth; text: qsTr("优先"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.delayWidth; Layout.maximumWidth: tableColumns.delayWidth; text: table.macroMode ? qsTr("间隔 (ms)") : qsTr("延迟"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
+                QuietLabel { Layout.minimumWidth: tableColumns.statusWidth; Layout.maximumWidth: tableColumns.statusWidth; text: qsTr("启用"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
                 QuietLabel { Layout.minimumWidth: tableColumns.actionWidth; Layout.maximumWidth: tableColumns.actionWidth; text: qsTr("操作"); horizontalAlignment: Text.AlignHCenter; color: Theme.muted }
             }
         }

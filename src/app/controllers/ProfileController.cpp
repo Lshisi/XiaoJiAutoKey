@@ -1,5 +1,7 @@
 #include "controllers/ProfileController.h"
 
+#include "config/ActiveConfigValidator.h"
+
 #include <Windows.h>
 #include <algorithm>
 
@@ -214,13 +216,19 @@ ControllerResult ProfileController::setRememberSequencePosition(bool enabled) {
 }
 
 ControllerResult ProfileController::deleteBinding(std::uint64_t id) {
+    return deleteBindings({id});
+}
+
+ControllerResult ProfileController::deleteBindings(const std::vector<std::uint64_t>& ids) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     const auto oldSize = profile->bindings.size();
     profile->bindings.erase(
         std::remove_if(profile->bindings.begin(), profile->bindings.end(),
-            [id](const KeyBinding& binding) { return binding.id == id; }),
+            [&ids](const KeyBinding& binding) {
+                return std::find(ids.begin(), ids.end(), binding.id) != ids.end();
+            }),
         profile->bindings.end());
     return oldSize == profile->bindings.size()
         ? ControllerResult::failure(QString::fromWCharArray(L"\u6309\u952e\u914d\u7f6e\u4e0d\u5b58\u5728\u3002"))
@@ -322,6 +330,66 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     binding.suppressMixedMode = suppressMixedMode;
     binding.clickPos = effectiveClickPos;
     profile->bindings.push_back(binding);
+    return ControllerResult::success();
+}
+
+ControllerResult ProfileController::updateBindings(const std::vector<std::uint64_t>& ids, const MacroConfig* activeMacro,
+    std::optional<RepeatMode> mode, std::optional<int> delayMs, std::optional<bool> enabled,
+    std::optional<bool> participatePriority) {
+    auto* profile = activeProfile();
+    if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+
+    auto candidates = profile->bindings;
+    bool found = false;
+    for (auto& binding : candidates) {
+        if (std::find(ids.begin(), ids.end(), binding.id) == ids.end()) continue;
+        found = true;
+        if (mode.has_value()) binding.mode = *mode;
+        if (delayMs.has_value() && binding.mode != RepeatMode::LongPress) {
+            binding.delayMs = std::max(*delayMs, kMinDelayMs);
+        }
+        if (enabled.has_value()) binding.enabled = *enabled;
+        if (binding.mode != RepeatMode::Hold) {
+            binding.suppressMixedMode = false;
+        } else if (participatePriority.has_value()) {
+            binding.suppressMixedMode = !*participatePriority;
+        }
+    }
+    if (!found) return ControllerResult::failure(QString::fromWCharArray(L"\u6309\u952e\u914d\u7f6e\u4e0d\u5b58\u5728\u3002"));
+
+    ProfileConfig candidateProfile = *profile;
+    candidateProfile.bindings = candidates;
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        const auto& binding = candidates[index];
+        const bool selected = std::find(ids.begin(), ids.end(), binding.id) != ids.end();
+        if (!selected) continue;
+        const QString keyName = QString::fromStdWString(GetKeyDisplayName(binding.key));
+
+        for (std::size_t otherIndex = 0; otherIndex < candidates.size(); ++otherIndex) {
+            if (otherIndex == index || candidates[otherIndex].key != binding.key
+                || candidates[otherIndex].mode != binding.mode) continue;
+            return ControllerResult::failure(QString::fromWCharArray(L"\u201c%1\u201d\u5728\u540c\u4e00\u6a21\u5f0f\u4e0b\u91cd\u590d\uff0c\u65e0\u6cd5\u4fdd\u5b58\u3002").arg(keyName));
+        }
+        if (!binding.enabled) continue;
+
+        for (std::size_t otherIndex = 0; otherIndex < candidates.size(); ++otherIndex) {
+            if (otherIndex == index || !candidates[otherIndex].enabled
+                || candidates[otherIndex].key != binding.key) continue;
+            return ControllerResult::failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u5176\u4ed6\u542f\u7528\u6309\u952e\u4f7f\u7528\uff0c\u65e0\u6cd5\u540c\u65f6\u542f\u7528\u3002").arg(keyName));
+        }
+        for (const auto& pauseKey : candidateProfile.pauseKeys) {
+            if (pauseKey == binding.key) {
+                return ControllerResult::failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002").arg(keyName));
+            }
+        }
+        auto validation = ActiveConfigValidator::validateRepeatBindingCandidate(
+            binding.key, true, &candidateProfile, activeMacro);
+        if (!validation.ok) return validation;
+    }
+
+    auto activeValidation = ActiveConfigValidator::validateActiveHotkeys(&candidateProfile, activeMacro);
+    if (!activeValidation.ok) return activeValidation;
+    profile->bindings = std::move(candidates);
     return ControllerResult::success();
 }
 

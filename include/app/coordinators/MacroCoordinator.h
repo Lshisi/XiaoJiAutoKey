@@ -57,9 +57,11 @@ private:
     void onMacroInsertStep(const QString& stepId, bool before);
     void onMacroEditStep(const QString& stepId);
     void onMacroDeleteStep(const QString& stepId);
+    void onStepEnabledToggled(const QString& stepId, bool enabled);
     void onMacroDuplicateStep(const QString& stepId);
     void onMacroBatchDuplicate(const QVariantList& stepIds);
     void onMacroBatchDelete(const QVariantList& stepIds);
+    void onMacroBatchEdit(const QVariantList& stepIds);
     void onMacroMoveStep(const QString& stepId, int targetIndex);
     void onMacroStartStopClicked();
     void onMacroHotkeyClearClicked();

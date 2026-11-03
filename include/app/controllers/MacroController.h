@@ -4,6 +4,8 @@
 #include "controllers/ControllerResult.h"
 
 #include <cstdint>
+#include <optional>
+#include <vector>
 
 class MacroController {
 public:
@@ -31,6 +33,9 @@ public:
         std::uint64_t& createdStepId, int insertIndex = -1, const ClickPosition& clickPos = {});
     ControllerResult updateStep(std::uint64_t stepId, const KeyDescriptor& key, const QString& name, int delayAfterMs,
         const ClickPosition& clickPos = {});
+    ControllerResult updateSteps(const std::vector<std::uint64_t>& stepIds, std::optional<int> delayAfterMs,
+        std::optional<bool> enabled);
+    ControllerResult setStepEnabled(std::uint64_t stepId, bool enabled);
     ControllerResult deleteStep(std::uint64_t stepId);
     ControllerResult deleteSteps(const std::vector<std::uint64_t>& stepIds);
     ControllerResult duplicateStep(std::uint64_t stepId, std::vector<std::uint64_t>& createdStepIds);

@@ -221,6 +221,7 @@ std::vector<MacroConfig> LoadMacros(const jsonlite::Object& object) {
                     if (auto* stepObj = stepItem.AsObject()) {
                         MacroStep step;
                         step.id = GetUInt64Field(*stepObj, "id").value_or(0);
+                        step.enabled = GetBoolField(*stepObj, "enabled").value_or(true);
                         if (auto name = GetStringField(*stepObj, "name")) step.name = ToWide(*name);
                         if (auto keyText = GetStringField(*stepObj, "key")) {
                             auto k = StorageToKeyDescriptor(ToWide(*keyText));
@@ -303,6 +304,7 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
         for (const auto& step : macro.steps) {
             jsonlite::Object stepObj;
             stepObj.emplace("id", static_cast<double>(step.id));
+            stepObj.emplace("enabled", step.enabled);
             stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
             if (!step.name.empty()) stepObj.emplace("name", ToUtf8(step.name));
             stepObj.emplace("delayAfterMs", step.delayAfterMs);

@@ -8,12 +8,20 @@ Item {
     required property QtObject page
     required property var entry
     required property QtObject columns
+    readonly property bool selectionActive: root.page.state.selectedBindingIds.length > 0
+    readonly property bool selected: root.page.state.selectedBindingIds.indexOf(root.entry.id) >= 0
     implicitHeight: Theme.tableRowHeight
     HoverHandler { id: rowHover }
-    MouseArea { anchors.fill: parent; onDoubleClicked: root.page.editBinding(root.entry.id) }
+    MouseArea {
+        anchors.fill: parent
+        onDoubleClicked: {
+            if (!root.selectionActive) root.page.editBinding(root.entry.id)
+        }
+    }
     Rectangle {
         anchors.fill: parent
-        color: root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent"
+        color: root.selected ? Theme.accentSoft
+            : root.enabled && rowHover.hovered ? Theme.accentSubtle : "transparent"
     }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
     RowLayout {
@@ -22,15 +30,15 @@ Item {
         anchors.rightMargin: root.columns.contentRightPadding
         spacing: 0
         Item {
-            Layout.minimumWidth: root.columns.leadingWidth
-            Layout.maximumWidth: root.columns.leadingWidth
+            Layout.minimumWidth: Theme.compactIconSize
+            Layout.maximumWidth: Theme.compactIconSize
             Layout.fillHeight: true
             QuietCheck {
                 anchors.centerIn: parent
                 spacing: 0
-                checked: root.entry.enabled
-                Accessible.name: qsTr("启用 %1").arg(root.entry.keyDisplayText)
-                onClicked: root.page.enableBinding(root.entry.id, checked)
+                checked: root.selected
+                Accessible.name: qsTr("选择 %1").arg(root.entry.keyDisplayText)
+                onClicked: root.page.toggleBindingSelection(root.entry.id)
             }
         }
         KeyCell {
@@ -49,9 +57,23 @@ Item {
             color: root.entry.priorityKind === "enabled" ? Theme.text : Theme.muted
         }
         QuietLabel { Layout.minimumWidth: root.columns.delayWidth; Layout.maximumWidth: root.columns.delayWidth; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-        Item { Layout.preferredWidth: root.columns.actionPadding }
-        IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyDisplayText); onClicked: root.page.editBinding(root.entry.id) }
-        IconButton { iconName: "delete"; hint: qsTr("删除 %1").arg(root.entry.keyDisplayText); onClicked: root.page.removeBinding(root.entry.id) }
-        Item { Layout.preferredWidth: root.columns.actionPadding }
+        WorkspaceEnabledCell {
+            Layout.minimumWidth: root.columns.statusWidth
+            Layout.maximumWidth: root.columns.statusWidth
+            Layout.fillHeight: true
+            page: root.page
+            entry: root.entry
+        }
+        Item {
+            Layout.minimumWidth: root.columns.actionWidth
+            Layout.maximumWidth: root.columns.actionWidth
+            Layout.fillHeight: true
+            Row {
+                anchors.centerIn: parent
+                visible: !root.selectionActive
+                IconButton { iconName: "edit"; hint: qsTr("编辑 %1").arg(root.entry.keyDisplayText); onClicked: root.page.editBinding(root.entry.id) }
+                ActionButton { width: root.columns.deleteWidth; height: Math.max(Theme.iconSize, implicitHeight); text: qsTr("删除"); compact: true; quiet: true; hint: qsTr("删除 %1").arg(root.entry.keyDisplayText); onClicked: root.page.removeBinding(root.entry.id) }
+            }
+        }
     }
 }

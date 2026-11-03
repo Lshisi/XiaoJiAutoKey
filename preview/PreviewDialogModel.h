@@ -27,6 +27,7 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void updateBatchEditActions();
     QVariantMap state_;
     std::function<void(const QVariantMap&)> accepted_;
     bool visible_ = false;

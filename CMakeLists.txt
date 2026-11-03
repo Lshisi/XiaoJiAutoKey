@@ -36,6 +36,7 @@ set(MOC_HEADERS
     include/app/coordinators/DriverSelfCheckCoordinator.h
     include/app/coordinators/OnboardingCoordinator.h
     include/app/dialogs/BindingEditDialog.h
+    include/app/dialogs/BatchEditDialog.h
     include/app/dialogs/AppMessageDialog.h
     include/app/dialogs/DriverSelfCheckDialog.h
     include/app/dialogs/CloseConfirmDialog.h
@@ -222,6 +223,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/dialogs/DialogChrome.cpp
     src/app/dialogs/DriverSelfCheckDialog.cpp
     src/app/dialogs/BindingEditDialog.cpp
+    src/app/dialogs/BatchEditDialog.cpp
     src/app/dialogs/CloseConfirmDialog.cpp
     src/app/dialogs/GameProcessDialog.cpp
     src/app/dialogs/KeyCaptureDialogBase.cpp
@@ -291,6 +293,7 @@ set(QML_FILES
     src/qml/MacroStepMenu.qml
     src/qml/WorkspaceRows.qml
     src/qml/WorkspaceTable.qml
+    src/qml/WorkspaceEnabledCell.qml
     src/qml/KeyWorkspace.qml
     src/qml/KeyPage.qml
     src/qml/MacroPage.qml
@@ -309,6 +312,7 @@ set(QML_FILES
     src/qml/DialogName.qml
     src/qml/DialogClose.qml
     src/qml/DialogKeyEditor.qml
+    src/qml/DialogBatchEdit.qml
     src/qml/DialogOverlaySettings.qml
     src/qml/DialogSound.qml
     src/qml/DialogProcesses.qml

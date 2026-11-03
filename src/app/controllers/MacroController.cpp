@@ -223,6 +223,34 @@ ControllerResult MacroController::updateStep(std::uint64_t stepId, const KeyDesc
     return ControllerResult::success();
 }
 
+ControllerResult MacroController::setStepEnabled(std::uint64_t stepId, bool enabled) {
+    return updateSteps({stepId}, std::nullopt, enabled);
+}
+
+ControllerResult MacroController::updateSteps(const std::vector<std::uint64_t>& stepIds, std::optional<int> delayAfterMs,
+    std::optional<bool> enabled) {
+    auto* macro = activeMacro();
+    if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+
+    auto candidates = macro->steps;
+    bool found = false;
+    for (auto& step : candidates) {
+        if (std::find(stepIds.begin(), stepIds.end(), step.id) == stepIds.end()) continue;
+        found = true;
+        if (delayAfterMs.has_value()) step.delayAfterMs = std::max(*delayAfterMs, kMinDelayMs);
+        if (enabled.has_value()) {
+            if (*enabled) {
+                const auto validation = validateStepKey(*macro, step.key);
+                if (!validation.ok) return validation;
+            }
+            step.enabled = *enabled;
+        }
+    }
+    if (!found) return ControllerResult::failure(QString::fromWCharArray(L"\u6b65\u9aa4\u4e0d\u5b58\u5728\u3002"));
+    macro->steps = std::move(candidates);
+    return ControllerResult::success();
+}
+
 ControllerResult MacroController::deleteStep(std::uint64_t stepId) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));

@@ -7,9 +7,17 @@ KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
         {"wasdProtection", false}, {"rememberSequencePosition", true},
         {"sequenceKey", tr("未设置")}, {"hasSequenceKey", false},
         {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false}, {"updateVersion", QString()}};
+    state_.insert("selectedBindingIds", QVariantList{});
 }
 
-void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings) {
+void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uint64_t profileId) {
+    if (bindingsProfileId_ != profileId) {
+        bindingsProfileId_ = profileId;
+        state_.insert("selectedBindingIds", QVariantList{});
+    }
+
+    QVariantList validSelectedIds;
+    const auto selectedIds = state_.value("selectedBindingIds").toList();
     QVariantList rows;
     bool hasSequence = false;
     for (const auto& binding : bindings) {
@@ -18,7 +26,9 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings) {
         const std::wstring keyName = GetKeyDisplayName(binding.key);
         const std::wstring displayName = binding.name.empty()
             ? keyName : keyName + L" · " + binding.name;
-        rows.push_back(QVariantMap{{"id", QString::number(binding.id)}, {"enabled", binding.enabled},
+        const QString id = QString::number(binding.id);
+        if (selectedIds.contains(id)) validSelectedIds.push_back(id);
+        rows.push_back(QVariantMap{{"id", id}, {"enabled", binding.enabled},
             {"keyText", QString::fromStdWString(keyName)},
             {"name", QString::fromStdWString(binding.name)},
             {"keyDisplayText", QString::fromStdWString(displayName)},
@@ -34,7 +44,17 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings) {
                     .arg(binding.clickPos.anchorY * 100, 0, 'f', 1) : QString()}});
     }
     state_.insert("hasSequenceBindings", hasSequence);
+    state_.insert("selectedBindingIds", validSelectedIds);
     setValue("bindings", rows);
+}
+
+void KeyPageModel::toggleBindingSelection(const QString& bindingId) {
+    auto ids = state_.value("selectedBindingIds").toList();
+    const int index = ids.indexOf(bindingId);
+    if (index >= 0) ids.removeAt(index);
+    else ids.push_back(bindingId);
+    state_.insert("selectedBindingIds", ids);
+    emit stateChanged();
 }
 
 void KeyPageModel::setRunning(bool value) {

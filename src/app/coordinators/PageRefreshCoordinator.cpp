@@ -29,7 +29,7 @@ void PageRefreshCoordinator::refreshAll() {
         : QString();
     const QString hotkeyText = hotkey.isEmpty() ? QString::fromWCharArray(L"\u672a\u8bbe\u7f6e") : hotkey;
 
-    context_.view->keyPage()->setBindings(profile->bindings);
+    context_.view->keyPage()->setBindings(profile->bindings, profile->id);
     context_.view->keyPage()->setProfileEnabled(profile->enabled);
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
     context_.view->keyPage()->setHotkeyText(hotkeyText);

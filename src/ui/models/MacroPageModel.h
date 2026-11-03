@@ -35,21 +35,25 @@ public:
         emit stateChanged();
     }
     Q_INVOKABLE void toggleStepSelection(const QString& stepId);
+    Q_INVOKABLE void enableStep(const QString& stepId, bool enabled) { emit stepEnabledToggled(stepId, enabled); }
     Q_INVOKABLE void insertStepBeforeRequested(const QString& stepId) { emit insertStepRequested(stepId, true); }
     Q_INVOKABLE void insertStepAfterRequested(const QString& stepId) { emit insertStepRequested(stepId, false); }
     Q_INVOKABLE void duplicateStepRequested(const QString& stepId) { emit duplicateStepRequestedImpl(stepId); }
     Q_INVOKABLE void batchDuplicateRequested() { emit batchDuplicateRequestedImpl(state_.value("selectedStepIds").toList()); }
     Q_INVOKABLE void batchDeleteRequested() { emit batchDeleteRequestedImpl(state_.value("selectedStepIds").toList()); }
+    Q_INVOKABLE void batchEditRequested() { emit batchEditRequestedImpl(state_.value("selectedStepIds").toList()); }
 
 signals:
     void addStepRequested();
     void insertStepRequested(const QString& stepId, bool before);
     void editStepRequested(const QString& stepId);
     void deleteStepRequested(const QString& stepId);
+    void stepEnabledToggled(const QString& stepId, bool enabled);
     void duplicateStepRequestedImpl(const QString& stepId);
     void stepMoveRequested(const QString& stepId, int targetIndex);
     void batchDuplicateRequestedImpl(const QVariantList& stepIds);
     void batchDeleteRequestedImpl(const QVariantList& stepIds);
+    void batchEditRequestedImpl(const QVariantList& stepIds);
     void macroSwitched(quint64 id);
     void macroAddRequested();
     void macroDuplicateRequested();

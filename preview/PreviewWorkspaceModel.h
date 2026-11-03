@@ -18,6 +18,7 @@ public:
     Q_INVOKABLE void editBinding(const QString& id) { emit requested("edit", id); }
     Q_INVOKABLE void removeBinding(const QString& id) { emit requested("remove", id); }
     Q_INVOKABLE void enableBinding(const QString& id, bool enabled);
+    Q_INVOKABLE void enableStep(const QString& id, bool enabled) { enableBinding(id, enabled); }
     Q_INVOKABLE void addRequested() { emit requested("add", {}); }
     Q_INVOKABLE void addStepRequested() { emit requested("add", {}); }
     Q_INVOKABLE void editStepRequested(const QString& id) { emit requested("edit", id); }
@@ -40,8 +41,24 @@ public:
     }
     Q_INVOKABLE void toggleStepSelection(const QString& id);
     Q_INVOKABLE void batchDuplicateRequested() { emit requested("batchDuplicate", state_.value("selectedStepIds")); }
-    Q_INVOKABLE void batchDeleteRequested() { emit requested("batchDelete", state_.value("selectedStepIds")); }
-    Q_INVOKABLE void startStopClicked() { setValue("running", !state_.value("running").toBool()); }
+    Q_INVOKABLE void batchDeleteRequested() {
+        emit requested("batchDelete", state_.value(macro_ ? "selectedStepIds" : "selectedBindingIds"));
+    }
+    Q_INVOKABLE void batchEditRequested() {
+        emit requested("batchEdit", macro_
+            ? state_.value("selectedStepIds") : state_.value("selectedBindingIds"));
+    }
+    Q_INVOKABLE void clearBindingSelection() { update("selectedBindingIds", QStringList{}); }
+    Q_INVOKABLE void setAllBindingsSelected(bool selected) {
+        QStringList ids;
+        if (selected) {
+            const auto bindings = state_.value("bindings").toList();
+            for (const auto& binding : bindings) ids.append(binding.toMap().value("id").toString());
+        }
+        update("selectedBindingIds", ids);
+    }
+    Q_INVOKABLE void toggleBindingSelection(const QString& id);
+    Q_INVOKABLE void startStopClicked();
     Q_INVOKABLE void profileEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void macroEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void beepToggled(bool enabled) { setValue("beepEnabled", enabled); }

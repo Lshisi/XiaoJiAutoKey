@@ -31,7 +31,7 @@ void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, std::uint64_t
         const std::wstring displayName = name.empty() ? keyName : keyName + L" · " + name;
         const QString id = QString::number(step.id);
         if (selectedIds.contains(id)) validSelectedIds.push_back(id);
-        rows.push_back(QVariantMap{{"id", id}, {"keyText", QString::fromStdWString(keyName)},
+        rows.push_back(QVariantMap{{"id", id}, {"enabled", step.enabled}, {"keyText", QString::fromStdWString(keyName)},
             {"name", QString::fromStdWString(name)},
             {"keyDisplayText", QString::fromStdWString(displayName)},
             {"delay", step.delayAfterMs}, {"positionHint", fixed

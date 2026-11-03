@@ -252,6 +252,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
         for (const auto& step : macro.steps) {
             jsonlite::Object stepObj;
             stepObj.emplace("key", EncodeKey(step.key));
+            stepObj.emplace("enabled", step.enabled);
             if (!step.name.empty()) stepObj.emplace("name", WideToUtf8(step.name));
             stepObj.emplace("delayAfterMs", ClampDelay(step.delayAfterMs));
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
@@ -402,6 +403,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             auto key = DecodeKeyField(*stepObj, "key");
                             if (!key.has_value()) continue;
                             MacroStep step;
+                            step.enabled = BoolField(*stepObj, "enabled").value_or(true);
                             step.key = *key;
                             if (auto name = StringField(*stepObj, "name")) {
                                 if (name->size() <= 64) step.name = Utf8ToWide(*name);
@@ -796,7 +798,8 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
         out += std::string(kTokenMacroSettings) + ":" + settings + "\n";
         std::string steps;
         for (const auto& step : macro.steps) {
-            steps += " " + EncodeKey(step.key) + "+" + std::to_string(ClampDelay(step.delayAfterMs));
+            steps += std::string(" ") + (step.enabled ? "" : "!")
+                + EncodeKey(step.key) + "+" + std::to_string(ClampDelay(step.delayAfterMs));
             if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
                 // 固定点位后缀 @x%,y%；旧版本解析到延迟即止，可安全忽略
                 steps += "@" + PercentValue(std::clamp(step.clickPos.anchorX, 0.0, 1.0))
@@ -957,10 +960,13 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 if (currentMacro->steps.size() >= kMaxStepsPerMacro) break;
                 const auto plus = token.rfind('+');
                 if (plus == std::string::npos) continue;
-                auto key = DecodeKey(token.substr(0, plus));
+                const bool enabled = token.front() != '!';
+                const std::size_t keyStart = enabled ? 0 : 1;
+                auto key = DecodeKey(token.substr(keyStart, plus - keyStart));
                 if (!key.has_value()) continue;
                 const std::string delayPart = token.substr(plus + 1);
                 MacroStep step;
+                step.enabled = enabled;
                 step.key = *key;
                 step.delayAfterMs = ClampDelay(std::atoi(delayPart.c_str()));
                 const auto at = delayPart.find('@');

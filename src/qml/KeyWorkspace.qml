@@ -7,8 +7,9 @@ Item {
     id: workspace
     required property QtObject page
     property bool macroMode: false
-    readonly property bool hasStepSelection: workspace.macroMode
-        && workspace.page.state.selectedStepIds.length > 0
+    readonly property var selectedIds: workspace.macroMode
+        ? workspace.page.state.selectedStepIds : workspace.page.state.selectedBindingIds
+    readonly property bool hasSelection: workspace.selectedIds.length > 0
     readonly property var guideTargets: ({
         profile: profileToolbar, add: addButton, mode: keyTable.guideRow,
         hotkey: hotkeyPanel, run: runPanel, pause: shortcutBar,
@@ -37,13 +38,13 @@ Item {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
                     QuietHeading {
-                        visible: !workspace.hasStepSelection
+                        visible: !workspace.hasSelection
                         text: workspace.macroMode ? qsTr("循环列表") : qsTr("按键列表")
                         pageTitle: true
                     }
                     QuietHeading {
-                        visible: workspace.hasStepSelection
-                        text: qsTr("已选 %1 项").arg(workspace.page.state.selectedStepIds.length)
+                        visible: workspace.hasSelection
+                        text: qsTr("已选 %1 项").arg(workspace.selectedIds.length)
                         pageTitle: true
                     }
                     ActionButton {
@@ -55,7 +56,15 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     ActionButton {
-                        visible: workspace.hasStepSelection
+                        visible: workspace.hasSelection
+                        text: qsTr("修改参数")
+                        compact: true
+                        quiet: true
+                        enabled: !workspace.page.state.running
+                        onClicked: workspace.page.batchEditRequested()
+                    }
+                    ActionButton {
+                        visible: workspace.hasSelection && workspace.macroMode
                         text: qsTr("复制")
                         compact: true
                         quiet: true
@@ -63,24 +72,25 @@ Item {
                         onClicked: workspace.page.batchDuplicateRequested()
                     }
                     ActionButton {
-                        visible: workspace.hasStepSelection
+                        visible: workspace.hasSelection
                         text: qsTr("删除")
                         compact: true
                         quiet: true
-                        destructive: true
                         enabled: !workspace.page.state.running
                         onClicked: workspace.page.batchDeleteRequested()
                     }
                     ActionButton {
-                        visible: workspace.hasStepSelection
+                        visible: workspace.hasSelection
                         text: qsTr("取消选择")
                         compact: true
                         quiet: true
-                        onClicked: workspace.page.clearStepSelection()
+                        onClicked: workspace.macroMode
+                            ? workspace.page.clearStepSelection()
+                            : workspace.page.clearBindingSelection()
                     }
                     ActionButton {
                         id: addButton
-                        visible: !workspace.hasStepSelection
+                        visible: !workspace.hasSelection
                         text: qsTr("添加按键")
                         leadingIcon: "add"
                         compact: true

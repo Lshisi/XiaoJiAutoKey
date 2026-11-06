@@ -24,6 +24,7 @@ Rectangle {
             color: picker.hint.textColor
             font.family: picker.hint.fontFamily
             font.pixelSize: Typography.bodyFontSize
+            font.weight: Font.Normal
             font.hintingPreference: Typography.fontHintingPreference
             renderType: Typography.textRenderType
             renderTypeQuality: Typography.textRenderQuality

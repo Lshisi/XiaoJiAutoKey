@@ -11,7 +11,6 @@ void MainWindow::setupHooks() {
         return inputDriver_.ConsumeSelfInjected(key, pressed);
     });
     inputHook_.setPhysicalInputFilter([this](const KeyDescriptor& key) {
-        inputDriver_.NotePhysicalKey(key, true);
         return inputDriver_.IsHeldDown(key);
     });
 

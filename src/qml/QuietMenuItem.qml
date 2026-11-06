@@ -7,6 +7,7 @@ MenuItem {
     implicitHeight: Math.max(36, contentItem.implicitHeight + 12)
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
+    font.weight: Font.Normal
     font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     contentItem: Text {

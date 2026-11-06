@@ -33,7 +33,7 @@ ColumnLayout {
             textFormat: Text.PlainText
             font.family: block.appearance.fontFamily
             font.pixelSize: block.appearance.fontPixelSize
-            font.weight: Font.DemiBold
+            font.weight: Typography.headingWeight
             font.hintingPreference: Typography.fontHintingPreference
             color: block.appearance.text
             elide: Text.ElideRight
@@ -58,6 +58,7 @@ ColumnLayout {
                 textFormat: Text.PlainText
                 font.family: block.appearance.fontFamily
                 font.pixelSize: block.appearance.fontPixelSize
+                font.weight: Font.Normal
                 font.hintingPreference: Typography.fontHintingPreference
                 color: block.appearance.muted
                 elide: Text.ElideRight

@@ -67,7 +67,7 @@ public:
     Q_INVOKABLE void macroEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void beepToggled(bool enabled) { setValue("beepEnabled", enabled); }
     Q_INVOKABLE void statusOverlayToggled(bool enabled) { setValue("overlayEnabled", enabled); }
-    Q_INVOKABLE void mixedModeToggled(bool enabled) { setValue("mixedMode", enabled); }
+    Q_INVOKABLE void mixedModeToggled(bool enabled);
     Q_INVOKABLE void wasdProtectionToggled(bool enabled) { setValue("wasdProtection", enabled); }
     Q_INVOKABLE void rememberSequencePositionChanged(bool enabled) { setValue("rememberSequencePosition", enabled); }
     Q_INVOKABLE void modeChanged(int value);

@@ -95,6 +95,7 @@ set(CORE_SOURCES
     src/core/Ch552UsbDriver.cpp
     src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
+    src/core/RepeatModeRules.cpp
     src/core/ShareCodec.cpp
 )
 

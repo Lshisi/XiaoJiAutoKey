@@ -56,6 +56,7 @@ Item {
                 wrapMode: Text.Wrap
                 font.family: overlay.appearance.fontFamily
                 font.pixelSize: overlay.appearance.fontPixelSize
+                font.weight: Font.Normal
                 font.hintingPreference: Typography.fontHintingPreference
                 renderType: Typography.textRenderType
                 renderTypeQuality: Typography.textRenderQuality

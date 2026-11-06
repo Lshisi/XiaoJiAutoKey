@@ -86,7 +86,10 @@ private:
     void AdvanceSequenceSelectionLocked();
     void RememberSequenceSelectionLocked();
     void ClearRememberedSequenceSelectionLocked();
-    void SyncSourceActiveKeysLocked();
+    [[nodiscard]] bool IsTaskActiveLocked(const TaskRuntime& task,
+        std::chrono::steady_clock::time_point now) const;
+    bool SyncOutputsLocked();
+    void RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key);
     static std::chrono::steady_clock::time_point Now();
 
     InputDriver& driver_;
@@ -94,7 +97,6 @@ private:
     std::atomic<bool> exit_{false};
     std::atomic<bool> running_{false};
     std::atomic<bool> suspended_{false};
-    std::atomic<std::uint64_t> runGeneration_{0};
     std::thread worker_;
     PrecisionWaiter waiter_;
 
@@ -124,6 +126,7 @@ private:
     bool IsIndependentBinding(const KeyDescriptor& key) const;
     bool IsHoldActive() const;
     bool IsWasdProtectionActive() const;
+    bool HasSharedLongPressModifierLocked() const;
 
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> independentDown_;
     std::unordered_map<std::uint64_t, int> independentDownIgnoreCount_;
@@ -137,4 +140,9 @@ private:
     bool rememberSequencePosition_ = true;
     std::unordered_map<std::uint64_t, std::uint64_t> sequenceSelectionByProfile_;
     std::unordered_set<std::uint64_t> sourceActiveKeys_;
+    struct OutputState {
+        KeyDescriptor key;
+        bool held = false;
+    };
+    std::vector<OutputState> outputs_;
 };

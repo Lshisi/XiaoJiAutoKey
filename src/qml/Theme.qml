@@ -54,7 +54,7 @@ QtObject {
     readonly property int primaryHeight: 32
     readonly property int iconSize: 32
     readonly property int compactIconSize: 24
-    readonly property int smallIconGlyphSize: 10
+    readonly property int smallIconGlyphSize: 12
     readonly property int shortcutTextMaxWidth: 72
     readonly property int shortcutRemoveWidth: 18
     readonly property int shortcutTagPadding: 6
@@ -66,7 +66,7 @@ QtObject {
     readonly property int captionFontSize: Typography.captionFontSize
     readonly property int cardTitleFontSize: Typography.cardTitleFontSize
     readonly property int pageTitleFontSize: Typography.pageTitleFontSize
-    readonly property int iconGlyphSize: 12
+    readonly property int iconGlyphSize: 14
     readonly property int navGlyphSize: 16
     readonly property int headingWeight: Typography.headingWeight
     readonly property int fontHintingPreference: Typography.fontHintingPreference

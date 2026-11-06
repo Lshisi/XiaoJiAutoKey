@@ -18,12 +18,15 @@ QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize
     const QSize intrinsicSize = renderer.defaultSize();
     if (size) *size = intrinsicSize;
     const QSize imageSize = requestedSize.isValid() ? requestedSize : intrinsicSize;
-    QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
+    // Supersample small SVG strokes even on screens with a device pixel ratio of 1.
+    QImage image(imageSize * 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing);
-    renderer.render(&painter);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(image.rect(), color);
-    return image;
+    {
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing);
+        renderer.render(&painter);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(image.rect(), color);
+    }
+    return image.scaled(imageSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 }

@@ -220,7 +220,16 @@ std::string ToUtf8(const std::wstring& text);
 
 std::wstring GetKeyDisplayName(const KeyDescriptor& key);
 [[nodiscard]] bool IsKeyboardModifierKey(const KeyDescriptor& key) noexcept;
-[[nodiscard]] std::uint8_t ModifierMaskFromKey(const KeyDescriptor& key) noexcept;
+[[nodiscard]] inline std::uint8_t ModifierMaskFromKey(const KeyDescriptor& key) noexcept {
+    if (key.device != InputDevice::Keyboard) return 0;
+    // Virtual-key values also form the platform-neutral configuration format.
+    switch (key.code) {
+    case 0x11: case 0xA2: case 0xA3: return kKeyModifierCtrl;
+    case 0x10: case 0xA0: case 0xA1: return kKeyModifierShift;
+    case 0x12: case 0xA4: case 0xA5: return kKeyModifierAlt;
+    default: return 0;
+    }
+}
 [[nodiscard]] std::wstring ModifierPrefix(std::uint8_t modifiers);
 [[nodiscard]] bool SamePrimaryKey(const KeyDescriptor& left, const KeyDescriptor& right) noexcept;
 [[nodiscard]] bool KeyMatchesEvent(const KeyDescriptor& binding, const KeyDescriptor& event) noexcept;

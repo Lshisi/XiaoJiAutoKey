@@ -62,7 +62,7 @@ QuietScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     QuietLabel { text: qsTr("概要") }
-                    QuietLabel { Layout.fillWidth: true; text: root.page.state.summary; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
+                    QuietLabel { Layout.fillWidth: true; text: root.page.state.summary; font.weight: Theme.headingWeight; horizontalAlignment: Text.AlignRight }
                 }
                 QuietTextArea {
                     Layout.fillWidth: true

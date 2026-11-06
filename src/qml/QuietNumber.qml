@@ -11,6 +11,7 @@ SpinBox {
     editable: true
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
+    font.weight: Font.Normal
     font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     palette.text: Theme.text

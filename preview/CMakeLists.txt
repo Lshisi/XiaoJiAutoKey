@@ -38,6 +38,7 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     ${PROJECT_ROOT}/src/core/MacroTiming.cpp
     ${PROJECT_ROOT}/src/core/MacroActions.cpp
     ${PROJECT_ROOT}/src/core/MacroRecording.cpp
+    ${PROJECT_ROOT}/src/core/RepeatModeRules.cpp
     ${PROJECT_ROOT}/src/ui/components/QmlIconProvider.h
     ${PROJECT_ROOT}/src/ui/components/QmlIconProvider.cpp
 )
@@ -47,6 +48,10 @@ list(APPEND PREVIEW_QML_FILES PreviewWindow.qml PreviewDialogWindow.qml PreviewO
 foreach(qml_file IN LISTS PREVIEW_QML_FILES)
     get_filename_component(qml_name "${qml_file}" NAME)
     set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")
+    if(WIN32 AND IS_ABSOLUTE "${qml_file}")
+        # Qt 6.8 cachegen puts a trailing ".." in the shared-source output directory.
+        set_source_files_properties("${qml_file}" PROPERTIES QT_QML_SKIP_CACHEGEN TRUE)
+    endif()
 endforeach()
 set_source_files_properties("${PROJECT_ROOT}/src/qml/Theme.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties("${PROJECT_ROOT}/src/qml/Typography.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

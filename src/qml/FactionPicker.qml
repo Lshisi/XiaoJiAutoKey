@@ -20,8 +20,7 @@ ActionButton {
     onClicked: factionPopup.open()
     FontMetrics {
         id: popupMetrics
-        font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font: root.font
     }
     contentItem: RowLayout {
         spacing: 7

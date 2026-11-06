@@ -57,7 +57,7 @@ QuietScrollView {
                             Layout.fillWidth: true
                             spacing: 3
                             QuietLabel { text: qsTr("门派主题"); color: Theme.muted }
-                            QuietLabel { text: Theme.colors.factionName; font.weight: Font.Bold }
+                            QuietLabel { text: Theme.colors.factionName; font.weight: Theme.headingWeight }
                             Rectangle { Layout.fillWidth: true; implicitHeight: 3; radius: 1.5; color: Theme.accent }
                         }
                         FactionPicker { Layout.preferredWidth: 120 }

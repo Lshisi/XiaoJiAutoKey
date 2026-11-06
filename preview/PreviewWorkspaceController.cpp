@@ -93,6 +93,8 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
         editRows(argument.toList());
     } else if (action == "emptyMacro") {
         dialog_.message(tr("无法启动"), tr("请先启用至少一个循环步骤。"));
+    } else if (action == "keyConflict") {
+        dialog_.message(tr("按键冲突"), argument.toString());
     } else if (action.startsWith("profile")) {
         editProfile(action);
     } else if (action == "recordMacro") {

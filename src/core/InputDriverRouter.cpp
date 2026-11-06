@@ -83,7 +83,9 @@ bool InputDriverRouter::SendTap(const KeyDescriptor& key, InputSource src) {
 
 bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
     std::lock_guard lock(mutex_);
-    return SendComboDownLocked(key, src);
+    const bool sent = SendComboDownLocked(key, src);
+    PublishHeldKeysLocked();
+    return sent;
 }
 
 bool InputDriverRouter::SendHeldDown(const KeyDescriptor& key, InputSource src) {
@@ -99,17 +101,16 @@ bool InputDriverRouter::SendHeldDown(const KeyDescriptor& key, InputSource src) 
         if (allActive) {
             for (const auto& component : components) {
                 const auto encoded = EncodeKey(component);
-                heldKeys.push_back(encoded);
-                state.heldKeys.insert(encoded);
+                if (state.heldKeys.insert(encoded).second) heldKeys.push_back(encoded);
             }
         }
     }
     const bool sent = SendComboDownLocked(key, src);
-    PublishHeldKeysLocked();
     if (!sent && IsArbitratedSource(src)) {
         auto& state = StateFor(src);
         for (const auto encoded : heldKeys) state.heldKeys.erase(encoded);
     }
+    PublishHeldKeysLocked();
     return sent;
 }
 
@@ -174,6 +175,8 @@ bool InputDriverRouter::SendComboDownLocked(const KeyDescriptor& key, InputSourc
         const auto modifierMask = ModifierMaskFromKey(component);
         if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
         const auto encoded = EncodeKey(component);
+        const auto existingDown = forwardedDown_.find(encoded);
+        const bool alreadyDown = existingDown != forwardedDown_.end() && existingDown->second == src;
         if (!SendDownLocked(component, src)) {
             for (auto it = sent.rbegin(); it != sent.rend(); ++it) {
                 const auto forwarded = forwardedDown_.find(*it);
@@ -183,7 +186,7 @@ bool InputDriverRouter::SendComboDownLocked(const KeyDescriptor& key, InputSourc
             }
             return false;
         }
-        sent.push_back(encoded);
+        if (!alreadyDown) sent.push_back(encoded);
     }
     return true;
 }
@@ -295,6 +298,9 @@ bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool press
 }
 
 bool InputDriverRouter::IsHeldDown(const KeyDescriptor& key) const noexcept {
+    // Physical modifiers must reach Raw Input to keep chord snapshots accurate.
+    // The engine restores a held request after a real physical release.
+    if (IsKeyboardModifierKey(key)) return false;
     const auto heldKeys = heldDownKeys_.load();
     if (!heldKeys) return false;
     const auto components = KeyComponents(key);
@@ -347,20 +353,20 @@ void InputDriverRouter::RecomputeOwnersLocked() {
             repeaterOrder < macro->second ? InputSource::Repeater : InputSource::Macro);
     }
 
-    for (auto it = forwardedDown_.begin(); it != forwardedDown_.end();) {
-        const auto encoded = it->first;
-        const auto source = it->second;
+    std::vector<std::uint64_t> releases;
+    for (const auto& [encoded, source] : forwardedDown_) {
         const auto owner = updatedOwners.find(encoded);
         const bool sourceStillOwnsKey = StateFor(source).activeKeys.count(encoded) > 0;
         const bool ownershipChanged = owner != updatedOwners.end() && owner->second != source;
         if (!sourceStillOwnsKey || ownershipChanged) {
-            const auto current = it++;
-            if (driver_ && driver_->SendUp(DecodeKey(encoded), source)) {
-                forwardedDown_.erase(current);
-            }
-            continue;
+            releases.push_back(encoded);
         }
-        ++it;
+    }
+    std::stable_sort(releases.begin(), releases.end(), [](const auto left, const auto right) {
+        return IsKeyboardModifierKey(DecodeKey(left)) < IsKeyboardModifierKey(DecodeKey(right));
+    });
+    for (const auto encoded : releases) {
+        ReleaseForwardedKeyLocked(encoded);
     }
 
     owners_ = std::move(updatedOwners);

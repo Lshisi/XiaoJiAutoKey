@@ -1,10 +1,62 @@
 #include "PreviewWorkspaceModel.h"
 #include "MacroTiming.h"
 #include "MacroActions.h"
+#include "RepeatModeRules.h"
 #include "ui/models/KeyOverviewData.h"
 
 #include <QStringList>
 #include <algorithm>
+
+namespace {
+
+KeyBinding Binding(const QVariantMap& row) {
+    KeyBinding binding;
+    binding.key = KeyOverviewData::descriptor(row.value("key").toMap());
+    binding.mode = static_cast<RepeatMode>(row.value("mode").toInt());
+    binding.enabled = row.value("enabled").toBool();
+    binding.suppressMixedMode = row.value("priorityKind").toString() != QStringLiteral("enabled");
+    return binding;
+}
+
+QString BindingConflict(const QVariantList& rows, bool mixedMode) {
+    for (int index = 0; index < rows.size(); ++index) {
+        const auto first = rows[index].toMap();
+        for (int otherIndex = index + 1; otherIndex < rows.size(); ++otherIndex) {
+            const auto second = rows[otherIndex].toMap();
+            QString reason;
+            switch (CheckRepeatBindingPair(Binding(first), Binding(second), mixedMode)) {
+            case RepeatBindingConflict::None: continue;
+            case RepeatBindingConflict::Duplicate:
+                reason = QObject::tr("同一按键和模式不能重复配置。");
+                break;
+            case RepeatBindingConflict::SharedTrigger:
+                reason = QObject::tr("同一次物理按键不能同时作为按压触发和独立启停触发。");
+                break;
+            case RepeatBindingConflict::HeldTrigger:
+                reason = QObject::tr("主键已由长按保持，无法再用同一物理按键可靠地触发按压或独立启停。");
+                break;
+            case RepeatBindingConflict::ModifierTrigger:
+                reason = QObject::tr("单独修饰键的独立启停会在组合键主键按下前先触发。");
+                break;
+            case RepeatBindingConflict::SharedPrimary:
+                reason = QObject::tr("这两种模式会同时输出同一主键，按下、松开会互相干扰。");
+                break;
+            case RepeatBindingConflict::PulsedModifier:
+                reason = QObject::tr("修饰键的连发会打断另一项需要的按住状态；需要持续按住时请使用长按模式。");
+                break;
+            case RepeatBindingConflict::ModifierState:
+                reason = QObject::tr("这两种模式会同时输出，但需要不同的修饰键状态。");
+                break;
+            }
+            return QObject::tr("“%1”（%2）与“%3”（%4）冲突：%5")
+                .arg(first.value("keyText").toString(), first.value("modeText").toString(),
+                    second.value("keyText").toString(), second.value("modeText").toString(), reason);
+        }
+    }
+    return {};
+}
+
+}
 
 PreviewWorkspaceModel::PreviewWorkspaceModel(bool macro, QObject* parent) : PageModel(parent), macro_(macro) {
     reset(true);
@@ -39,7 +91,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
             {InputDevice::Mouse, 5}, {InputDevice::Keyboard, 0x71}, {InputDevice::Keyboard, 0x33}, {InputDevice::Keyboard, 0x10}};
         for (int index = 0; index < (macro_ ? 3 : keys.size()); ++index) {
             const QString name = names[index];
-            rows.append(QVariantMap{{"id", QString::number(index + 1)}, {"enabled", true},
+            rows.append(QVariantMap{{"id", QString::number(index + 1)}, {"enabled", macro_ || index != 0},
                 {"key", KeyOverviewData::key(descriptors[index], keys[index])},
                 {"keyText", keys[index]}, {"name", name},
                 {"keyDisplayText", name.isEmpty() ? keys[index] : QStringLiteral("%1 · %2").arg(keys[index], name)},
@@ -65,6 +117,14 @@ void PreviewWorkspaceModel::update(const QString& field, const QVariant& value) 
 }
 
 void PreviewWorkspaceModel::setRows(const QVariantList& inputRows) {
+    if (!macro_) {
+        const auto conflict = BindingConflict(inputRows, state_.value("mixedMode").toBool());
+        if (!conflict.isEmpty()) {
+            emit requested("keyConflict", conflict);
+            emit stateChanged();
+            return;
+        }
+    }
     QVariantList rows = inputRows;
     if (macro_) {
         for (auto& value : rows) {
@@ -134,6 +194,16 @@ void PreviewWorkspaceModel::enableBinding(const QString& id, bool enabled) {
         }
     }
     setRows(bindings);
+}
+
+void PreviewWorkspaceModel::mixedModeToggled(bool enabled) {
+    const auto conflict = BindingConflict(rows(), enabled);
+    if (!conflict.isEmpty()) {
+        emit requested("keyConflict", conflict);
+        emit stateChanged();
+        return;
+    }
+    setValue("mixedMode", enabled);
 }
 
 void PreviewWorkspaceModel::refreshSequenceSelection() {

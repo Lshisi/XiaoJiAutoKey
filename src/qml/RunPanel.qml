@@ -37,8 +37,8 @@ QuietCard {
                     name: root.pageState.running ? "stop" : "play"
                     color: runButton.foregroundColor
                     pixelSize: Theme.iconGlyphSize
-                    Layout.preferredWidth: 12
-                    Layout.preferredHeight: 12
+                    Layout.preferredWidth: Theme.iconGlyphSize
+                    Layout.preferredHeight: Theme.iconGlyphSize
                 }
                 QuietLabel {
                     text: runButton.actionText

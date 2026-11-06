@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>本地输入查看 · 小叽按键</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #edf0ec; --paper: #fafbf8; --ink: #26342d; --muted: #56675d;
+      --line: #cbd5cc; --accent: #176448; --tint: #e2efe6; --warn: #8d5218;
+      --radius: 12px; --mono: "Cascadia Mono", Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #171e1a; --paper: #222b25; --ink: #eaf0e9; --muted: #b1c1b4;
+        --line: #435448; --accent: #91dab0; --tint: #2b4434; --warn: #efbd7a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 28px; color: var(--ink);
+      background: linear-gradient(125deg, var(--paper), var(--page));
+      font: 14px/1.65 "Bahnschrift", "Microsoft YaHei", sans-serif;
+    }
+    main { max-width: 1320px; margin: auto; }
+    h1 { margin: 0; font-size: 29px; font-weight: 600; }
+    h2 { margin: 0; font-size: 17px; font-weight: 600; }
+    h3 { margin: 16px 0 8px; font-size: 14px; }
+    p { margin: 6px 0; }
+    code, table, .number, #chord, #coordinates { font-family: var(--mono); }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .heading, .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .heading { justify-content: space-between; }
+    .panel { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; margin-top: 18px; }
+    .section { margin-top: 16px; }
+    button, select, input[type="search"] {
+      min-height: 34px; padding: 6px 12px; border: 1px solid var(--line);
+      border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { background: var(--tint); }
+    button:disabled { opacity: .5; cursor: default; }
+    button.primary { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+    label { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+    input[type="search"] { flex: 1 1 220px; min-width: 150px; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    #status { color: var(--warn); }
+    #status[data-active="true"] { color: var(--accent); }
+    #capture {
+      position: relative; margin-top: 14px; min-height: 244px; padding: 20px;
+      border: 2px dashed var(--line); border-radius: 10px; cursor: crosshair;
+      user-select: none; touch-action: none; overflow-wrap: anywhere;
+    }
+    #capture:focus { border-style: solid; border-color: var(--accent); outline: none; }
+    #capture:focus-visible { box-shadow: inset 0 0 0 2px var(--paper); outline: 2px solid var(--accent); outline-offset: 3px; }
+    #chord { min-height: 48px; margin: 6px 0; font-size: clamp(23px, 3vw, 34px); font-weight: 600; }
+    #last-event { min-height: 22px; }
+    .key-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px; }
+    .key { padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); }
+    .key[data-state="down"], .mouse-button[data-state="down"] { background: var(--tint); border-color: var(--accent); color: var(--accent); }
+    .key[data-state="unknown"], .mouse-button[data-state="unknown"] { color: var(--muted); border-style: dashed; }
+    .activity-key[data-recent="true"] { background: var(--tint); border-color: var(--accent); color: var(--accent); }
+    .mouse-button[data-recent="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+    .activity-count { margin-left: 8px; font-weight: 600; }
+    #activity { margin-top: 8px; }
+    #held { margin: 12px 0; }
+    .counters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 14px; }
+    .number { font-size: 23px; font-weight: 600; overflow-wrap: anywhere; }
+    .mouse { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+    .mouse-button { border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; text-align: center; }
+    .mouse-button small { display: block; }
+    .mouse-side { grid-column: span 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    #coordinates { overflow-wrap: anywhere; }
+    .table-wrap { overflow: auto; margin-top: 12px; max-height: 360px; border-top: 1px solid var(--line); }
+    .log-wrap { max-height: 450px; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; white-space: nowrap; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    th { position: sticky; top: 0; z-index: 1; background: var(--paper); color: var(--muted); font-weight: 500; }
+    td.detail { max-width: 480px; overflow: hidden; text-overflow: ellipsis; }
+    tr[data-system="true"] { color: var(--warn); }
+    tr[data-down="true"] { color: var(--accent); }
+    .yes { color: var(--accent); font-weight: 600; }
+    details summary { cursor: pointer; font-weight: 600; }
+    details ol, details ul { margin: 10px 0; padding-left: 22px; }
+    @media (max-width: 850px) {
+      body { padding: 16px; }
+      .workspace { grid-template-columns: minmax(0, 1fr); }
+      .panel { padding: 14px; }
+    }
+    @media (max-width: 500px) {
+      .counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toolbar > button { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="heading">
+      <h1>本地输入查看</h1>
+      <span class="muted">键盘 / 鼠标 / 滚轮</span>
+    </div>
+    <p class="muted">小叽开发用的离线观察页。查看实际收到的输入、按住时长与连发间隔，支持单键和任意修饰键组合。</p>
+  </header>
+
+  <div class="workspace">
+    <section class="panel" aria-labelledby="capture-title">
+      <div class="heading">
+        <h2 id="capture-title">输入接收区</h2>
+        <span id="status" role="status">尚未开始</span>
+      </div>
+      <div class="toolbar section">
+        <button id="start" class="primary" type="button">开始接收</button>
+        <button id="pause" type="button" disabled>暂停接收</button>
+        <button id="clear" type="button">清空记录</button>
+        <button id="export" type="button">导出 JSON</button>
+      </div>
+      <div id="capture" tabindex="0" role="region" aria-label="键盘与鼠标输入接收区">
+        <div class="small muted">最近输入 · 点击此区域开始或恢复接收</div>
+        <div id="chord">等待输入</div>
+        <p id="last-event" class="muted">在这里按键、点击鼠标或滚动滚轮。</p>
+        <div id="modifiers" class="key-list" aria-label="最近事件的修饰键状态"></div>
+        <div id="held" class="key-list" aria-label="观察到仍按住的键"></div>
+        <div class="small muted">最近触发 · 余光保留 120ms，次数包含键盘 repeat</div>
+        <div id="activity" class="key-list" aria-label="最近触发的输入与累计次数"></div>
+        <p class="small muted">快速连发时余光会持续亮起，次数继续累加；实际按住、松开状态单独显示。</p>
+        <p class="small muted">在接收区内会拦截 Tab、右键菜单、中键自动滚动和可阻止的浏览器快捷动作。点击上方“暂停接收”即可退出。</p>
+      </div>
+      <div class="counters">
+        <div><div class="small muted">键盘 按下 / 松开</div><div id="keyboard-count" class="number">0 / 0</div></div>
+        <div><div class="small muted">鼠标 按下 / 松开</div><div id="mouse-count" class="number">0 / 0</div></div>
+        <div><div class="small muted">滚轮事件</div><div id="wheel-count" class="number">0</div></div>
+        <div><div class="small muted">已记录输入事件</div><div id="event-count" class="number">0</div></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="mouse-title">
+      <div class="heading"><h2 id="mouse-title">鼠标状态</h2><span id="pointer-state" class="muted small">等待观察</span></div>
+      <p class="muted small">把指针移到左侧接收区进行操作。底部亮线表示最近触发，文字表示实际按住状态。</p>
+      <div id="mouse-buttons" class="mouse" aria-label="鼠标五键状态"></div>
+      <div id="coordinates" class="small muted">接收区坐标：未知<br>屏幕坐标：未知</div>
+      <p id="wheel-last" class="small muted">滚轮：尚未收到</p>
+      <label class="section"><input id="record-moves" type="checkbox">记录移动轨迹（每 50ms 采样）</label>
+      <p class="small muted">坐标始终更新；默认不把移动写入日志，方便观察按键和点击。屏幕坐标由浏览器提供，使用 CSS 像素。</p>
+    </section>
+  </div>
+
+  <section class="panel section" aria-labelledby="stats-title">
+    <div class="heading"><h2 id="stats-title">逐键统计</h2><span id="input-count" class="muted small">0 种输入</span></div>
+    <p class="muted small">按实际键位分别统计，区分左右修饰键和小键盘。间隔为相邻按下事件的时间差；时长只使用观察到完整按下、松开的一次输入。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>输入 / code</th><th>事件数</th><th>按下</th><th>松开</th><th>repeat</th><th>点击 / 双击</th><th>状态</th><th>本次 / 上次按住</th><th>上次 / 平均间隔</th><th>最近组合</th></tr></thead>
+        <tbody id="stats"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel section" aria-labelledby="events-title">
+    <div class="heading"><h2 id="events-title">事件日志</h2><span id="log-status" class="muted small"></span></div>
+    <div class="toolbar section">
+      <select id="device-filter" aria-label="按设备筛选">
+        <option value="all">全部设备</option><option value="keyboard">键盘</option>
+        <option value="mouse">鼠标按键 / 移动</option><option value="wheel">滚轮</option><option value="system">接收状态</option>
+      </select>
+      <select id="action-filter" aria-label="按动作筛选">
+        <option value="all">全部动作</option><option value="down">按下</option><option value="up">松开</option>
+        <option value="repeat">自动重复</option><option value="click">点击 / 双击</option>
+        <option value="wheel">滚轮</option><option value="mousemove">移动</option>
+      </select>
+      <input id="search" type="search" placeholder="筛选 KeyA、Ctrl+1、Mouse4、滚轮…" aria-label="筛选输入名称、键位或组合">
+      <label><input id="freeze" type="checkbox">冻结日志显示</label>
+    </div>
+    <p class="muted small">最新在上；保留最近 2,000 条，列表最多显示 160 条。筛选和冻结只影响列表显示，累计统计与导出继续保留所有已接收输入的统计。</p>
+    <div class="table-wrap log-wrap">
+      <table>
+        <thead><tr><th>#</th><th>相对时间 ms</th><th>事件</th><th>输入 / code</th><th>key / button</th><th>组合</th><th>Ctrl</th><th>Alt</th><th>Shift</th><th>Meta</th><th>repeat</th><th>详情</th></tr></thead>
+        <tbody id="events"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <details class="panel section">
+    <summary>使用方法与判断依据</summary>
+    <ol>
+      <li>测试小叽输出前，在“全局设置 → 生效范围”临时关闭“仅游戏客户端前台时生效”。先只启用要观察的项，连发间隔可先用 100–200ms。</li>
+      <li>启动小叽，回到本页点击“开始接收”，把鼠标放在接收区内。操作页面按钮产生的点击不计入鼠标测试。</li>
+      <li>普通连发应不断出现主键的 down / up；组合连发还应在每个主键事件中携带对应的 Ctrl / Alt / Shift 标志；长按可能出现 repeat，松开前不应出现该键的 up。</li>
+      <li>切换窗口、编辑筛选或暂停接收会中断观察，将按住状态标为未知，不会补造松键事件，也不会把中断期间算入下一次连发间隔。</li>
+      <li>停止小叽后，重新聚焦接收区，手动按一次 A 或移动鼠标；用新事件的修饰键标志、鼠标 buttons 判断是否松开。测完恢复游戏前台限制。</li>
+    </ol>
+    <ul class="muted">
+      <li>本页观察浏览器实际收到的事件，无法区分物理输入和 DD/HID 输出。系统快捷键、浏览器保留快捷键和部分媒体键可能无法送到网页。</li>
+      <li>鼠标左键 / 中键 / 右键 / 侧键4 / 侧键5 的 button 分别为 0 / 1 / 2 / 3 / 4；buttons 是按住集合的位掩码，依次对应 1 / 4 / 2 / 8 / 16。</li>
+      <li>滚轮原始 deltaX / deltaY / deltaZ 及 deltaMode 会保留，正负值表示方向；不同设备可能合并滚轮事件，事件次数不能直接当作滚动格数。</li>
+      <li>按下次数包含 repeat=true 的键盘重复事件；鼠标 click / auxclick / dblclick 单独记录，不会额外增加 down / up 次数。</li>
+      <li>实时状态跟随浏览器画面刷新，触发余光保留 120ms，统计和日志最多每 125ms 批量更新。多个短按可能落在同一画面内，使用次数和日志核对；余光不会延长真实按住时长，也不会延迟或回放输入事件。</li>
+      <li>数据保存在页面内存，刷新或关闭即清除。仅在点击“导出 JSON”时下载本地文件；导出包含累计统计及最近 2,000 条事件，不受筛选和冻结影响。页面无需网络和安装。</li>
+    </ul>
+  </details>
+</main>
+<script>
+  "use strict";
+
+  const MAX_RECORDS = 2000;
+  const VISIBLE_RECORDS = 160;
+  const MOVE_SAMPLE_MS = 50;
+  const TABLE_REFRESH_MS = 125;
+  const ACTIVITY_HOLD_MS = 120;
+  const VISIBLE_ACTIVITY = 12;
+  const byId = (id) => document.getElementById(id);
+  const pad = byId("capture");
+  const mouseDefinitions = [
+    { button: 0, bit: 1, name: "左键", code: "Mouse1" },
+    { button: 1, bit: 4, name: "中键", code: "Mouse3" },
+    { button: 2, bit: 2, name: "右键", code: "Mouse2" },
+    { button: 3, bit: 8, name: "侧键4", code: "Mouse4" },
+    { button: 4, bit: 16, name: "侧键5", code: "Mouse5" }
+  ];
+  const modifierDefinitions = [
+    ["ctrl", "Ctrl"], ["alt", "Alt"], ["shift", "Shift"], ["meta", "Meta / Win"], ["altGraph", "AltGr"]
+  ];
+  const modifierCodes = { ControlLeft: "ctrl", ControlRight: "ctrl", AltLeft: "alt", AltRight: "alt", ShiftLeft: "shift", ShiftRight: "shift", MetaLeft: "meta", MetaRight: "meta" };
+  const state = {
+    running: false, receiving: false, startedAt: new Date().toISOString(), clockStart: performance.now(),
+    records: new Array(MAX_RECORDS), cursor: 0, recordCount: 0, sequence: 0,
+    stats: new Map(), pendingMouse: new Set(), modifiers: null, mouseButtons: null,
+    pointer: null, pointerInside: false, wheel: null, lastMoveAt: -Infinity,
+    totals: { keyboardDown: 0, keyboardUp: 0, mouseDown: 0, mouseUp: 0, wheel: 0, moveSamples: 0, inputEvents: 0 },
+    lastInput: null
+  };
+  let pendingFrame = null;
+  let pendingTables = null;
+  let displayedSequence = -1;
+  const statViews = new Map();
+  const logViews = new Map();
+  const activityViews = new Map();
+  const heldViews = new Map();
+
+  const modifierNodes = modifierDefinitions.map(([key, label]) => {
+    const node = document.createElement("span");
+    node.className = "key";
+    byId("modifiers").appendChild(node);
+    return { key, label, node };
+  });
+  const sideButtons = document.createElement("div");
+  sideButtons.className = "mouse-side";
+  const mouseNodes = mouseDefinitions.map((definition, index) => {
+    const node = document.createElement("div");
+    node.className = "mouse-button";
+    const title = document.createElement("div");
+    title.textContent = definition.name;
+    const status = document.createElement("small");
+    const count = document.createElement("small");
+    count.className = "muted";
+    node.append(title, status, count);
+    (index < 3 ? byId("mouse-buttons") : sideButtons).appendChild(node);
+    return { ...definition, node, status, count };
+  });
+  byId("mouse-buttons").appendChild(sideButtons);
+
+  function canReceive() {
+    return state.running && document.hasFocus() && !document.hidden && document.activeElement === pad;
+  }
+
+  function scheduleRender() {
+    scheduleLiveRender();
+    scheduleTables();
+  }
+
+  function scheduleLiveRender() {
+    if (pendingFrame === null) pendingFrame = requestAnimationFrame(renderLive);
+  }
+
+  function scheduleTables() {
+    if (pendingTables === null) pendingTables = setTimeout(renderTables, TABLE_REFRESH_MS);
+  }
+
+  function setText(node, value) {
+    const text = String(value);
+    if (node.textContent !== text) node.textContent = text;
+  }
+
+  function setData(node, key, value) {
+    const text = String(value);
+    if (node.dataset[key] !== text) node.dataset[key] = text;
+  }
+
+  // Keep existing nodes in place so rapid input only inserts new rows and changes values.
+  function syncChildren(parent, children) {
+    let next = parent.firstChild;
+    for (const child of children) {
+      if (child === next) next = next.nextSibling;
+      else parent.insertBefore(child, next);
+    }
+    while (next) {
+      const obsolete = next;
+      next = next.nextSibling;
+      parent.removeChild(obsolete);
+    }
+  }
+
+  function appendRecord(record) {
+    state.records[state.cursor] = {
+      id: ++state.sequence, at: new Date().toISOString(),
+      elapsedMs: Number((performance.now() - state.clockStart).toFixed(3)), ...record
+    };
+    state.cursor = (state.cursor + 1) % MAX_RECORDS;
+    state.recordCount = Math.min(state.recordCount + 1, MAX_RECORDS);
+    if (record.device !== "system") {
+      state.totals.inputEvents++;
+      state.lastInput = record;
+    }
+    scheduleRender();
+  }
+
+  function invalidateObservedState() {
+    state.modifiers = null;
+    state.mouseButtons = null;
+    state.pendingMouse.clear();
+    for (const stat of state.stats.values()) {
+      stat.pressed = null;
+      stat.heldFrom = null;
+      stat.previousDown = null;
+      stat.stateSource = "unknown";
+      stat.activityUntil = 0;
+    }
+  }
+
+  function updateReceiving(reason) {
+    const next = canReceive();
+    if (next !== state.receiving) {
+      state.receiving = next;
+      if (!next) invalidateObservedState();
+      appendRecord({ device: "system", type: next ? "receive" : "interrupted", code: "", key: "", combo: "", modifiers: null, repeat: null,
+        detail: { message: next ? "接收区已聚焦，开始观察后续输入" : reason } });
+    }
+    scheduleRender();
+  }
+
+  function startReceiving() {
+    state.running = true;
+    pad.focus({ preventScroll: true });
+    updateReceiving("接收区未获得焦点");
+  }
+
+  function readModifiers(event) {
+    const flags = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey, meta: event.metaKey,
+      altGraph: typeof event.getModifierState === "function" && event.getModifierState("AltGraph") };
+    state.modifiers = flags;
+    // Flags can confirm a release missed while changing focus, without inventing a keyup.
+    for (const [code, key] of Object.entries(modifierCodes)) {
+      const stat = state.stats.get("keyboard:" + code);
+      if (stat && !flags[key] && stat.pressed !== false) {
+        stat.pressed = false;
+        stat.heldFrom = null;
+        stat.previousDown = null;
+        stat.stateSource = "flags";
+      }
+    }
+    return flags;
+  }
+
+  function keyLabel(key) {
+    return ({ " ": "Space", Control: "Ctrl", Meta: "Meta", AltGraph: "AltGr" })[key] || key || "Unidentified";
+  }
+
+  function chord(flags, label) {
+    const parts = modifierDefinitions.filter(([key]) => flags[key]).map(([key]) => ({ ctrl: "Ctrl", alt: "Alt", shift: "Shift", meta: "Meta", altGraph: "AltGr" })[key]);
+    if (!parts.includes(label)) parts.push(label);
+    return parts.join("+");
+  }
+
+  function getStat(device, code, name) {
+    const id = device + ":" + code;
+    if (!state.stats.has(id)) {
+      state.stats.set(id, { id, device, code, name, count: 0, down: 0, up: 0, repeat: 0, clicks: 0, doubleClicks: 0,
+        pressed: null, heldFrom: null, lastHeldMs: null, previousDown: null,
+        lastInterval: null, intervalSum: 0, intervalCount: 0, minInterval: null, maxInterval: null,
+        stateSource: "unknown", lastCombo: "", button: null,
+        lastTriggerAt: -Infinity, activityUntil: 0, triggers: 0 });
+    }
+    return state.stats.get(id);
+  }
+
+  function measureInterval(stat, now) {
+    const interval = stat.previousDown === null ? null : now - stat.previousDown;
+    if (interval !== null) {
+      stat.lastInterval = interval;
+      stat.intervalSum += interval;
+      stat.intervalCount++;
+      stat.minInterval = stat.minInterval === null ? interval : Math.min(stat.minInterval, interval);
+      stat.maxInterval = stat.maxInterval === null ? interval : Math.max(stat.maxInterval, interval);
+    }
+    stat.previousDown = now;
+    return interval;
+  }
+
+  function observePress(stat, down, repeat, now) {
+    stat.count++;
+    stat.stateSource = "event";
+    let interval = null;
+    let duration = null;
+    if (down) {
+      stat.down++;
+      stat.triggers++;
+      stat.lastTriggerAt = now;
+      stat.activityUntil = now + ACTIVITY_HOLD_MS;
+      if (repeat) stat.repeat++;
+      interval = measureInterval(stat, now);
+      if (stat.pressed !== true) stat.heldFrom = repeat ? null : now;
+      stat.pressed = true;
+    } else {
+      stat.up++;
+      if (stat.heldFrom !== null) duration = now - stat.heldFrom;
+      stat.lastHeldMs = duration;
+      stat.heldFrom = null;
+      stat.pressed = false;
+    }
+    return { intervalMs: interval, heldMs: duration };
+  }
+
+  function onKeyboard(event) {
+    if (!canReceive()) return;
+    event.preventDefault();
+    const code = event.code || `${event.key}@location${event.location}`;
+    const stat = getStat("keyboard", code, keyLabel(event.key));
+    const measured = observePress(stat, event.type === "keydown", event.repeat, performance.now());
+    const modifiers = readModifiers(event);
+    const combo = chord(modifiers, keyLabel(event.key));
+    stat.lastCombo = combo;
+    state.totals[event.type === "keydown" ? "keyboardDown" : "keyboardUp"]++;
+    appendRecord({ device: "keyboard", type: event.type, code, key: event.key, combo, modifiers, repeat: event.repeat,
+      detail: { ...measured, location: event.location, composing: event.isComposing, eventTimeStamp: event.timeStamp } });
+  }
+
+  function mouseDefinition(button) {
+    return mouseDefinitions.find((definition) => definition.button === button)
+      || { button, bit: 0, name: "鼠标键" + (button + 1), code: "MouseButton" + button };
+  }
+
+  function updatePointer(event) {
+    const rect = pad.getBoundingClientRect();
+    state.pointerInside = pad.contains(event.target);
+    state.pointer = { clientX: event.clientX, clientY: event.clientY, screenX: event.screenX, screenY: event.screenY,
+      localX: event.clientX - rect.left, localY: event.clientY - rect.top };
+  }
+
+  function syncMouseButtons(buttons) {
+    state.mouseButtons = buttons;
+    for (const stat of state.stats.values()) {
+      if (stat.device !== "mouse" || stat.button === null) continue;
+      const definition = mouseDefinition(stat.button);
+      if (!definition.bit) continue;
+      const pressed = Boolean(buttons & definition.bit);
+      if (pressed !== stat.pressed) {
+        stat.pressed = pressed;
+        stat.heldFrom = null;
+        stat.stateSource = "buttons";
+      }
+      if (!pressed) state.pendingMouse.delete(stat.button);
+    }
+  }
+
+  function pointerDetail(event) {
+    const rect = pad.getBoundingClientRect();
+    return { button: event.button, buttons: event.buttons, clientX: event.clientX, clientY: event.clientY,
+      screenX: event.screenX, screenY: event.screenY,
+      localX: Number((event.clientX - rect.left).toFixed(2)), localY: Number((event.clientY - rect.top).toFixed(2)),
+      outside: !pad.contains(event.target), eventTimeStamp: event.timeStamp };
+  }
+
+  function onMouseButton(event) {
+    const inside = pad.contains(event.target);
+    if (event.type === "mousedown" && inside && state.running) pad.focus({ preventScroll: true });
+    const trackedRelease = event.type === "mouseup" && state.pendingMouse.has(event.button);
+    if (!canReceive() || (!inside && !trackedRelease)) return;
+    if (inside) event.preventDefault();
+    updatePointer(event);
+    const definition = mouseDefinition(event.button);
+    const stat = getStat("mouse", definition.code, definition.name);
+    stat.button = event.button;
+    const modifiers = readModifiers(event);
+    const combo = chord(modifiers, definition.name);
+    stat.lastCombo = combo;
+    let measured = {};
+    if (event.type === "mousedown" || event.type === "mouseup") {
+      const down = event.type === "mousedown";
+      measured = observePress(stat, down, false, performance.now());
+      state.totals[down ? "mouseDown" : "mouseUp"]++;
+      if (down) state.pendingMouse.add(event.button);
+      else state.pendingMouse.delete(event.button);
+    } else {
+      stat.count++;
+      if (event.type === "dblclick") stat.doubleClicks++;
+      else stat.clicks++;
+    }
+    syncMouseButtons(event.buttons);
+    appendRecord({ device: "mouse", type: event.type, code: definition.code, key: String(event.button), combo, modifiers, repeat: null,
+      detail: { ...pointerDetail(event), ...measured, clickDetail: event.detail } });
+  }
+
+  function onMouseMove(event) {
+    if (!canReceive() || !pad.contains(event.target)) return;
+    updatePointer(event);
+    syncMouseButtons(event.buttons);
+    const modifiers = readModifiers(event);
+    const now = performance.now();
+    if (byId("record-moves").checked && now - state.lastMoveAt >= MOVE_SAMPLE_MS) {
+      state.lastMoveAt = now;
+      state.totals.moveSamples++;
+      appendRecord({ device: "mouse", type: "mousemove", code: "Pointer", key: "", combo: chord(modifiers, "移动"), modifiers, repeat: null,
+        detail: { ...pointerDetail(event), movementX: event.movementX, movementY: event.movementY } });
+    }
+    scheduleRender();
+  }
+
+  function onWheel(event) {
+    if (!canReceive() || !pad.contains(event.target)) return;
+    event.preventDefault();
+    updatePointer(event);
+    syncMouseButtons(event.buttons);
+    const modifiers = readModifiers(event);
+    const directions = [];
+    if (event.deltaY) directions.push([event.deltaY < 0 ? "WheelUp" : "WheelDown", event.deltaY < 0 ? "滚轮向上" : "滚轮向下"]);
+    if (event.deltaX) directions.push([event.deltaX < 0 ? "WheelLeft" : "WheelRight", event.deltaX < 0 ? "滚轮向左" : "滚轮向右"]);
+    if (event.deltaZ) directions.push(["WheelZ", "滚轮 Z 轴"]);
+    if (!directions.length) directions.push(["WheelZero", "滚轮零位移"]);
+    const now = performance.now();
+    for (const [code, label] of directions) {
+      const stat = getStat("wheel", code, label);
+      stat.count++;
+      stat.triggers++;
+      stat.lastTriggerAt = now;
+      stat.activityUntil = now + ACTIVITY_HOLD_MS;
+      stat.lastCombo = chord(modifiers, label);
+      measureInterval(stat, now);
+    }
+    const unit = ["pixel", "line", "page"][event.deltaMode] || "unknown";
+    state.wheel = { deltaX: event.deltaX, deltaY: event.deltaY, deltaZ: event.deltaZ, deltaMode: event.deltaMode, unit };
+    state.totals.wheel++;
+    appendRecord({ device: "wheel", type: "wheel", code: directions.map(([code]) => code).join("+"), key: "", combo: chord(modifiers, directions.map(([, label]) => label).join("+")),
+      modifiers, repeat: null, detail: { ...pointerDetail(event), ...state.wheel } });
+  }
+
+  function cell(row, value, className) {
+    const node = document.createElement("td");
+    node.textContent = value === null || value === undefined ? "—" : String(value);
+    if (className) node.className = className;
+    row.appendChild(node);
+    return node;
+  }
+
+  function emptyTable(body, columns, message) {
+    const row = document.createElement("tr");
+    cell(row, message).colSpan = columns;
+    body.replaceChildren(row);
+  }
+
+  function ms(value) {
+    return value === null ? "—" : value.toFixed(1) + " ms";
+  }
+
+  function renderStats() {
+    const now = performance.now();
+    const rows = [];
+    for (const stat of state.stats.values()) {
+      let view = statViews.get(stat.id);
+      if (!view) {
+        const row = document.createElement("tr");
+        view = { row, cells: Array.from({ length: 10 }, () => cell(row, null)) };
+        statViews.set(stat.id, view);
+      }
+      setData(view.row, "down", stat.pressed === true);
+      const status = stat.device === "wheel" ? "瞬时" : stat.pressed === null ? "未知" : stat.pressed ? "按下" : "松开";
+      const values = [
+        stat.code + (stat.device === "keyboard" ? "" : " · " + stat.name), stat.count,
+        stat.device === "wheel" ? "—" : stat.down,
+        stat.device === "wheel" ? "—" : stat.up,
+        stat.device === "keyboard" ? stat.repeat : "—",
+        stat.device === "mouse" ? `${stat.clicks} / ${stat.doubleClicks}` : "—",
+        status + (["flags", "buttons"].includes(stat.stateSource) ? " · 标志" : ""),
+        stat.device === "wheel" ? "—" : stat.pressed === true
+          ? (stat.heldFrom === null ? "起点未观察" : ms(now - stat.heldFrom) + " · 持续") : ms(stat.lastHeldMs),
+        `${ms(stat.lastInterval)} / ${ms(stat.intervalCount ? stat.intervalSum / stat.intervalCount : null)}`,
+        stat.lastCombo
+      ];
+      values.forEach((value, index) => setText(view.cells[index], value));
+      view.cells[8].title = `最小 ${ms(stat.minInterval)}，最大 ${ms(stat.maxInterval)}，样本 ${stat.intervalCount}`;
+      rows.push(view.row);
+    }
+    if (rows.length) syncChildren(byId("stats"), rows);
+    else emptyTable(byId("stats"), 10, "接收输入后，将在这里按键位统计。");
+    setText(byId("input-count"), `${state.stats.size} 种输入`);
+  }
+
+  function renderHeldAndActivity(now) {
+    const held = [];
+    for (const stat of state.stats.values()) {
+      if (stat.device === "keyboard" && stat.pressed === true) {
+        let badge = heldViews.get(stat.id);
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "key";
+          badge.dataset.state = "down";
+          badge.textContent = stat.code;
+          heldViews.set(stat.id, badge);
+        }
+        held.push(badge);
+      }
+    }
+    if (held.length) syncChildren(byId("held"), held);
+    else setText(byId("held"), state.receiving ? "尚未观察到仍按住的键盘键" : "观察已暂停，按住状态未知");
+
+    const selected = new Set([...state.stats.values()].filter((stat) => stat.triggers)
+      .sort((left, right) => right.lastTriggerAt - left.lastTriggerAt).slice(0, VISIBLE_ACTIVITY).map((stat) => stat.id));
+    const badges = [];
+    let active = false;
+    for (const stat of state.stats.values()) {
+      if (!selected.has(stat.id)) continue;
+      let view = activityViews.get(stat.id);
+      if (!view) {
+        const node = document.createElement("span");
+        node.className = "key activity-key";
+        const label = document.createElement("span");
+        label.textContent = stat.code;
+        const count = document.createElement("span");
+        count.className = "activity-count";
+        node.append(label, count);
+        view = { node, count };
+        activityViews.set(stat.id, view);
+      }
+      const recent = state.receiving && now < stat.activityUntil;
+      setData(view.node, "recent", recent);
+      setText(view.count, "×" + stat.triggers);
+      view.node.title = stat.lastCombo;
+      badges.push(view.node);
+      active ||= recent;
+    }
+    for (const id of activityViews.keys()) {
+      if (!selected.has(id)) activityViews.delete(id);
+    }
+    if (badges.length) syncChildren(byId("activity"), badges);
+    else setText(byId("activity"), "输入后显示最近触发的键位与次数");
+    return active;
+  }
+
+  function historyRecords() {
+    const records = [];
+    for (let index = 0; index < state.recordCount; index++) {
+      records.push(state.records[(state.cursor - state.recordCount + index + MAX_RECORDS) % MAX_RECORDS]);
+    }
+    return records;
+  }
+
+  function matches(record, { device, action, search }) {
+    if (device !== "all" && record.device !== device) return false;
+    if (action === "down" && !["keydown", "mousedown"].includes(record.type)) return false;
+    if (action === "up" && !["keyup", "mouseup"].includes(record.type)) return false;
+    if (action === "repeat" && !record.repeat) return false;
+    if (action === "click" && !["click", "auxclick", "dblclick"].includes(record.type)) return false;
+    if (["wheel", "mousemove"].includes(action) && record.type !== action) return false;
+    return !search || `${record.code} ${record.key} ${record.combo} ${record.type}`.toLowerCase().includes(search);
+  }
+
+  function detailText(detail) {
+    return Object.entries(detail).filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${typeof value === "number" ? Number(value.toFixed(3)) : value}`).join("  ");
+  }
+
+  function renderLog() {
+    if (byId("freeze").checked) {
+      setText(byId("log-status"), `显示已冻结 · 已保留 ${state.recordCount} 条，接收与统计继续`);
+      return;
+    }
+    if (displayedSequence === state.sequence) return;
+    displayedSequence = state.sequence;
+    const filter = { device: byId("device-filter").value, action: byId("action-filter").value,
+      search: byId("search").value.trim().toLowerCase().replace(/\s*\+\s*/g, "+") };
+    const filtered = historyRecords().reverse().filter((record) => matches(record, filter));
+    const shown = filtered.slice(0, VISIBLE_RECORDS);
+    const rows = [];
+    for (const record of shown) {
+      let row = logViews.get(record.id);
+      if (!row) {
+        row = document.createElement("tr");
+        row.dataset.system = String(record.device === "system");
+        cell(row, record.id);
+        cell(row, record.elapsedMs.toFixed(1));
+        cell(row, record.type);
+        cell(row, record.code);
+        cell(row, record.key === " " ? "Space" : record.key);
+        cell(row, record.combo);
+        for (const key of ["ctrl", "alt", "shift", "meta"]) {
+          const value = record.modifiers === null ? null : record.modifiers[key];
+          cell(row, value, value === true ? "yes" : "");
+        }
+        cell(row, record.repeat);
+        const detail = detailText(record.detail);
+        cell(row, detail, "detail").title = detail;
+        logViews.set(record.id, row);
+      }
+      rows.push(row);
+    }
+    const shownIds = new Set(shown.map((record) => record.id));
+    for (const id of logViews.keys()) {
+      if (!shownIds.has(id)) logViews.delete(id);
+    }
+    if (rows.length) syncChildren(byId("events"), rows);
+    else emptyTable(byId("events"), 12, state.recordCount ? "没有符合筛选条件的事件。" : "开始接收后，在接收区内操作。");
+    setText(byId("log-status"), `显示 ${shown.length} / 匹配 ${filtered.length} / 已保留 ${state.recordCount} 条`);
+  }
+
+  function renderLive() {
+    pendingFrame = null;
+    const now = performance.now();
+    setData(byId("status"), "active", state.receiving);
+    setText(byId("status"), state.receiving ? "正在接收" : state.running ? "接收中断 · 请返回接收区" : "已暂停 / 尚未开始");
+    setText(byId("start"), state.running ? "返回接收区" : "开始接收");
+    byId("pause").disabled = !state.running;
+    for (const { key, label, node } of modifierNodes) {
+      const value = state.modifiers === null ? null : state.modifiers[key];
+      setData(node, "state", value === null ? "unknown" : value ? "down" : "up");
+      setText(node, `${label}: ${value === null ? "?" : value ? "按下" : "松开"}`);
+    }
+    let active = renderHeldAndActivity(now);
+    for (const { code, bit, node, status, count } of mouseNodes) {
+      const value = state.mouseButtons === null ? null : Boolean(state.mouseButtons & bit);
+      const stat = state.stats.get("mouse:" + code);
+      const recent = state.receiving && stat !== undefined && now < stat.activityUntil;
+      setData(node, "state", value === null ? "unknown" : value ? "down" : "up");
+      setData(node, "recent", recent);
+      setText(status, value === null ? "未知" : value ? "按下" : "松开");
+      setText(count, `触发 ${stat ? stat.down : 0} 次`);
+      active ||= recent;
+    }
+    setText(byId("pointer-state"), !state.receiving ? "等待新事件确认" : state.pointerInside ? "接收区内" : "接收区外");
+    if (state.pointer) {
+      const p = state.pointer;
+      setText(byId("coordinates"), `最近位置 · 接收区 (${p.localX.toFixed(1)}, ${p.localY.toFixed(1)}) / 屏幕 (${p.screenX}, ${p.screenY})`);
+    }
+    setText(byId("wheel-last"), state.wheel
+      ? `最近滚轮 · deltaX=${state.wheel.deltaX}, deltaY=${state.wheel.deltaY}, deltaZ=${state.wheel.deltaZ}, 单位=${state.wheel.unit}`
+      : "滚轮：尚未收到");
+    if (state.lastInput) {
+      setText(byId("chord"), state.lastInput.combo);
+      setText(byId("last-event"), `${state.lastInput.type} · ${state.lastInput.code}`);
+    } else {
+      setText(byId("chord"), "等待输入");
+      setText(byId("last-event"), "在这里按键、点击鼠标或滚动滚轮。");
+    }
+    setText(byId("keyboard-count"), `${state.totals.keyboardDown} / ${state.totals.keyboardUp}`);
+    setText(byId("mouse-count"), `${state.totals.mouseDown} / ${state.totals.mouseUp}`);
+    setText(byId("wheel-count"), state.totals.wheel);
+    setText(byId("event-count"), state.totals.inputEvents);
+    if (active) scheduleLiveRender();
+  }
+
+  function renderTables() {
+    pendingTables = null;
+    renderStats();
+    renderLog();
+    if (state.receiving && [...state.stats.values()].some((stat) => stat.pressed === true && stat.heldFrom !== null)) scheduleTables();
+  }
+
+  function clearRecords() {
+    state.records = new Array(MAX_RECORDS);
+    state.cursor = 0;
+    state.recordCount = 0;
+    state.sequence = 0;
+    state.stats.clear();
+    statViews.clear();
+    logViews.clear();
+    activityViews.clear();
+    heldViews.clear();
+    state.startedAt = new Date().toISOString();
+    state.clockStart = performance.now();
+    state.modifiers = null;
+    state.mouseButtons = null;
+    state.pendingMouse.clear();
+    state.pointer = null;
+    state.pointerInside = false;
+    state.wheel = null;
+    state.lastMoveAt = -Infinity;
+    state.lastInput = null;
+    for (const key of Object.keys(state.totals)) state.totals[key] = 0;
+    displayedSequence = -1;
+    byId("freeze").checked = false;
+    byId("coordinates").textContent = "接收区坐标：未知 / 屏幕坐标：未知";
+    startReceiving();
+  }
+
+  function exportRecords() {
+    const inputs = [...state.stats.values()].map((stat) => ({
+      device: stat.device, code: stat.code, name: stat.name, events: stat.count,
+      down: stat.down, up: stat.up, repeat: stat.repeat, clicks: stat.clicks, doubleClicks: stat.doubleClicks,
+      pressed: stat.pressed, stateSource: stat.stateSource, lastHeldMs: stat.lastHeldMs,
+      lastIntervalMs: stat.lastInterval, averageIntervalMs: stat.intervalCount ? stat.intervalSum / stat.intervalCount : null,
+      minimumIntervalMs: stat.minInterval, maximumIntervalMs: stat.maxInterval, intervalSamples: stat.intervalCount, lastCombo: stat.lastCombo
+    }));
+    const report = {
+      tool: "XiaoJiAutoKey input viewer", formatVersion: 1, startedAt: state.startedAt, exportedAt: new Date().toISOString(),
+      environment: { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio },
+      limits: { maximumRecords: MAX_RECORDS, retainedRecords: state.recordCount, overwrittenRecords: Math.max(0, state.sequence - state.recordCount), moveSampleMs: MOVE_SAMPLE_MS },
+      notes: ["Browser-observed events; physical and driver input cannot be distinguished.", "Intervals use event receipt time in milliseconds. Focus gaps invalidate held state and break interval measurement.", "Wheel deltas use their original deltaMode. Event counts are not wheel notch counts."],
+      totals: state.totals, inputs, events: historyRecords()
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "xiaoji-input-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  byId("start").addEventListener("click", startReceiving);
+  byId("pause").addEventListener("click", () => {
+    state.running = false;
+    updateReceiving("手动暂停；暂停期间不观察输入");
+    appendRecord({ device: "system", type: "pause", code: "", key: "", combo: "", modifiers: null, repeat: null,
+      detail: { message: "手动暂停；点击开始接收可继续" } });
+  });
+  byId("clear").addEventListener("click", clearRecords);
+  byId("export").addEventListener("click", exportRecords);
+  pad.addEventListener("click", () => { if (!state.running) startReceiving(); });
+  pad.addEventListener("focus", () => updateReceiving("接收区失去焦点"));
+  pad.addEventListener("blur", () => updateReceiving("焦点离开接收区；这段时间的输入无法观察"));
+  pad.addEventListener("mouseenter", (event) => {
+    if (!canReceive()) return;
+    updatePointer(event);
+    syncMouseButtons(event.buttons);
+    readModifiers(event);
+    scheduleRender();
+  });
+  pad.addEventListener("mouseleave", () => {
+    state.pointerInside = false;
+    state.mouseButtons = null;
+    for (const stat of state.stats.values()) {
+      if (stat.device === "mouse") stat.pressed = null;
+      if (stat.device === "mouse" || stat.device === "wheel") stat.previousDown = null;
+    }
+    scheduleRender();
+  });
+  for (const type of ["keydown", "keyup"]) window.addEventListener(type, onKeyboard, true);
+  for (const type of ["mousedown", "mouseup", "click", "auxclick", "dblclick"]) window.addEventListener(type, onMouseButton, true);
+  window.addEventListener("mousemove", onMouseMove, true);
+  window.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  for (const type of ["contextmenu", "auxclick"]) {
+    pad.addEventListener(type, (event) => event.preventDefault());
+  }
+  window.addEventListener("focus", () => updateReceiving("窗口失去焦点"));
+  window.addEventListener("blur", () => updateReceiving("窗口失去焦点；无法观察后台输入"));
+  document.addEventListener("visibilitychange", () => updateReceiving("页面隐藏；无法观察后台输入"));
+  for (const id of ["device-filter", "action-filter", "search", "freeze"]) {
+    byId(id).addEventListener(id === "search" ? "input" : "change", () => {
+      displayedSequence = -1;
+      scheduleRender();
+    });
+  }
+  byId("record-moves").addEventListener("change", () => { state.lastMoveAt = -Infinity; });
+  renderLive();
+  renderTables();
+</script>
+</body>
+</html>

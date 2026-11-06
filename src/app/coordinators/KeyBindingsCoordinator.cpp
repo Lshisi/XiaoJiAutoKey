@@ -212,7 +212,11 @@ void KeyBindingsCoordinator::onStatusOverlayToggled(bool enabled) {
 void KeyBindingsCoordinator::onMixedModeToggled(bool enabled) {
     if (!context_.controller || !context_.engine) return;
     auto result = context_.controller->setMixedMode(enabled);
-    if (!result.ok) return;
+    if (!result.ok) {
+        AppMessageDialog::warning(context_.parent, tr("按键冲突"), result.message);
+        if (context_.refreshAll) context_.refreshAll();
+        return;
+    }
     context_.engine->SetMixedMode(enabled);
     context_.page->setMixedMode(enabled);
     if (context_.saveConfig) context_.saveConfig();

@@ -176,23 +176,6 @@ bool IsKeyboardModifierKey(const KeyDescriptor& key) noexcept {
             || key.code == VK_LMENU || key.code == VK_RMENU);
 }
 
-std::uint8_t ModifierMaskFromKey(const KeyDescriptor& key) noexcept {
-    if (key.device != InputDevice::Keyboard) return 0;
-    switch (key.code) {
-    case VK_LCONTROL:
-    case VK_RCONTROL:
-        return kKeyModifierCtrl;
-    case VK_LSHIFT:
-    case VK_RSHIFT:
-        return kKeyModifierShift;
-    case VK_LMENU:
-    case VK_RMENU:
-        return kKeyModifierAlt;
-    default:
-        return 0;
-    }
-}
-
 std::wstring ModifierPrefix(std::uint8_t modifiers) {
     if (modifiers == 0) return {};
     std::wstring result;

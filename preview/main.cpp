@@ -5,11 +5,13 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QWindow>
 
 int main(int argc, char* argv[]) {
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+    QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("XiaoJiPreview"));
     PreviewController controller;

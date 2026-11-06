@@ -1,5 +1,6 @@
 #include "config/ActiveConfigValidator.h"
 #include "MacroActions.h"
+#include "RepeatModeRules.h"
 
 namespace {
 
@@ -28,6 +29,41 @@ ControllerResult hotkeyConflict(const KeyDescriptor& key, const wchar_t* hotkeyO
 ControllerResult sequenceSwitchConflict(const KeyDescriptor& key) {
     return failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6309\u952e\u8fde\u53d1\u7684\u5207\u6362\u952e\uff0c\u4e0d\u80fd\u518d\u7528\u4e8e\u5176\u4ed6\u6309\u952e\u529f\u80fd\u3002")
         .arg(KeyName(key)));
+}
+
+ControllerResult validateRepeatOutputPair(const KeyBinding& first, const KeyBinding& second, bool mixedMode) {
+    const auto conflict = CheckRepeatBindingPair(first, second, mixedMode);
+    if (conflict == RepeatBindingConflict::None) return ControllerResult::success();
+
+    QString reason;
+    switch (conflict) {
+    case RepeatBindingConflict::Duplicate:
+        reason = QStringLiteral("同一按键和模式不能重复配置。");
+        break;
+    case RepeatBindingConflict::SharedTrigger:
+        reason = QStringLiteral("同一次物理按键不能同时作为按压触发和独立启停触发。");
+        break;
+    case RepeatBindingConflict::HeldTrigger:
+        reason = QStringLiteral("主键已由长按保持，无法再用同一物理按键可靠地触发按压或独立启停。");
+        break;
+    case RepeatBindingConflict::ModifierTrigger:
+        reason = QStringLiteral("单独修饰键的独立启停会在组合键主键按下前先触发，无法区分这两个操作。");
+        break;
+    case RepeatBindingConflict::SharedPrimary:
+        reason = QStringLiteral("这两种模式会同时输出同一主键，按下、松开会互相干扰。");
+        break;
+    case RepeatBindingConflict::PulsedModifier:
+        reason = QStringLiteral("修饰键的连发会打断另一项需要的按住状态；需要持续按住时请使用长按模式。");
+        break;
+    case RepeatBindingConflict::ModifierState:
+        reason = QStringLiteral("这两种模式会同时输出，但需要不同的修饰键状态，持续按住修饰键会改变另一项的键义。");
+        break;
+    case RepeatBindingConflict::None:
+        break;
+    }
+    return failure(QStringLiteral("“%1”（%2）与“%3”（%4）冲突：%5")
+        .arg(KeyName(first.key), QString::fromStdWString(RepeatModeToText(first.mode)),
+            KeyName(second.key), QString::fromStdWString(RepeatModeToText(second.mode)), reason));
 }
 
 }  // namespace
@@ -83,6 +119,14 @@ ControllerResult validateProfileModifierOverlaps(const ProfileConfig* profile) {
     for (const auto& pauseKey : profile->pauseKeys) {
         auto validation = validateImmediate(pauseKey, L"暂停键");
         if (!validation.ok) return validation;
+    }
+    for (std::size_t index = 0; index < profile->bindings.size(); ++index) {
+        const auto& binding = profile->bindings[index];
+        for (std::size_t otherIndex = index + 1; otherIndex < profile->bindings.size(); ++otherIndex) {
+            const auto& other = profile->bindings[otherIndex];
+            auto validation = validateRepeatOutputPair(binding, other, profile->mixedMode);
+            if (!validation.ok) return validation;
+        }
     }
     return ControllerResult::success();
 }

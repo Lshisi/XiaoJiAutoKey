@@ -38,6 +38,28 @@ ControllerResult validateCombinationAgainstImmediateKeys(
     return ControllerResult::success();
 }
 
+ControllerResult validateBindingModifierOverlaps(const ProfileConfig& profile,
+    std::optional<std::uint64_t> bindingId, const KeyDescriptor& key, RepeatMode mode,
+    bool suppressMixedMode) {
+    ProfileConfig candidate = profile;
+    candidate.enabled = true;
+    auto existing = std::find_if(candidate.bindings.begin(), candidate.bindings.end(),
+        [bindingId](const auto& binding) { return bindingId.has_value() && binding.id == *bindingId; });
+    if (existing == candidate.bindings.end()) {
+        KeyBinding binding;
+        binding.key = key;
+        binding.mode = mode;
+        binding.suppressMixedMode = suppressMixedMode;
+        candidate.bindings.push_back(binding);
+    } else {
+        existing->key = key;
+        existing->mode = mode;
+        existing->suppressMixedMode = suppressMixedMode;
+        existing->enabled = true;
+    }
+    return ActiveConfigValidator::validateProfileModifierOverlaps(&candidate);
+}
+
 }
 
 ProfileController::ProfileController(AppConfig& config) : config_(config) {}
@@ -247,6 +269,11 @@ ControllerResult ProfileController::clearSequenceSwitchKey() {
 ControllerResult ProfileController::setMixedMode(bool enabled) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+    ProfileConfig candidate = *profile;
+    candidate.enabled = true;
+    candidate.mixedMode = enabled;
+    auto validation = ActiveConfigValidator::validateProfileModifierOverlaps(&candidate);
+    if (!validation.ok) return validation;
     profile->mixedMode = enabled;
     return ControllerResult::success();
 }
@@ -306,11 +333,9 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
                         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002"));
                     }
                 }
-                for (const auto& other : profile->bindings) {
-                    if (other.id != id && other.enabled && other.key == binding.key) {
-                        return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
-                    }
-                }
+                if (auto validation = validateBindingModifierOverlaps(*profile, id, binding.key,
+                        binding.mode, binding.suppressMixedMode);
+                    !validation.ok) return validation;
             }
             binding.enabled = enabled;
             return ControllerResult::success();
@@ -326,12 +351,16 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
+    if (mode != RepeatMode::Hold) suppressMixedMode = false;
     if (enabled) {
         if (auto validation = validateCombinationAgainstImmediateKeys(key, *profile); !validation.ok) {
             return validation;
         }
+        if (auto validation = validateBindingModifierOverlaps(*profile, bindingId, key, mode, suppressMixedMode);
+            !validation.ok) {
+            return validation;
+        }
     }
-    if (mode != RepeatMode::Hold) suppressMixedMode = false;
     delayMs = std::max(delayMs, kMinDelayMs);
     const std::wstring effectiveName = name.trimmed().toStdWString();
     const ClickPosition effectiveClickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
@@ -353,11 +382,6 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
             }
         }
 
-        for (const auto& binding : profile->bindings) {
-            if (!binding.enabled || binding.key != key) continue;
-            if (bindingId.has_value() && binding.id == *bindingId) continue;
-            return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u914d\u7f6e\u3002"));
-        }
         if (profile->sequenceSwitchKey.has_value() && *profile->sequenceSwitchKey == key) {
             return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5207\u6362\u952e\u3002"));
         }
@@ -431,11 +455,6 @@ ControllerResult ProfileController::updateBindings(const std::vector<std::uint64
         }
         if (!binding.enabled) continue;
 
-        for (std::size_t otherIndex = 0; otherIndex < candidates.size(); ++otherIndex) {
-            if (otherIndex == index || !candidates[otherIndex].enabled
-                || candidates[otherIndex].key != binding.key) continue;
-            return ControllerResult::failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u5176\u4ed6\u542f\u7528\u6309\u952e\u4f7f\u7528\uff0c\u65e0\u6cd5\u540c\u65f6\u542f\u7528\u3002").arg(keyName));
-        }
         for (const auto& pauseKey : candidateProfile.pauseKeys) {
             if (pauseKey == binding.key) {
                 return ControllerResult::failure(QString::fromWCharArray(L"\u201c%1\u201d\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u6682\u505c\u952e\u3002").arg(keyName));

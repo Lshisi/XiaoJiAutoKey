@@ -11,8 +11,7 @@ Button {
     property bool compact: false
     property bool destructive: false
     property string leadingIcon: ""
-    readonly property int leadingIconSize: leadingIcon === "add" || leadingIcon === "close"
-        ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
+    readonly property int leadingIconSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     property string hint: ""
     readonly property color foregroundColor: !enabled ? Theme.muted
         : destructive ? (Theme.dark ? Theme.background : Theme.field)

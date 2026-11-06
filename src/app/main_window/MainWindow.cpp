@@ -11,6 +11,8 @@
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/SettingsPageModel.h"
+#include "ui/models/KeyPageModel.h"
+#include "ui/models/MacroPageModel.h"
 #include "ui/styles/DesignTokens.h"
 
 #include <QAction>
@@ -1430,7 +1432,9 @@ void MainWindow::refreshStatusOverlay() {
     }
     if (auto* keyPage = view_.keyPage()) {
         keyPage->setSequenceSelection(repeatStatus.sequenceTaskId);
+        keyPage->setOverviewRuntime(repeatStatus, gameGatePaused);
     }
+    view_.macroPage()->setOverviewRuntime(macroStatus.paused || gameGatePaused, macroStatus.currentStep);
     view_.updateActivityIcons(this, repeatRunning, macroRunning);
 }
 

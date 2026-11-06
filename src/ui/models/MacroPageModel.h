@@ -14,6 +14,8 @@ public:
     void setRunning(bool value);
     void setExecutionError(const QString& value) { setValueIfChanged("executionError", value); }
     void setHotkeyText(const QString& value) { setValue("hotkey", value); }
+    void setControlKey(std::optional<KeyDescriptor> key);
+    void setOverviewRuntime(bool paused, int currentStep);
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
     void setStatusOverlayEnabled(bool value) { setValue("overlayEnabled", value); }
     void setPauseKeys(const std::vector<KeyDescriptor>& keys);
@@ -45,6 +47,7 @@ public:
     Q_INVOKABLE void batchEditRequested() { emit batchEditRequestedImpl(state_.value("selectedStepIds").toList()); }
 
 signals:
+    void overviewRequested();
     void recordMacroRequested();
     void addStepRequested();
     void insertStepRequested(const QString& stepId, bool before);
@@ -70,6 +73,7 @@ signals:
     void statusOverlayToggled(bool enabled);
     void statusOverlaySettingsClicked();
     void pauseKeyAddClicked();
+    void pauseKeyEditClicked(int index);
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
     void modeChanged(int index);

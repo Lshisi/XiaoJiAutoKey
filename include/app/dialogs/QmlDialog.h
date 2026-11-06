@@ -19,6 +19,7 @@ public:
     Q_INVOKABLE void dispatch(const QString& action, const QVariant& value = {});
     Q_INVOKABLE void edit(const QString& field, const QVariant& value);
     Q_INVOKABLE void startWindowMove();
+    Q_INVOKABLE void startWindowResize(int edges);
 
 public slots:
     void reject() override;

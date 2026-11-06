@@ -61,6 +61,8 @@ public:
     }
     Q_INVOKABLE void toggleBindingSelection(const QString& id);
     Q_INVOKABLE void startStopClicked();
+    Q_INVOKABLE void overviewRequested() { emit requested("overview", {}); }
+    Q_INVOKABLE void setOverviewPaused(bool paused) { state_.insert("overviewPaused", paused); refreshOverviewRuntime(); }
     Q_INVOKABLE void profileEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void macroEnabledToggled(bool enabled) { setValue("profileEnabled", enabled); }
     Q_INVOKABLE void beepToggled(bool enabled) { setValue("beepEnabled", enabled); }
@@ -71,10 +73,11 @@ public:
     Q_INVOKABLE void modeChanged(int value);
     Q_INVOKABLE void loopCountChanged(int value);
     Q_INVOKABLE void hotkeyEditClicked() { emit requested("hotkey", {}); }
-    Q_INVOKABLE void hotkeyClearClicked() { setValue("hotkey", tr("未设置")); }
+    Q_INVOKABLE void hotkeyClearClicked() { state_.insert("controlKey", QVariantMap{}); setValue("hotkey", tr("未设置")); }
     Q_INVOKABLE void sequenceSwitchKeyAddClicked() { emit requested("sequence", {}); }
     Q_INVOKABLE void sequenceSwitchKeyDeleteClicked();
     Q_INVOKABLE void pauseKeyAddClicked() { emit requested("pause", {}); }
+    Q_INVOKABLE void pauseKeyEditClicked(int index) { emit requested("pauseEdit", index); }
     Q_INVOKABLE void pauseKeyDeleteClicked(int index);
     Q_INVOKABLE void profileAddRequested() { emit requested("profileAdd", {}); }
     Q_INVOKABLE void profileDuplicateRequested() { emit requested("profileDuplicate", {}); }
@@ -96,6 +99,7 @@ private:
     [[nodiscard]] MacroConfig timingConfig() const;
     void refreshTiming();
     void refreshSequenceSelection();
+    void refreshOverviewRuntime();
     bool macro_;
     QString sequenceSelectedBindingId_;
 };

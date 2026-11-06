@@ -239,6 +239,7 @@ void CaptureCoordinator::updateHotkeyText() {
             ? QString::fromStdWString(GetKeyDisplayName(*profile->controlHotkey))
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
     context_.keyPage->setHotkeyText(text);
+    context_.keyPage->setControlKey(profile ? profile->controlHotkey : std::nullopt);
     context_.keyPage->setSequenceSwitchKey(profile ? profile->sequenceSwitchKey : std::nullopt);
     context_.settingsPage->setHotkeyText(text);
 }

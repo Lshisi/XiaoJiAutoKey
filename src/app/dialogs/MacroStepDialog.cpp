@@ -2,10 +2,10 @@
 #include "dialogs/AppMessageDialog.h"
 #include "MacroActions.h"
 MacroStepDialog::MacroStepDialog(std::optional<MacroStep> existing,
-    std::function<bool()> supportsMouseMove, QWidget* parent) : KeyCaptureDialogBase(parent) {
+    std::function<bool()> supportsMouseMove, QWidget* parent, std::optional<MacroStep> initial) : KeyCaptureDialogBase(parent) {
     setPrimaryMouseButtonsAllowed(true);
     setWindowTitle(existing ? tr("编辑步骤") : tr("添加步骤"));
-    const MacroStep step = existing.value_or(MacroStep{});
+    const MacroStep step = existing ? *existing : initial.value_or(MacroStep{});
     if (step.key.IsValid()) setCapturedKey(step.key);
     QVariantMap fields{{"macroStep", true}, {"nameVisible", true},
         {"action", static_cast<int>(step.action)}, {"duration", QString::number(step.durationMs)},

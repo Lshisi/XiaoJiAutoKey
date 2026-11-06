@@ -46,7 +46,10 @@ ColumnLayout {
                 text: root.macroMode ? "" : root.page.state.sequenceKey
                 removable: !root.macroMode && root.page.state.hasSequenceKey
                 removeHint: qsTr("清除切换键")
+                editable: !root.macroMode && root.page.state.hasSequenceKey
+                editHint: qsTr("编辑切换键")
                 enabled: !root.page.state.running
+                onEditRequested: root.page.sequenceSwitchKeyAddClicked()
                 onRemoveRequested: root.page.sequenceSwitchKeyDeleteClicked()
             }
             IconButton {

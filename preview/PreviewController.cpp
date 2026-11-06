@@ -8,7 +8,7 @@
 #include <QWindow>
 
 PreviewController::PreviewController(QObject* parent)
-    : QObject(parent), keys_(false, dialog_), macros_(true, dialog_) {
+    : QObject(parent), keys_(false, dialog_, overviewDialog_), macros_(true, dialog_, overviewDialog_) {
     FactionTheme::instance().setCurrent(QStringLiteral("qixiu"));
     setDarkMode(true);
     overlayOptions_ = {{"tab", 0}, {"nativeBlur", true}, {"opacity", 70},

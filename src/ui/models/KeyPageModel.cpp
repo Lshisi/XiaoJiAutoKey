@@ -1,4 +1,6 @@
 #include "KeyPageModel.h"
+#include "KeyOverviewData.h"
+#include "RepeaterEngine.h"
 
 KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"bindings", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
@@ -9,6 +11,10 @@ KeyPageModel::KeyPageModel(QObject* parent) : PageModel(parent) {
         {"sequenceSelectionText", tr("未激活")}, {"pauseKeys", QVariantList{}},
         {"hasSequenceBindings", false}, {"updateVersion", QString()}};
     state_.insert("selectedBindingIds", QVariantList{});
+    state_.insert("controlKey", QVariantMap{});
+    state_.insert("sequenceKeyData", QVariantMap{});
+    state_.insert("pauseKeyData", QVariantList{});
+    state_.insert("overviewRuntime", QVariantMap{});
 }
 
 void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uint64_t profileId) {
@@ -30,6 +36,7 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uin
         const QString id = QString::number(binding.id);
         if (selectedIds.contains(id)) validSelectedIds.push_back(id);
         rows.push_back(QVariantMap{{"id", id}, {"enabled", binding.enabled},
+            {"key", KeyOverviewData::key(binding.key, QString::fromStdWString(keyName))},
             {"mode", static_cast<int>(binding.mode)},
             {"keyText", QString::fromStdWString(keyName)},
             {"name", QString::fromStdWString(binding.name)},
@@ -65,6 +72,7 @@ void KeyPageModel::setRunning(bool value) {
 }
 
 void KeyPageModel::setSequenceSwitchKey(std::optional<KeyDescriptor> key) {
+    state_.insert("sequenceKeyData", key ? KeyOverviewData::key(*key, QString::fromStdWString(GetKeyDisplayName(*key))) : QVariantMap{});
     state_.insert("hasSequenceKey", key.has_value());
     setValue("sequenceKey", key ? QString::fromStdWString(GetKeyDisplayName(*key)) : tr("未设置"));
 }
@@ -106,8 +114,25 @@ void KeyPageModel::refreshSequenceSelection() {
 
 void KeyPageModel::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
     QVariantList values;
+    QVariantList descriptors;
+    for (const auto& key : keys) descriptors.push_back(KeyOverviewData::key(key, QString::fromStdWString(GetKeyDisplayName(key))));
+    state_.insert("pauseKeyData", descriptors);
     for (const auto& key : keys) values.push_back(QString::fromStdWString(GetKeyDisplayName(key)));
     setValue("pauseKeys", values);
+}
+
+void KeyPageModel::setControlKey(std::optional<KeyDescriptor> key) {
+    setValue("controlKey", key ? KeyOverviewData::key(*key, QString::fromStdWString(GetKeyDisplayName(*key))) : QVariantMap{});
+}
+
+void KeyPageModel::setOverviewRuntime(const RepeaterStatus& status, bool gamePaused) {
+    QVariantList holdKeys;
+    for (const auto& key : status.holdKeys) holdKeys.push_back(KeyOverviewData::key(key, {}));
+    const QVariantMap runtime{{"paused", status.paused || gamePaused}, {"gamePaused", gamePaused},
+        {"holdPriority", status.holdPriorityActive}, {"holdKeys", holdKeys},
+        {"independentKey", status.independentKey ? KeyOverviewData::key(*status.independentKey, {}) : QVariantMap{}},
+        {"sequenceId", status.sequenceTaskId ? QString::number(*status.sequenceTaskId) : QString()}};
+    if (state_.value("overviewRuntime").toMap() != runtime) setValue("overviewRuntime", runtime);
 }
 
 void KeyPageModel::setProfiles(const std::vector<std::pair<std::uint64_t, QString>>& profiles, std::uint64_t activeId) {

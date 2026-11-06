@@ -14,6 +14,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWid
 qt_standard_project_setup(REQUIRES 6.8)
 
 set(MOC_HEADERS
+    include/app/dialogs/KeyOverviewDialog.h
     include/app/dialogs/QmlDialog.h
     include/app/view/MainWindowView.h
     src/ui/models/PageModel.h
@@ -103,6 +104,7 @@ set(UI_COMPONENT_SOURCES
 )
 
 set(UI_MODEL_SOURCES
+    src/ui/models/KeyOverviewData.cpp
     src/ui/models/KeyPageModel.cpp
     src/ui/models/MacroPageModel.cpp
     src/ui/models/DriverPageModel.cpp
@@ -118,6 +120,7 @@ set(UI_COMPONENT_HEADERS
 )
 
 set(UI_MODEL_HEADERS
+    src/ui/models/KeyOverviewData.h
     src/ui/models/UsagePageModel.h
     src/ui/models/ShareImportBannerModel.h
     src/ui/models/KeyPageModel.h
@@ -228,6 +231,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/QmlDialog.cpp
+    src/app/dialogs/KeyOverviewDialog.cpp
     src/app/dialogs/ConfigConfirmDialog.cpp
     src/app/dialogs/ConfigNameDialog.cpp
     src/app/dialogs/DialogChrome.cpp
@@ -322,6 +326,11 @@ set(QML_FILES
     src/qml/OverlayStatusBlock.qml
     src/qml/OverlayLock.qml
     src/qml/DialogShell.qml
+    src/qml/DialogKeyOverview.qml
+    src/qml/KeyOverviewKeyboard.qml
+    src/qml/KeyOverviewKey.qml
+    src/qml/KeyOverviewDetails.qml
+    src/qml/KeyOverviewPopup.qml
     src/qml/DialogMessage.qml
     src/qml/DialogName.qml
     src/qml/DialogClose.qml

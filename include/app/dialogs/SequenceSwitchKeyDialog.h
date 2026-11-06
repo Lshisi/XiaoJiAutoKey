@@ -10,7 +10,7 @@ class SequenceSwitchKeyDialog : public KeyCaptureDialogBase {
     Q_OBJECT
 
 public:
-    explicit SequenceSwitchKeyDialog(QWidget* parent = nullptr);
+    explicit SequenceSwitchKeyDialog(QWidget* parent = nullptr, std::optional<KeyDescriptor> existing = std::nullopt);
 
     [[nodiscard]] SequenceSwitchKeyEditResult editResult() const;
 };

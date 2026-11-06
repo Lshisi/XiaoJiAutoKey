@@ -33,6 +33,7 @@ inline QVariantMap qmlTheme() {
         {"accentSubtle", colors.accentSubtle}, {"accentBorder", colors.accentBorder},
         {"accentForeground", colors.textOnAccent}, {"danger", Fluent::Colors::danger()},
         {"warning", Fluent::Colors::warning()}, {"success", Fluent::Colors::success()},
+        {"info", Fluent::Theme::isDarkMode() ? QColor("#8ab8ed") : Fluent::Colors::primary()},
         {"scrollHandle", Fluent::Styles::scrollBarHandle()},
         {"scrollHandleHover", Fluent::Styles::scrollBarHandleHover()},
         {"factionId", faction.id}, {"factionName", faction.name},

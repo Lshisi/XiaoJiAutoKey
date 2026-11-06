@@ -3,6 +3,7 @@
 #include "FactionTheme.h"
 #include "config/ActiveConfigValidator.h"
 #include "dialogs/StatusOverlaySettingsDialog.h"
+#include "dialogs/KeyOverviewDialog.h"
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
@@ -17,6 +18,25 @@
 bool MainWindow::setupUi() {
     if (!view_.setup(this, &onboardingCoordinator_)) return false;
     if (!statusOverlay_.initialize(this)) return false;
+    const auto showOverview = [this](bool macroMode) {
+        const QString objectName = macroMode ? QStringLiteral("macroKeyOverview") : QStringLiteral("repeatKeyOverview");
+        if (auto* existing = findChild<KeyOverviewDialog*>(objectName)) {
+            existing->show();
+            existing->raise();
+            existing->activateWindow();
+            return;
+        }
+        PageModel* page = macroMode ? static_cast<PageModel*>(view_.macroPage()) : view_.keyPage();
+        auto* dialog = new KeyOverviewDialog(*page, macroMode, this);
+        connect(dialog, &KeyOverviewDialog::navigationRequested, this, [this, macroMode, page, dialog](const QVariantMap& target) {
+            if (page->state().value("running").toBool()) return;
+            if (macroMode) macroCoordinator_.editFromOverview(target, dialog);
+            else keyBindingsCoordinator_.editFromOverview(target, dialog);
+        });
+        dialog->show();
+    };
+    connect(view_.keyPage(), &KeyPageModel::overviewRequested, this, [showOverview] { showOverview(false); });
+    connect(view_.macroPage(), &MacroPageModel::overviewRequested, this, [showOverview] { showOverview(true); });
     connect(&view_, &MainWindowView::exitRequested, this, [this]() {
         if (configCoordinator_.save()) quitApplication();
     });

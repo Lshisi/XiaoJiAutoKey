@@ -15,17 +15,19 @@ QWidget* dialogAnchorWindow(const QDialog* dialog) {
     return anchor == dialog ? nullptr : anchor;
 }
 
-// 弹窗的可见边界：父窗口矩形 ∩ 所在屏幕工作区。
+// 非模态查看窗口及其编辑弹窗以屏幕工作区为边界；其余编辑弹窗限制在父窗口与屏幕的交集。
 // 主窗口做过原生窗口 / DPI 几何同步，Qt 侧 frameGeometry 可能大于实际可见区域，
 // 单纯按父窗口居中会把弹窗推到窗口底部甚至屏幕外；取交集后异常几何自动退化为屏幕工作区。
 QRect dialogBounds(const QDialog* dialog) {
     QWidget* anchor = dialogAnchorWindow(dialog);
 
-    QScreen* screen = anchor && anchor->screen() ? anchor->screen() : dialog->screen();
+    QScreen* screen = dialog->isModal() && anchor && anchor->screen() ? anchor->screen() : dialog->screen();
     if (!screen) screen = QApplication::primaryScreen();
     if (!screen) return {};
 
     const QRect available = screen->availableGeometry();
+    const auto* parentDialog = qobject_cast<QDialog*>(anchor);
+    if (!dialog->isModal() || (parentDialog && !parentDialog->isModal())) return available;
     const QRect anchorRect = anchor && anchor->isVisible() ? anchor->frameGeometry() : available;
     const QRect bounds = anchorRect.intersected(available);
     return bounds.isValid() ? bounds : available;
@@ -36,8 +38,10 @@ QPoint dialogCenter(const QDialog* dialog, const QRect& bounds) {
     auto* view = window ? window->findChild<QQuickWidget*>(QStringLiteral("mainQuickView")) : nullptr;
     auto* anchor = view && view->isVisible() && view->rootObject()
         ? view->rootObject()->findChild<QQuickItem*>(QStringLiteral("workspaceDialogAnchor")) : nullptr;
-    if (!anchor || !anchor->isVisible() || anchor->width() <= 0 || anchor->height() <= 0)
+    if (!anchor || !anchor->isVisible() || anchor->width() <= 0 || anchor->height() <= 0) {
+        if (window && window->isVisible()) return window->frameGeometry().intersected(bounds).center();
         return bounds.center();
+    }
     return view->mapToGlobal(anchor->mapToScene(
         QPointF(anchor->width() / 2, anchor->height() / 2)).toPoint());
 }

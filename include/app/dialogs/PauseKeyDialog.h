@@ -10,7 +10,7 @@ class PauseKeyDialog : public KeyCaptureDialogBase {
     Q_OBJECT
 
 public:
-    explicit PauseKeyDialog(QWidget* parent = nullptr);
+    explicit PauseKeyDialog(QWidget* parent = nullptr, std::optional<KeyDescriptor> existing = std::nullopt);
 
     [[nodiscard]] PauseKeyEditResult editResult() const;
 };

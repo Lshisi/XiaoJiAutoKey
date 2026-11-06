@@ -1,15 +1,33 @@
 #include "PreviewWorkspaceController.h"
+#include "ui/models/KeyOverviewData.h"
 #include <QStringList>
+#include <QScopedValueRollback>
 
 #include <algorithm>
 
-PreviewWorkspaceController::PreviewWorkspaceController(bool macro, PreviewDialogModel& dialog, QObject* parent)
-    : QObject(parent), model_(macro), dialog_(dialog) {
+PreviewWorkspaceController::PreviewWorkspaceController(bool macro, PreviewDialogModel& dialog, PreviewDialogModel& overview, QObject* parent)
+    : QObject(parent), model_(macro), dialog_(dialog), overview_(overview) {
     connect(&model_, &PreviewWorkspaceModel::requested, this, &PreviewWorkspaceController::handle);
 }
 
 void PreviewWorkspaceController::handle(const QString& action, const QVariant& argument) {
-    if (action == "add" || action == "edit") {
+    if (action == QStringLiteral("overview")) {
+        overview_.presentOverview(model_, model_.macroMode(), [this](const QVariantMap& target) {
+            if (model_.state().value("running").toBool()) return;
+            QScopedValueRollback<bool> overviewScope(editingFromOverview_, true);
+            const QString kind = target.value("action").toString();
+            if (kind == QStringLiteral("output")) {
+                if (model_.macroMode()) model_.focusSteps({target.value("targetId").toString()});
+                editRow(target.value("targetId"), false);
+            } else if (kind == QStringLiteral("add")) {
+                const auto key = target.value("key").toMap();
+                const int wheel = target.value("wheel").toInt();
+                editRow({}, true, -1, model_.macroMode(), {{"key", key}, {"keyText", key.value("text")},
+                    {"rawKeyText", key.value("text")}, {"isMouse", key.value("device").toInt() == 1},
+                    {"action", wheel != 0 ? 5 : 0}, {"wheelDelta", wheel != 0 ? wheel : 120}});
+            } else editShortcut(kind, kind == QStringLiteral("pause") ? target.value("targetId").toInt() : -1);
+        });
+    } else if (action == "add" || action == "edit") {
         editRow(argument, action == "add");
     } else if (action == "insertBefore" || action == "insertAfter") {
         const int index = rowIndexById(argument.toString());
@@ -96,6 +114,8 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
             QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"enabled", true}}});
     } else if (action == "hotkey" || action == "sequence" || action == "pause") {
         editShortcut(action);
+    } else if (action == "pauseEdit") {
+        editShortcut(QStringLiteral("pause"), argument.toInt());
     } else if (action == "sound") {
         dialog_.present("DialogSound.qml", tr("提示音设置"), sound_,
             [this](const QVariantMap& values) { sound_ = values; });
@@ -179,13 +199,17 @@ int PreviewWorkspaceController::rowIndexById(const QString& id) const {
     return -1;
 }
 
-void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, int insertIndex, bool focusCreated) {
+void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, int insertIndex, bool focusCreated,
+    const QVariantMap& initial) {
+    if (model_.state().value("running").toBool()) return;
     const auto rows = model_.rows();
     int index = adding ? -1 : rowIndexById(argument.toString());
     if (!adding && (index < 0 || index >= rows.size())) return;
-    const auto row = adding ? QVariantMap{} : rows[index].toMap();
+    const auto row = adding ? initial : rows[index].toMap();
     const int mode = adding ? 0 : row.value("mode").toInt();
-    QVariantMap fields{{"keyText", adding ? QStringLiteral("A") : row.value(model_.macroMode() ? "rawKeyText" : "keyText")},
+    const auto key = row.contains("key") ? row.value("key").toMap()
+        : KeyOverviewData::key({InputDevice::Keyboard, 0x41}, QStringLiteral("A"));
+    QVariantMap fields{{"keyText", key.value("text")}, {"keyData", key}, {"overviewChild", editingFromOverview_},
         {"macroStep", model_.macroMode()}, {"action", row.value("action", 0)},
         {"duration", row.value("duration", 500).toString()}, {"wheelDirection", row.value("wheelDelta", 120).toInt() < 0 ? 1 : 0},
         {"wheelCount", QString::number(std::abs(row.value("wheelDelta", 120).toInt() / 120))},
@@ -200,6 +224,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
         [this, index, row, insertIndex, focusCreated](const QVariantMap& values) {
             const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
             auto updated = row;
+            updated.insert("key", values.value("keyData"));
             const int mode = values.value("mode").toInt();
             if (index < 0) updated.insert("id", QString::number(nextId_++));
             updated.insert("keyText", values.value("keyText"));
@@ -281,21 +306,46 @@ void PreviewWorkspaceController::editProfile(const QString& action) {
         }, 360);
 }
 
-void PreviewWorkspaceController::editShortcut(const QString& kind) {
-    dialog_.present("DialogKeyEditor.qml", tr("设置快捷键"),
-        {{"keyText", QStringLiteral("F10")}, {"mode", 0}, {"modeVisible", false},
+void PreviewWorkspaceController::editShortcut(const QString& kind, int pauseIndex) {
+    if (model_.state().value("running").toBool()) return;
+    const auto state = model_.state();
+    const auto pauseKeys = state.value("pauseKeyData").toList();
+    if (pauseIndex >= pauseKeys.size()) return;
+    const auto key = kind == QStringLiteral("hotkey") ? state.value("controlKey").toMap()
+        : kind == QStringLiteral("sequence") ? state.value("sequenceKeyData").toMap()
+        : pauseIndex >= 0 ? pauseKeys[pauseIndex].toMap() : QVariantMap{};
+    const QString title = kind == QStringLiteral("hotkey") ? tr("设置启停键")
+        : kind == QStringLiteral("sequence") ? tr("设置切换键")
+        : pauseIndex >= 0 ? tr("编辑暂停键") : tr("添加暂停键");
+    dialog_.present("DialogKeyEditor.qml", title,
+        {{"keyText", key.isEmpty() ? tr("点击录制") : key.value("text")}, {"mode", 0},
+            {"modeVisible", false}, {"macroStep", false}, {"nameVisible", false}, {"name", QString()},
+            {"captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。")},
+            {"overviewChild", editingFromOverview_}, {"keyData", key},
             {"needsDelay", false}, {"delay", QStringLiteral("10")}, {"modeGuideVisible", false},
             {"positionVisible", false}, {"isMouse", false}, {"enabled", true}, {"priority", false}},
-        [this, kind](const QVariantMap& values) {
+        [this, kind, pauseIndex](const QVariantMap& values) {
+            if (values.value("keyData").toMap().isEmpty()) return;
             const QString key = values.value("keyText").toString();
-            if (kind == "hotkey") model_.update("hotkey", key);
+            if (kind == "hotkey") {
+                model_.update("controlKey", values.value("keyData"));
+                model_.update("hotkey", key);
+            }
             else if (kind == "sequence") {
+                model_.update("sequenceKeyData", values.value("keyData"));
                 model_.update("hasSequenceKey", true);
                 model_.update("sequenceKey", key);
             } else {
                 auto keys = model_.state().value("pauseKeys").toList();
-                if (!keys.contains(key)) keys.append(key);
+                auto descriptors = model_.state().value("pauseKeyData").toList();
+                const int duplicate = keys.indexOf(key);
+                if (duplicate >= 0 && duplicate != pauseIndex) return;
+                if (pauseIndex >= 0) {
+                    keys[pauseIndex] = key;
+                    descriptors[pauseIndex] = values.value("keyData");
+                } else { keys.append(key); descriptors.append(values.value("keyData")); }
+                model_.update("pauseKeyData", descriptors);
                 model_.update("pauseKeys", keys);
             }
-        }, 360);
+        }, 320);
 }

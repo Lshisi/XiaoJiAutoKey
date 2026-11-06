@@ -41,7 +41,7 @@ public:
     ControllerResult duplicateSteps(const std::vector<std::uint64_t>& stepIds,
         std::vector<std::uint64_t>& createdStepIds);
     ControllerResult moveStep(std::uint64_t stepId, int targetIndex);
-    ControllerResult addPauseKey(const KeyDescriptor& key);
+    ControllerResult upsertPauseKey(std::optional<int> index, const KeyDescriptor& key);
     ControllerResult deletePauseKey(int index);
 
     ControllerResult setTriggerKey(const KeyDescriptor& key);

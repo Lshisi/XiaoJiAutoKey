@@ -17,10 +17,13 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     PreviewWorkspaceController.h
     PreviewWorkspaceController.cpp
     PreviewDialogModel.h
+    PreviewKeyInput.h
     PreviewDialogModel.cpp
     PreviewOnboardingModel.h
     PreviewOnboardingModel.cpp
     ${PROJECT_ROOT}/src/ui/models/PageModel.h
+    ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.h
+    ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.cpp
     ${PROJECT_ROOT}/src/ui/models/UsagePageModel.h
     ${PROJECT_ROOT}/src/ui/models/UsagePageModel.cpp
     ${PROJECT_ROOT}/src/ui/models/DriverPageModel.h

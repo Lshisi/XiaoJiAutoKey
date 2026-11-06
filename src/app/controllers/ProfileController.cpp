@@ -454,9 +454,11 @@ ControllerResult ProfileController::updateBindings(const std::vector<std::uint64
     return ControllerResult::success();
 }
 
-ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
+ControllerResult ProfileController::upsertPauseKey(std::optional<int> index, const KeyDescriptor& key) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
+    if (index && (*index < 0 || *index >= static_cast<int>(profile->pauseKeys.size())))
+        return ControllerResult::failure(QStringLiteral("暂停键不存在。"));
 
     if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
     if (auto validation = validateImmediateKeyAgainstBindings(key, L"暂停键", *profile); !validation.ok) {
@@ -468,8 +470,8 @@ ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
     if (profile->sequenceSwitchKey.has_value() && *profile->sequenceSwitchKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5207\u6362\u952e\u3002"));
     }
-    for (const auto& pauseKey : profile->pauseKeys) {
-        if (pauseKey == key) {
+    for (int position = 0; position < static_cast<int>(profile->pauseKeys.size()); ++position) {
+        if ((!index || position != *index) && profile->pauseKeys[position] == key) {
             return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u5728\u6682\u505c\u952e\u5217\u8868\u4e2d\u3002"));
         }
     }
@@ -479,7 +481,8 @@ ControllerResult ProfileController::addPauseKey(const KeyDescriptor& key) {
         }
     }
 
-    profile->pauseKeys.push_back(key);
+    if (index) profile->pauseKeys[*index] = key;
+    else profile->pauseKeys.push_back(key);
     return ControllerResult::success();
 }
 

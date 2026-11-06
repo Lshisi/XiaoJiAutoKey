@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -23,6 +24,7 @@ ColumnLayout {
         id: tabs
         Layout.fillWidth: true
         currentIndex: settings.fields.tab
+        background: Item {}
         Repeater {
             model: [qsTr("按键连发"), qsTr("循环连发"), qsTr("通用")]
             delegate: TabButton {
@@ -31,13 +33,21 @@ ColumnLayout {
                 required property string modelData
                 text: modelData
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
+                font.pixelSize: Theme.bodyFontSize
                 hoverEnabled: true
                 onClicked: dialogModel.edit("tab", index)
-                contentItem: QuietLabel { text: tab.text; horizontalAlignment: Text.AlignHCenter; color: tab.checked ? Theme.accent : Theme.text }
+                contentItem: QuietLabel {
+                    text: tab.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: !tab.enabled ? Theme.muted : tab.checked ? Theme.accent : Theme.text
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                }
                 background: Rectangle {
                     color: tab.down ? Theme.accentSoft : tab.hovered ? Theme.accentSubtle : "transparent"
                     border.color: tab.visualFocus ? Theme.accent : "transparent"
+                    border.width: tab.visualFocus ? 2 : 0
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: tab.checked ? Theme.accent : "transparent" }
                 }
             }

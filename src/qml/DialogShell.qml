@@ -1,15 +1,19 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import XiaoJi.UI
 
 Item {
     id: shell
-    readonly property var dialogData: dialogModel.dialogState
-    readonly property real preferredWidth: (content.status === Loader.Ready && content.item
-        && content.item.preferredWidth !== undefined ? content.item.preferredWidth : content.implicitWidth)
+    property var model: dialogModel
+    readonly property var dialogData: model.dialogState
+    readonly property bool overviewPage: dialogData.page === "DialogKeyOverview.qml"
+    readonly property var pageLoader: overviewPage ? overviewContent : content
+    readonly property real preferredWidth: (pageLoader.status === Loader.Ready && pageLoader.item
+        && pageLoader.item.preferredWidth !== undefined ? pageLoader.item.preferredWidth : pageLoader.implicitWidth)
         + 2 * Theme.dialogPadding
-    readonly property real preferredHeight: header.implicitHeight + content.implicitHeight + footer.implicitHeight
-        + 2 * Theme.dialogVerticalPadding + 2 * Theme.cardGap
+    readonly property real preferredHeight: header.implicitHeight + pageLoader.implicitHeight + footer.implicitHeight
+        + 2 * Theme.dialogVerticalPadding + (footer.visible ? 2 : 1) * Theme.cardGap
     Rectangle {
         anchors.fill: parent
         radius: Theme.dialogRadius
@@ -17,6 +21,24 @@ Item {
         border.color: Theme.border
         border.width: 1
         Accessible.ignored: true
+    }
+    Loader {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 4
+        width: 20
+        height: 20
+        z: 1
+        active: shell.dialogData.resizable === true
+        sourceComponent: Item {
+            QuietIcon { anchors.fill: parent; name: "resize"; color: Theme.muted; pixelSize: 16 }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.SizeFDiagCursor
+                onPressed: shell.model.startWindowResize(Qt.RightEdge | Qt.BottomEdge)
+                Accessible.ignored: true
+            }
+        }
     }
     ColumnLayout {
         anchors.fill: parent
@@ -32,13 +54,13 @@ Item {
                 Layout.fillWidth: true
                 implicitHeight: 32
                 QuietHeading { anchors.fill: parent; text: shell.dialogData.title; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                MouseArea { anchors.fill: parent; onPressed: dialogModel.startWindowMove(); Accessible.ignored: true }
+                MouseArea { anchors.fill: parent; onPressed: shell.model.startWindowMove(); Accessible.ignored: true }
             }
             CaptionButton {
                 objectName: "dialogCancel"
                 closeAction: true
                 enabled: shell.dialogData.closeAllowed
-                onClicked: dialogModel.dispatch("cancel")
+                onClicked: shell.model.dispatch("cancel")
             }
         }
         QuietScrollView {
@@ -46,15 +68,27 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
-            Loader {
-                id: content
+            Item {
                 width: scroll.availableWidth
                 height: Math.max(implicitHeight, scroll.availableHeight)
-                source: shell.dialogData.page
+                implicitHeight: shell.pageLoader.implicitHeight
+                Loader {
+                    id: content
+                    anchors.fill: parent
+                    active: !shell.overviewPage
+                    source: active ? shell.dialogData.page : ""
+                }
+                Loader {
+                    id: overviewContent
+                    anchors.fill: parent
+                    active: shell.overviewPage
+                    sourceComponent: DialogKeyOverview { model: shell.model }
+                }
             }
         }
         Flow {
             id: footer
+            visible: shell.dialogData.actions.length > 0
             Layout.fillWidth: true
             layoutDirection: Qt.RightToLeft
             spacing: 8
@@ -67,7 +101,7 @@ Item {
                     primary: modelData.primary
                     destructive: modelData.danger
                     enabled: modelData.enabled
-                    onClicked: dialogModel.dispatch(modelData.id)
+                    onClicked: shell.model.dispatch(modelData.id)
                 }
             }
         }

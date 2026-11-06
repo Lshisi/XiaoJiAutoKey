@@ -3,7 +3,8 @@
 class MacroStepDialog : public KeyCaptureDialogBase {
     Q_OBJECT
 public:
-    MacroStepDialog(std::optional<MacroStep> existing, std::function<bool()> driverSupportsMouseMove, QWidget* parent = nullptr);
+    MacroStepDialog(std::optional<MacroStep> existing, std::function<bool()> driverSupportsMouseMove,
+        QWidget* parent = nullptr, std::optional<MacroStep> initial = std::nullopt);
     MacroStep editResult() const;
 protected:
     void editField(const QString& field, const QVariant& value) override;

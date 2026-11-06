@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <QVariantMap>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -41,6 +42,7 @@ public:
     explicit KeyBindingsCoordinator(QObject* parent = nullptr);
 
     void bind(Context context);
+    void editFromOverview(const QVariantMap& target, QWidget* parent);
 
 private:
     void onAddBinding();
@@ -60,8 +62,9 @@ private:
     void onSequenceSwitchKeyAdd();
     void onSequenceSwitchKeyDelete();
     void onPauseKeyAdd();
+    void editPauseKey(std::optional<int> index);
     void onPauseKeyDelete(int index);
-    void openEditDialog(std::optional<std::uint64_t> bindingId);
+    void openEditDialog(std::optional<std::uint64_t> bindingId, std::optional<KeyDescriptor> initialKey = std::nullopt);
     std::optional<std::size_t> findBindingIndex(std::uint64_t id) const;
 
     Context context_;

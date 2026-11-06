@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty(QStringLiteral("shareBannerModel"), controller.shareBanner());
     engine.rootContext()->setContextProperty(QStringLiteral("onboardingModel"), controller.onboarding());
     engine.rootContext()->setContextProperty(QStringLiteral("dialogModel"), controller.dialog());
+    engine.rootContext()->setContextProperty(QStringLiteral("overviewDialogModel"), controller.overviewDialog());
     engine.rootContext()->setContextProperty(QStringLiteral("overlayModel"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("pickerModel"), &controller);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/PreviewWindow.qml")));

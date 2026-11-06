@@ -13,8 +13,10 @@
 #include "input/GlobalInputHook.h"
 #include "MacroEngine.h"
 #include "ui/models/MacroPageModel.h"
+#include "ui/models/KeyOverviewData.h"
 
 #include <QDialog>
+#include <QScopedValueRollback>
 
 #include <algorithm>
 
@@ -61,6 +63,7 @@ void MacroCoordinator::bind(Context context) {
     connect(context_.page, &MacroPageModel::beepToggled, this, &MacroCoordinator::onMacroBeepToggled);
     connect(context_.page, &MacroPageModel::statusOverlayToggled, this, &MacroCoordinator::onStatusOverlayToggled);
     connect(context_.page, &MacroPageModel::pauseKeyAddClicked, this, &MacroCoordinator::onPauseKeyAdd);
+    connect(context_.page, &MacroPageModel::pauseKeyEditClicked, this, [this](int index) { editPauseKey(index); });
     connect(context_.page, &MacroPageModel::pauseKeyDeleteClicked, this, &MacroCoordinator::onPauseKeyDelete);
 }
 
@@ -247,10 +250,28 @@ void MacroCoordinator::onMacroAddStep() {
     addStep(-1, false);
 }
 
-void MacroCoordinator::addStep(int insertIndex, bool focusCreated) {
-    if (!context_.controller || !context_.runKeyCaptureDialog) return;
+void MacroCoordinator::editFromOverview(const QVariantMap& target, QWidget* parent) {
+    QScopedValueRollback<QWidget*> parentScope(context_.parent, parent);
+    const QString action = target.value("action").toString();
+    if (action == QStringLiteral("add")) {
+        MacroStep initial;
+        if (target.value("wheel").toInt() != 0) {
+            initial.action = MacroAction::Wheel;
+            initial.wheelDelta = target.value("wheel").toInt();
+        } else initial.key = KeyOverviewData::descriptor(target);
+        addStep(-1, true, initial);
+    } else if (action == QStringLiteral("output")) {
+        context_.page->focusSteps({target.value("targetId").toString().toULongLong()});
+        onMacroEditStep(target.value("targetId").toString());
+    } else if (action == QStringLiteral("pause")) editPauseKey(target.value("targetId").toInt());
+    else if (action == QStringLiteral("hotkey")) emit context_.page->hotkeyEditClicked();
+}
 
-    MacroStepDialog dialog(std::nullopt, context_.driverSupportsMouseMove, context_.parent);
+void MacroCoordinator::addStep(int insertIndex, bool focusCreated, std::optional<MacroStep> initial) {
+    if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    if (context_.engine && context_.engine->HasActiveMacro()) return;
+
+    MacroStepDialog dialog(std::nullopt, context_.driverSupportsMouseMove, context_.parent, initial);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -291,6 +312,7 @@ void MacroCoordinator::onMacroInsertStep(const QString& stepId, bool before) {
 
 void MacroCoordinator::onMacroEditStep(const QString& stepId) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    if (context_.engine && context_.engine->HasActiveMacro()) return;
     auto* macro = context_.controller->activeMacro();
     if (!macro) return;
     bool ok = false;
@@ -520,11 +542,17 @@ void MacroCoordinator::onStatusOverlayToggled(bool enabled) {
 }
 
 void MacroCoordinator::onPauseKeyAdd() {
+    editPauseKey(std::nullopt);
+}
+
+void MacroCoordinator::editPauseKey(std::optional<int> index) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    if (context_.engine && context_.engine->HasActiveMacro()) return;
     auto* macro = context_.controller->activeMacro();
     if (!macro) return;
+    if (index && (*index < 0 || *index >= static_cast<int>(macro->pauseKeys.size()))) return;
 
-    PauseKeyDialog dialog(context_.parent);
+    PauseKeyDialog dialog(context_.parent, index ? std::optional(macro->pauseKeys[*index]) : std::nullopt);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -537,7 +565,7 @@ void MacroCoordinator::onPauseKeyAdd() {
         return;
     }
 
-    auto result = context_.controller->addPauseKey(dialog.editResult().key);
+    auto result = context_.controller->upsertPauseKey(index, dialog.editResult().key);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;

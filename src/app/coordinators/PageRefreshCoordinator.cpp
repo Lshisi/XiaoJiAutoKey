@@ -33,6 +33,7 @@ void PageRefreshCoordinator::refreshAll() {
     context_.view->keyPage()->setProfileEnabled(profile->enabled);
     context_.view->keyPage()->setRunning(context_.repeaterEngine->IsToolRunning());
     context_.view->keyPage()->setHotkeyText(hotkeyText);
+    context_.view->keyPage()->setControlKey(profile->controlHotkey);
     context_.view->keyPage()->setBeepEnabled(context_.config->beepEnabled);
     context_.view->keyPage()->setStatusOverlayEnabled(context_.config->statusOverlayShowRepeat);
     context_.view->keyPage()->setMixedMode(profile->mixedMode);
@@ -84,6 +85,7 @@ void PageRefreshCoordinator::refreshMacro() {
             ? QString::fromStdWString(GetKeyDisplayName(*macro->triggerKey))
             : QString::fromWCharArray(L"\u672a\u8bbe\u7f6e");
         context_.view->macroPage()->setHotkeyText(hotkeyText);
+        context_.view->macroPage()->setControlKey(macro->triggerKey);
     } else {
         context_.view->macroPage()->setMacroEnabled(false);
         context_.view->macroPage()->setSteps({}, 0);
@@ -91,6 +93,7 @@ void PageRefreshCoordinator::refreshMacro() {
         context_.view->macroPage()->setMode(MacroTriggerMode::Toggle);
         context_.view->macroPage()->setLoopCount(0);
         context_.view->macroPage()->setHotkeyText(QString::fromWCharArray(L"\u672a\u8bbe\u7f6e"));
+        context_.view->macroPage()->setControlKey(std::nullopt);
     }
 }
 

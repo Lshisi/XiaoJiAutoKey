@@ -2,6 +2,7 @@
 
 #include "MacroTiming.h"
 #include "MacroActions.h"
+#include "KeyOverviewData.h"
 
 MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"steps", QVariantList{}}, {"profiles", QVariantList{}}, {"profileIndex", -1},
@@ -10,6 +11,9 @@ MacroPageModel::MacroPageModel(QObject* parent) : PageModel(parent) {
         {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QVariantList{}}, {"focusStepIds", QVariantList{}},
         {"timingText", QString()}, {"executionError", QString()}};
+    state_.insert("controlKey", QVariantMap{});
+    state_.insert("pauseKeyData", QVariantList{});
+    state_.insert("overviewRuntime", QVariantMap{});
 }
 
 QVariantList MacroPageModel::idList(const std::vector<std::uint64_t>& ids) {
@@ -36,6 +40,8 @@ void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, std::uint64_t
         const QString id = QString::number(step.id);
         if (selectedIds.contains(id)) validSelectedIds.push_back(id);
         rows.push_back(QVariantMap{{"id", id}, {"enabled", step.enabled}, {"keyText", QString::fromStdWString(keyName)},
+            {"key", KeyOverviewData::key(step.key, MacroActionNeedsKey(step.action) ? QString::fromStdWString(GetKeyDisplayName(step.key)) : QString())},
+            {"action", static_cast<int>(step.action)}, {"duration", step.durationMs}, {"wheelDelta", step.wheelDelta},
             {"name", QString::fromStdWString(name)},
             {"keyDisplayText", QString::fromStdWString(displayName)},
             {"delay", step.action == MacroAction::Wait ? QVariant(QStringLiteral("—")) : QVariant(step.delayAfterMs)}, {"positionHint", fixed
@@ -90,8 +96,21 @@ void MacroPageModel::setLoopCount(int value) {
 
 void MacroPageModel::setPauseKeys(const std::vector<KeyDescriptor>& keys) {
     QVariantList values;
+    QVariantList descriptors;
+    for (const auto& key : keys) descriptors.push_back(KeyOverviewData::key(key, QString::fromStdWString(GetKeyDisplayName(key))));
+    state_.insert("pauseKeyData", descriptors);
     for (const auto& key : keys) values.push_back(QString::fromStdWString(GetKeyDisplayName(key)));
     setValue("pauseKeys", values);
+}
+
+void MacroPageModel::setControlKey(std::optional<KeyDescriptor> key) {
+    setValueIfChanged("controlKey", key ? KeyOverviewData::key(*key, QString::fromStdWString(GetKeyDisplayName(*key))) : QVariantMap{});
+}
+
+void MacroPageModel::setOverviewRuntime(bool paused, int currentStep) {
+    const QString id = currentStep >= 0 && currentStep < static_cast<int>(steps_.size())
+        ? QString::number(steps_[currentStep].id) : QString();
+    setValueIfChanged("overviewRuntime", QVariantMap{{"paused", paused}, {"currentStepId", id}});
 }
 
 void MacroPageModel::setMacroProfiles(const std::vector<std::pair<std::uint64_t, QString>>& macros, std::uint64_t activeId) {

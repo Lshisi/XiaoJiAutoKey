@@ -24,6 +24,14 @@ QtObject {
     readonly property color danger: colors.danger
     readonly property color warning: colors.warning
     readonly property color success: colors.success
+    readonly property var keyOverviewRoles: ({
+        output: { label: qsTr("输出"), color: accent },
+        hotkey: { label: qsTr("启停"), color: success },
+        pause: { label: qsTr("暂停"), color: warning },
+        sequence: { label: qsTr("切换"), color: colors.info },
+        modifier: { label: qsTr("修饰键"), color: muted },
+        multiple: { label: qsTr("多用途"), color: colors.info }
+    })
     readonly property var usageHeatmapColors: [hover, accentSubtle, accentSoft, accentBorder, accent]
     readonly property color rim: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.85)
     readonly property int pageMargin: colors.pageMargin

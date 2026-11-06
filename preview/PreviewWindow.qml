@@ -1,5 +1,5 @@
+pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import XiaoJi.UI
 
@@ -38,6 +38,15 @@ Window {
             }
             QuietCheck { text: qsTr("深色"); checked: Theme.dark; onToggled: appView.setDarkMode(checked) }
             QuietCheck { text: qsTr("示例数据"); checked: appView.demoData; onToggled: appView.setDemoData(checked) }
+            QuietCheck {
+                text: qsTr("暂停示例")
+                checked: keyPageModel.state.overviewPaused
+                enabled: keyPageModel.state.running || macroPageModel.state.running
+                onClicked: {
+                    keyPageModel.setOverviewPaused(checked)
+                    macroPageModel.setOverviewPaused(checked)
+                }
+            }
             QuietCombo {
                 Layout.preferredWidth: 132
                 model: [qsTr("其它窗口预览…"), qsTr("关闭确认"), qsTr("导入配置"), qsTr("更新下载"),
@@ -57,10 +66,21 @@ Window {
         Accessible.ignored: true
     }
     Loader {
-        active: dialogModel.visible
+        id: overviewLoader
+        active: overviewDialogModel.visible
         sourceComponent: PreviewDialogWindow {
+            model: overviewDialogModel
             ownerWindow: preview
             anchorItem: appShell.workspaceDialogAnchor
+        }
+    }
+    Loader {
+        active: dialogModel.visible
+        sourceComponent: PreviewDialogWindow {
+            readonly property bool fromOverview: dialogModel.dialogState.overviewChild === true && overviewLoader.status === Loader.Ready
+            ownerWindow: fromOverview ? (overviewLoader.item as Window) : preview
+            sizeReferenceWindow: preview
+            anchorItem: fromOverview ? null : appShell.workspaceDialogAnchor
         }
     }
     Loader {

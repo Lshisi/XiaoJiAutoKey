@@ -1,6 +1,7 @@
 #include "PreviewWorkspaceModel.h"
 #include "MacroTiming.h"
 #include "MacroActions.h"
+#include "ui/models/KeyOverviewData.h"
 
 #include <QStringList>
 #include <algorithm>
@@ -21,6 +22,12 @@ void PreviewWorkspaceModel::reset(bool demo) {
         {"pauseKeys", QVariantList{}}, {"hasSequenceBindings", false},
         {"updateVersion", QString()}, {"triggerMode", 0}, {"loopCount", 0},
         {"selectedStepIds", QStringList{}}, {"selectedBindingIds", QStringList{}}, {"focusStepIds", QStringList{}}};
+    state_.insert("controlKey", demo ? KeyOverviewData::key(
+        macro_ ? KeyDescriptor{InputDevice::Keyboard, 0x77} : KeyDescriptor{InputDevice::Mouse, 6}, state_.value("hotkey").toString()) : QVariantMap{});
+    if (!demo) state_.insert("hotkey", tr("未设置"));
+    state_.insert("sequenceKeyData", QVariantMap{});
+    state_.insert("pauseKeyData", QVariantList{});
+    state_.insert("overviewPaused", false);
     state_.insert("timingText", QString());
     state_.insert("executionError", QString());
     QVariantList rows;
@@ -28,9 +35,12 @@ void PreviewWorkspaceModel::reset(bool demo) {
         const QStringList keys{QStringLiteral("Ctrl+1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift")};
         const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
         const QStringList names{tr("主输出"), tr("接管"), tr("爆发"), tr("循环段"), QString()};
+        const std::vector<KeyDescriptor> descriptors{{InputDevice::Keyboard, 0x31, kKeyModifierCtrl},
+            {InputDevice::Mouse, 5}, {InputDevice::Keyboard, 0x71}, {InputDevice::Keyboard, 0x33}, {InputDevice::Keyboard, 0x10}};
         for (int index = 0; index < (macro_ ? 3 : keys.size()); ++index) {
             const QString name = names[index];
             rows.append(QVariantMap{{"id", QString::number(index + 1)}, {"enabled", true},
+                {"key", KeyOverviewData::key(descriptors[index], keys[index])},
                 {"keyText", keys[index]}, {"name", name},
                 {"keyDisplayText", name.isEmpty() ? keys[index] : QStringLiteral("%1 · %2").arg(keys[index], name)},
                 {"isMouse", index == 1}, {"mode", index}, {"modeText", modes[index]},
@@ -40,6 +50,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
                 {"action", 0}, {"duration", 500}, {"wheelDelta", 120}, {"rawKeyText", keys[index]}, {"positionHint", QString()}});
         }
         state_.insert("pauseKeys", QVariantList{QStringLiteral("F9")});
+        state_.insert("pauseKeyData", QVariantList{KeyOverviewData::key({InputDevice::Keyboard, 0x78}, QStringLiteral("F9"))});
     }
     setRows(rows);
 }
@@ -91,6 +102,7 @@ void PreviewWorkspaceModel::setRows(const QVariantList& inputRows) {
     setValue(macro_ ? "steps" : "bindings", rows);
     if (macro_) refreshTiming();
     else refreshSequenceSelection();
+    refreshOverviewRuntime();
 }
 
 void PreviewWorkspaceModel::selectSteps(const QStringList& ids) {
@@ -171,6 +183,20 @@ void PreviewWorkspaceModel::startStopClicked() {
         return;
     }
     setValue("running", !state_.value("running").toBool());
+    refreshOverviewRuntime();
+}
+
+void PreviewWorkspaceModel::refreshOverviewRuntime() {
+    const auto entries = rows();
+    QString currentStepId;
+    if (macro_ && state_.value("running").toBool()) {
+        for (const auto& value : entries) {
+            if (value.toMap().value("enabled").toBool()) { currentStepId = value.toMap().value("id").toString(); break; }
+        }
+    }
+    setValue("overviewRuntime", QVariantMap{{"paused", state_.value("overviewPaused")}, {"gamePaused", false}, {"holdPriority", false},
+        {"holdKeys", QVariantList{}}, {"independentKey", QVariantMap{}},
+        {"sequenceId", sequenceSelectedBindingId_}, {"currentStepId", currentStepId}});
 }
 
 void PreviewWorkspaceModel::modeChanged(int value) {
@@ -216,6 +242,7 @@ void PreviewWorkspaceModel::toggleBindingSelection(const QString& id) {
 }
 
 void PreviewWorkspaceModel::sequenceSwitchKeyDeleteClicked() {
+    state_.insert("sequenceKeyData", QVariantMap{});
     state_.insert("hasSequenceKey", false);
     setValue("sequenceKey", tr("未设置"));
 }
@@ -224,6 +251,9 @@ void PreviewWorkspaceModel::pauseKeyDeleteClicked(int index) {
     auto keys = state_.value("pauseKeys").toList();
     if (index < 0 || index >= keys.size()) return;
     keys.removeAt(index);
+    auto descriptors = state_.value("pauseKeyData").toList();
+    descriptors.removeAt(index);
+    state_.insert("pauseKeyData", descriptors);
     setValue("pauseKeys", keys);
 }
 

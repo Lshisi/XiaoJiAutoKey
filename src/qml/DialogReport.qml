@@ -37,7 +37,7 @@ ColumnLayout {
         sourceComponent: ColumnLayout {
             Layout.fillWidth: true
             spacing: 8
-            BusyIndicator { visible: report.fields.progressIndeterminate; running: visible; Layout.alignment: Qt.AlignHCenter; implicitWidth: 28; implicitHeight: 28 }
+            BusyIndicator { visible: report.fields.progressIndeterminate; running: visible; palette.dark: Theme.accent; Layout.alignment: Qt.AlignHCenter; implicitWidth: 28; implicitHeight: 28 }
             QuietProgress { visible: !report.fields.progressIndeterminate; Layout.fillWidth: true; value: report.fields.progressValue }
             QuietLabel { Layout.fillWidth: true; text: report.fields.progressText; color: Theme.muted; font.pixelSize: 12 }
         }

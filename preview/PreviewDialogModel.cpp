@@ -10,6 +10,9 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include "MacroActions.h"
+#include "PreviewKeyInput.h"
+#include "ui/models/KeyOverviewData.h"
+#include "ui/models/PageModel.h"
 
 PreviewDialogModel::PreviewDialogModel(QObject* parent) : QObject(parent) {
     qApp->installEventFilter(this);
@@ -28,6 +31,10 @@ PreviewDialogModel::PreviewDialogModel(QObject* parent) : QObject(parent) {
 
 void PreviewDialogModel::present(const QString& page, const QString& title, QVariantMap fields,
     std::function<void(const QVariantMap&)> accepted, int width, bool danger) {
+    disconnect(overviewConnection_);
+    overviewPage_.clear();
+    overviewSelection_.clear();
+    overviewNavigation_ = {};
     accepted_ = std::move(accepted);
     recording_ = false;
     fields.insert("page", page);
@@ -38,7 +45,7 @@ void PreviewDialogModel::present(const QString& page, const QString& title, QVar
         {"primary", !danger}, {"danger", danger}, {"enabled", true}}};
     if (accepted_) actions.append(QVariantMap{{"id", "cancel"}, {"text", tr("取消")},
         {"primary", false}, {"danger", false}, {"enabled", true}});
-    fields.insert("actions", actions);
+    if (!fields.contains("actions")) fields.insert("actions", actions);
     state_ = std::move(fields);
     emit dialogStateChanged();
     visible_ = true;
@@ -52,6 +59,11 @@ void PreviewDialogModel::message(const QString& title, const QString& text, std:
 }
 
 void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
+    if (overviewPage_ && field == QStringLiteral("selectedKey")) {
+        overviewSelection_ = value.toString();
+        refreshOverview();
+        return;
+    }
     state_.insert(field, value);
     if (field == "mode") state_.insert("needsDelay", value.toInt() != 4);
     if (field == "mode" && state_.value("page").toString() == QStringLiteral("DialogBatchEdit.qml")
@@ -90,6 +102,15 @@ void PreviewDialogModel::updateBatchEditActions() {
 }
 
 void PreviewDialogModel::dispatch(const QString& action, const QVariant& argument) {
+    if (overviewPage_ && action == QStringLiteral("navigate")) {
+        refreshOverview();
+        const auto target = KeyOverviewData::action(state_.value("overview").toMap(), argument.toString());
+        if (target.isEmpty()) return;
+        QTimer::singleShot(0, this, [this, target] {
+            if (overviewPage_ && !overviewPage_->state().value("running").toBool()) overviewNavigation_(target);
+        });
+        return;
+    }
     if (state_.value("page").toString() == "DialogMacroRecording.qml") {
         if (action == "start") {
             macroRecording_.clear();
@@ -104,6 +125,8 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
     }
     if (action == "accept" || action == "cancel" || action == "exit" || action == "tray") {
         recordingCountdown_.stop();
+        disconnect(overviewConnection_);
+        overviewPage_.clear();
         auto accepted = std::move(accepted_);
         visible_ = false;
         recording_ = false;
@@ -138,6 +161,28 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
 
 void PreviewDialogModel::startWindowMove() {
     if (auto* window = QGuiApplication::focusWindow()) window->startSystemMove();
+}
+
+void PreviewDialogModel::startWindowResize(int edges) {
+    if (state_.value("resizable").toBool()) {
+        if (auto* window = QGuiApplication::focusWindow()) window->startSystemResize(Qt::Edges(edges));
+    }
+}
+
+void PreviewDialogModel::presentOverview(PageModel& page, bool macroMode, std::function<void(const QVariantMap&)> navigation) {
+    QString selected;
+    present(QStringLiteral("DialogKeyOverview.qml"), macroMode ? tr("循环按键总览") : tr("按键总览"),
+        {{"overview", KeyOverviewData::build(page.state(), macroMode, selected)}, {"resizable", true}, {"actions", QVariantList{}}}, {}, 1100);
+    overviewPage_ = &page;
+    overviewMacroMode_ = macroMode;
+    overviewSelection_ = selected;
+    overviewNavigation_ = std::move(navigation);
+    overviewConnection_ = connect(&page, &PageModel::stateChanged, this, &PreviewDialogModel::refreshOverview);
+}
+
+void PreviewDialogModel::refreshOverview() {
+    state_.insert("overview", KeyOverviewData::build(overviewPage_->state(), overviewMacroMode_, overviewSelection_));
+    emit dialogStateChanged();
 }
 
 bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
@@ -218,6 +263,10 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
     recording_ = false;
     pendingModifierKeys_.clear();
     state_.insert("isMouse", event->type() == QEvent::MouseButtonPress);
+    const KeyDescriptor descriptor = event->type() == QEvent::MouseButtonPress
+        ? PreviewMouseKey(static_cast<QMouseEvent*>(event)->button(), static_cast<QMouseEvent*>(event)->modifiers())
+        : PreviewKeyboardKey(static_cast<QKeyEvent*>(event)->key(), static_cast<QKeyEvent*>(event)->modifiers());
+    state_.insert("keyData", KeyOverviewData::key(descriptor, key));
     edit("keyText", key);
     return true;
 }
@@ -231,8 +280,13 @@ void PreviewDialogModel::finishMacroRecording() {
         QString key = step.key.device == InputDevice::Keyboard
             ? QKeySequence(static_cast<int>(step.key.code)).toString(QKeySequence::PortableText) : tr("鼠标键");
         const QString actionText = QString::fromStdWString(MacroStepText(step, key.toStdWString()));
+        auto descriptor = step.key.device == InputDevice::Keyboard
+            ? PreviewKeyboardKey(static_cast<int>(step.key.code))
+            : PreviewMouseKey(static_cast<Qt::MouseButton>(step.key.code));
+        descriptor.modifiers = step.key.modifiers;
         descriptions.append(actionText);
         rows.push_back(QVariantMap{{"enabled", true}, {"rawKeyText", key}, {"keyText", actionText},
+            {"key", KeyOverviewData::key(descriptor, key)},
             {"action", static_cast<int>(step.action)}, {"duration", step.durationMs}, {"wheelDelta", step.wheelDelta},
             {"delay", step.delayAfterMs}, {"name", QString()}, {"positionHint", QString()}});
     }

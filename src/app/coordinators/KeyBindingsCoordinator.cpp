@@ -11,8 +11,10 @@
 #include "input/GlobalInputHook.h"
 #include "RepeaterEngine.h"
 #include "ui/models/KeyPageModel.h"
+#include "ui/models/KeyOverviewData.h"
 
 #include <QDialog>
+#include <QScopedValueRollback>
 
 KeyBindingsCoordinator::KeyBindingsCoordinator(QObject* parent) : QObject(parent) {}
 
@@ -37,6 +39,7 @@ void KeyBindingsCoordinator::bind(Context context) {
     connect(context_.page, &KeyPageModel::sequenceSwitchKeyAddClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyAdd);
     connect(context_.page, &KeyPageModel::sequenceSwitchKeyDeleteClicked, this, &KeyBindingsCoordinator::onSequenceSwitchKeyDelete);
     connect(context_.page, &KeyPageModel::pauseKeyAddClicked, this, &KeyBindingsCoordinator::onPauseKeyAdd);
+    connect(context_.page, &KeyPageModel::pauseKeyEditClicked, this, [this](int index) { editPauseKey(index); });
     connect(context_.page, &KeyPageModel::pauseKeyDeleteClicked, this, &KeyBindingsCoordinator::onPauseKeyDelete);
 }
 
@@ -242,7 +245,7 @@ void KeyBindingsCoordinator::onSequenceSwitchKeyAdd() {
     auto* profile = context_.controller->activeProfile();
     if (!profile) return;
 
-    SequenceSwitchKeyDialog dialog(context_.parent);
+    SequenceSwitchKeyDialog dialog(context_.parent, profile->sequenceSwitchKey);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -275,11 +278,17 @@ void KeyBindingsCoordinator::onSequenceSwitchKeyDelete() {
 }
 
 void KeyBindingsCoordinator::onPauseKeyAdd() {
+    editPauseKey(std::nullopt);
+}
+
+void KeyBindingsCoordinator::editPauseKey(std::optional<int> index) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    if (context_.engine && context_.engine->IsToolRunning()) return;
     auto* profile = context_.controller->activeProfile();
     if (!profile) return;
+    if (index && (*index < 0 || *index >= static_cast<int>(profile->pauseKeys.size()))) return;
 
-    PauseKeyDialog dialog(context_.parent);
+    PauseKeyDialog dialog(context_.parent, index ? std::optional(profile->pauseKeys[*index]) : std::nullopt);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 
@@ -292,7 +301,7 @@ void KeyBindingsCoordinator::onPauseKeyAdd() {
         return;
     }
 
-    auto result = context_.controller->addPauseKey(dialog.editResult().key);
+    auto result = context_.controller->upsertPauseKey(index, dialog.editResult().key);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;
@@ -313,8 +322,21 @@ void KeyBindingsCoordinator::onPauseKeyDelete(int index) {
     context_.page->setPauseKeys(profile->pauseKeys);
 }
 
-void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> bindingId) {
+void KeyBindingsCoordinator::editFromOverview(const QVariantMap& target, QWidget* parent) {
+    QScopedValueRollback<QWidget*> parentScope(context_.parent, parent);
+    const QString action = target.value("action").toString();
+    if (action == QStringLiteral("add")) {
+        const auto key = KeyOverviewData::descriptor(target);
+        if (key.IsValid()) openEditDialog(std::nullopt, key);
+    } else if (action == QStringLiteral("output")) onEditBinding(target.value("targetId").toString().toULongLong());
+    else if (action == QStringLiteral("sequence")) onSequenceSwitchKeyAdd();
+    else if (action == QStringLiteral("pause")) editPauseKey(target.value("targetId").toInt());
+    else if (action == QStringLiteral("hotkey")) onHotkeyEditClicked();
+}
+
+void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> bindingId, std::optional<KeyDescriptor> initialKey) {
     if (!context_.controller || !context_.runKeyCaptureDialog) return;
+    if (context_.engine && context_.engine->IsToolRunning()) return;
     auto* profile = context_.controller->activeProfile();
     if (!profile) return;
 
@@ -330,6 +352,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
 
     BindingEditDialog dialog(existing, kDefaultDelayMs,
         context_.driverSupportsMouseMove, context_.parent);
+    if (!existing && initialKey) dialog.setInitialKey(*initialKey);
     context_.runKeyCaptureDialog(dialog);
     if (dialog.result() == QDialog::Rejected) return;
 

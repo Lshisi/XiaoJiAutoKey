@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -46,7 +47,10 @@ Item {
                 Layout.preferredHeight: implicitHeight
                 text: root.keys[tag.index]
                 removeHint: qsTr("删除暂停键 %1").arg(root.keys[tag.index])
+                editable: true
+                editHint: qsTr("编辑暂停键 %1").arg(root.keys[tag.index])
                 enabled: !root.page.state.running
+                onEditRequested: root.page.pauseKeyEditClicked(tag.index)
                 onRemoveRequested: root.page.pauseKeyDeleteClicked(tag.index)
             }
         }
@@ -60,7 +64,7 @@ Item {
             topPadding: 2
             bottomPadding: 2
             text: qsTr("+%1").arg(root.keys.length - root.visibleCount)
-            hint: qsTr("更多暂停键，点击可删除")
+            hint: qsTr("更多暂停键，点击可编辑或删除")
             enabled: !root.page.state.running
             onClicked: morePopup.open()
             Popup {
@@ -74,12 +78,22 @@ Item {
                     id: moreList
                     clip: true
                     model: root.keys.slice(root.visibleCount)
-                    delegate: QuietMenuItem {
+                    delegate: RowLayout {
+                        id: pauseEntry
                         required property string modelData
                         required property int index
                         width: moreList.width
-                        text: qsTr("%1 ×").arg(modelData)
-                        onTriggered: { const position = root.visibleCount + index; morePopup.close(); root.page.pauseKeyDeleteClicked(position) }
+                        spacing: 4
+                        QuietMenuItem {
+                            Layout.fillWidth: true
+                            text: qsTr("编辑 %1").arg(pauseEntry.modelData)
+                            onTriggered: { const position = root.visibleCount + pauseEntry.index; morePopup.close(); root.page.pauseKeyEditClicked(position) }
+                        }
+                        IconButton {
+                            iconName: "close"
+                            hint: qsTr("删除暂停键 %1").arg(pauseEntry.modelData)
+                            onClicked: { const position = root.visibleCount + pauseEntry.index; morePopup.close(); root.page.pauseKeyDeleteClicked(position) }
+                        }
                     }
                     ScrollBar.vertical: QuietScrollBar {}
                 }

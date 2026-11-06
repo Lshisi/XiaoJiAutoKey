@@ -8,10 +8,14 @@ ToolTip {
     timeout: 5000
     margins: 8
     padding: 8
-    implicitWidth: Math.min(280, implicitContentWidth + leftPadding + rightPadding)
+    implicitWidth: Math.min(280, tipLabel.implicitWidth + leftPadding + rightPadding)
+    implicitHeight: tipLabel.implicitHeight + topPadding + bottomPadding
     contentItem: QuietLabel {
+        id: tipLabel
         text: control.text
+        color: Theme.text
         font.pixelSize: Theme.captionFontSize
+        wrapMode: Text.Wrap
     }
     background: Rectangle {
         radius: Theme.buttonRadius

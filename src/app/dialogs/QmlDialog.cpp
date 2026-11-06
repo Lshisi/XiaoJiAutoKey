@@ -77,6 +77,9 @@ void QmlDialog::handleAction(const QString& action, const QVariant&) {
 }
 void QmlDialog::reject() { if (value("closeAllowed").toBool()) QDialog::reject(); }
 void QmlDialog::startWindowMove() { if (windowHandle()) windowHandle()->startSystemMove(); }
+void QmlDialog::startWindowResize(int edges) {
+    if (value("resizable").toBool() && windowHandle()) windowHandle()->startSystemResize(Qt::Edges(edges));
+}
 void QmlDialog::refreshVisuals() {
     emit themeChanged();
     fitToContent();

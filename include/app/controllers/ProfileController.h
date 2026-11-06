@@ -45,7 +45,7 @@ public:
         std::optional<RepeatMode> mode, std::optional<int> delayMs, std::optional<bool> enabled,
         std::optional<bool> participatePriority);
 
-    ControllerResult addPauseKey(const KeyDescriptor& key);
+    ControllerResult upsertPauseKey(std::optional<int> index, const KeyDescriptor& key);
     ControllerResult deletePauseKey(int index);
 
 private:

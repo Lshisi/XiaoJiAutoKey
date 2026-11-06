@@ -11,6 +11,7 @@ public:
     void handleCapturedKey(quint64 encodedKey);
     void handleModifierReleased(KeyDescriptor key);
     std::optional<KeyDescriptor> capturedKey() const { return capturedKey_; }
+    void setInitialKey(KeyDescriptor key) { setCapturedKey(key); }
     void setPrimaryMouseButtonsAllowed(bool allowed) { allowPrimaryMouseButtons_ = allowed; }
     void setModeGuideCallbacks(std::function<bool(RepeatMode)> shouldShow,
         std::function<void(RepeatMode)> dismissed);

@@ -392,17 +392,19 @@ ControllerResult MacroController::moveStep(std::uint64_t stepId, int targetIndex
     return ControllerResult::success();
 }
 
-ControllerResult MacroController::addPauseKey(const KeyDescriptor& key) {
+ControllerResult MacroController::upsertPauseKey(std::optional<int> index, const KeyDescriptor& key) {
     auto* macro = activeMacro();
     if (!macro) return ControllerResult::failure(QString::fromWCharArray(L"\u5b8f\u4e0d\u5b58\u5728\u3002"));
+    if (index && (*index < 0 || *index >= static_cast<int>(macro->pauseKeys.size())))
+        return ControllerResult::failure(QStringLiteral("暂停键不存在。"));
 
     if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
     if (auto validation = validatePauseKeyAgainstSteps(key, *macro); !validation.ok) return validation;
     if (macro->triggerKey.has_value() && *macro->triggerKey == key) {
         return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u88ab\u8bbe\u7f6e\u4e3a\u5f53\u524d\u5b8f\u7684\u542f\u505c\u5feb\u6377\u952e\u3002"));
     }
-    for (const auto& pauseKey : macro->pauseKeys) {
-        if (pauseKey == key) {
+    for (int position = 0; position < static_cast<int>(macro->pauseKeys.size()); ++position) {
+        if ((!index || position != *index) && macro->pauseKeys[position] == key) {
             return ControllerResult::failure(QString::fromWCharArray(L"\u8be5\u6309\u952e\u5df2\u5728\u6682\u505c\u952e\u5217\u8868\u4e2d\u3002"));
         }
     }
@@ -412,7 +414,8 @@ ControllerResult MacroController::addPauseKey(const KeyDescriptor& key) {
         }
     }
 
-    macro->pauseKeys.push_back(key);
+    if (index) macro->pauseKeys[*index] = key;
+    else macro->pauseKeys.push_back(key);
     return ControllerResult::success();
 }
 

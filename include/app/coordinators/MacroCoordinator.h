@@ -4,6 +4,7 @@
 #include "controllers/ControllerResult.h"
 
 #include <QObject>
+#include <QVariantMap>
 #include <cstdint>
 #include <functional>
 
@@ -44,6 +45,7 @@ public:
     explicit MacroCoordinator(QObject* parent = nullptr);
 
     void bind(Context context);
+    void editFromOverview(const QVariantMap& target, QWidget* parent);
     void pollRunningState();
 
 private:
@@ -71,9 +73,10 @@ private:
     void onMacroBeepToggled(bool enabled);
     void onStatusOverlayToggled(bool enabled);
     void onPauseKeyAdd();
+    void editPauseKey(std::optional<int> index);
     void onPauseKeyDelete(int index);
     void stopAllForConfigChange();
-    void addStep(int insertIndex, bool focusCreated);
+    void addStep(int insertIndex, bool focusCreated, std::optional<MacroStep> initial = std::nullopt);
 
     Context context_;
     bool lastMacroRunning_ = false;

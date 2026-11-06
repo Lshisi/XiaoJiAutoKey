@@ -56,6 +56,13 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     ActionButton {
+                        visible: !workspace.hasSelection
+                        text: qsTr("按键总览")
+                        compact: true
+                        quiet: true
+                        onClicked: workspace.page.overviewRequested()
+                    }
+                    ActionButton {
                         visible: workspace.hasSelection
                         text: qsTr("修改参数")
                         compact: true

@@ -51,6 +51,7 @@ public:
     ShareImportBannerModel* shareBanner() { return &shareBanner_; }
     PreviewOnboardingModel* onboarding() { return &onboarding_; }
     PreviewDialogModel* dialog() { return &dialog_; }
+    PreviewDialogModel* overviewDialog() { return &overviewDialog_; }
     Q_INVOKABLE void setDarkMode(bool dark);
     Q_INVOKABLE void setDemoData(bool enabled);
     Q_INVOKABLE void selectPage(const QString& page);
@@ -80,6 +81,7 @@ private:
     void showOverlaySettings(bool macro);
     void showUpdateProgress();
     PreviewDialogModel dialog_;
+    PreviewDialogModel overviewDialog_;
     PreviewWorkspaceController keys_;
     PreviewWorkspaceController macros_;
     UsagePageModel usagePage_;

@@ -3,6 +3,8 @@
 #include "PageModel.h"
 #include "AppTypes.h"
 
+struct RepeaterStatus;
+
 class KeyPageModel final : public PageModel {
     Q_OBJECT
 public:
@@ -11,6 +13,8 @@ public:
     void setProfileEnabled(bool value) { setValue("profileEnabled", value); }
     void setRunning(bool value);
     void setHotkeyText(const QString& value) { setValue("hotkey", value); }
+    void setControlKey(std::optional<KeyDescriptor> key);
+    void setOverviewRuntime(const RepeaterStatus& status, bool gamePaused);
     void setBeepEnabled(bool value) { setValue("beepEnabled", value); }
     void setStatusOverlayEnabled(bool value) { setValue("overlayEnabled", value); }
     void setMixedMode(bool value) { setValue("mixedMode", value); }
@@ -44,6 +48,7 @@ public:
     Q_INVOKABLE void batchDeleteRequested() { emit batchDeleteRequestedImpl(state_.value("selectedBindingIds").toList()); }
 
 signals:
+    void overviewRequested();
     void addRequested();
     void editRequested(quint64 id);
     void deleteRequested(quint64 id);
@@ -60,6 +65,7 @@ signals:
     void sequenceSwitchKeyAddClicked();
     void sequenceSwitchKeyDeleteClicked();
     void pauseKeyAddClicked();
+    void pauseKeyEditClicked(int index);
     void pauseKeyDeleteClicked(int index);
     void soundSettingsClicked();
     void updateBadgeClicked();

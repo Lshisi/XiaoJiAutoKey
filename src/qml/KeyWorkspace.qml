@@ -59,7 +59,6 @@ Item {
                         visible: !workspace.hasSelection
                         text: qsTr("按键总览")
                         compact: true
-                        quiet: true
                         onClicked: workspace.page.overviewRequested()
                     }
                     ActionButton {
@@ -99,7 +98,6 @@ Item {
                         visible: workspace.macroMode && !workspace.hasSelection
                         text: qsTr("录制一轮")
                         compact: true
-                        quiet: true
                         enabled: !workspace.page.state.running
                         onClicked: workspace.page.recordMacroRequested()
                     }

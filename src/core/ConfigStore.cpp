@@ -374,6 +374,7 @@ AppConfig ConfigStore::Load() const {
 
     // Older configurations stay out of the automatic tour, including restored backups.
     config.onboardingSeenTips = 7;
+    config.onboardingSeenActions = 0;
     const auto onboardingIt = object->find("onboarding");
     if (onboardingIt != object->end()) {
         if (const auto* onboarding = onboardingIt->second.AsObject()) {
@@ -384,7 +385,8 @@ AppConfig ConfigStore::Load() const {
             else if (status == "skipped") config.onboardingStatus = OnboardingStatus::Skipped;
             config.onboardingStep = std::clamp(GetIntField(*onboarding, "step").value_or(0), 0, 5);
             config.onboardingMacroStep = std::clamp(GetIntField(*onboarding, "macroStep").value_or(0), 0, 2);
-            config.onboardingSeenTips = GetIntField(*onboarding, "seenTips").value_or(0) & 7;
+            config.onboardingSeenTips = GetIntField(*onboarding, "seenTips").value_or(0) & 63;
+            config.onboardingSeenActions = GetIntField(*onboarding, "seenActions").value_or(0) & 63;
         }
     }
 
@@ -610,7 +612,8 @@ bool ConfigStore::Save(
     onboarding.emplace("status", std::string(onboardingStatus));
     onboarding.emplace("step", std::clamp(config.onboardingStep, 0, 5));
     onboarding.emplace("macroStep", std::clamp(config.onboardingMacroStep, 0, 2));
-    onboarding.emplace("seenTips", config.onboardingSeenTips & 7);
+    onboarding.emplace("seenTips", config.onboardingSeenTips & 63);
+    onboarding.emplace("seenActions", config.onboardingSeenActions & 63);
     root.emplace("onboarding", std::move(onboarding));
 
     jsonlite::Object usage;

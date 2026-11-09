@@ -21,6 +21,7 @@ public:
     void present(const QString& page, const QString& title, QVariantMap fields,
         std::function<void(const QVariantMap&)> accepted = {}, int width = 440, bool danger = false);
     void message(const QString& title, const QString& text, std::function<void()> accepted = {});
+    void resetEditorGuides();
     void presentOverview(PageModel& page, bool macroMode, std::function<void(const QVariantMap&)> navigation);
     Q_INVOKABLE void startWindowResize(int edges);
     Q_INVOKABLE void edit(const QString& field, const QVariant& value);
@@ -42,10 +43,14 @@ private:
     bool overviewMacroMode_ = false;
     std::function<void(const QVariantMap&)> overviewNavigation_;
     void updateBatchEditActions();
+    void updateEditorGuides();
+    void dismissEditorGuide();
     QVariantMap state_;
     std::function<void(const QVariantMap&)> accepted_;
     bool visible_ = false;
     bool recording_ = false;
+    int seenModeGuides_ = 0;
+    int seenActionGuides_ = 0;
     QList<int> pendingModifierKeys_;
     MacroRecording macroRecording_;
     QTimer recordingCountdown_;

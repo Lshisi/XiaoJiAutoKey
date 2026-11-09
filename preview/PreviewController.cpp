@@ -65,7 +65,10 @@ PreviewController::PreviewController(QObject* parent)
     connect(&aboutPage_, &AboutPageModel::usageGuideRequested, this, [this]() {
         dialog_.message(tr("使用说明"), tr("按键连发：配置按键与启停键，在右侧启动或停止。\n循环连发：配置按键序列、触发方式和循环次数。\n使用统计：查看近期每日时长，下方可按年份查看全年每月时长。\n\n当前为界面预览，配置操作仅修改内存中的示例数据。"));
     });
-    connect(&aboutPage_, &AboutPageModel::onboardingRequested, &onboarding_, &PreviewOnboardingModel::show);
+    connect(&aboutPage_, &AboutPageModel::onboardingRequested, this, [this]() {
+        dialog_.resetEditorGuides();
+        onboarding_.show();
+    });
     connect(&shareBanner_, &ShareImportBannerModel::importRequested, this, [this](const QString&) { showExample(2); });
     setDemoData(true);
 }

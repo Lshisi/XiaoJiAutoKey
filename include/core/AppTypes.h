@@ -163,6 +163,7 @@ struct AppConfig {
     int onboardingStep = 0;
     int onboardingMacroStep = 0;
     int onboardingSeenTips = 0;
+    int onboardingSeenActions = 0;
     bool backgroundAutoRun = false;
     bool beepEnabled = true;
     // 仅当游戏客户端在前台时生效（离开游戏自动暂停并释放按键）

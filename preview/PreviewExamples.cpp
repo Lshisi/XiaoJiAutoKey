@@ -115,7 +115,7 @@ void PreviewController::showExample(int example) {
         break;
     case 3: showUpdateProgress(); break;
     case 4: shareBanner_.showForText(QStringLiteral("preview")); break;
-    case 5: onboarding_.show(); break;
+    case 5: dialog_.resetEditorGuides(); onboarding_.show(); break;
     case 6: pickerVisible_ = true; emit pickerChanged(); break;
     default: break;
     }

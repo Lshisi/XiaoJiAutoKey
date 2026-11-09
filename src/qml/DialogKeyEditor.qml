@@ -179,13 +179,29 @@ ColumnLayout {
     }
     Loader {
         Layout.fillWidth: true
-        active: editor.fields.modeGuideVisible
+        active: editor.fields.modeGuideVisible || editor.fields.actionGuideVisible === true
         visible: active
         sourceComponent: GuideHint {
-            text: editor.fields.mode === 2
-                ? qsTr("多个独立模式按键之间会互相切换，同一时间只连发当前选中的一个；再次按当前键会停止。其他模式不受这个切换影响。")
-                : qsTr("保存后，在按键列表下方设置“切换键”。每按一次，轮换到下一个切换模式按键；右侧“记住切换位置”决定重新启动时是否续用上次位置。")
-            onDismissed: dialogModel.dispatch("dismissModeGuide")
+            text: {
+                if (editor.macroStep) {
+                    switch (editor.fields.action) {
+                    case 1: return qsTr("“保持”会按住指定时长后自动松开，再等待动作后间隔。需要一次长按时，直接设置保持时长即可。")
+                    case 2: return qsTr("“按下”会持续按住此键，并继续执行后续步骤。请在后面添加同一按键的“松开”；需要控制按住时长时，可以在两者之间添加“等待”。")
+                    case 3: return qsTr("“松开”用于释放前面“按下”的同一按键，不会产生一次点击。请录制与“按下”步骤一致的按键或组合键，配成一组。")
+                    case 4: return qsTr("“等待”只暂停指定时长，不发送按键，也不再追加动作后间隔。配合“按下”和“松开”，可以控制按住多久。")
+                    case 5: return qsTr("“滚轮”按所选方向滚动指定格数，不需要录制按键。滚动完成后，再等待设置的动作后间隔。")
+                    default: return qsTr("“点击”会按下并自动松开一次，再等待动作后间隔。需要持续按住时，请选择“保持”，或组合使用“按下”“等待”“松开”。最后一步的间隔也会计入单轮时长。")
+                    }
+                }
+                switch (editor.fields.mode) {
+                case 1: return qsTr("先启动工具，再用手按住录制的按键，软件才会按设定间隔连点，松开即停止。组合键需要同时按住所需修饰键和主键；开启“按压优先”且此项参与时，按住期间会暂停其他模式，松开后恢复。")
+                case 2: return qsTr("先启动工具，再按一次此键开启连发。多个独立模式按键之间会互相切换，同一时间只连发当前选中的一个；再次按当前键会停止。其他模式不受这个切换影响。")
+                case 3: return qsTr("保存后，在按键列表下方设置“切换键”。启动工具后，每按一次切换键，轮换到下一个已启用的切换模式按键；右侧“记住切换位置”决定重新启动时是否续用上次位置。")
+                case 4: return qsTr("启动工具后，软件会持续保持此键按下，无需用手按住，也不会反复点击，因此不需要连发间隔。暂停或停止时会自动松开；组合键会同时保持修饰键和主键。")
+                default: return qsTr("点击右侧“启动”或按启停快捷键后，软件会按设定间隔反复点击录制的按键，直到暂停或停止。这里录制的是需要输出的按键，控制工具的启停快捷键在主界面另行设置。")
+                }
+            }
+            onDismissed: dialogModel.dispatch(editor.macroStep ? "dismissActionGuide" : "dismissModeGuide")
         }
     }
     Loader {

@@ -2,6 +2,7 @@
 
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/KeyCaptureDialogBase.h"
+#include "dialogs/MacroStepDialog.h"
 #include "ui/models/AboutPageModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
@@ -19,6 +20,25 @@ namespace {
 constexpr int kIndependentTip = 1;
 constexpr int kSequenceTip = 2;
 constexpr int kMacroTip = 4;
+constexpr int kToggleTip = 8;
+constexpr int kHoldTip = 16;
+constexpr int kLongPressTip = 32;
+
+int modeTipFlag(RepeatMode mode) {
+    switch (mode) {
+    case RepeatMode::Toggle: return kToggleTip;
+    case RepeatMode::Hold: return kHoldTip;
+    case RepeatMode::Independent: return kIndependentTip;
+    case RepeatMode::Sequence: return kSequenceTip;
+    case RepeatMode::LongPress: return kLongPressTip;
+    default: return 0;
+    }
+}
+
+int actionTipFlag(MacroAction action) {
+    const int index = static_cast<int>(action);
+    return index >= 0 && index <= static_cast<int>(MacroAction::Wheel) ? 1 << index : 0;
+}
 }
 
 OnboardingCoordinator::OnboardingCoordinator(QObject* parent) : PageModel(parent) {
@@ -89,6 +109,7 @@ void OnboardingCoordinator::start() {
     context_.config->onboardingStep = 0;
     context_.config->onboardingMacroStep = 0;
     context_.config->onboardingSeenTips = 0;
+    context_.config->onboardingSeenActions = 0;
     persist();
     refresh();
 }
@@ -289,7 +310,7 @@ void OnboardingCoordinator::refresh() {
             break;
         case 2:
             title = tr("确认模式与启用状态");
-            body = tr("开关：启动后持续连点。按压：启动后按住该键才连点。长按：持续保持按下，不会反复点击。独立和切换模式会在选择时补充说明。");
+            body = tr("开关用于持续连点，按压用于按住时连点，长按用于持续保持按下；独立和切换用于在多个按键间选择。首次选择每种模式时，弹窗会补充说明。");
             hint = hasEnabledBinding ? tr("配置和按键已启用。行内开关可单独停用按键，编辑按钮可修改模式和间隔。") : tr("顶部配置开关和至少一个按键的状态开关都需要开启。");
             target = current && !current->enabled ? QStringLiteral("profile") : hasBindings ? QStringLiteral("mode") : QStringLiteral("add");
             actionText = current && !current->enabled ? tr("启用配置") : hasBindings ? tr("编辑第一个按键") : tr("添加按键");
@@ -333,12 +354,12 @@ void OnboardingCoordinator::refresh() {
 }
 
 bool OnboardingCoordinator::modeTipSeen(RepeatMode mode) const {
-    const int flag = mode == RepeatMode::Independent ? kIndependentTip : mode == RepeatMode::Sequence ? kSequenceTip : 0;
+    const int flag = modeTipFlag(mode);
     return !flag || (context_.config->onboardingSeenTips & flag);
 }
 
 void OnboardingCoordinator::markModeTipSeen(RepeatMode mode) {
-    const int flag = mode == RepeatMode::Independent ? kIndependentTip : mode == RepeatMode::Sequence ? kSequenceTip : 0;
+    const int flag = modeTipFlag(mode);
     if (!flag || modeTipSeen(mode)) return;
     context_.config->onboardingSeenTips |= flag;
     persist();
@@ -347,4 +368,20 @@ void OnboardingCoordinator::markModeTipSeen(RepeatMode mode) {
 void OnboardingCoordinator::prepareKeyEditor(KeyCaptureDialogBase& dialog) {
     dialog.setModeGuideCallbacks([this](RepeatMode mode) { return !modeTipSeen(mode); },
         [this](RepeatMode mode) { markModeTipSeen(mode); });
+    if (auto* stepDialog = qobject_cast<MacroStepDialog*>(&dialog)) {
+        stepDialog->setActionGuideCallbacks([this](MacroAction action) { return !actionTipSeen(action); },
+            [this](MacroAction action) { markActionTipSeen(action); });
+    }
+}
+
+bool OnboardingCoordinator::actionTipSeen(MacroAction action) const {
+    const int flag = actionTipFlag(action);
+    return !flag || (context_.config->onboardingSeenActions & flag);
+}
+
+void OnboardingCoordinator::markActionTipSeen(MacroAction action) {
+    const int flag = actionTipFlag(action);
+    if (!flag || actionTipSeen(action)) return;
+    context_.config->onboardingSeenActions |= flag;
+    persist();
 }

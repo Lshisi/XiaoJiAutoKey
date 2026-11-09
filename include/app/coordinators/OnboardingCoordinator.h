@@ -54,6 +54,8 @@ private:
     MacroConfig* macro() const;
     bool modeTipSeen(RepeatMode mode) const;
     void markModeTipSeen(RepeatMode mode);
+    bool actionTipSeen(MacroAction action) const;
+    void markActionTipSeen(MacroAction action);
 
     Context context_;
     bool initialized_ = false;

@@ -7,7 +7,7 @@ MacroStepDialog::MacroStepDialog(std::optional<MacroStep> existing,
     setWindowTitle(existing ? tr("编辑步骤") : tr("添加步骤"));
     const MacroStep step = existing ? *existing : initial.value_or(MacroStep{});
     if (step.key.IsValid()) setCapturedKey(step.key);
-    QVariantMap fields{{"macroStep", true}, {"nameVisible", true},
+    QVariantMap fields{{"macroStep", true}, {"nameVisible", true}, {"actionGuideVisible", false},
         {"action", static_cast<int>(step.action)}, {"duration", QString::number(step.durationMs)},
         {"wheelDirection", step.wheelDelta < 0 ? 1 : 0}, {"wheelCount", QString::number(std::abs(step.wheelDelta / 120))},
         {"name", QString::fromStdWString(step.name)}, {"delay", QString::number(step.delayAfterMs)},
@@ -27,11 +27,17 @@ MacroStep MacroStepDialog::editResult() const {
     return step;
 }
 void MacroStepDialog::editField(const QString& field, const QVariant& argument) {
-    if (field == "action" || field == "wheelDirection") setValue(field, argument.toInt());
+    if (field == "action") {
+        const int action = argument.toInt();
+        if (action < static_cast<int>(MacroAction::Click) || action > static_cast<int>(MacroAction::Wheel)) return;
+        setValue(field, action);
+        updateActionGuide();
+    } else if (field == "wheelDirection") setValue(field, argument.toInt());
     else if (field == "duration" || field == "wheelCount") setValue(field, argument.toString());
     else KeyCaptureDialogBase::editField(field, argument);
 }
 void MacroStepDialog::handleAction(const QString& action, const QVariant& argument) {
+    if (action == "dismissActionGuide") { dismissActionGuide(); return; }
     if (action != "accept") { KeyCaptureDialogBase::handleAction(action, argument); return; }
     const auto kind = static_cast<MacroAction>(value("action").toInt());
     bool ok = true;
@@ -50,5 +56,24 @@ void MacroStepDialog::handleAction(const QString& action, const QVariant& argume
         ok &= parsed && count >= 1 && count <= 100;
     }
     if (!ok) { AppMessageDialog::warning(this, tr("参数无效"), tr("请检查按键和时长；时长至少 1ms，动作后间隔可为 0，滚轮格数为 1 到 100。")); return; }
+    dismissActionGuide();
     accept();
+}
+
+void MacroStepDialog::setActionGuideCallbacks(std::function<bool(MacroAction)> shouldShow,
+    std::function<void(MacroAction)> dismissed) {
+    shouldShowActionGuide_ = std::move(shouldShow);
+    actionGuideDismissed_ = std::move(dismissed);
+    updateActionGuide();
+}
+
+void MacroStepDialog::updateActionGuide() {
+    const auto action = static_cast<MacroAction>(value("action").toInt());
+    setValue("actionGuideVisible", shouldShowActionGuide_ && shouldShowActionGuide_(action));
+}
+
+void MacroStepDialog::dismissActionGuide() {
+    if (!value("actionGuideVisible").toBool()) return;
+    if (actionGuideDismissed_) actionGuideDismissed_(static_cast<MacroAction>(value("action").toInt()));
+    setValue("actionGuideVisible", false);
 }

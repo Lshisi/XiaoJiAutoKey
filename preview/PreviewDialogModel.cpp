@@ -47,6 +47,7 @@ void PreviewDialogModel::present(const QString& page, const QString& title, QVar
         {"primary", false}, {"danger", false}, {"enabled", true}});
     if (!fields.contains("actions")) fields.insert("actions", actions);
     state_ = std::move(fields);
+    updateEditorGuides();
     emit dialogStateChanged();
     visible_ = true;
     emit visibleChanged();
@@ -69,8 +70,41 @@ void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
     if (field == "mode" && state_.value("page").toString() == QStringLiteral("DialogBatchEdit.qml")
         && value.toInt() == 4) state_.insert("modifyDelay", false);
     if (field == "format") state_.insert("code", tr("【界面预览示例】\n默认配置\n按键 1：开关模式，10ms\n按键 侧键1：按压模式，10ms"));
+    if (field == "mode" || field == "action") updateEditorGuides();
     updateBatchEditActions();
     emit dialogStateChanged();
+}
+
+void PreviewDialogModel::resetEditorGuides() {
+    seenModeGuides_ = 0;
+    seenActionGuides_ = 0;
+    updateEditorGuides();
+    emit dialogStateChanged();
+}
+
+void PreviewDialogModel::updateEditorGuides() {
+    if (state_.value("page").toString() != "DialogKeyEditor.qml") return;
+    const bool macroStep = state_.value("macroStep").toBool();
+    const int action = state_.value("action").toInt();
+    const int actionFlag = action >= 0 && action <= static_cast<int>(MacroAction::Wheel) ? 1 << action : 0;
+    const int mode = state_.value("mode").toInt();
+    const int modeFlag = mode >= 0 && mode <= static_cast<int>(RepeatMode::LongPress) ? 1 << mode : 0;
+    state_.insert("actionGuideVisible", macroStep && actionFlag && !(seenActionGuides_ & actionFlag));
+    state_.insert("modeGuideVisible", !macroStep && state_.value("modeVisible").toBool()
+        && modeFlag && !(seenModeGuides_ & modeFlag));
+}
+
+void PreviewDialogModel::dismissEditorGuide() {
+    if (state_.value("page").toString() != "DialogKeyEditor.qml") return;
+    if (state_.value("actionGuideVisible").toBool()) {
+        const int action = state_.value("action").toInt();
+        if (action >= 0 && action <= static_cast<int>(MacroAction::Wheel)) seenActionGuides_ |= 1 << action;
+    }
+    if (state_.value("modeGuideVisible").toBool()) {
+        const int mode = state_.value("mode").toInt();
+        if (mode >= 0 && mode <= static_cast<int>(RepeatMode::LongPress)) seenModeGuides_ |= 1 << mode;
+    }
+    updateEditorGuides();
 }
 
 void PreviewDialogModel::updateBatchEditActions() {
@@ -102,6 +136,11 @@ void PreviewDialogModel::updateBatchEditActions() {
 }
 
 void PreviewDialogModel::dispatch(const QString& action, const QVariant& argument) {
+    if (action == "dismissActionGuide" || action == "dismissModeGuide") {
+        dismissEditorGuide();
+        emit dialogStateChanged();
+        return;
+    }
     if (overviewPage_ && action == QStringLiteral("navigate")) {
         refreshOverview();
         const auto target = KeyOverviewData::action(state_.value("overview").toMap(), argument.toString());
@@ -124,6 +163,7 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         if (action == "stop") { finishMacroRecording(); return; }
     }
     if (action == "accept" || action == "cancel" || action == "exit" || action == "tray") {
+        if (action == "accept") dismissEditorGuide();
         recordingCountdown_.stop();
         disconnect(overviewConnection_);
         overviewPage_.clear();
@@ -139,8 +179,6 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         edit("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
     } else if (action == "pick") {
         edit("positionHint", tr("示例固定点位：50%，50%"));
-    } else if (action == "dismissModeGuide") {
-        edit("modeGuideVisible", false);
     } else if (action == "chooseSound" || action == "resetSound") {
         edit(argument.toBool() ? "soundOn" : "soundOff", action == "chooseSound" ? tr("示例提示音.wav") : QString());
     } else if (action == "add" || action == "selectProcess") {

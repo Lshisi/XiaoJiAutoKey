@@ -14,6 +14,7 @@ Button {
     property string leadingIcon: ""
     readonly property int leadingIconSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     property string hint: ""
+    property bool toolTipHovered: hovered
     readonly property color foregroundColor: !enabled ? Theme.muted
         : destructive ? (Theme.dark ? Theme.background : Theme.field)
         : primary ? Theme.accentForeground : Theme.text
@@ -72,6 +73,6 @@ Button {
     }
     QuietToolTip {
         text: control.hint
-        visible: control.enabled && control.visible && control.hovered && !control.down && text.length > 0
+        visible: control.enabled && control.visible && control.toolTipHovered && !control.down && text.length > 0
     }
 }

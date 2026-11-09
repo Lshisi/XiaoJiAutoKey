@@ -110,7 +110,10 @@ Item {
                         leadingIcon: "add"
                         compact: true
                         enabled: !workspace.page.state.running
-                        onClicked: workspace.macroMode ? workspace.page.addStepRequested() : workspace.page.addRequested()
+                        onClicked: Qt.callLater(() => {
+                            if (workspace.macroMode) workspace.page.addStepRequested()
+                            else workspace.page.addRequested()
+                        })
                     }
                 }
                 WorkspaceTable {

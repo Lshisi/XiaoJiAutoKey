@@ -60,7 +60,7 @@ Item {
                 objectName: "dialogCancel"
                 closeAction: true
                 enabled: shell.dialogData.closeAllowed
-                onClicked: shell.model.dispatch("cancel")
+                onClicked: Qt.callLater(() => shell.model.dispatch("cancel"))
             }
         }
         QuietScrollView {

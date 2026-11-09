@@ -38,7 +38,7 @@ ActionButton {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             text: root.text
-            font.weight: root.sidebar ? Theme.headingWeight : Font.Normal
+            font.weight: root.sidebar ? Theme.headingWeight : Theme.bodyWeight
             elide: Text.ElideRight
             wrapMode: Text.NoWrap
         }
@@ -109,7 +109,7 @@ ActionButton {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: option.text
-                        color: option.highlighted ? Theme.accent : Theme.text
+                        color: option.highlighted ? Theme.accent : Theme.bodyText
                         elide: Text.ElideRight
                         wrapMode: Text.NoWrap
                     }

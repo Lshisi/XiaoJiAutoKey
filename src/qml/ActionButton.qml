@@ -24,7 +24,7 @@ Button {
     bottomPadding: compact ? 4 : 6
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
-    font.weight: primary ? Theme.headingWeight : Font.Normal
+    font.weight: primary ? Theme.headingWeight : Theme.bodyWeight
     font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
@@ -51,7 +51,8 @@ Button {
             font: control.font
             renderType: Theme.textRenderType
             renderTypeQuality: Theme.textRenderQuality
-            color: control.foregroundColor
+            color: control.primary || control.destructive || !control.enabled
+                ? control.foregroundColor : Theme.bodyText
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight

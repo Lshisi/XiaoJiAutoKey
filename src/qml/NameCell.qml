@@ -5,7 +5,7 @@ QuietLabel {
     id: cell
     property string name: ""
     text: name.length ? name : qsTr("—")
-    color: name.length ? Theme.text : Theme.muted
+    color: name.length ? Theme.bodyText : Theme.muted
     leftPadding: 8
     rightPadding: 8
     horizontalAlignment: Text.AlignHCenter

@@ -9,7 +9,7 @@ CheckBox {
     padding: 2
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
-    font.weight: Font.Normal
+    font.weight: Theme.bodyWeight
     font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
     indicator: Rectangle {
@@ -35,7 +35,7 @@ CheckBox {
         text: control.text
         font: control.font
         leftPadding: control.indicator.width + control.spacing
-        color: control.enabled ? Theme.text : Theme.muted
+        color: control.enabled ? Theme.bodyText : Theme.muted
         verticalAlignment: Text.AlignVCenter
     }
 }

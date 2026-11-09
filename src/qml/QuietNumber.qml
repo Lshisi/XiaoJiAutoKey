@@ -11,12 +11,12 @@ SpinBox {
     editable: true
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
-    font.weight: Font.Normal
+    font.weight: Theme.bodyWeight
     font.hintingPreference: Theme.fontHintingPreference
     hoverEnabled: true
-    palette.text: Theme.text
+    palette.text: Theme.bodyText
     palette.base: Theme.field
-    palette.buttonText: Theme.text
+    palette.buttonText: Theme.bodyText
     palette.button: Theme.field
     palette.mid: Theme.accentSoft
     palette.highlight: Theme.accent
@@ -25,7 +25,7 @@ SpinBox {
         text: control.textFromValue(control.value, control.locale)
         font: control.font
         renderType: Theme.textRenderType
-        color: Theme.text
+        color: Theme.bodyText
         selectionColor: Theme.accent
         selectedTextColor: Theme.accentForeground
         horizontalAlignment: Qt.AlignHCenter

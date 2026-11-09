@@ -40,7 +40,7 @@ ColumnLayout {
                     text: tab.text
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: !tab.enabled ? Theme.muted : tab.checked ? Theme.accent : Theme.text
+                    color: !tab.enabled ? Theme.muted : tab.checked ? Theme.accent : Theme.bodyText
                     wrapMode: Text.NoWrap
                     elide: Text.ElideRight
                 }

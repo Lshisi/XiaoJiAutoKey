@@ -13,7 +13,7 @@ ToolTip {
     contentItem: QuietLabel {
         id: tipLabel
         text: control.text
-        color: Theme.text
+        color: Theme.bodyText
         font.pixelSize: Theme.captionFontSize
         wrapMode: Text.Wrap
     }

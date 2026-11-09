@@ -31,7 +31,7 @@ Item {
             + (root.keys.length > root.tagWidths.length ? root.moreWidth + 4 : 0)
     }
     implicitHeight: Math.max(Theme.compactIconSize, metrics.height + 4)
-    FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: Theme.bodyFontSize }
+    FontMetrics { id: metrics; font.family: Theme.fontFamily; font.pixelSize: Theme.bodyFontSize; font.weight: Theme.bodyWeight }
     RowLayout {
         anchors.fill: parent
         spacing: 4

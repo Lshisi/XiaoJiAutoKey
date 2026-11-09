@@ -64,8 +64,8 @@ Item {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: navButton.text
-                        color: navButton.selected ? Theme.accent : Theme.text
-                        font.weight: navButton.selected ? Theme.headingWeight : Font.Normal
+                        color: navButton.selected ? Theme.accent : Theme.bodyText
+                        font.weight: navButton.selected ? Theme.headingWeight : Theme.bodyWeight
                         elide: Text.ElideRight
                         wrapMode: Text.NoWrap
                     }

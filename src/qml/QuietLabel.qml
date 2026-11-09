@@ -3,10 +3,10 @@ import QtQuick.Controls
 import XiaoJi.UI
 
 Label {
-    color: Theme.text
+    color: font.weight >= Theme.headingWeight ? Theme.text : Theme.bodyText
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize
-    font.weight: Font.Normal
+    font.weight: Theme.bodyWeight
     font.hintingPreference: Theme.fontHintingPreference
     renderType: Theme.textRenderType
     renderTypeQuality: Theme.textRenderQuality

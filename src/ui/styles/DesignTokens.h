@@ -123,6 +123,7 @@ namespace Colors {
     inline QColor workspaceField() { return Theme::isDarkMode() ? cardBg() : QColor("#ffffff"); }
     inline QColor workspaceLine()  { return Theme::isDarkMode() ? cardBorder() : QColor("#e6e8ec"); }
     inline QColor workspaceText()  { return Theme::isDarkMode() ? textPrimary() : QColor("#24282f"); }
+    inline QColor workspaceBodyText() { return Theme::isDarkMode() ? QColor("#dedfe2") : QColor("#34383f"); }
     inline QColor workspaceMuted() { return Theme::isDarkMode() ? textSecondary() : QColor("#737a84"); }
 }
 

@@ -27,6 +27,7 @@ inline QVariantMap qmlTheme() {
         {"titleBarBackground", colors.titleBarBackground},
         {"field", Fluent::Colors::workspaceField()}, {"border", Fluent::Colors::workspaceLine()},
         {"text", Fluent::Colors::workspaceText()}, {"muted", Fluent::Colors::workspaceMuted()},
+        {"bodyText", Fluent::Colors::workspaceBodyText()},
         {"hover", Fluent::Colors::hoverBg()}, {"divider", Fluent::Colors::divider()},
         {"accent", colors.accent}, {"accentHover", colors.accentHover},
         {"accentPressed", colors.accentPressed}, {"accentSoft", colors.accentSoft},

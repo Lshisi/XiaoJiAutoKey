@@ -52,6 +52,7 @@ ColumnLayout {
             id: captionMetrics
             font.family: Theme.fontFamily
             font.pixelSize: Theme.captionFontSize
+            font.weight: Theme.bodyWeight
         }
         Repeater {
             model: trend.ticks

@@ -54,7 +54,7 @@ Item {
             Layout.maximumWidth: root.columns.priorityWidth
             text: root.entry.priorityText
             horizontalAlignment: Text.AlignHCenter
-            color: root.entry.priorityKind === "enabled" ? Theme.text : Theme.muted
+            color: root.entry.priorityKind === "enabled" ? Theme.bodyText : Theme.muted
         }
         QuietLabel { Layout.minimumWidth: root.columns.delayWidth; Layout.maximumWidth: root.columns.delayWidth; text: root.entry.delay.toString(); horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; wrapMode: Text.NoWrap }
         WorkspaceEnabledCell {

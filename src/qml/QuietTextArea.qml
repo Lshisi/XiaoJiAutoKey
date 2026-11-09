@@ -16,10 +16,10 @@ QuietScrollView {
         textFormat: TextEdit.PlainText
         font.family: Theme.fontFamily
         font.pixelSize: Theme.bodyFontSize
-        font.weight: Font.Normal
+        font.weight: Theme.bodyWeight
         font.hintingPreference: Theme.fontHintingPreference
         renderType: Theme.textRenderType
-        color: Theme.text
+        color: Theme.bodyText
         placeholderTextColor: Theme.muted
         selectionColor: Theme.accent
         selectedTextColor: Theme.accentForeground

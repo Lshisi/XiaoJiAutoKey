@@ -38,6 +38,7 @@ Item {
         id: columnMetrics
         font.family: Theme.fontFamily
         font.pixelSize: Theme.bodyFontSize
+        font.weight: Theme.bodyWeight
     }
     QtObject {
         id: tableColumns

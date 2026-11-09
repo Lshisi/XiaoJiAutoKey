@@ -7,6 +7,6 @@ ColumnLayout {
     QuietLabel {
         Layout.fillWidth: true
         text: dialogModel.dialogState.message
-        color: Theme.text
+        color: Theme.bodyText
     }
 }

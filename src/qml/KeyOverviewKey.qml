@@ -12,7 +12,7 @@ Button {
     readonly property bool colored: usage.configured && usage.enabled && !paused
     readonly property var role: Theme.keyOverviewRoles[usage.kind]
     readonly property color roleColor: role.color
-    readonly property color foreground: usage.configured && !usage.enabled ? Theme.muted : Theme.text
+    readonly property color foreground: usage.configured && !usage.enabled ? Theme.muted : Theme.bodyText
     readonly property string statusText: usage.active ? qsTr("执行") : paused ? qsTr("暂停")
         : usage.configured && !usage.enabled ? qsTr("停用") : usage.configured ? role.label : ""
     readonly property string runtimeText: usage.active ? qsTr("运行中") : paused ? qsTr("已暂停")

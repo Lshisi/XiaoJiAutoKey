@@ -11,6 +11,7 @@ QtObject {
     readonly property color field: colors.field
     readonly property color border: colors.border
     readonly property color text: colors.text
+    readonly property color bodyText: colors.bodyText
     readonly property color muted: colors.muted
     readonly property color hover: colors.hover
     readonly property color divider: colors.divider
@@ -68,6 +69,7 @@ QtObject {
     readonly property int pageTitleFontSize: Typography.pageTitleFontSize
     readonly property int iconGlyphSize: 14
     readonly property int navGlyphSize: 16
+    readonly property int bodyWeight: Typography.bodyWeight
     readonly property int headingWeight: Typography.headingWeight
     readonly property int fontHintingPreference: Typography.fontHintingPreference
     readonly property int textRenderType: Typography.textRenderType

@@ -25,6 +25,10 @@ QtObject {
     readonly property color danger: colors.danger
     readonly property color warning: colors.warning
     readonly property color success: colors.success
+    readonly property color keyOverviewFill: colors.keyOverviewFill
+    readonly property color keyOverviewHover: colors.keyOverviewHover
+    readonly property color keyOverviewBorder: colors.keyOverviewBorder
+    readonly property color keyOverviewBorderHover: colors.keyOverviewBorderHover
     readonly property var keyOverviewRoles: ({
         output: { label: qsTr("输出"), color: accent },
         hotkey: { label: qsTr("启停"), color: success },

@@ -125,6 +125,10 @@ namespace Colors {
     inline QColor workspaceText()  { return Theme::isDarkMode() ? textPrimary() : QColor("#24282f"); }
     inline QColor workspaceBodyText() { return Theme::isDarkMode() ? QColor("#dedfe2") : QColor("#34383f"); }
     inline QColor workspaceMuted() { return Theme::isDarkMode() ? textSecondary() : QColor("#737a84"); }
+    inline QColor keyOverviewFill() { return Theme::isDarkMode() ? QColor("#32363d") : QColor("#f5f6f8"); }
+    inline QColor keyOverviewHover() { return Theme::isDarkMode() ? QColor("#3b424b") : QColor("#e9edf2"); }
+    inline QColor keyOverviewBorder() { return Theme::isDarkMode() ? QColor("#626b77") : QColor("#b8c0ca"); }
+    inline QColor keyOverviewBorderHover() { return Theme::isDarkMode() ? QColor("#8f9aa8") : QColor("#8d98a6"); }
 }
 
 namespace Typography {

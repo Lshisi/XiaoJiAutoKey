@@ -55,9 +55,10 @@ Button {
         radius: Theme.buttonRadius
         color: control.colored ? Qt.tint(Theme.field, Qt.rgba(control.roleColor.r, control.roleColor.g, control.roleColor.b,
             control.down || control.usage.active ? 0.38 : control.hovered ? 0.30 : Theme.dark ? 0.25 : 0.18))
-            : control.down ? Theme.accentSoft : control.hovered ? Theme.hover : Theme.field
+            : control.down ? Theme.accentSoft : control.hovered ? Theme.keyOverviewHover : Theme.keyOverviewFill
         border.width: control.usage.active || control.paused ? 2 : 1
-        border.color: control.paused ? Theme.warning : control.colored ? control.roleColor : Theme.border
+        border.color: control.paused ? Theme.warning : control.colored ? control.roleColor
+            : control.down ? Theme.accent : control.hovered ? Theme.keyOverviewBorderHover : Theme.keyOverviewBorder
         Rectangle {
             anchors.fill: parent
             anchors.margins: 3

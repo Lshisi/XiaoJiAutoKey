@@ -10,6 +10,7 @@ Button {
     property bool accented: false
     property bool compact: false
     property bool destructive: false
+    property int textAlignment: Text.AlignHCenter
     property string leadingIcon: ""
     readonly property int leadingIconSize: compact ? Theme.smallIconGlyphSize : Theme.iconGlyphSize
     property string hint: ""
@@ -53,7 +54,7 @@ Button {
             renderTypeQuality: Theme.textRenderQuality
             color: control.primary || control.destructive || !control.enabled
                 ? control.foregroundColor : Theme.bodyText
-            horizontalAlignment: Text.AlignHCenter
+            horizontalAlignment: control.textAlignment
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }

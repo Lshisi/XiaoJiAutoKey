@@ -23,9 +23,31 @@ ColumnLayout {
             Accessible.name: qsTr("循环动作类型")
         }
     }
+    RowLayout {
+        visible: editor.fields.modeVisible
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        spacing: 12
+        QuietLabel {
+            id: modeLabel
+            Layout.minimumWidth: editor.labelWidth
+            Layout.maximumWidth: editor.labelWidth
+            text: qsTr("模式:")
+            wrapMode: Text.NoWrap
+        }
+        QuietCombo {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式"), qsTr("长按模式")]
+            currentIndex: editor.fields.mode
+            onActivated: dialogModel.edit("mode", currentIndex)
+            Accessible.name: qsTr("连发模式")
+        }
+    }
     Loader {
         Layout.fillWidth: true
-        active: editor.macroStep
+        active: editor.macroStep && (editor.fields.action === 1
+            || editor.fields.action === 4 || editor.fields.action === 5)
         visible: active
         sourceComponent: DialogMacroParameters { fields: editor.fields; labelWidth: editor.labelWidth }
     }
@@ -33,46 +55,22 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.minimumWidth: 0
         visible: !editor.macroStep || editor.fields.action < 4
-        uniformCellSizes: true
         spacing: 12
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            spacing: 12
-            QuietLabel {
-                id: keyLabel
-                Layout.minimumWidth: editor.labelWidth
-                Layout.maximumWidth: editor.labelWidth
-                text: qsTr("按键:")
-                wrapMode: Text.NoWrap
-            }
-            ActionButton {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: editor.fields.keyText
-                onClicked: dialogModel.dispatch("record")
-            }
+        QuietLabel {
+            id: keyLabel
+            Layout.minimumWidth: editor.labelWidth
+            Layout.maximumWidth: editor.labelWidth
+            text: qsTr("按键:")
+            wrapMode: Text.NoWrap
         }
-        RowLayout {
-            visible: editor.fields.modeVisible
+        ActionButton {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            spacing: 12
-            QuietLabel {
-                id: modeLabel
-                Layout.minimumWidth: editor.labelWidth
-                Layout.maximumWidth: editor.labelWidth
-                text: qsTr("模式:")
-                wrapMode: Text.NoWrap
-            }
-            QuietCombo {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                model: [qsTr("开关模式"), qsTr("按压模式"), qsTr("独立模式"), qsTr("切换模式"), qsTr("长按模式")]
-                currentIndex: editor.fields.mode
-                onActivated: dialogModel.edit("mode", currentIndex)
-                Accessible.name: qsTr("连发模式")
-            }
+            text: editor.fields.keyText
+            textAlignment: Text.AlignLeft
+            leftPadding: 10
+            rightPadding: 10
+            onClicked: dialogModel.dispatch("record")
         }
     }
     QuietLabel {

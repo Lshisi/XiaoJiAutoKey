@@ -148,7 +148,9 @@ QString FormatDriverDiagnosticReport(const DriverDiagnosticReport& report) {
         else smartApp = QString::fromWCharArray(L"关闭");
         lines << QString::fromWCharArray(L"智能应用控制: ") + smartApp;
         if (guards.recentBlocks.empty()) {
-            lines << QString::fromWCharArray(L"近 7 天相关拦截记录: 无");
+            lines << (guards.recentBlocksIncomplete
+                ? QString::fromWCharArray(L"近 7 天相关拦截记录: 暂未读到（日志未完整扫描）")
+                : QString::fromWCharArray(L"近 7 天相关拦截记录: 无"));
         } else {
             lines << QString::fromWCharArray(L"近 7 天相关拦截记录:");
             for (const auto& block : guards.recentBlocks) {
@@ -157,6 +159,9 @@ QString FormatDriverDiagnosticReport(const DriverDiagnosticReport& report) {
                         QString::fromStdWString(block.fileName))
                     .arg(block.eventId);
             }
+        }
+        if (guards.recentBlocksIncomplete) {
+            lines << QString::fromWCharArray(L"事件日志读取受限或已达扫描上限，仅展示已读取的记录；可在 Windows 事件查看器中核对。");
         }
     }
 

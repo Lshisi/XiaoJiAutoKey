@@ -14,6 +14,7 @@
 #include "controllers/ProfileController.h"
 #include "RepeaterEngine.h"
 #include "services/DdRuntimeService.h"
+#include "services/CodeIntegrityInspector.h"
 #include "services/SoundService.h"
 #include "coordinators/DriverCoordinator.h"
 #include "coordinators/SettingsCoordinator.h"
@@ -82,6 +83,8 @@ private:
     // 不区分根因——向导内部会做诊断分诊。
     void openSelfCheckAfterDriverFailure();
     void refreshDriverStatusUi();
+    void applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& status,
+        const CodeIntegrityInspector::GuardStatus& guards, const std::wstring& detectedUsbPort);
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
     bool prepareDriverUninstall(DriverMode mode);
     void finalizeDriverUninstall(DriverMode mode);
@@ -174,6 +177,8 @@ private:
     bool recreatedFractionalDpiSurface_ = false;
     bool suppressDdUnavailablePrompt_ = false;
     bool driverUnavailableLogged_ = false;
+    bool driverStatusRefreshRunning_ = false;
+    bool driverStatusRefreshPending_ = false;
     // 启动时驱动加载失败，待主窗口首次显示后自动打开自检向导（驻托盘启动则推迟到用户打开主窗口时）。
     bool pendingSelfCheckPrompt_ = false;
     bool onboardingStartupScheduled_ = false;

@@ -248,10 +248,9 @@ bool MainWindow::setupUi() {
         this,
         &config_,
         [this]() { return activeInputDriverReady(); },
-        [this]() {
-            auto status = ddRuntimeService_.Inspect(driver_);
-            status.lastError = activeInputDriverError();
-            return status;
+        [this]() { return activeInputDriverError(); },
+        [runtimeService = ddRuntimeService_](bool ready, const std::wstring& lastError) {
+            return runtimeService.Inspect(ready, lastError);
         },
         [this]() {
             auto* profile = profileController_.activeProfile();

@@ -8,6 +8,7 @@
 #include <array>
 #include <cwchar>
 #include <cwctype>
+#include <memory>
 #include <optional>
 
 #pragma comment(lib, "advapi32.lib")
@@ -26,6 +27,11 @@ struct SystemCodeIntegrityInformation {
 };
 
 using NtQuerySystemInformationFn = LONG(WINAPI*)(ULONG, PVOID, ULONG, PULONG);
+
+struct EventHandleCloser {
+    void operator()(void* handle) const { EvtClose(handle); }
+};
+using EventHandle = std::unique_ptr<void, EventHandleCloser>;
 
 std::optional<DWORD> readRegistryDword(HKEY root, const wchar_t* subKey, const wchar_t* value) {
     DWORD data = 0;
@@ -79,29 +85,47 @@ std::wstring extractLocalTimeText(const std::wstring& xml) {
 
 // 近 7 天代码完整性拦截事件（3033/3077），匹配我方驱动文件名，最多返回 5 条。
 std::vector<CodeIntegrityInspector::BlockedDriverEvent> queryRecentBlocks(
-    const std::vector<std::wstring>& driverFiles) {
+    const std::vector<std::wstring>& driverFiles, bool* incomplete) {
+    constexpr DWORD maxScannedEvents = 512;
+    constexpr ULONGLONG maxScanTimeMs = 1500;
+    const ULONGLONG startedAt = GetTickCount64();
+    *incomplete = true;
     const wchar_t* channel = L"Microsoft-Windows-CodeIntegrity/Operational";
     const wchar_t* query =
         L"*[System[(EventID=3033 or EventID=3077) and "
         L"TimeCreated[timediff(@SystemTime) <= 604800000]]]";
 
-    EVT_HANDLE queryHandle = EvtQuery(nullptr, channel, query,
-        EvtQueryChannelPath | EvtQueryReverseDirection);
+    EventHandle queryHandle(EvtQuery(nullptr, channel, query,
+        EvtQueryChannelPath | EvtQueryReverseDirection));
     if (!queryHandle) return {};
 
     std::vector<CodeIntegrityInspector::BlockedDriverEvent> result;
-    std::array<EVT_HANDLE, 8> events{};
-    DWORD returned = 0;
-    while (result.size() < 5 &&
-        EvtNext(queryHandle, static_cast<DWORD>(events.size()), events.data(), 0, 0, &returned) &&
-        returned > 0) {
-        for (DWORD i = 0; i < returned && result.size() < 5; ++i) {
+    DWORD scanned = 0;
+    bool renderFailed = false;
+    while (result.size() < 5 && scanned < maxScannedEvents
+        && GetTickCount64() - startedAt < maxScanTimeMs) {
+        std::array<EVT_HANDLE, 8> events{};
+        DWORD returned = 0;
+        if (!EvtNext(queryHandle.get(), static_cast<DWORD>(events.size()), events.data(), 50, 0, &returned)) {
+            *incomplete = GetLastError() != ERROR_NO_MORE_ITEMS || renderFailed;
+            return result;
+        }
+        if (returned == 0) {
+            *incomplete = renderFailed;
+            return result;
+        }
+        std::array<EventHandle, 8> handles;
+        for (DWORD i = 0; i < returned; ++i) handles[i].reset(events[i]);
+        for (DWORD i = 0; i < returned && result.size() < 5 && scanned < maxScannedEvents
+            && GetTickCount64() - startedAt < maxScanTimeMs; ++i) {
+            ++scanned;
             DWORD needed = 0;
-            EvtRender(nullptr, events[i], EvtRenderEventXml, 0, nullptr, &needed, nullptr);
-            if (needed > 0) {
+            DWORD propertyCount = 0;
+            EvtRender(nullptr, handles[i].get(), EvtRenderEventXml, 0, nullptr, &needed, &propertyCount);
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && needed > 0) {
                 std::wstring xml(needed / sizeof(wchar_t), L'\0');
                 DWORD used = 0;
-                if (EvtRender(nullptr, events[i], EvtRenderEventXml, needed, xml.data(), &used, nullptr) && used > 0) {
+                if (EvtRender(nullptr, handles[i].get(), EvtRenderEventXml, needed, xml.data(), &used, &propertyCount) && used > 0) {
                     xml.resize(used / sizeof(wchar_t));
                     const std::wstring lowerXml = toLower(xml);
                     for (const auto& file : driverFiles) {
@@ -114,13 +138,15 @@ std::vector<CodeIntegrityInspector::BlockedDriverEvent> queryRecentBlocks(
                         result.push_back(std::move(event));
                         break;
                     }
+                } else {
+                    renderFailed = true;
                 }
+            } else {
+                renderFailed = true;
             }
-            EvtClose(events[i]);
-            events[i] = nullptr;
         }
     }
-    EvtClose(queryHandle);
+    if (result.size() >= 5) *incomplete = renderFailed;
     return result;
 }
 
@@ -164,7 +190,7 @@ CodeIntegrityInspector::GuardStatus CodeIntegrityInspector::Inspect(bool include
         .value_or(0));
 
     if (includeEventLog) {
-        status.recentBlocks = queryRecentBlocks(bundledKernelDrivers());
+        status.recentBlocks = queryRecentBlocks(bundledKernelDrivers(), &status.recentBlocksIncomplete);
     }
     return status;
 }

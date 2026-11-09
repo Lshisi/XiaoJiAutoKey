@@ -1103,9 +1103,13 @@ DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir, std::filesystem
       logsDir_(std::move(logsDir)) {}
 
 DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver) const {
+    return Inspect(driver.IsReady(), driver.GetLastError());
+}
+
+DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, const std::wstring& lastError) const {
     RuntimeStatus status;
-    status.driverReady = driver.IsReady();
-    status.lastError = driver.GetLastError();
+    status.driverReady = driverReady;
+    status.lastError = lastError;
     status.driverRootPath = DriverRootDir().wstring();
     status.driverRootExists = QFileInfo(QString::fromStdWString(status.driverRootPath)).isDir();
     status.hidRuntimePath = HidRuntimePath().wstring();

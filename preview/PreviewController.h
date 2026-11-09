@@ -100,5 +100,6 @@ private:
     bool hidInstalled_ = true;
     bool overlayLocked_ = false;
     bool pickerVisible_ = false;
+    int diagnosticPreviewRequest_ = 0;
     QPointF pickerPoint_{200, 160};
 };

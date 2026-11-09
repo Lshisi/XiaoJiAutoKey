@@ -8,12 +8,12 @@ DriverSelfCheckDialog::DriverSelfCheckDialog(QWidget* parent) : QmlDialog(parent
 void DriverSelfCheckDialog::beginCheck() {
     busy_ = true;
     actions_.clear();
-    setValue("closeAllowed", false);
+    setValue("closeAllowed", true);
     setValue("heading", tr("正在检测驱动环境…"));
     setValue("body", tr("正在检查当前驱动模式的运行文件、安装状态及设备连接，请稍候。"));
     setValue("progressVisible", true);
     setValue("severity", 0);
-    setValue("actions", QVariantList{});
+    setValue("actions", QVariantList{button(QStringLiteral("cancel"), tr("关闭"), false)});
 }
 void DriverSelfCheckDialog::setConclusion(const Conclusion& conclusion) {
     busy_ = false;
@@ -31,7 +31,7 @@ void DriverSelfCheckDialog::setConclusion(const Conclusion& conclusion) {
     setValue("actions", actions);
 }
 void DriverSelfCheckDialog::handleAction(const QString& action, const QVariant& argument) {
-    if (busy_) return;
+    if (busy_) { QmlDialog::handleAction(action, argument); return; }
     for (const auto& [id, text] : actions_) {
         Q_UNUSED(text)
         if (action == QStringLiteral("diagnose:%1").arg(static_cast<int>(id))) { emit actionRequested(static_cast<int>(id)); return; }

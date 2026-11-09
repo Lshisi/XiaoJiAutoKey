@@ -25,8 +25,9 @@ public:
         AppConfig* config = nullptr;
         // 当前驱动是否就绪（InputDriverRouter::IsReady）。
         std::function<bool()> driverReady;
-        // 驱动运行时快照（ddRuntimeService_.Inspect(driver_)），在主线程调用。
-        std::function<DdRuntimeService::RuntimeStatus()> inspectRuntime;
+        std::function<std::wstring()> driverLastError;
+        // 后台系统读取；回调只持有服务副本，不访问主窗口或运行中的驱动。
+        std::function<DdRuntimeService::RuntimeStatus(bool, const std::wstring&)> inspectRuntime;
         // 按键与循环的运行状态快照，在主线程调用。
         std::function<DriverRuntimeDiagnosticState()> inspectRuntimeState;
         std::function<void(bool)> setDialogOpen;
@@ -42,6 +43,9 @@ public slots:
     // 生成并打开诊断信息报告；已打开时仅置前。
     void openDiagnostic();
 
+signals:
+    void dialogsClosed();
+
 private:
     struct Snapshot {
         DriverMode mode = DriverMode::Legacy;
@@ -51,9 +55,13 @@ private:
         DdRuntimeService::RuntimeStatus status;
         CodeIntegrityInspector::GuardStatus guards;
         DriverRuntimeDiagnosticState runtimeState;
+        QString error;
     };
 
     [[nodiscard]] std::shared_ptr<Snapshot> collectSnapshot() const;
+    void updateDialogOpenState();
+    void inspectSnapshot(std::shared_ptr<Snapshot> snapshot, bool fullReport,
+        std::function<void(const Snapshot&)> completed);
     void runDiagnosis(DriverSelfCheckDialog* dialog);
     void runDiagnosticReport(DriverDiagnosticDialog* dialog);
     [[nodiscard]] DriverSelfCheckDialog::Conclusion buildConclusion(const Snapshot& snapshot) const;
@@ -63,4 +71,5 @@ private:
     Context context_;
     QPointer<DriverSelfCheckDialog> dialog_;
     QPointer<DriverDiagnosticDialog> diagnosticDialog_;
+    bool diagnosticOpenPending_ = false;
 };

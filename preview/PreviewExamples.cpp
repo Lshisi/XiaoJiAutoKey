@@ -2,6 +2,7 @@
 
 #include "FactionTheme.h"
 #include "ui/styles/DesignTokens.h"
+#include <QTimer>
 #include <QWindow>
 
 void PreviewController::showDriverReport() {
@@ -9,7 +10,15 @@ void PreviewController::showDriverReport() {
         {{"heading", tr("驱动自检结果（示例）")}, {"body", driverPage_.state().value("details")},
             {"bodyRich", false}, {"status", tr("此窗口仅展示自检结果，不访问系统驱动。")},
             {"severity", demoData_ ? 1 : 2}, {"progressVisible", false},
-            {"progressIndeterminate", false}, {"progressValue", 0.0}, {"progressText", QString()}}, {}, 500);
+            {"progressIndeterminate", false}, {"progressValue", 0.0}, {"progressText", QString()},
+            {"actions", QVariantList{
+                QVariantMap{{"id", "accept"}, {"text", tr("诊断信息")}, {"primary", true},
+                    {"danger", false}, {"enabled", true}},
+                QVariantMap{{"id", "cancel"}, {"text", tr("关闭")}, {"primary", false},
+                    {"danger", false}, {"enabled", true}}}}},
+        [this](const QVariantMap&) {
+            QTimer::singleShot(0, this, &PreviewController::showDiagnosticReport);
+        }, 500);
 }
 
 void PreviewController::showDiagnosticReport() {
@@ -50,15 +59,23 @@ void PreviewController::showDiagnosticReport() {
             keys_.model()->state().value("running").toBool() ? tr("是") : tr("否"),
             macros_.model()->state().value("running").toBool() ? tr("是") : tr("否"));
 
+    const int request = ++diagnosticPreviewRequest_;
     dialog_.present("DialogShare.qml", tr("诊断信息"),
-        {{"exporting", true}, {"format", 0}, {"formatVisible", false}, {"diagnostic", true},
-            {"code", report}, {"namePreview", QString()},
-            {"status", tr("界面预览示例，不访问系统驱动。")}}, {}, 500);
-    dialog_.edit("actions", QVariantList{
-        QVariantMap{{"id", "copy"}, {"text", tr("复制")}, {"primary", true},
-            {"danger", false}, {"enabled", true}},
-        QVariantMap{{"id", "cancel"}, {"text", tr("关闭")}, {"primary", false},
-            {"danger", false}, {"enabled", true}}});
+        {{"exporting", true}, {"format", 0}, {"formatVisible", false}, {"diagnostic", true}, {"resizable", true},
+            {"code", tr("正在后台读取诊断信息…")}, {"namePreview", QString()},
+            {"status", tr("界面预览示例，不访问系统驱动。")},
+            {"actions", QVariantList{QVariantMap{{"id", "cancel"}, {"text", tr("关闭")},
+                {"primary", false}, {"danger", false}, {"enabled", true}}}}}, {}, 500);
+    QTimer::singleShot(300, this, [this, request, report]() {
+        if (request != diagnosticPreviewRequest_ || !dialog_.visible()
+            || !dialog_.dialogState().value("diagnostic").toBool()) return;
+        dialog_.edit("code", report);
+        dialog_.edit("actions", QVariantList{
+            QVariantMap{{"id", "copy"}, {"text", tr("复制")}, {"primary", true},
+                {"danger", false}, {"enabled", true}},
+            QVariantMap{{"id", "cancel"}, {"text", tr("关闭")}, {"primary", false},
+                {"danger", false}, {"enabled", true}}});
+    });
 }
 
 void PreviewController::showProcesses() {

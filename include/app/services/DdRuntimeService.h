@@ -46,6 +46,7 @@ public:
     explicit DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir = {});
 
     [[nodiscard]] RuntimeStatus Inspect(const DdDriver& driver) const;
+    [[nodiscard]] RuntimeStatus Inspect(bool driverReady, const std::wstring& lastError) const;
     [[nodiscard]] bool InstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool UninstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;

@@ -20,6 +20,7 @@ public:
         bool vulnerableBlocklistEnabled = false; // 易受攻击的驱动程序阻止列表（注册表缺省视为开启）
         int smartAppControlState = 0;            // 智能应用控制：0 关 / 1 开 / 2 评估模式
         std::vector<BlockedDriverEvent> recentBlocks; // 近 7 天拦截我方驱动的事件记录
+        bool recentBlocksIncomplete = false;
 
         [[nodiscard]] bool anyDriverGuardActive() const {
             return memoryIntegrityRunning || vulnerableBlocklistEnabled || smartAppControlState == 1;

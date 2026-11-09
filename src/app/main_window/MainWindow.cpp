@@ -10,6 +10,7 @@
 #include "services/CodeIntegrityInspector.h"
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/DriverPageModel.h"
+#include "ui/models/KeyPageModel.h"
 #include "ui/models/SettingsPageModel.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
@@ -651,13 +652,58 @@ bool MainWindow::ensureHidDriverInstalledForSwitch(bool repairRequested) {
 }
 
 void MainWindow::refreshDriverStatusUi() {
+    if (!view_.driverPage()) return;
+    if (driverStatusRefreshRunning_) {
+        driverStatusRefreshPending_ = true;
+        return;
+    }
+    driverStatusRefreshRunning_ = true;
+    view_.driverPage()->setDriverMode(config_.driverMode);
+
+    struct StatusResult {
+        DdRuntimeService::RuntimeStatus runtime;
+        CodeIntegrityInspector::GuardStatus guards;
+        std::wstring detectedUsbPort;
+        bool failed = false;
+    };
+    const auto result = std::make_shared<StatusResult>();
+    const bool ready = activeInputDriverReady();
+    const std::wstring lastError = activeInputDriverError();
+    const bool usbReady = ch552Driver_.IsReady();
+    auto* thread = QThread::create([runtimeService = ddRuntimeService_, result, ready, lastError, usbReady]() {
+        try {
+            result->runtime = runtimeService.Inspect(ready, lastError);
+            result->guards = CodeIntegrityInspector::Inspect(false);
+            if (!usbReady) result->detectedUsbPort = Ch552UsbDriver::DetectPortName();
+        } catch (const std::exception&) {
+            result->failed = true;
+        }
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    connect(thread, &QThread::finished, this, [this, result]() {
+        driverStatusRefreshRunning_ = false;
+        if (driverStatusRefreshPending_) {
+            driverStatusRefreshPending_ = false;
+            refreshDriverStatusUi();
+            return;
+        }
+        if (result->failed) {
+            if (auto* page = view_.driverPage()) page->setStatusSummary(tr("驱动状态读取失败，请稍后重试"));
+            return;
+        }
+        applyDriverStatusUi(result->runtime, result->guards, result->detectedUsbPort);
+    }, Qt::QueuedConnection);
+    thread->start();
+}
+
+void MainWindow::applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& status,
+    const CodeIntegrityInspector::GuardStatus& guards, const std::wstring& detectedUsbPort) {
     auto* page = view_.driverPage();
     if (!page) {
         return;
     }
 
     page->setDriverMode(config_.driverMode);
-    const auto status = ddRuntimeService_.Inspect(driver_);
 
     const bool userUninstalled = config_.IsDriverUninstalledByUser(config_.driverMode);
     const bool runtimeExists = config_.driverMode == DriverMode::Hid
@@ -696,7 +742,6 @@ void MainWindow::refreshDriverStatusUi() {
     if (!activeInputDriverError().empty())
         detail << L"当前错误: " << activeInputDriverError() << L"\n";
     // 仅展示安全配置；功能开启不代表本次驱动加载被拦截。
-    const auto guards = CodeIntegrityInspector::Inspect(false);
     detail << L"\u5185\u6838\u9694\u79bb: ";
     if (guards.memoryIntegrityRunning) {
         detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u8fd0\u884c\u4e2d";
@@ -712,7 +757,7 @@ void MainWindow::refreshDriverStatusUi() {
     const bool usbCommunicationReady = ch552Driver_.IsReady();
     const std::wstring usbPortName = usbCommunicationReady
         ? ch552Driver_.PortName()
-        : Ch552UsbDriver::DetectPortName();
+        : detectedUsbPort;
     detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
     detail << L"USB \u901a\u4fe1: ";
     if (usbCommunicationReady) {
@@ -1000,8 +1045,9 @@ void MainWindow::showEvent(QShowEvent* event) {
     selfCheckAutoOpened_ = true;
     // 先让主窗口完成首帧渲染，再弹自检向导，避免开屏即模态。
     QTimer::singleShot(250, this, [this]() {
+        connect(&driverSelfCheckCoordinator_, &DriverSelfCheckCoordinator::dialogsClosed,
+            &onboardingCoordinator_, &OnboardingCoordinator::initialize, Qt::SingleShotConnection);
         driverSelfCheckCoordinator_.open();
-        onboardingCoordinator_.initialize();
     });
 }
 

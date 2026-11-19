@@ -346,12 +346,13 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
 
 ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> bindingId,
     const KeyDescriptor& key, const QString& name, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
-    const ClickPosition& clickPos) {
+    const ClickPosition& clickPos, bool preventAccidentalStop) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
+    if (mode != RepeatMode::Independent) preventAccidentalStop = false;
     if (enabled) {
         if (auto validation = validateCombinationAgainstImmediateKeys(key, *profile); !validation.ok) {
             return validation;
@@ -397,6 +398,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
                 binding.enabled = enabled;
                 binding.suppressMixedMode = suppressMixedMode;
                 binding.clickPos = effectiveClickPos;
+                binding.preventAccidentalStop = preventAccidentalStop;
                 return ControllerResult::success();
             }
         }
@@ -412,6 +414,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     binding.enabled = enabled;
     binding.suppressMixedMode = suppressMixedMode;
     binding.clickPos = effectiveClickPos;
+    binding.preventAccidentalStop = preventAccidentalStop;
     profile->bindings.push_back(binding);
     return ControllerResult::success();
 }
@@ -432,6 +435,7 @@ ControllerResult ProfileController::updateBindings(const std::vector<std::uint64
             binding.delayMs = std::max(*delayMs, kMinDelayMs);
         }
         if (enabled.has_value()) binding.enabled = *enabled;
+        if (binding.mode != RepeatMode::Independent) binding.preventAccidentalStop = false;
         if (binding.mode != RepeatMode::Hold) {
             binding.suppressMixedMode = false;
         } else if (participatePriority.has_value()) {

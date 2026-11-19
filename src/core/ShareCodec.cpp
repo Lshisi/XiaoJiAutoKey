@@ -251,6 +251,9 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             bindingObj.emplace("mode", std::string(mode));
             bindingObj.emplace("delayMs", ClampDelay(binding.delayMs));
             bindingObj.emplace("suppressMixedMode", binding.suppressMixedMode);
+            if (binding.mode == RepeatMode::Independent) {
+                bindingObj.emplace("preventAccidentalStop", binding.preventAccidentalStop);
+            }
             if (binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
                 clickObj.emplace("mode", std::string("fixed"));
@@ -379,6 +382,8 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             else binding.mode = RepeatMode::Toggle;
                             binding.delayMs = ClampDelay(IntField(*bindingObj, "delayMs").value_or(kDefaultDelayMs));
                             binding.suppressMixedMode = BoolField(*bindingObj, "suppressMixedMode").value_or(false);
+                            binding.preventAccidentalStop = binding.mode == RepeatMode::Independent
+                                && BoolField(*bindingObj, "preventAccidentalStop").value_or(false);
                             if (key->device == InputDevice::Mouse) {
                                 if (const auto clickIt = bindingObj->find("clickPos"); clickIt != bindingObj->end()) {
                                     if (const auto* clickObj = clickIt->second.AsObject()) {
@@ -667,6 +672,7 @@ constexpr const char* kKeySwitchKey = "\u5207\u6362\u952e";   // 切换键
 constexpr const char* kKeyPauseKeys = "\u6682\u505c\u952e";   // 暂停键
 constexpr const char* kKeyPoint = "\u70b9\u4f4d";              // 点位
 constexpr const char* kKeyPriority = "\u53c2\u4e0e";           // 参与
+constexpr const char* kKeyPreventAccidentalStop = "\u9632\u8bef\u505c";
 constexpr const char* kKeyTrigger = "\u89e6\u53d1";            // 触发
 constexpr const char* kKeyTriggerKey = "\u89e6\u53d1\u952e";   // 触发键
 constexpr const char* kKeyLoop = "\u5faa\u73af";               // 循环
@@ -812,6 +818,9 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Hold && binding.suppressMixedMode) {
                 line += " " + std::string(kKeyPriority) + "=" + kValueNo;
             }
+            if (binding.mode == RepeatMode::Independent && binding.preventAccidentalStop) {
+                line += " " + std::string(kKeyPreventAccidentalStop) + "=" + kValueYes;
+            }
             if (binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed()) {
                 line += " " + std::string(kKeyPoint) + "="
                     + PercentValue(std::clamp(binding.clickPos.anchorX, 0.0, 1.0)) + ","
@@ -953,6 +962,8 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                         binding.delayMs = ClampDelay(std::atoi(tokenValue.c_str()));
                     } else if (tokenKey == kKeyPriority) {
                         binding.suppressMixedMode = (tokenValue == kValueNo);
+                    } else if (tokenKey == kKeyPreventAccidentalStop) {
+                        binding.preventAccidentalStop = (tokenValue == kValueYes);
                     } else if (tokenKey == kKeyPoint && binding.key.device == InputDevice::Mouse) {
                         const auto comma = tokenValue.find(',');
                         if (comma != std::string::npos) {
@@ -971,6 +982,7 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 continue;
             }
             binding.enabled = enabled;
+            binding.preventAccidentalStop = binding.mode == RepeatMode::Independent && binding.preventAccidentalStop;
             currentProfile->bindings.push_back(binding);
             continue;
         }

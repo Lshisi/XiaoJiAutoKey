@@ -29,6 +29,7 @@ struct TaskConfig {
     bool enabled = true;
     bool suppressMixedMode = false;
     ClickPosition clickPos;  // 仅鼠标键使用
+    bool preventAccidentalStop = false;
 };
 
 struct TaskRuntime {
@@ -123,7 +124,7 @@ private:
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> holdPhysicalDown_;
     std::unordered_map<std::uint64_t, int> holdUpIgnoreCount_;
     bool IsHoldBinding(const KeyDescriptor& key) const;
-    bool IsIndependentBinding(const KeyDescriptor& key) const;
+    const TaskConfig* FindIndependentBinding(const KeyDescriptor& key) const;
     bool IsHoldActive() const;
     bool IsWasdProtectionActive() const;
     bool HasSharedLongPressModifierLocked() const;

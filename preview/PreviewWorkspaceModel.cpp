@@ -96,6 +96,7 @@ void PreviewWorkspaceModel::reset(bool demo) {
                 {"keyText", keys[index]}, {"name", name},
                 {"keyDisplayText", name.isEmpty() ? keys[index] : QStringLiteral("%1 · %2").arg(keys[index], name)},
                 {"isMouse", index == 1}, {"mode", index}, {"modeText", modes[index]},
+                {"preventAccidentalStop", false},
                 {"priorityText", index == 1 ? QStringLiteral("✓") : QStringLiteral("—")},
                 {"priorityKind", index == 1 ? QStringLiteral("enabled") : QStringLiteral("muted")},
                 {"delay", index == 4 ? QVariant(QStringLiteral("—")) : QVariant(macro_ ? 100 : 10)},

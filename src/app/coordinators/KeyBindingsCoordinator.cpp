@@ -350,7 +350,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
             const auto& binding = profile->bindings[*idx];
             existing = BindingEditResult{
                 binding.key, QString::fromStdWString(binding.name), binding.mode, binding.delayMs, binding.enabled,
-                binding.suppressMixedMode, binding.clickPos};
+                binding.suppressMixedMode, binding.clickPos, binding.preventAccidentalStop};
         }
     }
 
@@ -378,7 +378,8 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         editResult.delayMs,
         editResult.enabled,
         editResult.suppressMixedMode,
-        editResult.clickPos);
+        editResult.clickPos,
+        editResult.preventAccidentalStop);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);
         return;

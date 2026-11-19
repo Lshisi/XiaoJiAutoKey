@@ -8,6 +8,7 @@ struct BindingEditResult {
     bool enabled = true;
     bool suppressMixedMode = false;
     ClickPosition clickPos;
+    bool preventAccidentalStop = false;
 };
 class BindingEditDialog : public KeyCaptureDialogBase {
     Q_OBJECT

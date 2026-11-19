@@ -142,8 +142,19 @@ ColumnLayout {
         }
         RowLayout {
             Layout.fillWidth: true
-            QuietLabel { visible: editor.fields.mode === 1; Layout.fillWidth: true; text: qsTr("参与按压优先"); wrapMode: Text.NoWrap }
-            QuietSwitch { visible: editor.fields.mode === 1; checked: editor.fields.priority; onClicked: dialogModel.edit("priority", checked); Accessible.name: qsTr("参与按压优先") }
+            visible: editor.fields.mode === 1
+            QuietLabel { Layout.fillWidth: true; text: qsTr("参与按压优先"); wrapMode: Text.NoWrap }
+            QuietSwitch { checked: editor.fields.priority; onClicked: dialogModel.edit("priority", checked); Accessible.name: qsTr("参与按压优先") }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            visible: editor.fields.mode === 2
+            QuietLabel { Layout.fillWidth: true; text: qsTr("防误停") }
+            QuietSwitch {
+                checked: editor.fields.preventAccidentalStop === true
+                onClicked: dialogModel.edit("preventAccidentalStop", checked)
+                Accessible.name: qsTr("防误停")
+            }
         }
     }
     QuietLabel {
@@ -152,7 +163,9 @@ ColumnLayout {
         text: {
             switch (editor.fields.mode) {
             case 1: return qsTr("先启动工具，再按住此键连发，松开停止。")
-            case 2: return qsTr("先启动工具，再按此键独立开启或停止连发。")
+            case 2: return editor.fields.preventAccidentalStop === true
+                ? qsTr("启动工具后按此键开始连发。再按此键会继续连发。")
+                : qsTr("先启动工具，再按此键独立开启或停止连发。")
             case 3: return qsTr("启动后，通过列表下方的“切换键”轮换当前连发按键。")
             case 4: return qsTr("启动后持续按住，暂停或停止时松开；无需连发间隔。")
             default: return qsTr("启动后按设定间隔反复点击此键，停止时结束。")
@@ -195,7 +208,7 @@ ColumnLayout {
                 }
                 switch (editor.fields.mode) {
                 case 1: return qsTr("先启动工具，再用手按住录制的按键，软件才会按设定间隔连点，松开即停止。组合键需要同时按住所需修饰键和主键；开启“按压优先”且此项参与时，按住期间会暂停其他模式，松开后恢复。")
-                case 2: return qsTr("先启动工具，再按一次此键开启连发。多个独立模式按键之间会互相切换，同一时间只连发当前选中的一个；再次按当前键会停止。其他模式不受这个切换影响。")
+                case 2: return qsTr("启动工具后按此键开始连发，按其他独立模式键可切换，同一时间只连发一个。默认再按当前键会停止。开启“防误停”后，再按当前键会继续连发，可用启停快捷键或右侧“停止”结束。")
                 case 3: return qsTr("保存后，在按键列表下方设置“切换键”。启动工具后，每按一次切换键，轮换到下一个已启用的切换模式按键；右侧“记住切换位置”决定重新启动时是否续用上次位置。")
                 case 4: return qsTr("启动工具后，软件会持续保持此键按下，无需用手按住，也不会反复点击，因此不需要连发间隔。暂停或停止时会自动松开；组合键会同时保持修饰键和主键。")
                 default: return qsTr("点击右侧“启动”或按启停快捷键后，软件会按设定间隔反复点击录制的按键，直到暂停或停止。这里录制的是需要输出的按键，控制工具的启停快捷键在主界面另行设置。")

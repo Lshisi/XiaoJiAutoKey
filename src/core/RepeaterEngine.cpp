@@ -168,7 +168,6 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     waiter_.Wake();
     const auto encoded = EncodeKey(key);
-    const bool independentBinding = IsIndependentBinding(key);
 
     if (sequenceSwitchKey_.has_value() && KeyMatchesEvent(*sequenceSwitchKey_, key)) {
         if (!sequenceSwitchDown_) {
@@ -189,7 +188,7 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
 
     auto it = ignoreCount_.find(encoded);
 
-    if (independentBinding) {
+    if (const auto* binding = FindIndependentBinding(key)) {
         auto independentIgnoreIt = independentDownIgnoreCount_.find(encoded);
         if (independentIgnoreIt != independentDownIgnoreCount_.end() && independentIgnoreIt->second > 0) {
             --independentIgnoreIt->second;
@@ -200,11 +199,11 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
         }
         independentDown_.insert(key);
         physicalDown_.insert(key);
-        if (independentActiveKey_.has_value() && *independentActiveKey_ == key) {
-            independentActiveKey_.reset();
-        } else {
+        if (!independentActiveKey_ || *independentActiveKey_ != key) {
             independentActiveKey_ = key;
             ResetIndependentTaskTimingLocked(key);
+        } else if (!binding->preventAccidentalStop) {
+            independentActiveKey_.reset();
         }
         SyncOutputsLocked();
         return;
@@ -239,7 +238,6 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     waiter_.Wake();
     const auto encoded = EncodeKey(key);
-    const bool independentBinding = IsIndependentBinding(key);
 
     if (IsKeyboardModifierKey(key)) {
         const auto modifierMask = ModifierMaskFromKey(key);
@@ -271,7 +269,7 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
         return SamePrimaryKey(item, key);
     });
 
-    if (independentBinding) {
+    if (FindIndependentBinding(key)) {
         auto independentIgnoreIt = independentUpIgnoreCount_.find(encoded);
         if (independentIgnoreIt != independentUpIgnoreCount_.end() && independentIgnoreIt->second > 0) {
             --independentIgnoreIt->second;
@@ -321,7 +319,7 @@ void RepeaterEngine::BeforeSendLocked(const KeyDescriptor& key) {
     }
 
     const auto encoded = EncodeKey(key);
-    if (IsIndependentBinding(key)) {
+    if (FindIndependentBinding(key)) {
         independentDownIgnoreCount_[encoded] += 1;
         independentUpIgnoreCount_[encoded] += 1;
         return;
@@ -344,11 +342,12 @@ bool RepeaterEngine::IsHoldBinding(const KeyDescriptor& key) const {
     });
 }
 
-bool RepeaterEngine::IsIndependentBinding(const KeyDescriptor& key) const {
-    return std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& t) {
-        return t.config.enabled && t.config.mode == RepeatMode::Independent
-            && KeyMatchesEvent(t.config.key, key);
+const TaskConfig* RepeaterEngine::FindIndependentBinding(const KeyDescriptor& key) const {
+    const auto match = std::find_if(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& task) {
+        return task.config.enabled && task.config.mode == RepeatMode::Independent
+            && KeyMatchesEvent(task.config.key, key);
     });
+    return match == tasks_.end() ? nullptr : &match->config;
 }
 
 bool RepeaterEngine::IsHoldActive() const {
@@ -658,6 +657,7 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
             b.suppressMixedMode,
             b.key.device == InputDevice::Mouse ? b.clickPos : ClickPosition{},
         };
+        t.config.preventAccidentalStop = b.preventAccidentalStop;
 
         auto it = std::find_if(tasks_.begin(), tasks_.end(),
             [&](auto& x) { return x.config.id == b.id; });

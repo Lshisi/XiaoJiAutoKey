@@ -174,6 +174,7 @@ void PreviewWorkspaceController::editRows(const QVariantList& selected) {
                     row.insert("mode", mode);
                     row.insert("modeText", modes[mode]);
                 }
+                if (mode != static_cast<int>(RepeatMode::Independent)) row.insert("preventAccidentalStop", false);
                 if (values.value("modifyDelay").toBool() && mode != 4)
                     row.insert("delay", std::max(1, values.value("delay").toString().toInt()));
                 else if (mode == 4)
@@ -217,6 +218,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
         {"wheelCount", QString::number(std::abs(row.value("wheelDelta", 120).toInt() / 120))},
         {"nameVisible", true}, {"name", adding ? QString() : row.value("name")},
         {"mode", mode}, {"modeVisible", !model_.macroMode()}, {"needsDelay", model_.macroMode() || mode != 4},
+        {"preventAccidentalStop", !adding && row.value("preventAccidentalStop").toBool()},
         {"delay", mode == 4 || adding ? QStringLiteral("10") : QString::number(row.value("delay").toString().toInt())},
         {"enabled", adding || row.value("enabled").toBool()},
         {"priority", row.value("priorityKind").toString() == "enabled"}, {"modeGuideVisible", false},
@@ -242,6 +244,8 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
             updated.insert("enabled", values.value("enabled"));
             updated.insert("mode", mode);
             updated.insert("modeText", modes[mode]);
+            updated.insert("preventAccidentalStop", !model_.macroMode() && mode == static_cast<int>(RepeatMode::Independent)
+                && values.value("preventAccidentalStop").toBool());
             updated.insert("isMouse", values.value("isMouse"));
             updated.insert("priorityText", mode == 1 ? (values.value("priority").toBool() ? "✓" : "×") : "—");
             updated.insert("priorityKind", mode == 1 && values.value("priority").toBool() ? "enabled" : "muted");

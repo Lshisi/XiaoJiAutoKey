@@ -68,6 +68,7 @@ struct KeyBinding {
     int delayMs = kDefaultDelayMs;
     bool suppressMixedMode = false;
     ClickPosition clickPos;  // 仅对鼠标键有意义
+    bool preventAccidentalStop = false;
 };
 
 enum class CloseAction {

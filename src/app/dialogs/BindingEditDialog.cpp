@@ -3,7 +3,8 @@ BindingEditDialog::BindingEditDialog(std::optional<BindingEditResult> existing, 
     std::function<bool()> supportsMouseMove, QWidget* parent) : KeyCaptureDialogBase(parent) {
     setPrimaryMouseButtonsAllowed(true);
     setWindowTitle(existing ? tr("编辑按键") : tr("添加按键"));
-    QVariantMap fields{{"modeVisible", true}, {"nameVisible", true}, {"delay", QString::number(defaultDelayMs)}};
+    QVariantMap fields{{"modeVisible", true}, {"nameVisible", true}, {"delay", QString::number(defaultDelayMs)},
+        {"preventAccidentalStop", existing && existing->preventAccidentalStop}};
     if (existing) {
         setCapturedKey(existing->key);
         const int mode = existing->mode == RepeatMode::Hold ? 1
@@ -30,5 +31,5 @@ BindingEditResult BindingEditDialog::editResult() const {
         : selected == 4 ? RepeatMode::LongPress : RepeatMode::Toggle;
     const int delayMs = mode == RepeatMode::LongPress ? kDefaultDelayMs : value("delay").toString().toInt();
     return {*capturedKey(), value("name").toString().trimmed(), mode, delayMs, value("enabled").toBool(),
-        mode == RepeatMode::Hold && !value("priority").toBool(), clickPosition()};
+        mode == RepeatMode::Hold && !value("priority").toBool(), clickPosition(), value("preventAccidentalStop").toBool()};
 }

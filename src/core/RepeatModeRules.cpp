@@ -45,9 +45,12 @@ RepeatBindingConflict CheckRepeatBindingPair(
         return RepeatBindingConflict::SharedPrimary;
     }
 
-    const auto checkModifier = [](const KeyBinding& modifier, std::uint8_t mask,
+    const auto checkModifier = [mixedMode](const KeyBinding& modifier, std::uint8_t mask,
                                  const KeyBinding& other, std::uint8_t otherMask) {
         if (modifier.mode == RepeatMode::LongPress) {
+            if (mixedMode && modifier.martialAssist && (other.key.modifiers & mask) != 0) {
+                return RepeatBindingConflict::PulsedModifier;
+            }
             // A standalone held modifier deliberately supplies a shared modifier layer.
             if (otherMask != 0) {
                 return other.mode != RepeatMode::LongPress && (mask & otherMask) != 0

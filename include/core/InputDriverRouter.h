@@ -3,6 +3,7 @@
 #include "InputDriver.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -31,6 +32,8 @@ public:
     void ClearAllStates() override;
     bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
     [[nodiscard]] bool IsHeldDown(const KeyDescriptor& key) const noexcept;
+    [[nodiscard]] std::optional<std::chrono::steady_clock::time_point> ForwardedDownSince(
+        const KeyDescriptor& key, InputSource src) const;
 
 private:
     using HeldKeySet = std::unordered_set<std::uint64_t>;
@@ -38,6 +41,11 @@ private:
     struct SourceState {
         std::unordered_map<std::uint64_t, std::uint64_t> activeKeys;
         std::unordered_set<std::uint64_t> heldKeys;
+    };
+
+    struct ForwardedPress {
+        InputSource source;
+        std::chrono::steady_clock::time_point since;
     };
 
     static bool IsArbitratedSource(InputSource src) noexcept;
@@ -66,7 +74,7 @@ private:
     std::uint64_t nextActivationOrder_ = 1;
     std::unordered_map<std::uint64_t, InputSource> owners_;
     std::atomic<std::uint8_t> physicalModifiers_{0};
-    std::unordered_map<std::uint64_t, InputSource> forwardedDown_;
+    std::unordered_map<std::uint64_t, ForwardedPress> forwardedDown_;
     // 仲裁跳过诊断：记录每个 (key, source) 首次被静默跳过，恢复正常注入后清除，避免高频刷日志。
     std::unordered_set<std::uint64_t> arbitrationSkipDiag_;
 };

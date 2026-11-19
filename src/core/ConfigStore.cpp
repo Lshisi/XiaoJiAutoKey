@@ -167,6 +167,8 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
         else if (mode == "longPress") binding.mode = RepeatMode::LongPress;
         else binding.mode = RepeatMode::Toggle;
         binding.suppressMixedMode = GetBoolField(*entry, "suppressMixedMode").value_or(false);
+        binding.martialAssist = binding.mode == RepeatMode::LongPress
+            && GetBoolField(*entry, "martialAssist").value_or(false);
         binding.preventAccidentalStop = binding.mode == RepeatMode::Independent
             && GetBoolField(*entry, "preventAccidentalStop").value_or(false);
         if (const auto clickIt = entry->find("clickPos"); clickIt != entry->end()) {
@@ -277,6 +279,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("mode", std::string(mode));
         entry.emplace("delayMs", b.delayMs);
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
+        if (b.mode == RepeatMode::LongPress) entry.emplace("martialAssist", b.martialAssist);
         if (b.mode == RepeatMode::Independent) entry.emplace("preventAccidentalStop", b.preventAccidentalStop);
         if (b.key.device == InputDevice::Mouse && b.clickPos.IsFixed()) {
             jsonlite::Object clickObj;

@@ -174,6 +174,7 @@ void PreviewWorkspaceController::editRows(const QVariantList& selected) {
                     row.insert("mode", mode);
                     row.insert("modeText", modes[mode]);
                 }
+                if (mode != 4) row.insert("martialAssist", false);
                 if (mode != static_cast<int>(RepeatMode::Independent)) row.insert("preventAccidentalStop", false);
                 if (values.value("modifyDelay").toBool() && mode != 4)
                     row.insert("delay", std::max(1, values.value("delay").toString().toInt()));
@@ -218,6 +219,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
         {"wheelCount", QString::number(std::abs(row.value("wheelDelta", 120).toInt() / 120))},
         {"nameVisible", true}, {"name", adding ? QString() : row.value("name")},
         {"mode", mode}, {"modeVisible", !model_.macroMode()}, {"needsDelay", model_.macroMode() || mode != 4},
+        {"mixedMode", model_.state().value("mixedMode")}, {"martialAssist", row.value("martialAssist", false)},
         {"preventAccidentalStop", !adding && row.value("preventAccidentalStop").toBool()},
         {"delay", mode == 4 || adding ? QStringLiteral("10") : QString::number(row.value("delay").toString().toInt())},
         {"enabled", adding || row.value("enabled").toBool()},
@@ -244,6 +246,7 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
             updated.insert("enabled", values.value("enabled"));
             updated.insert("mode", mode);
             updated.insert("modeText", modes[mode]);
+            updated.insert("martialAssist", !model_.macroMode() && mode == 4 && values.value("martialAssist").toBool());
             updated.insert("preventAccidentalStop", !model_.macroMode() && mode == static_cast<int>(RepeatMode::Independent)
                 && values.value("preventAccidentalStop").toBool());
             updated.insert("isMouse", values.value("isMouse"));

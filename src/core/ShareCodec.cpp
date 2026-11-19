@@ -251,6 +251,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             bindingObj.emplace("mode", std::string(mode));
             bindingObj.emplace("delayMs", ClampDelay(binding.delayMs));
             bindingObj.emplace("suppressMixedMode", binding.suppressMixedMode);
+            if (binding.mode == RepeatMode::LongPress) bindingObj.emplace("martialAssist", binding.martialAssist);
             if (binding.mode == RepeatMode::Independent) {
                 bindingObj.emplace("preventAccidentalStop", binding.preventAccidentalStop);
             }
@@ -382,6 +383,8 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                             else binding.mode = RepeatMode::Toggle;
                             binding.delayMs = ClampDelay(IntField(*bindingObj, "delayMs").value_or(kDefaultDelayMs));
                             binding.suppressMixedMode = BoolField(*bindingObj, "suppressMixedMode").value_or(false);
+                            binding.martialAssist = binding.mode == RepeatMode::LongPress
+                                && BoolField(*bindingObj, "martialAssist").value_or(false);
                             binding.preventAccidentalStop = binding.mode == RepeatMode::Independent
                                 && BoolField(*bindingObj, "preventAccidentalStop").value_or(false);
                             if (key->device == InputDevice::Mouse) {
@@ -672,6 +675,7 @@ constexpr const char* kKeySwitchKey = "\u5207\u6362\u952e";   // 切换键
 constexpr const char* kKeyPauseKeys = "\u6682\u505c\u952e";   // 暂停键
 constexpr const char* kKeyPoint = "\u70b9\u4f4d";              // 点位
 constexpr const char* kKeyPriority = "\u53c2\u4e0e";           // 参与
+constexpr const char* kKeyMartialAssist = "\u6b66\u5b66\u52a9\u624b";
 constexpr const char* kKeyPreventAccidentalStop = "\u9632\u8bef\u505c";
 constexpr const char* kKeyTrigger = "\u89e6\u53d1";            // 触发
 constexpr const char* kKeyTriggerKey = "\u89e6\u53d1\u952e";   // 触发键
@@ -818,6 +822,9 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Hold && binding.suppressMixedMode) {
                 line += " " + std::string(kKeyPriority) + "=" + kValueNo;
             }
+            if (binding.mode == RepeatMode::LongPress && binding.martialAssist) {
+                line += " " + std::string(kKeyMartialAssist) + "=" + kValueYes;
+            }
             if (binding.mode == RepeatMode::Independent && binding.preventAccidentalStop) {
                 line += " " + std::string(kKeyPreventAccidentalStop) + "=" + kValueYes;
             }
@@ -962,6 +969,8 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                         binding.delayMs = ClampDelay(std::atoi(tokenValue.c_str()));
                     } else if (tokenKey == kKeyPriority) {
                         binding.suppressMixedMode = (tokenValue == kValueNo);
+                    } else if (tokenKey == kKeyMartialAssist) {
+                        binding.martialAssist = (tokenValue == kValueYes);
                     } else if (tokenKey == kKeyPreventAccidentalStop) {
                         binding.preventAccidentalStop = (tokenValue == kValueYes);
                     } else if (tokenKey == kKeyPoint && binding.key.device == InputDevice::Mouse) {
@@ -982,6 +991,7 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                 continue;
             }
             binding.enabled = enabled;
+            binding.martialAssist = binding.mode == RepeatMode::LongPress && binding.martialAssist;
             binding.preventAccidentalStop = binding.mode == RepeatMode::Independent && binding.preventAccidentalStop;
             currentProfile->bindings.push_back(binding);
             continue;

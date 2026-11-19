@@ -8,12 +8,13 @@ struct BindingEditResult {
     bool enabled = true;
     bool suppressMixedMode = false;
     ClickPosition clickPos;
+    bool martialAssist = false;
     bool preventAccidentalStop = false;
 };
 class BindingEditDialog : public KeyCaptureDialogBase {
     Q_OBJECT
 public:
-    BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs,
+    BindingEditDialog(std::optional<BindingEditResult> existing, int defaultDelayMs, bool mixedMode,
         std::function<bool()> driverSupportsMouseMove, QWidget* parent = nullptr);
     BindingEditResult editResult() const;
 };

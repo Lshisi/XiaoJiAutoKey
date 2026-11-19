@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "InputDriver.h"
+#include "InputDriverRouter.h"
 #include "PrecisionWaiter.h"
 
 #include <atomic>
@@ -29,7 +29,17 @@ struct TaskConfig {
     bool enabled = true;
     bool suppressMixedMode = false;
     ClickPosition clickPos;  // 仅鼠标键使用
+    bool martialAssist = false;
     bool preventAccidentalStop = false;
+};
+
+struct MartialAssistRuntime {
+    enum class Phase { Idle, Holding, GameRepeat, Closing, CloseFailed };
+
+    Phase phase = Phase::Idle;
+    HWND window = nullptr;
+    std::chrono::steady_clock::time_point nextAction{};
+    bool closeForwarded = false;
 };
 
 struct TaskRuntime {
@@ -37,6 +47,9 @@ struct TaskRuntime {
     std::chrono::steady_clock::time_point lastUpTime{};
     bool isDown = false;
     std::chrono::steady_clock::time_point downTime{};
+    MartialAssistRuntime martialAssist;
+    bool longPressAttemptLogged = false;
+    bool longPressForwardedLogged = false;
 };
 
 struct RepeaterStatus {
@@ -50,7 +63,7 @@ struct RepeaterStatus {
 
 class RepeaterEngine {
 public:
-    explicit RepeaterEngine(InputDriver& driver);
+    explicit RepeaterEngine(InputDriverRouter& driver);
     ~RepeaterEngine();
 
     void StartThread();
@@ -69,7 +82,8 @@ public:
 
     // 前台门控挂起：暂停注入并释放已按下的键，但保留开关状态；恢复后继续。
     void SetSuspended(bool suspended);
-    void RefreshLongPressForeground(bool allowed);
+    void InvalidateLongPressForeground() noexcept;
+    void RefreshLongPressForeground(HWND window, bool allowed);
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
@@ -89,11 +103,18 @@ private:
     void ClearRememberedSequenceSelectionLocked();
     [[nodiscard]] bool IsTaskActiveLocked(const TaskRuntime& task,
         std::chrono::steady_clock::time_point now) const;
+    [[nodiscard]] bool IsMartialAssistEnabledLocked(const TaskRuntime& task) const;
+    [[nodiscard]] bool IsMartialAssistClosingLocked() const;
+    [[nodiscard]] bool IsMartialAssistForegroundLocked(HWND window,
+        std::chrono::steady_clock::time_point now) const;
+    [[nodiscard]] std::optional<std::chrono::steady_clock::time_point> MartialAssistDownSinceLocked(
+        const TaskRuntime& task, bool closing) const;
+    void AdvanceMartialAssistLocked(std::chrono::steady_clock::time_point now);
     bool SyncOutputsLocked();
     void RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key);
     static std::chrono::steady_clock::time_point Now();
 
-    InputDriver& driver_;
+    InputDriverRouter& driver_;
 
     std::atomic<bool> exit_{false};
     std::atomic<bool> running_{false};
@@ -108,7 +129,9 @@ private:
     bool toolRunning_ = false;
     bool mixedMode_ = false;
     bool wasdProtection_ = false;
+    std::atomic<bool> longPressForegroundInvalidated_{false};
     bool longPressForegroundAllowed_ = true;
+    HWND longPressForegroundWindow_ = nullptr;
     std::chrono::steady_clock::time_point longPressResumeTime_{};
     bool selfInjectedKeyboardVisible_ = true;
     bool selfInjectedMouseVisible_ = true;
@@ -116,6 +139,7 @@ private:
     std::vector<KeyDescriptor> pauseKeys_;
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> pauseKeysDown_;
     bool IsPauseActive() const;
+    bool IsPausedByInputLocked() const;
 
     std::unordered_map<std::uint64_t, int> ignoreCount_;
     void BeforeSendLocked(const KeyDescriptor& key);
@@ -144,6 +168,10 @@ private:
     struct OutputState {
         KeyDescriptor key;
         bool held = false;
+        bool martialAssistClose = false;
+        bool longPressPrimary = false;
+        bool martialAssist = false;
+        bool traceRelease = false;
     };
     std::vector<OutputState> outputs_;
 };

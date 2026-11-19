@@ -40,7 +40,7 @@ ControllerResult validateCombinationAgainstImmediateKeys(
 
 ControllerResult validateBindingModifierOverlaps(const ProfileConfig& profile,
     std::optional<std::uint64_t> bindingId, const KeyDescriptor& key, RepeatMode mode,
-    bool suppressMixedMode) {
+    bool suppressMixedMode, bool martialAssist) {
     ProfileConfig candidate = profile;
     candidate.enabled = true;
     auto existing = std::find_if(candidate.bindings.begin(), candidate.bindings.end(),
@@ -50,11 +50,13 @@ ControllerResult validateBindingModifierOverlaps(const ProfileConfig& profile,
         binding.key = key;
         binding.mode = mode;
         binding.suppressMixedMode = suppressMixedMode;
+        binding.martialAssist = martialAssist;
         candidate.bindings.push_back(binding);
     } else {
         existing->key = key;
         existing->mode = mode;
         existing->suppressMixedMode = suppressMixedMode;
+        existing->martialAssist = martialAssist;
         existing->enabled = true;
     }
     return ActiveConfigValidator::validateProfileModifierOverlaps(&candidate);
@@ -334,7 +336,7 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
                     }
                 }
                 if (auto validation = validateBindingModifierOverlaps(*profile, id, binding.key,
-                        binding.mode, binding.suppressMixedMode);
+                        binding.mode, binding.suppressMixedMode, binding.martialAssist);
                     !validation.ok) return validation;
             }
             binding.enabled = enabled;
@@ -346,18 +348,19 @@ ControllerResult ProfileController::setBindingEnabled(std::uint64_t id, bool ena
 
 ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> bindingId,
     const KeyDescriptor& key, const QString& name, RepeatMode mode, int delayMs, bool enabled, bool suppressMixedMode,
-    const ClickPosition& clickPos, bool preventAccidentalStop) {
+    const ClickPosition& clickPos, bool martialAssist, bool preventAccidentalStop) {
     auto* profile = activeProfile();
     if (!profile) return ControllerResult::failure(QString::fromWCharArray(L"\u6ca1\u6709\u53ef\u7528\u7684\u914d\u7f6e\u65b9\u6848\u3002"));
 
     if (auto validation = ActiveConfigValidator::validateKeyCombination(key); !validation.ok) return validation;
     if (mode != RepeatMode::Hold) suppressMixedMode = false;
     if (mode != RepeatMode::Independent) preventAccidentalStop = false;
+    if (mode != RepeatMode::LongPress) martialAssist = false;
     if (enabled) {
         if (auto validation = validateCombinationAgainstImmediateKeys(key, *profile); !validation.ok) {
             return validation;
         }
-        if (auto validation = validateBindingModifierOverlaps(*profile, bindingId, key, mode, suppressMixedMode);
+        if (auto validation = validateBindingModifierOverlaps(*profile, bindingId, key, mode, suppressMixedMode, martialAssist);
             !validation.ok) {
             return validation;
         }
@@ -398,6 +401,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
                 binding.enabled = enabled;
                 binding.suppressMixedMode = suppressMixedMode;
                 binding.clickPos = effectiveClickPos;
+                binding.martialAssist = martialAssist;
                 binding.preventAccidentalStop = preventAccidentalStop;
                 return ControllerResult::success();
             }
@@ -414,6 +418,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     binding.enabled = enabled;
     binding.suppressMixedMode = suppressMixedMode;
     binding.clickPos = effectiveClickPos;
+    binding.martialAssist = martialAssist;
     binding.preventAccidentalStop = preventAccidentalStop;
     profile->bindings.push_back(binding);
     return ControllerResult::success();
@@ -435,6 +440,7 @@ ControllerResult ProfileController::updateBindings(const std::vector<std::uint64
             binding.delayMs = std::max(*delayMs, kMinDelayMs);
         }
         if (enabled.has_value()) binding.enabled = *enabled;
+        if (binding.mode != RepeatMode::LongPress) binding.martialAssist = false;
         if (binding.mode != RepeatMode::Independent) binding.preventAccidentalStop = false;
         if (binding.mode != RepeatMode::Hold) {
             binding.suppressMixedMode = false;

@@ -15,6 +15,7 @@ KeyBinding Binding(const QVariantMap& row) {
     binding.mode = static_cast<RepeatMode>(row.value("mode").toInt());
     binding.enabled = row.value("enabled").toBool();
     binding.suppressMixedMode = row.value("priorityKind").toString() != QStringLiteral("enabled");
+    binding.martialAssist = row.value("martialAssist").toBool();
     return binding;
 }
 
@@ -42,7 +43,7 @@ QString BindingConflict(const QVariantList& rows, bool mixedMode) {
                 reason = QObject::tr("这两种模式会同时输出同一主键，按下、松开会互相干扰。");
                 break;
             case RepeatBindingConflict::PulsedModifier:
-                reason = QObject::tr("修饰键的连发会打断另一项需要的按住状态；需要持续按住时请使用长按模式。");
+                reason = QObject::tr("修饰键的连发或定时松开会打断另一项需要的按住状态；需要持续按住时请使用普通长按。");
                 break;
             case RepeatBindingConflict::ModifierState:
                 reason = QObject::tr("这两种模式会同时输出，但需要不同的修饰键状态。");
@@ -84,22 +85,24 @@ void PreviewWorkspaceModel::reset(bool demo) {
     state_.insert("executionError", QString());
     QVariantList rows;
     if (demo) {
-        const QStringList keys{QStringLiteral("Ctrl+1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift")};
+        const QStringList keys{QStringLiteral("Ctrl+1"), tr("侧键1"), QStringLiteral("F2"), QStringLiteral("3"), QStringLiteral("Shift"), QStringLiteral("F")};
         const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
-        const QStringList names{tr("主输出"), tr("接管"), tr("爆发"), tr("循环段"), QString()};
+        const QStringList names{tr("主输出"), tr("接管"), tr("爆发"), tr("循环段"), QString(), tr("武学助手示例")};
         const std::vector<KeyDescriptor> descriptors{{InputDevice::Keyboard, 0x31, kKeyModifierCtrl},
-            {InputDevice::Mouse, 5}, {InputDevice::Keyboard, 0x71}, {InputDevice::Keyboard, 0x33}, {InputDevice::Keyboard, 0x10}};
+            {InputDevice::Mouse, 5}, {InputDevice::Keyboard, 0x71}, {InputDevice::Keyboard, 0x33}, {InputDevice::Keyboard, 0x10},
+            {InputDevice::Keyboard, 'F'}};
         for (int index = 0; index < (macro_ ? 3 : keys.size()); ++index) {
             const QString name = names[index];
-            rows.append(QVariantMap{{"id", QString::number(index + 1)}, {"enabled", macro_ || index != 0},
+            const int mode = std::min(index, static_cast<int>(RepeatMode::LongPress));
+            rows.append(QVariantMap{{"id", QString::number(index + 1)}, {"enabled", macro_ || (index != 0 && index != 5)},
                 {"key", KeyOverviewData::key(descriptors[index], keys[index])},
                 {"keyText", keys[index]}, {"name", name},
                 {"keyDisplayText", name.isEmpty() ? keys[index] : QStringLiteral("%1 · %2").arg(keys[index], name)},
-                {"isMouse", index == 1}, {"mode", index}, {"modeText", modes[index]},
+                {"isMouse", index == 1}, {"mode", mode}, {"modeText", modes[mode]}, {"martialAssist", index == 5},
                 {"preventAccidentalStop", false},
                 {"priorityText", index == 1 ? QStringLiteral("✓") : QStringLiteral("—")},
                 {"priorityKind", index == 1 ? QStringLiteral("enabled") : QStringLiteral("muted")},
-                {"delay", index == 4 ? QVariant(QStringLiteral("—")) : QVariant(macro_ ? 100 : 10)},
+                {"delay", mode == 4 ? QVariant(QStringLiteral("—")) : QVariant(macro_ ? 100 : 10)},
                 {"action", 0}, {"duration", 500}, {"wheelDelta", 120}, {"rawKeyText", keys[index]}, {"positionHint", QString()}});
         }
         state_.insert("pauseKeys", QVariantList{QStringLiteral("F9")});

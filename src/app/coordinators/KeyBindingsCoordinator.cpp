@@ -350,11 +350,11 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
             const auto& binding = profile->bindings[*idx];
             existing = BindingEditResult{
                 binding.key, QString::fromStdWString(binding.name), binding.mode, binding.delayMs, binding.enabled,
-                binding.suppressMixedMode, binding.clickPos, binding.preventAccidentalStop};
+                binding.suppressMixedMode, binding.clickPos, binding.martialAssist, binding.preventAccidentalStop};
         }
     }
 
-    BindingEditDialog dialog(existing, kDefaultDelayMs,
+    BindingEditDialog dialog(existing, kDefaultDelayMs, profile->mixedMode,
         context_.driverSupportsMouseMove, context_.parent);
     if (!existing && initialKey) dialog.setInitialKey(*initialKey);
     context_.runKeyCaptureDialog(dialog);
@@ -379,6 +379,7 @@ void KeyBindingsCoordinator::openEditDialog(std::optional<std::uint64_t> binding
         editResult.enabled,
         editResult.suppressMixedMode,
         editResult.clickPos,
+        editResult.martialAssist,
         editResult.preventAccidentalStop);
     if (!result.ok) {
         AppMessageDialog::warning(context_.parent, QString::fromWCharArray(L"\u6309\u952e\u51b2\u7a81"), result.message);

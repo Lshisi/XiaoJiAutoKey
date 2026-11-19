@@ -7,6 +7,7 @@ ColumnLayout {
     id: editor
     readonly property var fields: dialogModel.dialogState
     readonly property bool macroStep: editor.fields.macroStep === true
+    readonly property bool martialAssistActive: editor.fields.mixedMode === true && editor.fields.martialAssist === true
     readonly property real labelWidth: Math.max(62, keyLabel.implicitWidth, modeLabel.implicitWidth,
         delayLabel.implicitWidth, nameLabel.implicitWidth)
     spacing: Theme.formGap
@@ -156,10 +157,26 @@ ColumnLayout {
                 Accessible.name: qsTr("防误停")
             }
         }
+        RowLayout {
+            id: martialAssistRow
+            Layout.fillWidth: true
+            visible: editor.fields.mode === 4
+            QuietLabel { Layout.fillWidth: true; text: qsTr("武学助手") }
+            QuietSwitch {
+                checked: editor.fields.martialAssist === true
+                enabled: editor.fields.mixedMode === true || checked
+                onClicked: dialogModel.edit("martialAssist", checked)
+                Accessible.name: qsTr("武学助手")
+                Accessible.description: martialAssistRow.ToolTip.text
+            }
+            HoverHandler { id: martialAssistHover }
+            ToolTip.visible: martialAssistHover.hovered
+            ToolTip.text: editor.fields.mixedMode === true ? qsTr("长按 3 秒后松开") : qsTr("需要先开启“按压优先”")
+        }
     }
     QuietLabel {
         Layout.fillWidth: true
-        visible: editor.fields.modeVisible
+        visible: editor.fields.modeVisible && !(editor.fields.mode === 4 && editor.martialAssistActive)
         text: {
             switch (editor.fields.mode) {
             case 1: return qsTr("先启动工具，再按住此键连发，松开停止。")
@@ -192,7 +209,8 @@ ColumnLayout {
     }
     Loader {
         Layout.fillWidth: true
-        active: editor.fields.modeGuideVisible || editor.fields.actionGuideVisible === true
+        active: (editor.fields.modeGuideVisible && !(editor.fields.mode === 4 && editor.martialAssistActive))
+            || editor.fields.actionGuideVisible === true
         visible: active
         sourceComponent: GuideHint {
             text: {

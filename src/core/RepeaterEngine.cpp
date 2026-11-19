@@ -1,12 +1,18 @@
 ﻿#include "RepeaterEngine.h"
 
 #include "ClickPositioning.h"
+#include "DiagLog.h"
 
 #include <algorithm>
 
 namespace {
 constexpr int kWasdProtectionMinIntervalMs = 35;
 constexpr int kLongPressFocusSettleMs = 50;
+constexpr auto kMartialAssistHold = std::chrono::seconds(3);
+constexpr auto kMartialAssistCloseTap = std::chrono::milliseconds(10);
+constexpr auto kMartialAssistReleaseGap = std::chrono::milliseconds(kInputPulseWidthMs);
+constexpr auto kMartialAssistOwnershipPoll = std::chrono::milliseconds(50);
+using AssistPhase = MartialAssistRuntime::Phase;
 
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32)
@@ -28,7 +34,7 @@ bool IsWasdKey(const KeyDescriptor& key) {
 }
 }  // namespace
 
-RepeaterEngine::RepeaterEngine(InputDriver& driver)
+RepeaterEngine::RepeaterEngine(InputDriverRouter& driver)
     : driver_(driver) {}
 
 RepeaterEngine::~RepeaterEngine() {
@@ -111,8 +117,15 @@ void RepeaterEngine::SetSuspended(bool suspended) {
     waiter_.Wake();
 }
 
-void RepeaterEngine::RefreshLongPressForeground(bool allowed) {
+void RepeaterEngine::InvalidateLongPressForeground() noexcept {
+    longPressForegroundInvalidated_.store(true);
+    waiter_.Wake();
+}
+
+void RepeaterEngine::RefreshLongPressForeground(HWND window, bool allowed) {
     std::lock_guard lock(mutex_);
+    longPressForegroundInvalidated_.store(false);
+    longPressForegroundWindow_ = window;
     longPressForegroundAllowed_ = allowed;
     // Let focus acquisition settle before restoring a held key in the new window.
     longPressResumeTime_ = Now() + std::chrono::milliseconds(kLongPressFocusSettleMs);
@@ -129,6 +142,10 @@ void RepeaterEngine::RefreshLongPressForeground(bool allowed) {
 
 bool RepeaterEngine::IsPauseActive() const {
     return !pauseKeysDown_.empty();
+}
+
+bool RepeaterEngine::IsPausedByInputLocked() const {
+    return IsPauseActive() || (mixedMode_ && IsHoldActive());
 }
 
 // ── 启停 ─────────────────────────────
@@ -150,14 +167,27 @@ void RepeaterEngine::SetToolRunning(bool running) {
     sequenceSwitchDown_ = false;
     sequenceActiveTaskId_.reset();
 
-    for (auto& t : tasks_) {
-        t.lastUpTime = {};
-        t.isDown = false;
-        t.downTime = {};
+    for (auto& task : tasks_) {
+        task.lastUpTime = {};
+        task.isDown = false;
+        task.downTime = {};
+        if (running) {
+            task.longPressAttemptLogged = false;
+            task.longPressForwardedLogged = false;
+        }
     }
 
     if (running) {
         NormalizeSequenceSelectionLocked();
+    }
+
+    if (std::any_of(tasks_.begin(), tasks_.end(), [](const auto& task) {
+            return task.config.enabled && task.config.mode == RepeatMode::LongPress;
+        })) {
+        DiagLog::Write(std::string(running ? "long press start" : "long press stop")
+            + " suspended=" + std::to_string(suspended_.load())
+            + " foregroundAllowed=" + std::to_string(longPressForegroundAllowed_)
+            + " foregroundSettling=" + std::to_string(longPressForegroundInvalidated_.load() || Now() < longPressResumeTime_));
     }
 
     SyncOutputsLocked();
@@ -484,7 +514,7 @@ bool RepeaterEngine::IsWasdProtectionActive() const {
 }
 
 bool RepeaterEngine::HasSharedLongPressModifierLocked() const {
-    if (IsPauseActive() || (mixedMode_ && IsHoldActive())) return false;
+    if (IsPausedByInputLocked()) return false;
     return std::any_of(tasks_.begin(), tasks_.end(), [](const auto& task) {
         return task.config.enabled && task.config.mode == RepeatMode::LongPress
             && IsKeyboardModifierKey(task.config.key);
@@ -497,7 +527,7 @@ bool RepeaterEngine::IsTaskActiveLocked(const TaskRuntime& task,
     if (task.config.mode == RepeatMode::Hold) {
         if (holdPhysicalDown_.count(task.config.key) == 0) return false;
     } else {
-        if (IsPauseActive() || (mixedMode_ && IsHoldActive())) return false;
+        if (IsPausedByInputLocked()) return false;
         if (task.config.mode == RepeatMode::Independent
             && (!independentActiveKey_ || *independentActiveKey_ != task.config.key)) return false;
         if (task.config.mode == RepeatMode::Sequence
@@ -505,7 +535,98 @@ bool RepeaterEngine::IsTaskActiveLocked(const TaskRuntime& task,
     }
     return (task.config.mode != RepeatMode::LongPress && task.config.key.modifiers == 0
             && !HasSharedLongPressModifierLocked())
-        || (longPressForegroundAllowed_ && now >= longPressResumeTime_);
+        || (!longPressForegroundInvalidated_.load() && longPressForegroundAllowed_ && now >= longPressResumeTime_);
+}
+
+bool RepeaterEngine::IsMartialAssistEnabledLocked(const TaskRuntime& task) const {
+    return mixedMode_ && task.config.enabled && task.config.mode == RepeatMode::LongPress && task.config.martialAssist;
+}
+
+bool RepeaterEngine::IsMartialAssistClosingLocked() const {
+    return std::any_of(tasks_.begin(), tasks_.end(), [](const auto& task) {
+        return task.martialAssist.phase == AssistPhase::Closing;
+    });
+}
+
+bool RepeaterEngine::IsMartialAssistForegroundLocked(HWND window,
+    std::chrono::steady_clock::time_point now) const {
+    return window && window == longPressForegroundWindow_ && !longPressForegroundInvalidated_.load()
+        && longPressForegroundAllowed_ && now >= longPressResumeTime_
+        && !suspended_.load() && window == ::GetForegroundWindow();
+}
+
+std::optional<std::chrono::steady_clock::time_point> RepeaterEngine::MartialAssistDownSinceLocked(
+    const TaskRuntime& task, bool closing) const {
+    const auto primary = std::find_if(outputs_.begin(), outputs_.end(), [&](const auto& output) {
+        return SamePrimaryKey(output.key, task.config.key)
+            && (closing ? output.martialAssistClose : output.held && !output.martialAssistClose);
+    });
+    if (primary == outputs_.end()) return std::nullopt;
+    return driver_.ForwardedDownSince(primary->key, InputSource::Repeater);
+}
+
+void RepeaterEngine::AdvanceMartialAssistLocked(std::chrono::steady_clock::time_point now) {
+    const bool paused = IsPausedByInputLocked();
+    for (auto& task : tasks_) {
+        auto& assist = task.martialAssist;
+        const bool enabled = toolRunning_ && IsMartialAssistEnabledLocked(task);
+        const auto reset = [&assist, enabled]() {
+            assist = {AssistPhase::Idle, enabled ? assist.window : nullptr};
+        };
+        if (assist.phase == AssistPhase::CloseFailed) {
+            if (!enabled) reset();
+            continue;
+        }
+        if (assist.phase == AssistPhase::Idle) {
+            const HWND target = assist.window ? assist.window : longPressForegroundWindow_;
+            if (enabled && now >= assist.nextAction && IsTaskActiveLocked(task, now)
+                && IsMartialAssistForegroundLocked(target, now)) {
+                assist = {AssistPhase::Holding, target};
+            } else if (!enabled) {
+                reset();
+            }
+            continue;
+        }
+
+        const bool sameForeground = IsMartialAssistForegroundLocked(assist.window, now);
+        if (assist.phase == AssistPhase::Closing) {
+            if (!sameForeground) {
+                if (!assist.closeForwarded && enabled) assist.phase = AssistPhase::GameRepeat;
+                else reset();
+            } else if (assist.closeForwarded
+                && (now >= assist.nextAction || !MartialAssistDownSinceLocked(task, true))) {
+                reset();
+                assist.nextAction = now + kMartialAssistReleaseGap;
+            }
+            continue;
+        }
+
+        if (assist.phase == AssistPhase::Holding) {
+            if (!sameForeground) {
+                reset();
+                continue;
+            }
+            const auto downSince = MartialAssistDownSinceLocked(task, false);
+            if (downSince && now >= *downSince + kMartialAssistHold) {
+                assist.phase = AssistPhase::GameRepeat;
+            } else if (!enabled || !IsTaskActiveLocked(task, now)) {
+                reset();
+            }
+        }
+
+        if (assist.phase == AssistPhase::GameRepeat && !sameForeground
+            && MartialAssistDownSinceLocked(task, false)) {
+            reset();
+            continue;
+        }
+        if (assist.phase == AssistPhase::GameRepeat && (paused || !enabled)) {
+            if (sameForeground) {
+                assist = {AssistPhase::Closing, assist.window, now + kMartialAssistReleaseGap};
+            } else if (!enabled) {
+                reset();
+            }
+        }
+    }
 }
 
 bool RepeaterEngine::SyncOutputsLocked() {
@@ -514,23 +635,48 @@ bool RepeaterEngine::SyncOutputsLocked() {
     std::unordered_set<std::uint64_t> activeEncoded;
     activeKeys.reserve(tasks_.size());
     const auto now = Now();
+    AdvanceMartialAssistLocked(now);
+    const bool assistClosing = IsMartialAssistClosingLocked();
 
     for (const auto& task : tasks_) {
-        if (!IsTaskActiveLocked(task, now)) continue;
+        const auto phase = task.martialAssist.phase;
+        const bool closing = phase == AssistPhase::Closing;
+        if (!closing) {
+            if (phase == AssistPhase::GameRepeat && toolRunning_) {
+                const auto encoded = EncodeKey(task.config.key);
+                if (activeEncoded.insert(encoded).second) activeKeys.push_back(task.config.key);
+                continue;
+            }
+            if (assistClosing || !IsTaskActiveLocked(task, now)) continue;
+            if (IsMartialAssistEnabledLocked(task) && phase != AssistPhase::Holding) continue;
+        }
         const auto encoded = EncodeKey(task.config.key);
         if (activeEncoded.insert(encoded).second) activeKeys.push_back(task.config.key);
+        if (closing && !task.martialAssist.closeForwarded && (now < task.martialAssist.nextAction
+                || std::any_of(outputs_.begin(), outputs_.end(), [&](const auto& output) {
+                    return output.held && !output.martialAssistClose && SamePrimaryKey(task.config.key, output.key);
+                }))) continue;
 
         const bool longPress = task.config.mode == RepeatMode::LongPress;
+        const bool assistOutput = closing || phase == AssistPhase::Holding;
         const auto components = ExpandKeyComponents(task.config.key);
         for (std::size_t index = 0; index < components.size(); ++index) {
             const bool primary = index + 1 == components.size();
             if (primary && !longPress && !task.isDown) continue;
-            const bool held = longPress || !primary;
+            const bool held = (longPress && !closing) || !primary;
+            const bool closePulse = closing && primary;
+            const bool longPressPrimary = longPress && primary;
             const auto existing = std::find_if(desired.begin(), desired.end(), [&](const auto& output) {
                 return output.key == components[index];
             });
-            if (existing == desired.end()) desired.push_back({components[index], held});
-            else existing->held |= held;
+            if (existing == desired.end()) {
+                desired.push_back({components[index], held, closePulse, longPressPrimary, assistOutput});
+            } else {
+                existing->held |= held;
+                existing->martialAssistClose |= closePulse;
+                existing->longPressPrimary |= longPressPrimary;
+                existing->martialAssist |= assistOutput;
+            }
         }
     }
     std::stable_sort(desired.begin(), desired.end(), [](const auto& left, const auto& right) {
@@ -538,7 +684,8 @@ bool RepeaterEngine::SyncOutputsLocked() {
     });
 
     const auto sameOutput = [](const auto& left, const auto& right) {
-        return left.key == right.key && left.held == right.held;
+        return left.key == right.key && left.held == right.held
+            && left.martialAssistClose == right.martialAssistClose;
     };
     // Release obsolete primary keys before changing the held modifier set.
     for (std::size_t index = outputs_.size(); index > 0; --index) {
@@ -546,31 +693,86 @@ bool RepeaterEngine::SyncOutputsLocked() {
         if (std::any_of(desired.begin(), desired.end(), [&](const auto& item) {
                 return sameOutput(item, output);
             })) continue;
-        if (driver_.SendUp(output.key, InputSource::Repeater)) outputs_.erase(outputs_.begin() + index - 1);
-        else return false;
+        const bool traceRelease = output.traceRelease;
+        const bool wasForwarded = traceRelease && driver_.ForwardedDownSince(output.key, InputSource::Repeater).has_value();
+        if (!driver_.SendUp(output.key, InputSource::Repeater)) return false;
+        outputs_.erase(outputs_.begin() + index - 1);
+        if (output.longPressPrimary && output.martialAssist) {
+            for (auto& task : tasks_) {
+                auto& assist = task.martialAssist;
+                if (!SamePrimaryKey(task.config.key, output.key)) continue;
+                if (assist.phase == AssistPhase::Idle || (assist.phase == AssistPhase::Closing && !assist.closeForwarded)) {
+                    assist.nextAction = Now() + kMartialAssistReleaseGap;
+                }
+                if (!output.martialAssistClose && (assist.phase == AssistPhase::Closing || assist.phase == AssistPhase::GameRepeat)
+                    && !IsMartialAssistForegroundLocked(assist.window, Now())) {
+                    assist = {AssistPhase::Idle, toolRunning_ ? assist.window : nullptr};
+                }
+            }
+        }
+        if (traceRelease) DiagLog::Write("long press up code=" + std::to_string(output.key.code)
+            + " forwarded=" + std::to_string(wasForwarded));
     }
 
     if (activeEncoded != sourceActiveKeys_) {
         sourceActiveKeys_ = std::move(activeEncoded);
         driver_.SetSourceActiveKeys(InputSource::Repeater, activeKeys);
     }
-    for (const auto& output : desired) {
-        if (std::any_of(outputs_.begin(), outputs_.end(), [&](const auto& item) {
-                return sameOutput(item, output);
-            })) continue;
-        for (const auto& task : tasks_) {
-            if (IsTaskActiveLocked(task, now) && SamePrimaryKey(task.config.key, output.key)) {
-                if (task.config.mode == RepeatMode::LongPress) BeforeSendLocked(task.config.key);
-                if (output.key.device == InputDevice::Mouse && task.config.clickPos.IsFixed()) {
-                    if (const auto point = ResolveClickAnchorScreenPoint(task.config.clickPos)) {
-                        MoveCursorToScreenPoint(driver_, point->x, point->y);
-                    }
+    for (auto output : desired) {
+        const auto existing = std::find_if(outputs_.begin(), outputs_.end(), [&](const auto& item) {
+            return sameOutput(item, output);
+        });
+        if (existing != outputs_.end()) {
+            output.traceRelease = existing->traceRelease;
+            *existing = output;
+            continue;
+        }
+        const auto source = std::find_if(tasks_.begin(), tasks_.end(), [&](const auto& task) {
+            if (!SamePrimaryKey(task.config.key, output.key)) return false;
+            const auto phase = task.martialAssist.phase;
+            if (output.martialAssistClose) return phase == AssistPhase::Closing;
+            if (assistClosing || !IsTaskActiveLocked(task, now)) return false;
+            if (task.config.mode == RepeatMode::LongPress) {
+                return !IsMartialAssistEnabledLocked(task) || phase == AssistPhase::Holding;
+            }
+            return task.isDown;
+        });
+        if (output.martialAssist && !IsMartialAssistForegroundLocked(longPressForegroundWindow_, Now())) return false;
+        if (source != tasks_.end()) {
+            if (output.key.device == InputDevice::Mouse && source->config.clickPos.IsFixed()) {
+                if (const auto point = ResolveClickAnchorScreenPoint(source->config.clickPos)) {
+                    MoveCursorToScreenPoint(driver_, point->x, point->y);
                 }
             }
         }
+        if (output.martialAssist && !IsMartialAssistForegroundLocked(longPressForegroundWindow_, Now())) {
+            return false;
+        }
+        if (source != tasks_.end()) BeforeSendLocked(source->config.key);
         const bool sent = output.held
             ? driver_.SendHeldDown(output.key, InputSource::Repeater)
             : driver_.SendDown(output.key, InputSource::Repeater);
+        if (source != tasks_.end() && output.longPressPrimary) {
+            const auto downSince = sent
+                ? driver_.ForwardedDownSince(output.key, InputSource::Repeater) : std::nullopt;
+            const bool forwarded = downSince.has_value();
+            if (output.martialAssistClose && !forwarded) {
+                source->martialAssist.phase = toolRunning_ ? AssistPhase::CloseFailed : AssistPhase::Idle;
+                DiagLog::Write("martial assist close not forwarded code=" + std::to_string(output.key.code));
+                return false;
+            }
+            if (output.martialAssistClose) {
+                source->martialAssist.closeForwarded = true;
+                source->martialAssist.nextAction = *downSince + kMartialAssistCloseTap;
+            }
+            if (!output.martialAssistClose && (!source->longPressAttemptLogged || (forwarded && !source->longPressForwardedLogged))) {
+                source->longPressAttemptLogged = true;
+                source->longPressForwardedLogged = forwarded;
+                output.traceRelease = true;
+                DiagLog::Write("long press down code=" + std::to_string(output.key.code)
+                    + " result=" + (forwarded ? "forwarded" : sent ? "skipped" : "failed"));
+            }
+        }
         if (!sent) return false;
         if (IsKeyboardModifierKey(output.key)) {
             outputs_.insert(std::find_if(outputs_.begin(), outputs_.end(), [](const auto& item) {
@@ -599,8 +801,16 @@ void RepeaterEngine::RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key) {
         const bool affectedHeld = output.held && (SamePrimaryKey(output.key, key)
             || (modifier != 0 && ModifierMaskFromKey(output.key) == modifier));
         if (!affectedPrimary && !affectedHeld) continue;
-        if (driver_.SendUp(output.key, InputSource::Repeater)) outputs_.erase(outputs_.begin() + index - 1);
-        else return;
+        if (!driver_.SendUp(output.key, InputSource::Repeater)) return;
+        outputs_.erase(outputs_.begin() + index - 1);
+        if (output.traceRelease) {
+            DiagLog::Write("long press reset after physical release code=" + std::to_string(output.key.code));
+            for (auto& task : tasks_) {
+                if (task.config.mode == RepeatMode::LongPress && SamePrimaryKey(task.config.key, output.key)) {
+                    task.longPressForwardedLogged = false;
+                }
+            }
+        }
     }
 }
 
@@ -620,6 +830,7 @@ void RepeaterEngine::ReleaseAll() {
     sequenceSwitchDown_ = false;
     sequenceActiveTaskId_.reset();
     ResetAllLocked();
+    for (auto& task : tasks_) task.martialAssist = {};
     SyncOutputsLocked();
     outputs_.clear();
     sourceActiveKeys_.clear();
@@ -636,7 +847,8 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
     std::lock_guard lock(mutex_);
     waiter_.Wake();
 
-    if (!activeProfileId_.has_value() || *activeProfileId_ != profileId) {
+    const bool sameProfile = activeProfileId_ == profileId;
+    if (!sameProfile) {
         activeProfileId_ = profileId;
         sequenceActiveTaskId_.reset();
     }
@@ -656,6 +868,7 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
             b.enabled,
             b.suppressMixedMode,
             b.key.device == InputDevice::Mouse ? b.clickPos : ClickPosition{},
+            b.martialAssist,
         };
         t.config.preventAccidentalStop = b.preventAccidentalStop;
 
@@ -667,6 +880,11 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
             if (it->config.mode == t.config.mode && it->config.key == t.config.key && t.config.enabled) {
                 t.isDown = it->isDown;
                 t.downTime = it->downTime;
+            }
+            if (sameProfile && it->config.key == t.config.key && it->config.mode == t.config.mode) {
+                if (it->config.martialAssist) t.martialAssist = it->martialAssist;
+                t.longPressAttemptLogged = it->longPressAttemptLogged;
+                t.longPressForwardedLogged = it->longPressForwardedLogged;
             }
         }
 
@@ -720,6 +938,7 @@ void RepeaterEngine::WorkerLoop() {
             NormalizeIndependentSelectionLocked();
             NormalizeSequenceSelectionLocked();
             const bool wasdProtectionActive = IsWasdProtectionActive();
+            const bool assistWasClosing = IsMartialAssistClosingLocked();
             std::vector<TaskRuntime*> presses;
             std::vector<TaskRuntime*> releases;
             const auto schedule = [&nextWake](const auto deadline) {
@@ -728,7 +947,7 @@ void RepeaterEngine::WorkerLoop() {
 
             for (auto& t : tasks_) {
                 const auto now = Now();
-                if (!IsTaskActiveLocked(t, now)) {
+                if (assistWasClosing || !IsTaskActiveLocked(t, now)) {
                     if (t.isDown) {
                         t.isDown = false;
                         releases.push_back(&t);
@@ -757,25 +976,38 @@ void RepeaterEngine::WorkerLoop() {
                     presses.push_back(&t);
                     t.isDown = true;
                     t.downTime = now;
-                    BeforeSendLocked(t.config.key);
                 }
             }
 
-            if (!SyncOutputsLocked()) schedule(Now() + std::chrono::milliseconds(kDefaultDelayMs));
+            const bool outputsSynced = SyncOutputsLocked();
+            const auto syncedAt = Now();
+            if (!outputsSynced) schedule(syncedAt + std::chrono::milliseconds(kDefaultDelayMs));
+            const bool assistClosing = IsMartialAssistClosingLocked();
+            if (assistWasClosing && !assistClosing) schedule(Now());
             for (auto* task : releases) task->lastUpTime = Now();
             for (auto* task : presses) {
-                const bool sent = std::any_of(outputs_.begin(), outputs_.end(), [&](const auto& output) {
-                    return SamePrimaryKey(output.key, task->config.key);
+                const bool sent = !assistClosing && std::any_of(outputs_.begin(), outputs_.end(), [&](const auto& output) {
+                    return !output.martialAssistClose && SamePrimaryKey(output.key, task->config.key);
                 });
                 if (sent) task->downTime = Now();
                 else {
                     task->isDown = false;
-                    task->lastUpTime = Now();
+                    if (!assistClosing) task->lastUpTime = Now();
                 }
             }
 
             for (const auto& task : tasks_) {
-                if (task.config.mode == RepeatMode::LongPress || !IsTaskActiveLocked(task, Now())) continue;
+                const auto& assist = task.martialAssist;
+                if (assist.phase == AssistPhase::Holding) {
+                    const auto since = MartialAssistDownSinceLocked(task, false);
+                    schedule(since ? *since + kMartialAssistHold : syncedAt + kMartialAssistOwnershipPoll);
+                } else if (assist.phase == AssistPhase::Closing) {
+                    if (outputsSynced || assist.nextAction > syncedAt) schedule(assist.nextAction);
+                } else if (assist.phase == AssistPhase::Idle && Now() < assist.nextAction
+                    && IsMartialAssistEnabledLocked(task) && IsTaskActiveLocked(task, Now())) {
+                    schedule(assist.nextAction);
+                }
+                if (assistClosing || task.config.mode == RepeatMode::LongPress || !IsTaskActiveLocked(task, Now())) continue;
 
                 if (task.isDown) {
                     schedule(task.downTime + std::chrono::milliseconds(kInputPulseWidthMs));

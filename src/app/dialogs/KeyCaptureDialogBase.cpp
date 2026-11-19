@@ -68,7 +68,7 @@ void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argum
         setValue(field, argument.toInt());
         setValue("needsDelay", argument.toInt() != static_cast<int>(RepeatMode::LongPress));
         updateModeGuide();
-    } else if (field == "enabled" || field == "priority" || field == "preventAccidentalStop") {
+    } else if (field == "enabled" || field == "priority" || field == "martialAssist" || field == "preventAccidentalStop") {
         setValue(field, argument.toBool());
     } else if (field == "fixed") {
         if (argument.toBool() && !(supportsMouseMove_ && supportsMouseMove_())) {

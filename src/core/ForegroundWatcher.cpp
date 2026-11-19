@@ -126,6 +126,7 @@ void ForegroundWatcher::ThreadMain() {
     winEventHook_ = ::SetWinEventHook(
         EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr,
         &ForegroundWatcher::WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+    EvaluateForeground();
 
     // 轮询只作为安全网：事件钩子安装失败或个别全屏切换漏发事件时兜底。
     // 注意：hwnd 为 NULL 时 Windows 会忽略传入的定时器 ID、自行分配新 ID，
@@ -165,27 +166,27 @@ void ForegroundWatcher::ThreadMain() {
     threadId_ = 0;
 }
 
-void CALLBACK ForegroundWatcher::WinEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+void CALLBACK ForegroundWatcher::WinEventProc(HWINEVENTHOOK, DWORD, HWND window, LONG, LONG, DWORD, DWORD) {
     if (activeInstance_ != nullptr) {
+        if (window != activeInstance_->lastForegroundWindow_) activeInstance_->NotifyWindowChange(window);
         activeInstance_->EvaluateForeground();
     }
 }
 
+void ForegroundWatcher::NotifyWindowChange(HWND foregroundWindow) {
+    lastForegroundWindow_ = foregroundWindow;
+    WindowChangeCallback callback;
+    {
+        std::lock_guard lock(callbackMutex_);
+        callback = windowChangeCallback_;
+    }
+    if (callback) callback(foregroundWindow);
+}
+
 void ForegroundWatcher::EvaluateForeground() {
     const HWND foreground = ::GetForegroundWindow();
-    if (foreground == nullptr) {
-        return;
-    }
-
-    if (foreground != lastForegroundWindow_) {
-        lastForegroundWindow_ = foreground;
-        WindowChangeCallback callback;
-        {
-            std::lock_guard lock(callbackMutex_);
-            callback = windowChangeCallback_;
-        }
-        if (callback) callback(foreground);
-    }
+    if (foreground != lastForegroundWindow_) NotifyWindowChange(foreground);
+    if (foreground == nullptr) return;
 
     const std::wstring processName = QueryForegroundProcessName(foreground);
 

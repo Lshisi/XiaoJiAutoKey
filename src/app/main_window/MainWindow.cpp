@@ -305,9 +305,10 @@ bool MainWindow::Initialize() {
             onGameForegroundChanged(gameForeground);
         }, Qt::QueuedConnection);
     });
-    gameWatcher_.SetWindowChangeCallback([this](HWND foregroundWindow) {
-        QMetaObject::invokeMethod(this, [this, foregroundWindow]() {
-            onForegroundWindowChanged(foregroundWindow);
+    gameWatcher_.SetWindowChangeCallback([this](HWND) {
+        engine_.InvalidateLongPressForeground();
+        QMetaObject::invokeMethod(this, [this]() {
+            onForegroundWindowChanged(::GetForegroundWindow());
         }, Qt::QueuedConnection);
     });
     applyGameGateSettings();
@@ -1510,15 +1511,15 @@ void MainWindow::onGameForegroundChanged(bool gameForeground) {
 }
 
 void MainWindow::onForegroundWindowChanged(HWND foregroundWindow) {
-    if (foregroundWindow == nullptr || foregroundWindow != ::GetForegroundWindow()) return;
+    if (foregroundWindow != ::GetForegroundWindow()) return;
 
-    bool allowed = true;
-    if (config_.gameGateEnabled) {
+    bool allowed = foregroundWindow != nullptr;
+    if (allowed && config_.gameGateEnabled) {
         const auto processName = QueryForegroundProcessName(foregroundWindow);
         allowed = ForegroundWatcher::MatchesBuiltInProcessName(processName)
             || ForegroundWatcher::MatchesCustomProcess(processName, config_.gameGateProcesses);
     }
-    engine_.RefreshLongPressForeground(allowed);
+    engine_.RefreshLongPressForeground(foregroundWindow, allowed);
 }
 
 void MainWindow::openExportProfileDialog() {

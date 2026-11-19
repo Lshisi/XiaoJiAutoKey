@@ -53,7 +53,7 @@ ControllerResult validateRepeatOutputPair(const KeyBinding& first, const KeyBind
         reason = QStringLiteral("这两种模式会同时输出同一主键，按下、松开会互相干扰。");
         break;
     case RepeatBindingConflict::PulsedModifier:
-        reason = QStringLiteral("修饰键的连发会打断另一项需要的按住状态；需要持续按住时请使用长按模式。");
+        reason = QStringLiteral("修饰键的连发或定时松开会打断另一项需要的按住状态；需要持续按住时请使用普通长按。");
         break;
     case RepeatBindingConflict::ModifierState:
         reason = QStringLiteral("这两种模式会同时输出，但需要不同的修饰键状态，持续按住修饰键会改变另一项的键义。");

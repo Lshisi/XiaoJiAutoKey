@@ -134,7 +134,7 @@ bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src
 
     const auto forwarded = forwardedDown_.find(encoded);
     if (forwarded != forwardedDown_.end()) {
-        if (forwarded->second == src) {
+        if (forwarded->second.source == src) {
             arbitrationSkipDiag_.erase(diagKey);
             return true;
         }
@@ -142,7 +142,7 @@ bool InputDriverRouter::SendDownLocked(const KeyDescriptor& key, InputSource src
     }
 
     if (!driver_->SendDown(key, src)) return false;
-    forwardedDown_[encoded] = src;
+    forwardedDown_.insert_or_assign(encoded, ForwardedPress{src, std::chrono::steady_clock::now()});
     arbitrationSkipDiag_.erase(diagKey);
     return true;
 }
@@ -176,11 +176,11 @@ bool InputDriverRouter::SendComboDownLocked(const KeyDescriptor& key, InputSourc
         if (modifierMask != 0 && IsPhysicalModifierActiveLocked(modifierMask)) continue;
         const auto encoded = EncodeKey(component);
         const auto existingDown = forwardedDown_.find(encoded);
-        const bool alreadyDown = existingDown != forwardedDown_.end() && existingDown->second == src;
+        const bool alreadyDown = existingDown != forwardedDown_.end() && existingDown->second.source == src;
         if (!SendDownLocked(component, src)) {
             for (auto it = sent.rbegin(); it != sent.rend(); ++it) {
                 const auto forwarded = forwardedDown_.find(*it);
-                if (forwarded != forwardedDown_.end() && forwarded->second == src) {
+                if (forwarded != forwardedDown_.end() && forwarded->second.source == src) {
                     ReleaseForwardedKeyLocked(*it);
                 }
             }
@@ -217,7 +217,7 @@ bool InputDriverRouter::SendUp(const KeyDescriptor& key, InputSource src) {
     for (auto it = components.rbegin(); it != components.rend(); ++it) {
         const auto encoded = EncodeKey(*it);
         const auto forwarded = forwardedDown_.find(encoded);
-        if (forwarded == forwardedDown_.end() || forwarded->second != src) continue;
+        if (forwarded == forwardedDown_.end() || forwarded->second.source != src) continue;
         ok = ReleaseForwardedKeyLocked(encoded) && ok;
     }
     return ok;
@@ -310,6 +310,14 @@ bool InputDriverRouter::IsHeldDown(const KeyDescriptor& key) const noexcept {
         });
 }
 
+std::optional<std::chrono::steady_clock::time_point> InputDriverRouter::ForwardedDownSince(
+    const KeyDescriptor& key, InputSource src) const {
+    std::lock_guard lock(mutex_);
+    const auto forwarded = forwardedDown_.find(EncodeKey(key));
+    if (forwarded == forwardedDown_.end() || forwarded->second.source != src) return std::nullopt;
+    return forwarded->second.since;
+}
+
 bool InputDriverRouter::IsArbitratedSource(InputSource src) noexcept {
     return src == InputSource::Repeater || src == InputSource::Macro;
 }
@@ -354,10 +362,10 @@ void InputDriverRouter::RecomputeOwnersLocked() {
     }
 
     std::vector<std::uint64_t> releases;
-    for (const auto& [encoded, source] : forwardedDown_) {
+    for (const auto& [encoded, press] : forwardedDown_) {
         const auto owner = updatedOwners.find(encoded);
-        const bool sourceStillOwnsKey = StateFor(source).activeKeys.count(encoded) > 0;
-        const bool ownershipChanged = owner != updatedOwners.end() && owner->second != source;
+        const bool sourceStillOwnsKey = StateFor(press.source).activeKeys.count(encoded) > 0;
+        const bool ownershipChanged = owner != updatedOwners.end() && owner->second != press.source;
         if (!sourceStillOwnsKey || ownershipChanged) {
             releases.push_back(encoded);
         }
@@ -391,8 +399,8 @@ void InputDriverRouter::RestoreHeldKeysLocked(InputSource src) {
 
 void InputDriverRouter::PublishHeldKeysLocked() {
     HeldKeySet heldKeys;
-    for (const auto& [encoded, source] : forwardedDown_) {
-        if (StateFor(source).heldKeys.count(encoded) > 0) {
+    for (const auto& [encoded, press] : forwardedDown_) {
+        if (StateFor(press.source).heldKeys.count(encoded) > 0) {
             heldKeys.insert(encoded);
         }
     }
@@ -409,7 +417,7 @@ void InputDriverRouter::PublishHeldKeysLocked() {
 bool InputDriverRouter::ReleaseForwardedKeyLocked(std::uint64_t encoded) {
     const auto forwarded = forwardedDown_.find(encoded);
     if (forwarded == forwardedDown_.end()) return true;
-    if (!driver_ || !driver_->SendUp(DecodeKey(encoded), forwarded->second)) return false;
+    if (!driver_ || !driver_->SendUp(DecodeKey(encoded), forwarded->second.source)) return false;
     forwardedDown_.erase(forwarded);
     return true;
 }

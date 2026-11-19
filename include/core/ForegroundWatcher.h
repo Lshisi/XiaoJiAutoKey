@@ -47,6 +47,7 @@ public:
 private:
     void ThreadMain();
     void EvaluateForeground();
+    void NotifyWindowChange(HWND foregroundWindow);
     void SetResult(bool gameForeground);
     void ArmLeaveDebounceTimer();
     void CancelLeaveDebounceTimer();

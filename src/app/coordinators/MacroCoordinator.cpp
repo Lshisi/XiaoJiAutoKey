@@ -603,7 +603,7 @@ void MacroCoordinator::onRecordMacro() {
     if (!context_.inputHook || !context_.controller || !context_.engine) return;
     const auto* macro = context_.controller->activeMacro();
     if (!macro) return;
-    if (macro->steps.size() + 4 > kMaxMacroSteps) {
+    if (macro->steps.size() + 2 > kMaxMacroSteps) {
         AppMessageDialog::warning(context_.parent, tr("无法录制"), tr("循环最多包含 512 步，请先删除部分步骤。"));
         return;
     }

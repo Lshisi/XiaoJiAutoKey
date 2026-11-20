@@ -371,7 +371,7 @@ void PreviewDialogModel::finishMacroRecording() {
             : PreviewMouseKey(static_cast<Qt::MouseButton>(step.key.code));
         descriptor.modifiers = step.key.modifiers;
         const bool fixed = MacroActionCanPosition(step.action) && CanUseClickPosition(descriptor) && step.clickPos.IsFixed();
-        descriptions.append(actionText);
+        descriptions.append(tr("%1. %2 · 间隔 %3ms").arg(descriptions.size() + 1).arg(actionText).arg(step.delayAfterMs));
         rows.push_back(QVariantMap{{"enabled", true}, {"rawKeyText", key}, {"keyText", actionText},
             {"key", KeyOverviewData::key(descriptor, key)},
             {"action", static_cast<int>(step.action)}, {"duration", step.durationMs}, {"wheelDelta", step.wheelDelta},

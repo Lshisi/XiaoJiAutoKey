@@ -17,7 +17,7 @@ public:
     void append(const RecordedInput& input, bool recordPositions);
     [[nodiscard]] std::vector<MacroStep> finish(std::uint64_t endMs);
     [[nodiscard]] std::size_t eventCount() const { return eventCount_; }
-    [[nodiscard]] bool atCapacity() const { return steps_.size() + held_.size() + 3 >= stepLimit_; }
+    [[nodiscard]] bool atCapacity() const { return steps_.size() + held_.size() + 1 >= stepLimit_; }
 private:
     std::size_t stepLimit_;
     std::vector<MacroStep> steps_;

@@ -23,11 +23,9 @@ void MacroRecording::append(const RecordedInput& input, bool recordPositions) {
         }
     }
     if (lastTime_ && input.timeMs > *lastTime_) {
-        MacroStep wait;
-        wait.action = MacroAction::Wait;
-        wait.durationMs = static_cast<int>(std::min<std::uint64_t>(input.timeMs - *lastTime_, std::numeric_limits<int>::max()));
-        wait.delayAfterMs = 0;
-        steps_.push_back(wait);
+        auto& delay = steps_.back().delayAfterMs;
+        delay += static_cast<int>(std::min<std::uint64_t>(
+            input.timeMs - *lastTime_, std::numeric_limits<int>::max() - delay));
     }
     MacroStep step;
     step.action = input.wheelDelta ? MacroAction::Wheel : input.pressed ? MacroAction::Down : MacroAction::Up;
@@ -42,27 +40,20 @@ void MacroRecording::append(const RecordedInput& input, bool recordPositions) {
 std::vector<MacroStep> MacroRecording::finish(std::uint64_t endMs) {
     auto held = held_;
     if (held.empty() && lastTime_ && endMs > *lastTime_) {
-        MacroStep wait;
-        wait.action = MacroAction::Wait;
-        wait.durationMs = static_cast<int>(std::min<std::uint64_t>(endMs - *lastTime_, std::numeric_limits<int>::max()));
-        wait.delayAfterMs = 0;
-        steps_.push_back(wait);
+        auto& delay = steps_.back().delayAfterMs;
+        delay += static_cast<int>(std::min<std::uint64_t>(
+            endMs - *lastTime_, std::numeric_limits<int>::max() - delay));
         lastTime_ = endMs;
     }
     for (auto key = held.rbegin(); key != held.rend(); ++key) append({*key, false, 0, endMs, {}}, false);
     std::vector<MacroStep> result;
     for (std::size_t index = 0; index < steps_.size(); ++index) {
         auto step = steps_[index];
-        if (step.action == MacroAction::Down && index + 2 < steps_.size()
-            && steps_[index + 1].action == MacroAction::Wait
-            && steps_[index + 2].action == MacroAction::Up && steps_[index + 2].key == step.key) {
-            step.durationMs = steps_[index + 1].durationMs;
-            step.action = MacroAction::Hold;
-            index += 2;
-        } else if (step.action == MacroAction::Down && index + 1 < steps_.size()
+        if (step.action == MacroAction::Down && index + 1 < steps_.size()
             && steps_[index + 1].action == MacroAction::Up && steps_[index + 1].key == step.key) {
             step.action = MacroAction::Hold;
-            step.durationMs = 1;
+            step.durationMs = std::max(1, step.delayAfterMs);
+            step.delayAfterMs = steps_[index + 1].delayAfterMs;
             ++index;
         }
         result.push_back(step);

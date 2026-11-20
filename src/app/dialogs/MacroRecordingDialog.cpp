@@ -48,8 +48,8 @@ void MacroRecordingDialog::stopRecording() {
     QStringList descriptions;
     for (std::size_t index = 0; index < steps_.size(); ++index) {
         const auto& step = steps_[index];
-        descriptions.push_back(tr("%1. %2").arg(index + 1).arg(QString::fromStdWString(
-            MacroStepText(step, MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L""))));
+        descriptions.push_back(tr("%1. %2 · 间隔 %3ms").arg(index + 1).arg(QString::fromStdWString(
+            MacroStepText(step, MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L""))).arg(step.delayAfterMs));
     }
     setValue("steps", descriptions);
     MacroConfig macro;

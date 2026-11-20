@@ -103,15 +103,15 @@ Item {
                 anchors.centerIn: parent
                 visible: !root.selectionActive
                 spacing: 0
-                IconButton {
-                    iconName: "edit"
-                    hint: qsTr("编辑步骤")
-                    onClicked: root.page.editStepRequested(root.entry.id)
-                }
                 MacroStepMenu {
                     page: root.page
                     stepId: root.entry.id
                     actionsEnabled: root.enabled
+                }
+                IconButton {
+                    iconName: "edit"
+                    hint: qsTr("编辑步骤")
+                    onClicked: root.page.editStepRequested(root.entry.id)
                 }
                 IconButton {
                     iconName: "delete"

@@ -53,7 +53,12 @@ bool ForegroundWatcher::MatchesCustomProcess(
     const std::wstring& lowerExeName, const std::vector<std::string>& customProcesses) {
     for (const auto& custom : customProcesses) {
         if (custom.empty()) continue;
-        std::wstring pattern(custom.begin(), custom.end());
+        const int length = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+            custom.data(), static_cast<int>(custom.size()), nullptr, 0);
+        if (length <= 0) continue;
+        std::wstring pattern(static_cast<std::size_t>(length), L'\0');
+        ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+            custom.data(), static_cast<int>(custom.size()), pattern.data(), length);
         pattern = ToLowerWide(pattern);
         if (!pattern.empty() && pattern.back() == L'*') {
             const std::wstring prefix = pattern.substr(0, pattern.size() - 1);

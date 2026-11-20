@@ -106,6 +106,7 @@ set(UI_COMPONENT_SOURCES
 )
 
 set(UI_MODEL_SOURCES
+    src/ui/models/GameProcessData.cpp
     src/ui/models/KeyOverviewData.cpp
     src/ui/models/KeyPageModel.cpp
     src/ui/models/MacroPageModel.cpp
@@ -123,6 +124,7 @@ set(UI_COMPONENT_HEADERS
 )
 
 set(UI_MODEL_HEADERS
+    src/ui/models/GameProcessData.h
     src/ui/models/KeyOverviewData.h
     src/ui/models/UsagePageModel.h
     src/ui/models/ShareImportBannerModel.h
@@ -345,6 +347,8 @@ set(QML_FILES
     src/qml/DialogSound.qml
     src/qml/SoundEventList.qml
     src/qml/DialogProcesses.qml
+    src/qml/GameWindowIcon.qml
+    src/qml/GameWindowPicker.qml
     src/qml/DialogShare.qml
     src/qml/DialogReport.qml
     src/qml/PointPicker.qml
@@ -407,6 +411,8 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     Qt6::Quick
     Qt6::QuickWidgets
     Qt6::QuickControls2
+    shell32
+    ole32
     shlwapi
     winmm
     winhttp

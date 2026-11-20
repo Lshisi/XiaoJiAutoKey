@@ -70,7 +70,19 @@ QuietScrollView {
                     QuietLabel { text: qsTr("仅游戏客户端前台时生效"); Layout.fillWidth: true }
                     QuietSwitch { id: scopeSwitch; checked: root.page.state.gameGateEnabled; onClicked: root.page.gameGateEnabledChanged(checked); Accessible.name: qsTr("仅游戏客户端前台时生效") }
                 }
-                ActionButton { text: qsTr("管理游戏进程…"); onClicked: root.page.gameGateProcessesEditRequested() }
+                RowLayout {
+                    Layout.fillWidth: true
+                    ActionButton { text: qsTr("管理进程…"); leadingIcon: "monitor"; onClicked: root.page.gameGateProcessesEditRequested() }
+                    QuietLabel {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        text: root.page.state.gameGateProcessCount > 0
+                            ? qsTr("剑网3及 %1 个自定义程序").arg(root.page.state.gameGateProcessCount) : qsTr("剑网3已内置")
+                        color: Theme.muted
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
+                }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("开机自启") }
                 RowLayout {

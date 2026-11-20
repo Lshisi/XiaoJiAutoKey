@@ -122,6 +122,8 @@ void PreviewController::setDemoData(bool enabled) {
     hidInstalled_ = enabled;
     refreshDriver();
     AppConfig settings;
+    processes_ = enabled ? QStringList{QStringLiteral("mumu*")} : QStringList{};
+    for (const auto& process : processes_) settings.gameGateProcesses.push_back(process.toStdString());
     settings.faction = FactionTheme::instance().current().id.toStdString();
     settingsPage_.setConfig(settings);
     aboutPage_.setUpdateIdle();

@@ -10,6 +10,7 @@
 #include <QQmlError>
 #include <QQuickItem>
 #include <QQuickWidget>
+#include <QQuickWindow>
 #include <QScreen>
 #include <QShowEvent>
 #include <QSurfaceFormat>
@@ -88,6 +89,7 @@ void QmlDialog::refreshVisuals() {
 
 void QmlDialog::showEvent(QShowEvent* event) {
     QDialog::showEvent(event);
+    if (windowHandle()) quick_->quickWindow()->setTransientParent(windowHandle());
     refreshVisuals();
     quick_->setFocus();
 }

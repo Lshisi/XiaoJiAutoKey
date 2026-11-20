@@ -326,11 +326,11 @@ void OnboardingCoordinator::refresh() {
             break;
         case 4:
             title = tr("切出游戏时要不要暂停");
-            body = tr("打开“仅游戏客户端前台时生效”：切去聊天或浏览器时会暂停，回到游戏再继续。剑网3已内置，其他游戏可以点“管理游戏进程”添加。");
+            body = tr("打开“仅游戏客户端前台时生效”：切去聊天或浏览器时会暂停，回到游戏再继续。剑网3已内置，其他游戏可在“管理进程”中按窗口标题添加。");
             hint = context_.config->gameGateEnabled ? tr("现在已打开：切去聊天或浏览器时，不会帮你按键。") : tr("现在未打开：软件会对你正在使用的窗口按键。只在游戏里用，建议打开。");
             target = QStringLiteral("scope");
             actionText = context_.config->gameGateEnabled ? tr("关闭这项限制") : tr("开启这项限制");
-            secondaryText = tr("管理游戏进程");
+            secondaryText = tr("管理进程");
             break;
         default:
             title = tr("完成后，去游戏里试试");

@@ -14,6 +14,7 @@
 #include "ui/models/KeyOverviewData.h"
 #include "ui/models/PageModel.h"
 #include "ui/models/SoundSettingsData.h"
+#include "ui/models/GameProcessData.h"
 
 PreviewDialogModel::PreviewDialogModel(QObject* parent) : QObject(parent) {
     qApp->installEventFilter(this);
@@ -61,6 +62,14 @@ void PreviewDialogModel::message(const QString& title, const QString& text, std:
 }
 
 void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
+    if (state_.value("page").toString() == "DialogProcesses.qml" && field == "processName") {
+        auto data = state_.value("processData").toMap();
+        data.insert("processName", value);
+        data.insert("status", QString());
+        state_.insert("processData", data);
+        emit dialogStateChanged();
+        return;
+    }
     if (state_.value("page").toString() == "DialogSound.qml") {
         if (SoundSettingsData::edit(state_, field, value)) emit dialogStateChanged();
         return;
@@ -206,17 +215,14 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         edit("captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。"));
     } else if (action == "pick") {
         edit("positionHint", tr("示例固定点位：50%，50%"));
-    } else if (action == "add" || action == "selectProcess") {
-        const QString name = action == "add" ? state_.value("processName").toString().trimmed() : argument.toString();
-        auto processes = state_.value("processes").toList();
-        if (!name.isEmpty() && !processes.contains(name)) processes.append(name);
-        state_.insert("processName", QString());
-        edit("processes", processes);
-    } else if (action == "remove") {
-        auto processes = state_.value("processes").toList();
-        const int index = argument.toInt();
-        if (index >= 0 && index < processes.size()) processes.removeAt(index);
-        edit("processes", processes);
+    } else if (state_.value("page").toString() == "DialogProcesses.qml") {
+        auto data = state_.value("processData").toMap();
+        if (action == "remove") GameProcessData::remove(data, argument.toInt());
+        else if (action == "refreshWindows") GameProcessData::refresh(data, data.value("windows").toList());
+        else if (action == "add" || action == "selectProcess")
+            GameProcessData::add(data, action == "add" ? data.value("processName").toString() : argument.toString());
+        state_.insert("processData", data);
+        emit dialogStateChanged();
     } else if (action == "copy") {
         edit("status", tr("已复制（界面预览示例，不访问系统剪贴板）"));
     }

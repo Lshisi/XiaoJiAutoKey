@@ -55,6 +55,7 @@ void SettingsCoordinator::bind(Context context) {
             updated.push_back(name.toStdString());
         }
         context_.config->gameGateProcesses = std::move(updated);
+        context_.page->setGameGateProcessCount(static_cast<int>(context_.config->gameGateProcesses.size()));
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyGameGate) context_.applyGameGate();
     });

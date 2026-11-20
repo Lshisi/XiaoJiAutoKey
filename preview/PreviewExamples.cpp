@@ -3,6 +3,7 @@
 #include "FactionTheme.h"
 #include "ui/styles/DesignTokens.h"
 #include "ui/models/SoundSettingsData.h"
+#include "ui/models/GameProcessData.h"
 #include <QTimer>
 #include <QWindow>
 
@@ -99,10 +100,22 @@ void PreviewController::showDiagnosticReport() {
 }
 
 void PreviewController::showProcesses() {
-    dialog_.present("DialogProcesses.qml", tr("管理游戏进程"),
-        {{"runningProcesses", QStringList{"jx3clientx64.exe", "mumuplayer.exe", "game.exe"}},
-            {"processes", processes_}, {"processName", QString()}},
-        [this](const QVariantMap& values) { processes_ = values.value("processes").toStringList(); }, 500);
+    const QVariantList windows = demoData_ ? QVariantList{
+        QVariantMap{{"title", tr("剑网3 · 角色一 @ 区服（示例）")}, {"processName", "jx3clientx64.exe"}, {"icon", "qrc:/assets/icon-active.png"}},
+        QVariantMap{{"title", tr("剑网3 · 角色二 @ 区服（示例）")}, {"processName", "jx3clientx64.exe"}, {"icon", "qrc:/assets/icon-active.png"}},
+        QVariantMap{{"title", tr("MuMu 模拟器（示例）")}, {"processName", "mumuplayer.exe"}, {"icon", QString()}},
+        QVariantMap{{"title", tr("另一个游戏窗口（示例）")}, {"processName", "game.exe"}, {"icon", "qrc:/assets/icon.png"}},
+        QVariantMap{{"title", tr("很长的游戏窗口标题，用于查看名称省略与悬停详情（示例）")}, {"processName", "another-game.exe"}, {"icon", QString()}}}
+        : QVariantList{};
+    dialog_.present("DialogProcesses.qml", tr("管理进程"),
+        {{"processData", GameProcessData::create(processes_, windows)},
+            {"actions", QVariantList{
+                QVariantMap{{"id", "accept"}, {"text", tr("保存")}, {"primary", true}, {"enabled", true}},
+                QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"primary", false}, {"enabled", true}}}}},
+        [this](const QVariantMap& values) {
+            processes_ = values.value("processData").toMap().value("processes").toStringList();
+            settingsPage_.setGameGateProcessCount(static_cast<int>(processes_.size()));
+        }, 480);
 }
 
 void PreviewController::showOverlaySettings(bool macro) {

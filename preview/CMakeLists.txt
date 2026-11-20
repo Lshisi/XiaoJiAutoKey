@@ -22,6 +22,8 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     PreviewOnboardingModel.h
     PreviewOnboardingModel.cpp
     ${PROJECT_ROOT}/src/ui/models/PageModel.h
+    ${PROJECT_ROOT}/src/ui/models/GameProcessData.h
+    ${PROJECT_ROOT}/src/ui/models/GameProcessData.cpp
     ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.h
     ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.cpp
     ${PROJECT_ROOT}/src/ui/models/UsagePageModel.h
@@ -70,6 +72,9 @@ target_include_directories(XiaoJiPreview PRIVATE
 target_link_libraries(XiaoJiPreview PRIVATE
     Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Svg
 )
+if(WIN32)
+    target_link_libraries(XiaoJiPreview PRIVATE shell32 ole32)
+endif()
 file(STRINGS "${PROJECT_ROOT}/CMakeLists.txt" APP_PROJECT_LINE REGEX "^project\\(XiaoJiAutoKey VERSION")
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" PREVIEW_APP_VERSION "${APP_PROJECT_LINE}")
 target_compile_definitions(XiaoJiPreview PRIVATE APP_VERSION="${PREVIEW_APP_VERSION}" NOMINMAX WIN32_LEAN_AND_MEAN)

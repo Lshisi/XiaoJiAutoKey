@@ -2,13 +2,15 @@
 
 SettingsPageModel::SettingsPageModel(QObject* parent) : PageModel(parent) {
     state_ = {{"hotkey", tr("未设置")}, {"startupAction", 1}, {"closeAction", 0},
-        {"gameGateEnabled", false}, {"autoStartEnabled", false}, {"faction", QStringLiteral("cangjian")}};
+        {"gameGateEnabled", false}, {"gameGateProcessCount", 0},
+        {"autoStartEnabled", false}, {"faction", QStringLiteral("cangjian")}};
 }
 
 void SettingsPageModel::setConfig(const AppConfig& config) {
     state_.insert("startupAction", static_cast<int>(config.startupAction));
     state_.insert("closeAction", static_cast<int>(config.closeAction));
     state_.insert("gameGateEnabled", config.gameGateEnabled);
+    state_.insert("gameGateProcessCount", static_cast<int>(config.gameGateProcesses.size()));
     state_.insert("autoStartEnabled", config.autoStartEnabled);
     setValue("faction", QString::fromStdString(config.faction));
 }

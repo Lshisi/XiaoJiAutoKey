@@ -10,5 +10,6 @@ protected:
     void editField(const QString& field, const QVariant& value) override;
     void showEvent(QShowEvent* event) override;
 private:
-    void addProcess(const QString& name);
+    void refreshWindows();
+    quint64 iconRevision_ = 0;
 };

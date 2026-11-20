@@ -10,6 +10,7 @@ void ConfigNormalizer::normalize(AppConfig& config) {
             if (binding.id == 0) binding.id = nextBindingId(profile);
             binding.delayMs = std::max(binding.delayMs, kMinDelayMs);
             if (binding.mode != RepeatMode::Hold) binding.suppressMixedMode = false;
+            if (!CanUseClickPosition(binding.key)) binding.clickPos = {};
         }
     }
 

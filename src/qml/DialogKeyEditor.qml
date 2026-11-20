@@ -243,7 +243,7 @@ ColumnLayout {
     }
     Loader {
         Layout.fillWidth: true
-        active: editor.fields.positionVisible && editor.fields.isMouse
+        active: editor.fields.positionVisible && editor.fields.canPosition === true
             && (!editor.macroStep || editor.fields.action < 3)
         visible: active
         sourceComponent: ColumnLayout {

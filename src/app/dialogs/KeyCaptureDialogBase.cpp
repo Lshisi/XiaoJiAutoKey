@@ -21,9 +21,16 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
         {"delay", QString::number(kDefaultDelayMs)}};
     QVariantMap values = defaults;
     for (auto it = fields.cbegin(); it != fields.cend(); ++it) values.insert(it.key(), it.value());
+    const bool canPosition = capturedKey_ && CanUseClickPosition(*capturedKey_);
+    values.insert("canPosition", canPosition);
     clickPos_.fixedPosition = values.value("fixed").toBool();
     clickPos_.anchorX = values.take("anchorX").toDouble();
     clickPos_.anchorY = values.take("anchorY").toDouble();
+    if (!canPosition) {
+        clickPos_ = {};
+        values.insert("fixed", false);
+        values.insert("positionHint", tr("未拾取"));
+    }
     if (clickPos_.IsFixed()) values.insert("positionHint", tr("屏幕内：%1%，%2%").arg(clickPos_.anchorX * 100, 0, 'f', 1).arg(clickPos_.anchorY * 100, 0, 'f', 1));
     values.insert("actions", QVariantList{button("accept", tr("确定")), button("cancel", tr("取消"), false)});
     present("DialogKeyEditor.qml", values, initialSize, true);
@@ -32,6 +39,13 @@ void KeyCaptureDialogBase::setCapturedKey(KeyDescriptor key) {
     capturedKey_ = key;
     setValue("keyText", QString::fromStdWString(GetKeyDisplayName(key)));
     setValue("isMouse", key.device == InputDevice::Mouse);
+    const bool canPosition = CanUseClickPosition(key);
+    setValue("canPosition", canPosition);
+    if (!canPosition) {
+        clickPos_ = {};
+        setValue("fixed", false);
+        setValue("positionHint", tr("未拾取"));
+    }
 }
 void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
     const auto key = DecodeKey(encodedKey);
@@ -58,7 +72,7 @@ void KeyCaptureDialogBase::handleModifierReleased(KeyDescriptor key) {
     emit keyAccepted();
 }
 ClickPosition KeyCaptureDialogBase::clickPosition() const {
-    return capturedKey_ && capturedKey_->device == InputDevice::Mouse && value("fixed").toBool() ? clickPos_ : ClickPosition{};
+    return capturedKey_ && CanUseClickPosition(*capturedKey_) && value("fixed").toBool() ? clickPos_ : ClickPosition{};
 }
 void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argument) {
     if (field == "delay") setValue(field, argument.toString());
@@ -71,7 +85,8 @@ void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argum
     } else if (field == "enabled" || field == "priority" || field == "martialAssist" || field == "preventAccidentalStop") {
         setValue(field, argument.toBool());
     } else if (field == "fixed") {
-        if (argument.toBool() && !(supportsMouseMove_ && supportsMouseMove_())) {
+        if (argument.toBool() && (!capturedKey_ || !CanUseClickPosition(*capturedKey_)
+            || !(supportsMouseMove_ && supportsMouseMove_()))) {
             emit dialogStateChanged();
             return;
         }
@@ -87,7 +102,8 @@ void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& a
         setValue("keyText", tr("录制中"));
         setValue("captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。"));
         emit keyCaptureRequested();
-    } else if (action == "pick" && supportsMouseMove_ && supportsMouseMove_() && value("fixed").toBool()) {
+    } else if (action == "pick" && capturedKey_ && CanUseClickPosition(*capturedKey_)
+        && supportsMouseMove_ && supportsMouseMove_() && value("fixed").toBool()) {
         const auto point = ScreenPointPicker::pick(this);
         if (!point) return;
         const auto* screen = QGuiApplication::screenAt(*point);

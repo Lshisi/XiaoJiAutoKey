@@ -763,7 +763,7 @@ bool RepeaterEngine::SyncOutputsLocked() {
         });
         if (output.martialAssist && !IsMartialAssistForegroundLocked(longPressForegroundWindow_, Now())) return false;
         if (source != tasks_.end()) {
-            if (output.key.device == InputDevice::Mouse && source->config.clickPos.IsFixed()) {
+            if (CanUseClickPosition(output.key) && source->config.clickPos.IsFixed()) {
                 if (const auto point = ResolveClickAnchorScreenPoint(source->config.clickPos)) {
                     MoveCursorToScreenPoint(driver_, point->x, point->y);
                 }
@@ -798,7 +798,7 @@ bool RepeaterEngine::SyncOutputsLocked() {
     for (auto& task : tasks_) {
         auto& assist = task.martialAssist;
         if (assist.phase != AssistPhase::Closing || Now() < assist.nextAction) continue;
-        if (task.config.key.device == InputDevice::Mouse && task.config.clickPos.IsFixed()
+        if (CanUseClickPosition(task.config.key) && task.config.clickPos.IsFixed()
             && IsMartialAssistForegroundLocked(assist.window, Now())) {
             if (const auto point = ResolveClickAnchorScreenPoint(task.config.clickPos)) {
                 MoveCursorToScreenPoint(driver_, point->x, point->y);
@@ -908,7 +908,7 @@ void RepeaterEngine::UpdateBindings(std::uint64_t profileId, const std::vector<K
             b.delayMs,
             b.enabled,
             b.suppressMixedMode,
-            b.key.device == InputDevice::Mouse ? b.clickPos : ClickPosition{},
+            CanUseClickPosition(b.key) ? b.clickPos : ClickPosition{},
             b.martialAssist,
         };
         t.config.preventAccidentalStop = b.preventAccidentalStop;

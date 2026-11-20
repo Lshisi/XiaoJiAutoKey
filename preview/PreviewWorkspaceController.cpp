@@ -1,4 +1,5 @@
 #include "PreviewWorkspaceController.h"
+#include "MacroActions.h"
 #include "ui/models/KeyOverviewData.h"
 #include <QStringList>
 #include <QScopedValueRollback>
@@ -212,6 +213,8 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
     const int mode = adding ? 0 : row.value("mode").toInt();
     const auto key = row.contains("key") ? row.value("key").toMap()
         : KeyOverviewData::key({InputDevice::Keyboard, 0x41}, QStringLiteral("A"));
+    const auto descriptor = KeyOverviewData::descriptor(key);
+    const bool canPosition = CanUseClickPosition(descriptor);
     QVariantMap fields{{"keyText", key.value("text")}, {"keyData", key}, {"overviewChild", editingFromOverview_},
         {"macroStep", model_.macroMode()}, {"action", row.value("action", 0)},
         {"duration", row.value("duration", 500).toString()}, {"wheelDirection", row.value("wheelDelta", 120).toInt() < 0 ? 1 : 0},
@@ -224,8 +227,10 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
         {"delay", mode == 4 || adding ? QStringLiteral("10") : QString::number(row.value("delay").toString().toInt())},
         {"enabled", adding || row.value("enabled").toBool()},
         {"priority", row.value("priorityKind").toString() == "enabled"}, {"modeGuideVisible", false},
-        {"positionVisible", true}, {"isMouse", row.value("isMouse").toBool()}, {"fixed", false},
-        {"supportsPosition", true}, {"positionHint", tr("示例固定点位：50%，50%")}};
+        {"positionVisible", true}, {"isMouse", descriptor.device == InputDevice::Mouse}, {"canPosition", canPosition},
+        {"fixed", canPosition && row.value("fixed").toBool()}, {"positionPicked", canPosition && row.value("fixed").toBool()},
+        {"supportsPosition", true},
+        {"positionHint", canPosition && row.value("fixed").toBool() ? row.value("positionHint") : tr("未拾取")}};
     dialog_.present("DialogKeyEditor.qml", adding ? (model_.macroMode() ? tr("添加步骤") : tr("添加按键")) : (model_.macroMode() ? tr("编辑步骤") : tr("编辑按键")), fields,
         [this, index, row, insertIndex, focusCreated](const QVariantMap& values) {
             const QStringList modes{tr("开关"), tr("按压"), tr("独立"), tr("切换"), tr("长按")};
@@ -253,7 +258,11 @@ void PreviewWorkspaceController::editRow(const QVariant& argument, bool adding, 
             updated.insert("priorityText", mode == 1 ? (values.value("priority").toBool() ? "✓" : "×") : "—");
             updated.insert("priorityKind", mode == 1 && values.value("priority").toBool() ? "enabled" : "muted");
             updated.insert("delay", !model_.macroMode() && mode == 4 ? QVariant(QStringLiteral("—")) : QVariant(std::max(model_.macroMode() ? 0 : 1, values.value("delay").toString().toInt())));
-            updated.insert("positionHint", values.value("fixed").toBool() ? values.value("positionHint").toString() : QString());
+            const bool fixed = CanUseClickPosition(KeyOverviewData::descriptor(values.value("keyData").toMap()))
+                && (!model_.macroMode() || MacroActionCanPosition(static_cast<MacroAction>(values.value("action").toInt())))
+                && values.value("fixed").toBool() && values.value("positionPicked").toBool();
+            updated.insert("fixed", fixed);
+            updated.insert("positionHint", fixed ? values.value("positionHint").toString() : QString());
             auto rows = model_.rows();
             if (index < 0) {
                 if (insertIndex >= 0) rows.insert(insertIndex, updated);
@@ -332,7 +341,7 @@ void PreviewWorkspaceController::editShortcut(const QString& kind, int pauseInde
             {"captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。")},
             {"overviewChild", editingFromOverview_}, {"keyData", key},
             {"needsDelay", false}, {"delay", QStringLiteral("10")}, {"modeGuideVisible", false},
-            {"positionVisible", false}, {"isMouse", false}, {"enabled", true}, {"priority", false}},
+            {"positionVisible", false}, {"isMouse", false}, {"canPosition", false}, {"enabled", true}, {"priority", false}},
         [this, kind, pauseIndex](const QVariantMap& values) {
             if (values.value("keyData").toMap().isEmpty()) return;
             const QString key = values.value("keyText").toString();

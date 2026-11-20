@@ -28,7 +28,7 @@ struct TaskConfig {
     int intervalMs = kDefaultDelayMs;
     bool enabled = true;
     bool suppressMixedMode = false;
-    ClickPosition clickPos;  // 仅鼠标键使用
+    ClickPosition clickPos;  // 仅鼠标左、右键使用
     bool martialAssist = false;
     bool preventAccidentalStop = false;
 };

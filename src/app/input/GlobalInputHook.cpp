@@ -321,13 +321,15 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
             input.pressed = IsMouseDownMessage(wParam);
             input.timeMs = GetTickCount64();
             if (wParam == WM_MOUSEWHEEL) input.wheelDelta = static_cast<short>(HIWORD(info->mouseData));
-            MONITORINFO monitor{};
-            monitor.cbSize = sizeof(monitor);
-            if (GetMonitorInfoW(MonitorFromPoint(info->pt, MONITOR_DEFAULTTONEAREST), &monitor)) {
-                const auto& rect = monitor.rcMonitor;
-                if (rect.right > rect.left && rect.bottom > rect.top) {
-                    input.position = {true, double(info->pt.x - rect.left) / (rect.right - rect.left),
-                        double(info->pt.y - rect.top) / (rect.bottom - rect.top)};
+            if (input.pressed && CanUseClickPosition(input.key)) {
+                MONITORINFO monitor{};
+                monitor.cbSize = sizeof(monitor);
+                if (GetMonitorInfoW(MonitorFromPoint(info->pt, MONITOR_DEFAULTTONEAREST), &monitor)) {
+                    const auto& rect = monitor.rcMonitor;
+                    if (rect.right > rect.left && rect.bottom > rect.top) {
+                        input.position = {true, double(info->pt.x - rect.left) / (rect.right - rect.left),
+                            double(info->pt.y - rect.top) / (rect.bottom - rect.top)};
+                    }
                 }
             }
             QMetaObject::invokeMethod(recordingHook, [recordingHook, input] {

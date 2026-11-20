@@ -34,7 +34,7 @@ void MacroRecording::append(const RecordedInput& input, bool recordPositions) {
     step.key = key;
     step.wheelDelta = wheelDelta;
     step.delayAfterMs = 0;
-    if (recordPositions && input.pressed && key.device == InputDevice::Mouse) step.clickPos = input.position;
+    if (recordPositions && !input.wheelDelta && input.pressed && CanUseClickPosition(key)) step.clickPos = input.position;
     steps_.push_back(step);
     lastTime_ = input.timeMs;
     ++eventCount_;

@@ -67,7 +67,8 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
                 rt.error = L"当前驱动不支持滚轮，请切换支持滚轮的驱动后启动。";
                 break;
             }
-            if (step.clickPos.IsFixed() && !driver_.SupportsMouseMove()) {
+            if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key)
+                && step.clickPos.IsFixed() && !driver_.SupportsMouseMove()) {
                 rt.error = L"当前驱动不支持固定点位，请修改步骤或切换驱动。";
                 break;
             }
@@ -204,7 +205,7 @@ void MacroEngine::AdvanceStepLocked(MacroRuntime& rt) {
 }
 void MacroEngine::ExecuteStepLocked(MacroRuntime& rt) {
     const auto& step = rt.config.steps[rt.currentStep];
-    if (MacroActionCanPosition(step.action) && step.clickPos.IsFixed()) {
+    if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key) && step.clickPos.IsFixed()) {
         const auto point = ResolveClickAnchorScreenPoint(step.clickPos);
         if (!point || !MoveCursorToScreenPoint(driver_, point->x, point->y)) {
             rt.error = L"固定点位移动失败，循环已停止。";

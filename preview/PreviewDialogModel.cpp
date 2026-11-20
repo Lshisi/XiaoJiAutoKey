@@ -79,6 +79,13 @@ void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
         refreshOverview();
         return;
     }
+    if (field == "fixed") {
+        if (value.toBool() && (!state_.value("canPosition").toBool() || !state_.value("supportsPosition").toBool())) return;
+        if (!value.toBool()) {
+            state_.insert("positionPicked", false);
+            state_.insert("positionHint", tr("未拾取"));
+        }
+    }
     state_.insert(field, value);
     if (field == "mode") state_.insert("needsDelay", value.toInt() != 4);
     if (field == "mode" && state_.value("page").toString() == QStringLiteral("DialogBatchEdit.qml")
@@ -213,7 +220,9 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         pendingModifierKeys_.clear();
         edit("keyText", tr("请按键或点击鼠标…"));
         edit("captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。"));
-    } else if (action == "pick") {
+    } else if (action == "pick" && state_.value("canPosition").toBool()
+        && state_.value("fixed").toBool() && state_.value("supportsPosition").toBool()) {
+        state_.insert("positionPicked", true);
         edit("positionHint", tr("示例固定点位：50%，50%"));
     } else if (state_.value("page").toString() == "DialogProcesses.qml") {
         auto data = state_.value("processData").toMap();
@@ -281,7 +290,7 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
             }
             input.key = {InputDevice::Mouse, static_cast<std::uint32_t>(mouse->button())};
             input.pressed = event->type() == QEvent::MouseButtonPress;
-            input.position = {true, 0.5, 0.5};
+            if (input.pressed && CanUseClickPosition(input.key)) input.position = {true, 0.5, 0.5};
         } else if (event->type() == QEvent::Wheel) input.wheelDelta = static_cast<QWheelEvent*>(event)->angleDelta().y();
         else return QObject::eventFilter(watched, event);
         macroRecording_.append(input, state_.value("positions").toBool());
@@ -336,6 +345,13 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
     const KeyDescriptor descriptor = event->type() == QEvent::MouseButtonPress
         ? PreviewMouseKey(static_cast<QMouseEvent*>(event)->button(), static_cast<QMouseEvent*>(event)->modifiers())
         : PreviewKeyboardKey(static_cast<QKeyEvent*>(event)->key(), static_cast<QKeyEvent*>(event)->modifiers());
+    const bool canPosition = CanUseClickPosition(descriptor);
+    state_.insert("canPosition", canPosition);
+    if (!canPosition) {
+        state_.insert("fixed", false);
+        state_.insert("positionPicked", false);
+        state_.insert("positionHint", tr("未拾取"));
+    }
     state_.insert("keyData", KeyOverviewData::key(descriptor, key));
     edit("keyText", key);
     return true;
@@ -354,11 +370,13 @@ void PreviewDialogModel::finishMacroRecording() {
             ? PreviewKeyboardKey(static_cast<int>(step.key.code))
             : PreviewMouseKey(static_cast<Qt::MouseButton>(step.key.code));
         descriptor.modifiers = step.key.modifiers;
+        const bool fixed = MacroActionCanPosition(step.action) && CanUseClickPosition(descriptor) && step.clickPos.IsFixed();
         descriptions.append(actionText);
         rows.push_back(QVariantMap{{"enabled", true}, {"rawKeyText", key}, {"keyText", actionText},
             {"key", KeyOverviewData::key(descriptor, key)},
             {"action", static_cast<int>(step.action)}, {"duration", step.durationMs}, {"wheelDelta", step.wheelDelta},
-            {"delay", step.delayAfterMs}, {"name", QString()}, {"positionHint", QString()}});
+            {"delay", step.delayAfterMs}, {"name", QString()}, {"fixed", fixed},
+            {"positionHint", fixed ? tr("示例固定点位：50%，50%") : QString()}});
     }
     edit("recordedRows", rows);
     edit("steps", descriptions);

@@ -29,7 +29,7 @@ void KeyPageModel::setBindings(const std::vector<KeyBinding>& bindings, std::uin
     bool hasSequence = false;
     for (const auto& binding : bindings) {
         hasSequence |= binding.mode == RepeatMode::Sequence;
-        const bool fixed = binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed();
+        const bool fixed = CanUseClickPosition(binding.key) && binding.clickPos.IsFixed();
         const std::wstring keyName = GetKeyDisplayName(binding.key);
         const std::wstring displayName = binding.name.empty()
             ? keyName : keyName + L" · " + binding.name;

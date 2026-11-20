@@ -59,6 +59,6 @@ void NormalizeMacroStep(MacroStep& step) {
     step.delayAfterMs = std::max(0, step.delayAfterMs);
     step.durationMs = std::max(1, step.durationMs);
     if (!MacroActionNeedsKey(step.action)) step.key = {};
-    if (!MacroActionCanPosition(step.action) || step.key.device != InputDevice::Mouse) step.clickPos = {};
+    if (!MacroActionCanPosition(step.action) || !CanUseClickPosition(step.key)) step.clickPos = {};
     if (step.action == MacroAction::Wait) step.delayAfterMs = 0;
 }

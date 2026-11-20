@@ -171,7 +171,7 @@ std::vector<KeyBinding> LoadBindings(const jsonlite::Object& object) {
             && GetBoolField(*entry, "martialAssist").value_or(false);
         binding.preventAccidentalStop = binding.mode == RepeatMode::Independent
             && GetBoolField(*entry, "preventAccidentalStop").value_or(false);
-        if (const auto clickIt = entry->find("clickPos"); clickIt != entry->end()) {
+        if (const auto clickIt = entry->find("clickPos"); CanUseClickPosition(binding.key) && clickIt != entry->end()) {
             if (const auto* clickObj = clickIt->second.AsObject()) {
                 if (GetStringField(*clickObj, "mode").value_or("") == "fixed") {
                     binding.clickPos.fixedPosition = true;
@@ -281,7 +281,7 @@ jsonlite::Array SerializeBindings(const std::vector<KeyBinding>& bindings) {
         entry.emplace("suppressMixedMode", b.suppressMixedMode);
         if (b.mode == RepeatMode::LongPress) entry.emplace("martialAssist", b.martialAssist);
         if (b.mode == RepeatMode::Independent) entry.emplace("preventAccidentalStop", b.preventAccidentalStop);
-        if (b.key.device == InputDevice::Mouse && b.clickPos.IsFixed()) {
+        if (CanUseClickPosition(b.key) && b.clickPos.IsFixed()) {
             jsonlite::Object clickObj;
             clickObj.emplace("mode", std::string("fixed"));
             clickObj.emplace("x", std::clamp(b.clickPos.anchorX, 0.0, 1.0));
@@ -324,7 +324,7 @@ jsonlite::Array SerializeMacros(const std::vector<MacroConfig>& macros) {
             if (MacroActionNeedsKey(step.action)) stepObj.emplace("key", ToUtf8(KeyDescriptorToStorage(step.key)));
             if (!step.name.empty()) stepObj.emplace("name", ToUtf8(step.name));
             stepObj.emplace("delayAfterMs", step.delayAfterMs);
-            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+            if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key) && step.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
                 clickObj.emplace("mode", std::string("fixed"));
                 clickObj.emplace("x", std::clamp(step.clickPos.anchorX, 0.0, 1.0));

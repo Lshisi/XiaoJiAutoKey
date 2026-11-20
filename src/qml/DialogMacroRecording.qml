@@ -22,7 +22,7 @@ ColumnLayout {
     }
     QuietCheck {
         visible: root.fields.stage === "ready" || root.fields.stage === "review"
-        text: qsTr("记录鼠标点击点位")
+        text: qsTr("记录鼠标左、右键的点击位置")
         enabled: root.fields.supportsPosition
         checked: root.fields.positions
         onToggled: dialogModel.edit("positions", checked)

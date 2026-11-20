@@ -33,7 +33,7 @@ void MacroPageModel::setSteps(const std::vector<MacroStep>& steps, std::uint64_t
     const auto selectedIds = state_.value("selectedStepIds").toList();
     QVariantList rows;
     for (const auto& step : steps) {
-        const bool fixed = step.key.device == InputDevice::Mouse && step.clickPos.IsFixed();
+        const bool fixed = MacroActionCanPosition(step.action) && CanUseClickPosition(step.key) && step.clickPos.IsFixed();
         const std::wstring& name = step.name;
         const std::wstring keyName = MacroStepText(step, MacroActionNeedsKey(step.action) ? GetKeyDisplayName(step.key) : L"");
         const std::wstring displayName = name.empty() ? keyName : keyName + L" · " + name;

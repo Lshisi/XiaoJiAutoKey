@@ -52,7 +52,12 @@ struct KeyDescriptor {
     [[nodiscard]] bool operator==(const KeyDescriptor& other) const noexcept = default;
 };
 
-// 鼠标键的点击位置：跟随鼠标，或锚定在游戏窗口客户区内的固定比例点位。
+[[nodiscard]] inline bool CanUseClickPosition(const KeyDescriptor& key) noexcept {
+    // 左右键的虚拟键值也是跨平台配置格式中的键值。
+    return key.device == InputDevice::Mouse && (key.code == 0x01 || key.code == 0x02);
+}
+
+// 鼠标左、右键的点击位置：跟随鼠标，或锚定在游戏窗口客户区内的固定比例点位。
 struct ClickPosition {
     bool fixedPosition = false;
     double anchorX = 0.5;  // 0.0-1.0，相对游戏窗口客户区
@@ -69,7 +74,7 @@ struct KeyBinding {
     RepeatMode mode = RepeatMode::Toggle;
     int delayMs = kDefaultDelayMs;
     bool suppressMixedMode = false;
-    ClickPosition clickPos;  // 仅对鼠标键有意义
+    ClickPosition clickPos;  // 仅对鼠标左、右键有意义
     bool martialAssist = false;
     bool preventAccidentalStop = false;
 };
@@ -114,7 +119,7 @@ struct MacroStep {
     int durationMs = 500;
     int wheelDelta = 120;
     int delayAfterMs = kDefaultDelayMs;
-    ClickPosition clickPos;  // 仅鼠标键使用
+    ClickPosition clickPos;  // 仅鼠标左、右键使用
 };
 
 struct MacroConfig {

@@ -255,7 +255,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Independent) {
                 bindingObj.emplace("preventAccidentalStop", binding.preventAccidentalStop);
             }
-            if (binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed()) {
+            if (CanUseClickPosition(binding.key) && binding.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
                 clickObj.emplace("mode", std::string("fixed"));
                 clickObj.emplace("x", std::clamp(binding.clickPos.anchorX, 0.0, 1.0));
@@ -296,7 +296,7 @@ jsonlite::Value PayloadToJson(const SharePayload& payload) {
             stepObj.emplace("enabled", step.enabled);
             if (!step.name.empty()) stepObj.emplace("name", WideToUtf8(step.name));
             stepObj.emplace("delayAfterMs", std::max(0, step.delayAfterMs));
-            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+            if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key) && step.clickPos.IsFixed()) {
                 jsonlite::Object clickObj;
                 clickObj.emplace("mode", std::string("fixed"));
                 clickObj.emplace("x", std::clamp(step.clickPos.anchorX, 0.0, 1.0));
@@ -387,7 +387,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                                 && BoolField(*bindingObj, "martialAssist").value_or(false);
                             binding.preventAccidentalStop = binding.mode == RepeatMode::Independent
                                 && BoolField(*bindingObj, "preventAccidentalStop").value_or(false);
-                            if (key->device == InputDevice::Mouse) {
+                            if (CanUseClickPosition(*key)) {
                                 if (const auto clickIt = bindingObj->find("clickPos"); clickIt != bindingObj->end()) {
                                     if (const auto* clickObj = clickIt->second.AsObject()) {
                                         if (StringField(*clickObj, "mode").value_or("") == "fixed") {
@@ -459,7 +459,7 @@ std::optional<SharePayload> PayloadFromJson(const std::string& json) {
                                 if (name->size() <= 64) step.name = Utf8ToWide(*name);
                             }
                             step.delayAfterMs = std::max(0, IntField(*stepObj, "delayAfterMs").value_or(kDefaultDelayMs));
-                            if (step.key.device == InputDevice::Mouse) {
+                            if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key)) {
                                 if (const auto clickIt = stepObj->find("clickPos"); clickIt != stepObj->end()) {
                                     if (const auto* clickObj = clickIt->second.AsObject()) {
                                         if (StringField(*clickObj, "mode").value_or("") == "fixed") {
@@ -828,7 +828,7 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
             if (binding.mode == RepeatMode::Independent && binding.preventAccidentalStop) {
                 line += " " + std::string(kKeyPreventAccidentalStop) + "=" + kValueYes;
             }
-            if (binding.key.device == InputDevice::Mouse && binding.clickPos.IsFixed()) {
+            if (CanUseClickPosition(binding.key) && binding.clickPos.IsFixed()) {
                 line += " " + std::string(kKeyPoint) + "="
                     + PercentValue(std::clamp(binding.clickPos.anchorX, 0.0, 1.0)) + ","
                     + PercentValue(std::clamp(binding.clickPos.anchorY, 0.0, 1.0));
@@ -864,7 +864,7 @@ std::string ShareCodec::EncodeTextRecipe(const SharePayload& payload) {
                 + "/" + (MacroActionNeedsKey(step.action) ? EncodeKey(step.key) : "-")
                 + "/" + std::to_string(step.durationMs) + "/" + std::to_string(step.delayAfterMs)
                 + "/" + std::to_string(step.wheelDelta);
-            if (step.key.device == InputDevice::Mouse && step.clickPos.IsFixed()) {
+            if (MacroActionCanPosition(step.action) && CanUseClickPosition(step.key) && step.clickPos.IsFixed()) {
                 // 固定点位后缀 @x%,y%；旧版本解析到延迟即止，可安全忽略
                 steps += "@" + PercentValue(std::clamp(step.clickPos.anchorX, 0.0, 1.0))
                     + "," + PercentValue(std::clamp(step.clickPos.anchorY, 0.0, 1.0));
@@ -973,7 +973,7 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                         binding.martialAssist = (tokenValue == kValueYes);
                     } else if (tokenKey == kKeyPreventAccidentalStop) {
                         binding.preventAccidentalStop = (tokenValue == kValueYes);
-                    } else if (tokenKey == kKeyPoint && binding.key.device == InputDevice::Mouse) {
+                    } else if (tokenKey == kKeyPoint && CanUseClickPosition(binding.key)) {
                         const auto comma = tokenValue.find(',');
                         if (comma != std::string::npos) {
                             const double x = std::atof(tokenValue.substr(0, comma).c_str()) / 100.0;
@@ -1054,7 +1054,7 @@ std::optional<SharePayload> ShareCodec::DecodeTextRecipe(const std::string& text
                     step.durationMs = std::stoi(parts[2]);
                     step.delayAfterMs = std::stoi(parts[3]);
                     step.wheelDelta = std::stoi(parts[4]);
-                    if (at != std::string::npos && step.key.device == InputDevice::Mouse) {
+                    if (at != std::string::npos && MacroActionCanPosition(step.action) && CanUseClickPosition(step.key)) {
                         auto point = value.substr(at + 1);
                         auto comma = point.find(',');
                         if (comma == std::string::npos) return std::nullopt;

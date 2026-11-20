@@ -367,7 +367,7 @@ ControllerResult ProfileController::upsertBinding(std::optional<std::uint64_t> b
     }
     delayMs = std::max(delayMs, kMinDelayMs);
     const std::wstring effectiveName = name.trimmed().toStdWString();
-    const ClickPosition effectiveClickPos = key.device == InputDevice::Mouse ? clickPos : ClickPosition{};
+    const ClickPosition effectiveClickPos = CanUseClickPosition(key) ? clickPos : ClickPosition{};
 
     for (const auto& binding : profile->bindings) {
         if (binding.key != key || binding.mode != mode) continue;

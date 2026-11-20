@@ -80,7 +80,10 @@ void MacroCoordinator::pollRunningState() {
         lastMacroRunning_ = running;
         if (context_.refreshStatusIndicators) context_.refreshStatusIndicators();
         if (context_.playToggleSound) context_.playToggleSound(running);
+    } else if (running && status.pauseKeyActive != lastMacroPauseKeyActive_) {
+        if (context_.playSound) context_.playSound(status.pauseKeyActive ? SoundEvent::MacroPause : SoundEvent::MacroResume);
     }
+    lastMacroPauseKeyActive_ = status.pauseKeyActive;
 }
 
 void MacroCoordinator::onMacroSwitched(std::uint64_t macroId) {
@@ -459,6 +462,7 @@ void MacroCoordinator::onMacroStartStopClicked() {
     if (running) {
         context_.engine->StopAll();
         lastMacroRunning_ = false;
+        lastMacroPauseKeyActive_ = false;
         if (context_.playToggleSound) context_.playToggleSound(false);
     } else {
         if (std::none_of(macro->steps.begin(), macro->steps.end(),
@@ -494,6 +498,7 @@ void MacroCoordinator::onMacroStartStopClicked() {
             return;
         }
         lastMacroRunning_ = true;
+        lastMacroPauseKeyActive_ = started.pauseKeyActive;
         if (context_.playToggleSound) context_.playToggleSound(true);
     }
     context_.page->setRunning(!running);
@@ -606,6 +611,9 @@ void MacroCoordinator::onRecordMacro() {
     context_.inputHook->setDialogOpen(true);
     MacroRecordingDialog dialog(*context_.inputHook,
         context_.driverSupportsMouseMove && context_.driverSupportsMouseMove(), kMaxMacroSteps - macro->steps.size(), context_.parent);
+    connect(&dialog, &MacroRecordingDialog::recordingStateChanged, this, [this](bool recording) {
+        if (context_.playSound) context_.playSound(recording ? SoundEvent::RecordingOn : SoundEvent::RecordingOff);
+    });
     const int result = dialog.exec();
     context_.inputHook->setRecordingActive(false);
     context_.inputHook->setDialogOpen(false);

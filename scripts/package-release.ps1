@@ -110,7 +110,9 @@ foreach ($audioFileName in $audioFileNames) {
     if (-not (Test-Path $audioSourcePath -PathType Leaf)) {
         throw "built-in WAV audio file not found: $audioSourcePath"
     }
-    Copy-Item $audioSourcePath (Join-Path $audioDstDir $audioFileName) -Force
+}
+Get-ChildItem -LiteralPath $audioSrcDir -Filter "*.wav" -File | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $audioDstDir $_.Name) -Force
 }
 
 # Driver files

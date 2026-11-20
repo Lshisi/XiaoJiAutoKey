@@ -143,7 +143,8 @@ MacroStatus MacroEngine::GetStatus(std::uint64_t macroId) const {
     const auto it = std::find_if(macros_.begin(), macros_.end(),
         [macroId](const auto& rt) { return rt.config.id == macroId; });
     if (it == macros_.end()) return {};
-    return {it->active, it->active && it->paused, it->active ? it->currentStep : -1, it->error};
+    return {it->active, it->active && it->paused, it->active ? it->currentStep : -1, it->error,
+        it->active && !pauseKeysDown_.empty()};
 }
 void MacroEngine::SyncSourceActiveKeysLocked() {
     std::vector<KeyDescriptor> keys;

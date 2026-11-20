@@ -1,17 +1,17 @@
 #pragma once
 #include "dialogs/QmlDialog.h"
-#include <string>
+#include "AppTypes.h"
 class SoundService;
-struct SoundSettingsResult { std::wstring soundOn; std::wstring soundOff; int volume = 100; };
 class SoundSettingsDialog : public QmlDialog {
     Q_OBJECT
 public:
-    SoundSettingsDialog(SoundService& soundService, bool macroMode, SoundSettingsResult initial, QWidget* parent = nullptr);
-    SoundSettingsResult settings() const;
+    SoundSettingsDialog(SoundService& soundService, const AppConfig& config, SoundGroup group, QWidget* parent = nullptr);
+    SoundSettings settings() const;
 protected:
     void handleAction(const QString& action, const QVariant& value) override;
     void editField(const QString& field, const QVariant& value) override;
 private:
     SoundService& soundService_;
-    bool macroMode_ = false;
+    void refreshAvailability(QVariantMap& state) const;
+    void applyState(QVariantMap state);
 };

@@ -13,6 +13,7 @@
 #include "PreviewKeyInput.h"
 #include "ui/models/KeyOverviewData.h"
 #include "ui/models/PageModel.h"
+#include "ui/models/SoundSettingsData.h"
 
 PreviewDialogModel::PreviewDialogModel(QObject* parent) : QObject(parent) {
     qApp->installEventFilter(this);
@@ -60,6 +61,10 @@ void PreviewDialogModel::message(const QString& title, const QString& text, std:
 }
 
 void PreviewDialogModel::edit(const QString& field, const QVariant& value) {
+    if (state_.value("page").toString() == "DialogSound.qml") {
+        if (SoundSettingsData::edit(state_, field, value)) emit dialogStateChanged();
+        return;
+    }
     if (overviewPage_ && field == QStringLiteral("selectedKey")) {
         overviewSelection_ = value.toString();
         refreshOverview();
@@ -162,6 +167,29 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         }
         if (action == "stop") { finishMacroRecording(); return; }
     }
+    if (state_.value("page").toString() == "DialogSound.qml") {
+        if (action == "chooseSound" || action == "resetSound") {
+            SoundSettingsData::setSelectedPath(state_, action == "chooseSound" ? tr("示例提示音.wav") : QString());
+            auto events = state_.value("events").toList();
+            for (auto& event : events) {
+                auto entry = event.toMap();
+                if (entry.value("id") != state_.value("selectedEvent")) continue;
+                const QString id = entry.value("id").toString();
+                entry.insert("available", action == "chooseSound"
+                    || QStringList{"repeatOn", "repeatOff", "macroOn", "macroOff"}.contains(id));
+                event = entry;
+                break;
+            }
+            state_.insert("events", events);
+            emit dialogStateChanged();
+            return;
+        }
+        if (action == "previewSound") {
+            state_.insert("status", tr("试听示例：%1（预览不播放音频）").arg(SoundSettingsData::selected(state_).value("title").toString()));
+            emit dialogStateChanged();
+            return;
+        }
+    }
     if (action == "accept" || action == "cancel" || action == "exit" || action == "tray") {
         if (action == "accept") dismissEditorGuide();
         recordingCountdown_.stop();
@@ -179,8 +207,6 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         edit("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
     } else if (action == "pick") {
         edit("positionHint", tr("示例固定点位：50%，50%"));
-    } else if (action == "chooseSound" || action == "resetSound") {
-        edit(argument.toBool() ? "soundOn" : "soundOff", action == "chooseSound" ? tr("示例提示音.wav") : QString());
     } else if (action == "add" || action == "selectProcess") {
         const QString name = action == "add" ? state_.value("processName").toString().trimmed() : argument.toString();
         auto processes = state_.value("processes").toList();

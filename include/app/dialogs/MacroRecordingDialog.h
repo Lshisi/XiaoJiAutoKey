@@ -10,6 +10,8 @@ public:
     ~MacroRecordingDialog() override;
     const std::vector<MacroStep>& steps() const { return steps_; }
     void reject() override;
+signals:
+    void recordingStateChanged(bool recording);
 protected:
     void handleAction(const QString& action, const QVariant& value) override;
     void editField(const QString& field, const QVariant& value) override;

@@ -27,6 +27,7 @@ struct MacroStatus {
     bool paused = false;
     int currentStep = -1;
     std::wstring error;
+    bool pauseKeyActive = false;
 };
 class MacroEngine {
 public:

@@ -1,40 +1,78 @@
 #include "dialogs/SoundSettingsDialog.h"
+
 #include "dialogs/AppMessageDialog.h"
 #include "services/SoundService.h"
+#include "ui/models/SoundSettingsData.h"
 #include <QFileDialog>
-#include <algorithm>
-#include <filesystem>
-SoundSettingsDialog::SoundSettingsDialog(SoundService& service, bool macroMode, SoundSettingsResult initial, QWidget* parent)
-    : QmlDialog(parent), soundService_(service), macroMode_(macroMode) {
-    setWindowTitle(macroMode ? tr("循环音效设置") : tr("按键音效设置"));
-    present("DialogSound.qml", {{"soundOn", QString::fromStdWString(initial.soundOn)},
-        {"soundOff", QString::fromStdWString(initial.soundOff)}, {"volume", std::clamp(initial.volume, 0, 100)},
-        {"actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)}}}, QSize(430, 260), true);
+
+SoundSettingsDialog::SoundSettingsDialog(SoundService& service, const AppConfig& config, SoundGroup group, QWidget* parent)
+    : QmlDialog(parent), soundService_(service) {
+    setWindowTitle(tr("提示音设置"));
+    auto state = SoundSettingsData::build(config.sounds, group);
+    state.insert("repeatGroupEnabled", config.beepEnabled);
+    state.insert("macroGroupEnabled", config.macroBeepEnabled);
+    state.insert("actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)});
+    refreshAvailability(state);
+    present("DialogSound.qml", state, QSize(490, 410), true);
 }
-SoundSettingsResult SoundSettingsDialog::settings() const {
-    return {value("soundOn").toString().toStdWString(), value("soundOff").toString().toStdWString(), value("volume").toInt()};
+
+SoundSettings SoundSettingsDialog::settings() const { return SoundSettingsData::settings(dialogState()); }
+
+void SoundSettingsDialog::refreshAvailability(QVariantMap& state) const {
+    const auto options = SoundSettingsData::settings(state);
+    auto events = state.value("events").toList();
+    for (auto& event : events) {
+        auto entry = event.toMap();
+        const auto* definition = FindSoundDefinition(entry.value("id").toString().toStdString());
+        if (!definition) continue;
+        entry.insert("available", !soundService_.resolveSoundPath(definition->event,
+            options[SoundEventIndex(definition->event)]).empty());
+        event = entry;
+    }
+    state.insert("events", events);
 }
+
+void SoundSettingsDialog::applyState(QVariantMap state) {
+    refreshAvailability(state);
+    for (const auto& field : {"events", "group", "selectedEvent", "status"}) setValue(field, state.value(field));
+}
+
 void SoundSettingsDialog::editField(const QString& field, const QVariant& argument) {
-    if (field == "volume") setValue(field, std::clamp(argument.toInt(), 0, 100));
+    auto state = dialogState();
+    if (!SoundSettingsData::edit(state, field, argument)) return;
+    soundService_.closeAlias(L"autokey_preview_sound");
+    applyState(std::move(state));
 }
+
 void SoundSettingsDialog::handleAction(const QString& action, const QVariant& argument) {
-    const bool running = argument.toBool();
-    const QString field = running ? QStringLiteral("soundOn") : QStringLiteral("soundOff");
+    if (action == "accept") { accept(); return; }
+    if (action != "chooseSound" && action != "resetSound" && action != "previewSound") {
+        QmlDialog::handleAction(action, argument);
+        return;
+    }
+    auto state = dialogState();
+    const auto selected = SoundSettingsData::selected(state);
+    const auto* definition = FindSoundDefinition(selected.value("id").toString().toStdString());
+    if (!definition) return;
+    soundService_.closeAlias(L"autokey_preview_sound");
     if (action == "chooseSound") {
-        const QString path = QFileDialog::getOpenFileName(this, running ? tr("选择开启音效") : tr("选择关闭音效"),
+        const QString path = QFileDialog::getOpenFileName(this, tr("选择%1提示音").arg(selected.value("title").toString()),
             {}, tr("音频文件 (*.mp3 *.wav *.wma *.mid *.midi)"));
         if (path.isEmpty()) return;
         if (!soundService_.isValidAudioFile(path)) {
-            AppMessageDialog::warning(this, tr("格式不支持"), tr("请选择 mp3、wav、wma、mid 格式的音频文件。"));
+            AppMessageDialog::warning(this, tr("格式不支持"), tr("请选择 mp3、wav、wma、mid、midi 格式的音频文件。"));
             return;
         }
-        setValue(field, path);
-    } else if (action == "resetSound") setValue(field, QString());
-    else if (action == "previewSound") {
-        std::filesystem::path path = value(field).toString().toStdWString();
-        if (path.empty() || !std::filesystem::exists(path))
-            path = soundService_.resolveToggleSoundPath(running, macroMode_, {}, {});
-        soundService_.playFile(path, value("volume").toInt(), L"autokey_preview_sound");
-    } else if (action == "accept") accept();
-    else QmlDialog::handleAction(action, argument);
+        SoundSettingsData::setSelectedPath(state, path);
+    } else if (action == "resetSound") SoundSettingsData::setSelectedPath(state, {});
+    else {
+        const auto option = settings()[SoundEventIndex(definition->event)];
+        if (soundService_.resolveSoundPath(definition->event, option).empty())
+            state.insert("status", tr("音频文件不存在，请放入默认文件或选择自定义音频。"));
+        else {
+            soundService_.playEvent(definition->event, option, true);
+            state.insert("status", tr("正在试听：%1").arg(selected.value("title").toString()));
+        }
+    }
+    applyState(std::move(state));
 }

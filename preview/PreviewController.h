@@ -79,6 +79,7 @@ private:
     void showDiagnosticReport();
     void showProcesses();
     void showOverlaySettings(bool macro);
+    void showSoundSettings(bool macro);
     void showUpdateProgress();
     PreviewDialogModel dialog_;
     PreviewDialogModel overviewDialog_;
@@ -95,6 +96,7 @@ private:
     DriverMode driverMode_ = DriverMode::Legacy;
     QStringList processes_{QStringLiteral("mumu*")};
     QVariantMap overlayOptions_;
+    SoundSettings soundSettings_ = DefaultSoundSettings();
     bool demoData_ = false;
     bool ddInstalled_ = true;
     bool hidInstalled_ = true;

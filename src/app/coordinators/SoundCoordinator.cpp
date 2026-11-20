@@ -5,66 +5,49 @@
 #include "services/SoundService.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
+#include "RepeaterEngine.h"
 
 #include <QDialog>
-#include <Windows.h>
 
 SoundCoordinator::SoundCoordinator(QObject* parent) : QObject(parent) {}
 
 void SoundCoordinator::bind(Context context) {
     context_ = std::move(context);
     if (context_.keyPage) {
-        connect(context_.keyPage, &KeyPageModel::soundSettingsClicked, this, &SoundCoordinator::openSettings);
+        connect(context_.keyPage, &KeyPageModel::soundSettingsClicked, this, [this] { openSettings(SoundGroup::Repeat); });
     }
     if (context_.macroPage) {
-        connect(context_.macroPage, &MacroPageModel::soundSettingsClicked, this, &SoundCoordinator::openSettings);
+        connect(context_.macroPage, &MacroPageModel::soundSettingsClicked, this, [this] { openSettings(SoundGroup::Macro); });
     }
+}
+
+void SoundCoordinator::playEvent(SoundEvent event) const {
+    if (!context_.config || !context_.service) return;
+    auto settings = context_.config->sounds[SoundEventIndex(event)];
+    const bool groupEnabled = SoundDefinition(event).group == SoundGroup::Repeat
+        ? context_.config->beepEnabled : context_.config->macroBeepEnabled;
+    settings.enabled = settings.enabled && groupEnabled;
+    context_.service->playEvent(event, settings);
 }
 
 void SoundCoordinator::playToggleSound(bool running, bool macroMode) const {
-    if (!context_.config || !context_.service) return;
-
-    const auto now = static_cast<std::uint64_t>(GetTickCount64());
-    if (lastToggleSoundTick_ != 0 && now - lastToggleSoundTick_ < 150) {
-        return;
-    }
-
-    if (macroMode) {
-        if (!context_.config->macroBeepEnabled) return;
-    } else if (!context_.config->beepEnabled) {
-        return;
-    }
-
-    const auto& customOn = macroMode ? context_.config->macroSoundOn : context_.config->customSoundOn;
-    const auto& customOff = macroMode ? context_.config->macroSoundOff : context_.config->customSoundOff;
-    const auto soundPath = context_.service->resolveToggleSoundPath(running, macroMode, customOn, customOff);
-    if (soundPath.empty()) return;
-
-    const wchar_t* alias = macroMode
-        ? (running ? L"autokey_macro_on_sound" : L"autokey_macro_off_sound")
-        : (running ? L"autokey_repeat_on_sound" : L"autokey_repeat_off_sound");
-    context_.service->playFile(soundPath,
-        macroMode ? context_.config->macroSoundVolume : context_.config->soundVolume,
-        alias);
-    lastToggleSoundTick_ = now;
+    playEvent(macroMode ? (running ? SoundEvent::MacroOn : SoundEvent::MacroOff)
+                       : (running ? SoundEvent::RepeatOn : SoundEvent::RepeatOff));
 }
 
-void SoundCoordinator::openSettings() {
-    if (!context_.config || !context_.service || !context_.inputHook) return;
-
-    const bool macroMode = context_.macroModeActive ? context_.macroModeActive() : false;
-    SoundSettingsResult initial;
-    if (macroMode) {
-        initial.soundOn = context_.config->macroSoundOn;
-        initial.soundOff = context_.config->macroSoundOff;
-        initial.volume = context_.config->macroSoundVolume;
-    } else {
-        initial.soundOn = context_.config->customSoundOn;
-        initial.soundOff = context_.config->customSoundOff;
-        initial.volume = context_.config->soundVolume;
+void SoundCoordinator::handleRepeatInput(const RepeaterStatus& before, const RepeaterStatus& after) const {
+    if (!before.running || !after.running) return;
+    if (before.independentKey != after.independentKey) {
+        playEvent(!after.independentKey ? SoundEvent::IndependentOff
+            : before.independentKey ? SoundEvent::IndependentSwitch : SoundEvent::IndependentOn);
     }
+    if (before.sequenceTaskId != after.sequenceTaskId && after.sequenceTaskId) playEvent(SoundEvent::SequenceSwitch);
+    if (before.paused != after.paused) playEvent(after.paused ? SoundEvent::RepeatPause : SoundEvent::RepeatResume);
+}
 
-    SoundSettingsDialog dialog(*context_.service, macroMode, initial, context_.parent);
+void SoundCoordinator::openSettings(SoundGroup group) {
+    if (!context_.config || !context_.service || !context_.inputHook) return;
+    SoundSettingsDialog dialog(*context_.service, *context_.config, group, context_.parent);
     context_.inputHook->setDialogOpen(true);
     const int result = dialog.exec();
     context_.inputHook->setDialogOpen(false);
@@ -72,20 +55,7 @@ void SoundCoordinator::openSettings() {
 
     if (result != QDialog::Accepted) return;
 
-    const auto settings = dialog.settings();
-    if (macroMode) {
-        context_.config->macroSoundOn = settings.soundOn;
-        context_.config->macroSoundOff = settings.soundOff;
-        context_.config->macroSoundVolume = settings.volume;
-    } else {
-        context_.config->customSoundOn = settings.soundOn;
-        context_.config->customSoundOff = settings.soundOff;
-        context_.config->soundVolume = settings.volume;
-    }
-    context_.service->warmUpToggleSounds(
-        context_.config->customSoundOn,
-        context_.config->customSoundOff,
-        context_.config->macroSoundOn,
-        context_.config->macroSoundOff);
+    context_.config->sounds = dialog.settings();
+    context_.service->warmUpSounds(context_.config->sounds);
     if (context_.saveConfig) context_.saveConfig();
 }

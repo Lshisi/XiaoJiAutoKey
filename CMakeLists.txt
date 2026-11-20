@@ -97,6 +97,7 @@ set(CORE_SOURCES
     src/core/RepeaterEngine.cpp
     src/core/RepeatModeRules.cpp
     src/core/ShareCodec.cpp
+    src/core/SoundSettings.cpp
 )
 
 set(UI_COMPONENT_SOURCES
@@ -113,6 +114,7 @@ set(UI_MODEL_SOURCES
     src/ui/models/AboutPageModel.cpp
     src/ui/models/UsagePageModel.cpp
     src/ui/models/ShareImportBannerModel.cpp
+    src/ui/models/SoundSettingsData.cpp
 )
 
 set(UI_COMPONENT_HEADERS

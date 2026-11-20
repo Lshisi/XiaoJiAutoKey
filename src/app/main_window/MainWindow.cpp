@@ -275,11 +275,7 @@ bool MainWindow::Initialize() {
     // 后台兜底清理更新残留的 .old.exe（启动时的同步清理可能因旧进程
     // 未退出或文件被占用而失败）。
     UpdateService::retryOldExeCleanupInBackground(this);
-    soundService_.warmUpToggleSounds(
-        config_.customSoundOn,
-        config_.customSoundOff,
-        config_.macroSoundOn,
-        config_.macroSoundOff);
+    soundService_.warmUpSounds(config_.sounds);
     if (!loadConfiguredDriver()) {
         logDriverUnavailableOnce();
         // 驱动加载失败不区分根因，等主窗口首次显示后自动打开自检向导

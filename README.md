@@ -83,7 +83,7 @@
 - 驱动管理页查看 DD/HID 状态、切换驱动模式、卸载 HID
 - 驱动管理页可预览并复制诊断信息，报告不包含个人路径、剪贴板内容和完整配置
 - 支持键盘和鼠标按键（左键、右键、中键、侧键）及 Ctrl／Shift／Alt 组合主键
-- 自定义提示音：连发和宏可分别设置提示音与音量（mp3、wav、wma、mid）
+- 自定义提示音：保留按键／循环整组开关，各事件可分别设置开关、音量与音频；支持整体启停、独立键启停与换键、切换下一段、暂停／恢复和录制开始／结束（mp3、wav、wma、mid、midi）。默认音频文件名见 [提示音配置](docs/sound-cues.md)。
 
 ### 软件更新
 
@@ -199,16 +199,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 
 | 字段 | 说明 |
 | --- | --- |
-| `beepEnabled` | 是否开启按键连发启停提示音 |
+| `beepEnabled` | 按键连发整组提示音开关；各事件还需开启自己的单项开关 |
+| `macroBeepEnabled` | 循环连发及录制整组提示音开关 |
 | `closeAction` | 关闭窗口行为（`ask` / `minimize` / `exit`） |
 | `driverMode` | 驱动模式（`legacy` = DD，`hid` = HID，`usb` = USB 硬件） |
 | `faction` | 门派主题 ID |
 | `latestKnownVersion` | 最近一次手动检查发现的版本号，仅用于保持"有新版本"标签显示，不触发联网 |
 | `dailyUsageMs` | 本机每日连发运行时长，键为 `YYYY-MM-DD`，值为毫秒数；不随按键方案分享 |
 | `onboarding` | 本机新手引导的版本、状态、步骤及已读提示；完成或跳过后不再自动展示，不随按键方案分享 |
-| `customSoundOn` / `customSoundOff` | 自定义连发开启/关闭提示音路径（空 = 内置音） |
-| `soundVolume` | 连发提示音音量（0-100） |
-| `macroBeepEnabled` / `macroSoundOn` / `macroSoundOff` / `macroSoundVolume` | 循环连发对应提示音设置 |
+| `sounds` | 按事件 ID 保存 `enabled`、`path` 和 `volume`（0–100）；空路径使用该事件的默认音频，详见 [提示音配置](docs/sound-cues.md) |
 | `statusOverlayShowRepeat` / `statusOverlayShowMacro` / `statusOverlayOpacity` / `statusOverlayLocked` | 状态悬浮窗显示与外观 |
 | `macroOverlayShowCurrentStep` | 状态悬浮窗是否显示循环当前步骤 |
 

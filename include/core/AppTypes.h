@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SoundSettings.h"
+
 #include <cstdint>
 #include <cstddef>
 #include <map>
@@ -168,6 +170,7 @@ struct AppConfig {
     int onboardingSeenActions = 0;
     bool backgroundAutoRun = false;
     bool beepEnabled = true;
+    bool macroBeepEnabled = true;
     // 仅当游戏客户端在前台时生效（离开游戏自动暂停并释放按键）
     bool gameGateEnabled = false;
     // 额外识别的游戏进程名（小写，支持 "name*" 前缀通配）
@@ -195,13 +198,7 @@ struct AppConfig {
     std::string latestKnownVersion;
     std::map<std::string, std::int64_t> dailyUsageMs;
 
-    std::wstring customSoundOn;
-    std::wstring customSoundOff;
-    int soundVolume = 80;
-    bool macroBeepEnabled = true;
-    std::wstring macroSoundOn;
-    std::wstring macroSoundOff;
-    int macroSoundVolume = 80;
+    SoundSettings sounds = DefaultSoundSettings();
 
     std::uint64_t activeProfileId = 0;
     std::vector<ProfileConfig> profiles;

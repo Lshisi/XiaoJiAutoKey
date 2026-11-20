@@ -119,8 +119,7 @@ void PreviewWorkspaceController::handle(const QString& action, const QVariant& a
     } else if (action == "pauseEdit") {
         editShortcut(QStringLiteral("pause"), argument.toInt());
     } else if (action == "sound") {
-        dialog_.present("DialogSound.qml", tr("提示音设置"), sound_,
-            [this](const QVariantMap& values) { sound_ = values; });
+        emit soundSettingsRequested();
     } else if (action == "overlay") {
         emit overlaySettingsRequested();
     } else if (action == "update") {

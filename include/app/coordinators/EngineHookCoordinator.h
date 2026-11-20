@@ -12,6 +12,7 @@ class MacroEngine;
 class RawInputManager;
 class RepeaterEngine;
 class QWidget;
+struct RepeaterStatus;
 
 class EngineHookCoordinator : public QObject {
     Q_OBJECT
@@ -36,6 +37,7 @@ public:
         std::function<bool()> selfInjectedMouseVisible;
         QWidget* parent = nullptr;
         std::function<bool()> onboardingActive;
+        std::function<void(const RepeaterStatus&, const RepeaterStatus&)> repeatInputChanged;
     };
 
     explicit EngineHookCoordinator(QObject* parent = nullptr);

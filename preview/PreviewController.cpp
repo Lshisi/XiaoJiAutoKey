@@ -22,6 +22,8 @@ PreviewController::PreviewController(QObject* parent)
     connect(macros_.model(), &PageModel::stateChanged, this, workspaceChanged);
     connect(&keys_, &PreviewWorkspaceController::overlaySettingsRequested, this, [this]() { showOverlaySettings(false); });
     connect(&macros_, &PreviewWorkspaceController::overlaySettingsRequested, this, [this]() { showOverlaySettings(true); });
+    connect(&keys_, &PreviewWorkspaceController::soundSettingsRequested, this, [this] { showSoundSettings(false); });
+    connect(&macros_, &PreviewWorkspaceController::soundSettingsRequested, this, [this] { showSoundSettings(true); });
     connect(&keys_, &PreviewWorkspaceController::aboutRequested, this, [this]() { navigate("about"); });
     connect(&macros_, &PreviewWorkspaceController::aboutRequested, this, [this]() { navigate("about"); });
     connect(&onboarding_, &PreviewOnboardingModel::navigateRequested, this, &PreviewController::navigate);

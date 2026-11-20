@@ -15,6 +15,7 @@ MacroRecordingDialog::MacroRecordingDialog(GlobalInputHook& hook, bool supportsP
         countdown_.stop();
         recordingActive_ = true;
         hook_.setRecordingActive(true);
+        emit recordingStateChanged(true);
         setValue("stage", "recording");
         setValue("actions", QVariantList{button("stop", tr("停止录制 F10")), button("cancel", tr("取消"), false)});
     });
@@ -29,8 +30,10 @@ MacroRecordingDialog::MacroRecordingDialog(GlobalInputHook& hook, bool supportsP
 MacroRecordingDialog::~MacroRecordingDialog() { hook_.setRecordingActive(false); }
 void MacroRecordingDialog::reject() {
     countdown_.stop();
+    const bool wasRecording = recordingActive_;
     recordingActive_ = false;
     hook_.setRecordingActive(false);
+    if (wasRecording) emit recordingStateChanged(false);
     QmlDialog::reject();
 }
 void MacroRecordingDialog::editField(const QString& field, const QVariant& value) {
@@ -40,6 +43,7 @@ void MacroRecordingDialog::stopRecording() {
     if (!recordingActive_) return;
     recordingActive_ = false;
     hook_.setRecordingActive(false);
+    emit recordingStateChanged(false);
     steps_ = recording_.finish(GetTickCount64());
     QStringList descriptions;
     for (std::size_t index = 0; index < steps_.size(); ++index) {

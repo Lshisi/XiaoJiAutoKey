@@ -59,7 +59,8 @@ void MainWindow::setupHooks() {
         [this]() { showDdUnavailableMessage(); },
         [this]() { return config_.driverMode == DriverMode::Usb; },
         this,
-        [this]() { return onboardingCoordinator_.blocksStart(); }
+        [this]() { return onboardingCoordinator_.blocksStart(); },
+        [this](const RepeaterStatus& before, const RepeaterStatus& after) { soundCoordinator_.handleRepeatInput(before, after); }
     });
 
     if (!engineHookCoordinator_.start()) {

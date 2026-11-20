@@ -40,6 +40,7 @@ public:
         std::function<bool()> canUseDdDriver;
         std::function<void()> showDdUnavailableMessage;
         std::function<bool()> driverSupportsMouseMove;
+        std::function<void(SoundEvent)> playSound;
     };
 
     explicit MacroCoordinator(QObject* parent = nullptr);
@@ -80,4 +81,5 @@ private:
 
     Context context_;
     bool lastMacroRunning_ = false;
+    bool lastMacroPauseKeyActive_ = false;
 };

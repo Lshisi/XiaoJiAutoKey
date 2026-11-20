@@ -97,8 +97,10 @@ void EngineHookCoordinator::handlePhysicalChanged(const KeyDescriptor& key, bool
     if (context_.notePhysicalKey) context_.notePhysicalKey(key, pressed);
     if (!context_.repeaterEngine) return;
     if (context_.repeatRunning && !context_.repeatRunning()) return;
+    const auto before = context_.repeaterEngine->GetStatus();
     if (pressed) context_.repeaterEngine->OnPhysicalDown(key);
     else context_.repeaterEngine->OnPhysicalUp(key);
+    if (context_.repeatInputChanged) context_.repeatInputChanged(before, context_.repeaterEngine->GetStatus());
 }
 
 void EngineHookCoordinator::handleControlHotkeyPressed() {

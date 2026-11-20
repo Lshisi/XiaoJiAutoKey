@@ -11,6 +11,7 @@ class KeyPageModel;
 class MacroPageModel;
 class SoundService;
 class QWidget;
+struct RepeaterStatus;
 
 class SoundCoordinator : public QObject {
     Q_OBJECT
@@ -23,18 +24,18 @@ public:
         AppConfig* config = nullptr;
         SoundService* service = nullptr;
         GlobalInputHook* inputHook = nullptr;
-        std::function<bool()> macroModeActive;
         std::function<void()> saveConfig;
     };
 
     explicit SoundCoordinator(QObject* parent = nullptr);
 
     void bind(Context context);
+    void playEvent(SoundEvent event) const;
     void playToggleSound(bool running, bool macroMode) const;
+    void handleRepeatInput(const RepeaterStatus& before, const RepeaterStatus& after) const;
 
 private:
-    void openSettings();
+    void openSettings(SoundGroup group);
 
     Context context_;
-    mutable std::uint64_t lastToggleSoundTick_ = 0;
 };

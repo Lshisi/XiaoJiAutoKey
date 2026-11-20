@@ -213,7 +213,8 @@ bool MainWindow::setupUi() {
         },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { return inputDriver_.SupportsMouseMove(); }
+        [this]() { return inputDriver_.SupportsMouseMove(); },
+        [this](SoundEvent event) { soundCoordinator_.playEvent(event); }
     });
 
     settingsCoordinator_.bind(SettingsCoordinator::Context{
@@ -324,7 +325,6 @@ bool MainWindow::setupUi() {
         &config_,
         &soundService_,
         &inputHook_,
-        [this]() { return !view_.isRepeatPageActive(); },
         [this]() { configCoordinator_.save(); }
     });
 

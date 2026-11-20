@@ -13,6 +13,7 @@ public:
 
 signals:
     void overlaySettingsRequested();
+    void soundSettingsRequested();
     void aboutRequested();
 
 private:
@@ -28,6 +29,5 @@ private:
     PreviewDialogModel& dialog_;
     PreviewDialogModel& overview_;
     bool editingFromOverview_ = false;
-    QVariantMap sound_{{"soundOn", QString()}, {"soundOff", QString()}, {"volume", 80}};
     quint64 nextId_ = 100;
 };

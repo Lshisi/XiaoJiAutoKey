@@ -414,8 +414,8 @@ AppConfig ConfigStore::Load() const {
     }
     if (const auto backgroundAutoRun = GetBoolField(*object, "backgroundAutoRun"); backgroundAutoRun.has_value())
         config.backgroundAutoRun = *backgroundAutoRun;
-    if (const auto beep = GetBoolField(*object, "beepEnabled"); beep.has_value())
-        config.beepEnabled = *beep;
+    if (const auto enabled = GetBoolField(*object, "beepEnabled")) config.beepEnabled = *enabled;
+    if (const auto enabled = GetBoolField(*object, "macroBeepEnabled")) config.macroBeepEnabled = *enabled;
     if (const auto gameGate = GetBoolField(*object, "gameGateEnabled"); gameGate.has_value())
         config.gameGateEnabled = *gameGate;
     if (const auto autoStart = GetBoolField(*object, "autoStartEnabled"); autoStart.has_value())
@@ -508,20 +508,20 @@ AppConfig ConfigStore::Load() const {
         latestKnownVersion.has_value() && !latestKnownVersion->empty())
         config.latestKnownVersion = *latestKnownVersion;
 
-    if (const auto soundOn = GetStringField(*object, "customSoundOn"); soundOn.has_value() && !soundOn->empty())
-        config.customSoundOn = ToWide(*soundOn);
-    if (const auto soundOff = GetStringField(*object, "customSoundOff"); soundOff.has_value() && !soundOff->empty())
-        config.customSoundOff = ToWide(*soundOff);
-    if (const auto volume = GetIntField(*object, "soundVolume"); volume.has_value())
-        config.soundVolume = std::clamp(*volume, 0, 100);
-    if (const auto macroBeep = GetBoolField(*object, "macroBeepEnabled"); macroBeep.has_value())
-        config.macroBeepEnabled = *macroBeep;
-    if (const auto soundOn = GetStringField(*object, "macroSoundOn"); soundOn.has_value() && !soundOn->empty())
-        config.macroSoundOn = ToWide(*soundOn);
-    if (const auto soundOff = GetStringField(*object, "macroSoundOff"); soundOff.has_value() && !soundOff->empty())
-        config.macroSoundOff = ToWide(*soundOff);
-    if (const auto volume = GetIntField(*object, "macroSoundVolume"); volume.has_value())
-        config.macroSoundVolume = std::clamp(*volume, 0, 100);
+    if (const auto it = object->find("sounds"); it != object->end()) {
+        if (const auto* sounds = it->second.AsObject()) {
+            for (const auto& definition : SoundEventDefinitions()) {
+                const auto event = sounds->find(definition.id);
+                if (event == sounds->end()) continue;
+                const auto* option = event->second.AsObject();
+                if (!option) continue;
+                auto& target = config.sounds[SoundEventIndex(definition.event)];
+                if (const auto enabled = GetBoolField(*option, "enabled")) target.enabled = *enabled;
+                if (const auto path = GetStringField(*option, "path")) target.customPath = ToWide(*path);
+                if (const auto volume = GetIntField(*option, "volume")) target.volume = std::clamp(*volume, 0, 100);
+            }
+        }
+    }
 
     config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);
     config.activeMacroId = GetUInt64Field(*object, "activeMacroId").value_or(0);
@@ -631,6 +631,7 @@ bool ConfigStore::Save(
     // Global settings
     root.emplace("backgroundAutoRun", config.backgroundAutoRun);
     root.emplace("beepEnabled", config.beepEnabled);
+    root.emplace("macroBeepEnabled", config.macroBeepEnabled);
     root.emplace("gameGateEnabled", config.gameGateEnabled);
     root.emplace("autoStartEnabled", config.autoStartEnabled);
     if (!config.gameGateProcesses.empty()) {
@@ -681,17 +682,13 @@ bool ConfigStore::Save(
     if (!config.latestKnownVersion.empty())
         root.emplace("latestKnownVersion", config.latestKnownVersion);
 
-    if (!config.customSoundOn.empty())
-        root.emplace("customSoundOn", ToUtf8(config.customSoundOn));
-    if (!config.customSoundOff.empty())
-        root.emplace("customSoundOff", ToUtf8(config.customSoundOff));
-    root.emplace("soundVolume", std::clamp(config.soundVolume, 0, 100));
-    root.emplace("macroBeepEnabled", config.macroBeepEnabled);
-    if (!config.macroSoundOn.empty())
-        root.emplace("macroSoundOn", ToUtf8(config.macroSoundOn));
-    if (!config.macroSoundOff.empty())
-        root.emplace("macroSoundOff", ToUtf8(config.macroSoundOff));
-    root.emplace("macroSoundVolume", std::clamp(config.macroSoundVolume, 0, 100));
+    jsonlite::Object sounds;
+    for (const auto& definition : SoundEventDefinitions()) {
+        const auto& option = config.sounds[SoundEventIndex(definition.event)];
+        sounds.emplace(definition.id, jsonlite::Object{{"enabled", option.enabled},
+            {"path", ToUtf8(option.customPath)}, {"volume", std::clamp(option.volume, 0, 100)}});
+    }
+    root.emplace("sounds", std::move(sounds));
 
     root.emplace("activeProfileId", static_cast<double>(config.activeProfileId));
     root.emplace("activeMacroId", static_cast<double>(config.activeMacroId));

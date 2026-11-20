@@ -13,6 +13,9 @@ void MainWindow::setupHooks() {
     inputHook_.setPhysicalInputFilter([this](const KeyDescriptor& key) {
         return inputDriver_.IsHeldDown(key);
     });
+    inputHook_.setPhysicalKeyObserver([this](const KeyDescriptor& key, bool pressed) {
+        inputDriver_.NoteHookPhysicalKey(key, pressed);
+    });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{
         &inputHook_,

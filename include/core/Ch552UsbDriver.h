@@ -27,11 +27,13 @@ public:
 
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool RestorePhysicalDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     void ReleaseAll() override;
     void ClearAllStates() override;
 
 private:
+    bool SendDownInternal(const KeyDescriptor& key, InputSource src, bool trackHold);
     bool OpenPortLocked(const std::wstring& portName);
     void ClosePortLocked();
     bool WriteLineLocked(const std::string& line);

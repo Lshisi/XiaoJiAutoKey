@@ -281,6 +281,14 @@ bool Ch552UsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {
 }
 
 bool Ch552UsbDriver::SendDown(const KeyDescriptor& key, InputSource src) {
+    return SendDownInternal(key, src, true);
+}
+
+bool Ch552UsbDriver::RestorePhysicalDown(const KeyDescriptor& key, InputSource src) {
+    return SendDownInternal(key, src, false);
+}
+
+bool Ch552UsbDriver::SendDownInternal(const KeyDescriptor& key, InputSource src, bool trackHold) {
     if (!key.IsValid()) return false;
     std::lock_guard lock(mutex_);
     if (handle_ == INVALID_HANDLE_VALUE) return false;
@@ -289,7 +297,7 @@ bool Ch552UsbDriver::SendDown(const KeyDescriptor& key, InputSource src) {
         ? SendFastCommandLocked(BuildCommand('D', key, true))
         : SendCommandLocked(BuildCommand('D', key));
     if (!sent) return false;
-    ++pressedKeys_[EncodeKey(key)];
+    if (trackHold) ++pressedKeys_[EncodeKey(key)];
     return true;
 }
 

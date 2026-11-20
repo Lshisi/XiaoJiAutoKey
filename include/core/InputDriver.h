@@ -14,6 +14,10 @@ public:
 
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
+    // Reassert a still-held physical key without retaining a synthetic hold.
+    virtual bool RestorePhysicalDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) {
+        return SendDown(key, src);
+    }
     virtual bool SendHeldDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) {
         return SendDown(key, src);
     }

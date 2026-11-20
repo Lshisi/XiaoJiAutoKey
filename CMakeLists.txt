@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.1.6 LANGUAGES C CXX)
+project(XiaoJiAutoKey VERSION 1.1.7 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -343,6 +343,7 @@ set(QML_FILES
     src/qml/DialogBatchEdit.qml
     src/qml/DialogOverlaySettings.qml
     src/qml/DialogSound.qml
+    src/qml/SoundEventList.qml
     src/qml/DialogProcesses.qml
     src/qml/DialogShare.qml
     src/qml/DialogReport.qml

@@ -12,6 +12,7 @@ protected:
     void editField(const QString& field, const QVariant& value) override;
 private:
     SoundService& soundService_;
+    SoundSettings initialSettings_;
     void refreshAvailability(QVariantMap& state) const;
     void applyState(QVariantMap state);
 };

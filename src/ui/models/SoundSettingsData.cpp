@@ -3,12 +3,19 @@
 #include <QCoreApplication>
 #include <algorithm>
 
+namespace {
+bool inScope(SoundGroup eventGroup, SoundGroup scope) {
+    return eventGroup == scope || (scope == SoundGroup::Macro && eventGroup == SoundGroup::Recording);
+}
+}
+
 namespace SoundSettingsData {
 
 QVariantMap build(const SoundSettings& settings, SoundGroup group) {
     QVariantList events;
     QString selectedId;
     for (const auto& definition : SoundEventDefinitions()) {
+        if (!inScope(definition.group, group)) continue;
         const auto& option = settings[SoundEventIndex(definition.event)];
         const QString id = QString::fromLatin1(definition.id);
         events.append(QVariantMap{{"id", id}, {"group", static_cast<int>(definition.group)},
@@ -17,7 +24,7 @@ QVariantMap build(const SoundSettings& settings, SoundGroup group) {
             {"defaultFile", QString::fromWCharArray(definition.fileName)},
             {"customPath", QString::fromStdWString(option.customPath)},
             {"enabled", option.enabled}, {"volume", option.volume}, {"available", false}});
-        if (selectedId.isEmpty() && definition.group == group) selectedId = id;
+        if (selectedId.isEmpty()) selectedId = id;
     }
     return {{"events", events}, {"group", static_cast<int>(group)}, {"selectedEvent", selectedId}, {"status", QString()}};
 }
@@ -31,24 +38,11 @@ QVariantMap selected(const QVariantMap& state) {
 }
 
 bool edit(QVariantMap& state, const QString& field, const QVariant& value) {
-    if (field == "group") {
-        const int group = value.toInt();
-        if (group < 0 || group > static_cast<int>(SoundGroup::Recording)) return false;
-        for (const auto& event : state.value("events").toList()) {
-            const auto entry = event.toMap();
-            if (entry.value("group").toInt() != group) continue;
-            state.insert("group", group);
-            state.insert("selectedEvent", entry.value("id"));
-            state.insert("status", QString());
-            return true;
-        }
-        return false;
-    }
     auto events = state.value("events").toList();
     for (auto& event : events) {
         auto entry = event.toMap();
         if (field == "selectedEvent") {
-            if (entry.value("id") != value || entry.value("group") != state.value("group")) continue;
+            if (entry.value("id") != value) continue;
             state.insert(field, value);
         } else {
             if (entry.value("id") != state.value("selectedEvent")) continue;
@@ -77,12 +71,13 @@ void setSelectedPath(QVariantMap& state, const QString& path) {
     state.insert("status", QString());
 }
 
-SoundSettings settings(const QVariantMap& state) {
-    auto result = DefaultSoundSettings();
+SoundSettings settings(const QVariantMap& state, const SoundSettings& base) {
+    auto result = base;
+    const auto scope = static_cast<SoundGroup>(state.value("group").toInt());
     for (const auto& event : state.value("events").toList()) {
         const auto entry = event.toMap();
         const auto* definition = FindSoundDefinition(entry.value("id").toString().toStdString());
-        if (!definition) continue;
+        if (!definition || !inScope(definition->group, scope)) continue;
         result[SoundEventIndex(definition->event)] = {entry.value("enabled").toBool(),
             entry.value("customPath").toString().toStdWString(), std::clamp(entry.value("volume").toInt(), 0, 100)};
     }

@@ -98,7 +98,7 @@ MacroConfig* OnboardingCoordinator::macro() const {
 void OnboardingCoordinator::start() {
     if (!initialized_ || !context_.window->isVisible()) return;
     if (busy()) {
-        AppMessageDialog::information(context_.window, tr("新手引导"), tr("请先停止连发并结束当前编辑，再查看新手引导。"));
+        AppMessageDialog::information(context_.window, tr("新手引导"), tr("请先停止连发，关掉正在编辑的窗口，再打开新手引导。"));
         return;
     }
     active_ = true;
@@ -262,31 +262,31 @@ void OnboardingCoordinator::refresh() {
     bool canNext = true;
     if (welcome_) {
         title = tr("欢迎使用小叽按键");
-        body = tr("跟着界面配好第一组按键，了解怎样启动、暂停和停止。设置会自动保存，你也可以随时跳过。");
-        hint = driverReady ? tr("当前驱动已就绪，将从添加按键开始。") : tr("先确认驱动状态，再配置按键。暂时无法修复也可以先了解操作。");
+        body = tr("带你设置一个自动连点的按键，再学会怎样开始、暂停和停止。设置会自动保存，不想看时可以随时跳过。");
+        hint = driverReady ? tr("已经可以使用，先来添加按键。") : tr("先看看驱动页有没有报错，再来添加按键。这里有问题时，也可以先学习后面的操作。");
     } else if (macroTour_) {
         if (step_ == 0) {
             title = tr("按顺序执行一组按键");
-            body = tr("循环连发会依次执行列表中的按键，再按设置重复。点击“添加步骤”选择动作，使用行内手柄拖动调整顺序。");
-            hint = tr("每步会按下约 5ms 后松开，间隔是松开后到下一步的时间，默认 %1ms。").arg(kDefaultDelayMs);
+            body = tr("例如先按 1、再按 2，就按这个顺序添加两条步骤。循环运行时，会从上到下执行这些步骤。想换顺序，拖动每行左侧的拖动图标即可。");
+            hint = tr("步骤里的“间隔”就是做完后等多久。1000 毫秒是 1 秒，填得越小，两步之间等得越短。");
             target = QStringLiteral("add");
             actionText = tr("添加步骤");
             canNext = currentMacro && !currentMacro->steps.empty();
-            if (canNext) hint = tr("步骤已保存，可以继续设置循环的启停键。");
+            if (canNext) hint = tr("步骤已保存，接下来设置一个启动和停止循环的快捷键。");
         } else if (step_ == 1) {
-            title = tr("循环使用自己的启停键");
-            body = tr("这里的快捷键控制当前循环配置，与按键连发分别启停。两者可以同时运行，暂停键也分别生效。");
+            title = tr("给循环设置启动和停止键");
+            body = tr("点下面的按钮，再按你想用的快捷键。它只控制“循环连发”，不会把“按键连发”一起启动或停止。");
             target = QStringLiteral("hotkey");
             actionText = tr("录制循环启停键");
             canNext = currentMacro && currentMacro->triggerKey.has_value();
-            hint = canNext ? tr("快捷键已保存。") : tr("选择一个与按键步骤、暂停键不冲突的快捷键。");
+            hint = canNext ? tr("快捷键已保存，可以继续。") : tr("选一个循环步骤里不会用到的键，也不要和暂停键重复。");
         } else {
-            title = tr("选择循环的执行方式");
-            body = tr("开关模式：按一次启停键开始，再按一次停止。按压模式：按住启停键执行，松开停止。开关模式的循环次数为 0 时会无限循环。");
-            hint = tr("完成引导后，由你主动启动。需要修改步骤或设置时，先停止当前循环。");
+            title = tr("选择怎么开始、重复几次");
+            body = tr("“开关模式”：按一下快捷键开始，再按一下停止。\n“按压模式”：一直按着才运行，松开就停。\n“循环次数”填 0，就是一直重复，直到你手动停止。");
+            hint = tr("完成引导后，你再自己启动。想改步骤或设置，先停止循环。");
             target = QStringLiteral("options");
             if (currentMacro && !currentMacro->enabled) {
-                hint = tr("当前循环配置已停用，请先启用。完成引导后，再主动启动循环。");
+                hint = tr("这个循环还没打开，请先点“启用循环配置”。完成引导后，你再自己启动。");
                 actionText = tr("启用循环配置");
                 canNext = false;
             }
@@ -294,48 +294,48 @@ void OnboardingCoordinator::refresh() {
     } else {
         switch (step_) {
         case 0:
-            title = tr("确认驱动可用");
-            body = tr("DD、HID 是软件驱动，USB 需要连接配套设备。保持当前适合你的模式，状态异常时使用“一键自检”，按提示处理。");
-            hint = driverReady ? tr("当前驱动已就绪，可以继续。") : tr("当前驱动尚未就绪。可以先了解配置，驱动修复后再启动连发。");
+            title = tr("先确认软件可以按键");
+            body = tr("这里决定软件怎样帮你按键，先保留当前模式即可。有报错时点“一键自检”，跟着结果提示处理。选择 USB 时，需要插上配套设备。");
+            hint = driverReady ? tr("已经准备好，可以继续。") : tr("这里还没准备好。可以先学习后面的操作，开始连点前需要处理好这里的问题。");
             target = QStringLiteral("driver");
             actionText = tr("一键自检");
             break;
         case 1:
             title = tr("添加第一个按键");
-            body = tr("直接使用顶部的默认配置，点击“添加按键”，在弹窗中录入需要连发的键。键盘和鼠标按键都支持，确认后自动保存。");
-            hint = hasBindings ? tr("按键已保存，可以继续查看模式和启用状态。") : tr("按键间隔默认 %1ms，数值越小连点越快；先保留默认值即可。").arg(kDefaultDelayMs);
+            body = tr("点击“添加按键”，再点“点击录制”，按一下想要自动连点的键，比如 1。确认后会自动保存，鼠标按键也可以录制。");
+            hint = hasBindings ? tr("第一个按键已经保存，接下来看看它是否打开。") : tr("第一次先保留默认间隔 %1 毫秒。以后想点得慢一点，就把间隔调大。").arg(kDefaultDelayMs);
             target = QStringLiteral("add");
             actionText = tr("添加按键");
             canNext = hasBindings;
             break;
         case 2:
-            title = tr("确认模式与启用状态");
-            body = tr("开关用于持续连点，按压用于按住时连点，长按用于持续保持按下；独立和切换用于在多个按键间选择。首次选择每种模式时，弹窗会补充说明。");
-            hint = hasEnabledBinding ? tr("配置和按键已启用。行内开关可单独停用按键，编辑按钮可修改模式和间隔。") : tr("顶部配置开关和至少一个按键的状态开关都需要开启。");
+            title = tr("看看按键怎么运行");
+            body = tr("第一次可以先选“开关模式”：启动后自动连点，停止后结束。想用其他模式时再切换，弹窗里会用例子告诉你怎么操作。");
+            hint = hasEnabledBinding ? tr("已经打开，可以继续。想修改按键，点这一行的编辑图标。") : tr("请打开顶部配置旁的开关，再打开列表里至少一个按键的开关。");
             target = current && !current->enabled ? QStringLiteral("profile") : hasBindings ? QStringLiteral("mode") : QStringLiteral("add");
             actionText = current && !current->enabled ? tr("启用配置") : hasBindings ? tr("编辑第一个按键") : tr("添加按键");
             canNext = hasEnabledBinding;
             break;
         case 3:
-            title = tr("设置启停快捷键");
-            body = tr("点击这里录制控制工具的快捷键，按一次启动，再按一次停止。它与需要连发的按键是不同用途，请避免冲突。");
+            title = tr("设置一个启动和停止键");
+            body = tr("点下面的按钮，再按一下想用的快捷键。以后按它一下就开始连点，再按一下就停止。选一个和要连点的键不同的键，方便区分。");
             canNext = current && current->controlHotkey.has_value();
-            hint = canNext ? tr("启停键已保存：%1。").arg(QString::fromStdWString(GetKeyDisplayName(*current->controlHotkey))) : tr("按下要使用的快捷键即可完成录制，录制期间不会触发连发。");
+            hint = canNext ? tr("已设为 %1，可以继续。").arg(QString::fromStdWString(GetKeyDisplayName(*current->controlHotkey))) : tr("按一下你想用的快捷键即可。录制时不会真的开始连点。");
             target = QStringLiteral("hotkey");
             actionText = tr("录制启停键");
             break;
         case 4:
-            title = tr("选择按键在哪里生效");
-            body = tr("开启“仅游戏客户端前台时生效”后，切出游戏会暂停并松开按键，切回游戏恢复。已内置识别剑网 3 客户端，其他游戏或模拟器可添加进程。");
-            hint = context_.config->gameGateEnabled ? tr("当前已开启：非游戏窗口中即使工具已启动，也不会输出按键。") : tr("当前未开启：按键会发送到当前前台窗口。可按你的使用场景选择。");
+            title = tr("切出游戏时要不要暂停");
+            body = tr("打开“仅游戏客户端前台时生效”：切去聊天或浏览器时会暂停，回到游戏再继续。剑网3已内置，其他游戏可以点“管理游戏进程”添加。");
+            hint = context_.config->gameGateEnabled ? tr("现在已打开：切去聊天或浏览器时，不会帮你按键。") : tr("现在未打开：软件会对你正在使用的窗口按键。只在游戏里用，建议打开。");
             target = QStringLiteral("scope");
-            actionText = context_.config->gameGateEnabled ? tr("关闭前台限制") : tr("开启前台限制");
+            actionText = context_.config->gameGateEnabled ? tr("关闭这项限制") : tr("开启这项限制");
             secondaryText = tr("管理游戏进程");
             break;
         default:
-            title = tr("准备好，再主动启动");
-            body = tr("完成引导后，切到目标窗口按启停键开始，再按一次停止；右侧也能启动和停止。运行时编辑会锁定，修改前先停止。");
-            hint = tr("列表下方可添加暂停键：按住时临时暂停，松开恢复；按压键仍可触发。工具已启动但没有输出时，先看模式和游戏前台限制。");
+            title = tr("完成后，去游戏里试试");
+            body = tr("完成引导后，切到你想使用的窗口，按刚才设置的快捷键开始，再按一次停止。也可以点右侧“启动”或“停止”。要改设置，先停止连发。");
+            hint = tr("还可以在列表下方添加“暂停键”：按住时暂停，松开后继续。不知道选什么时，可以以后再设置。");
             target = QStringLiteral("run");
             actionText = tr("添加暂停键（可选）");
             break;

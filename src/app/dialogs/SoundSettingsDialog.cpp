@@ -6,20 +6,20 @@
 #include <QFileDialog>
 
 SoundSettingsDialog::SoundSettingsDialog(SoundService& service, const AppConfig& config, SoundGroup group, QWidget* parent)
-    : QmlDialog(parent), soundService_(service) {
-    setWindowTitle(tr("提示音设置"));
+    : QmlDialog(parent), soundService_(service), initialSettings_(config.sounds) {
+    setWindowTitle(group == SoundGroup::Repeat ? tr("按键连发提示音设置") : tr("循环连发提示音设置"));
     auto state = SoundSettingsData::build(config.sounds, group);
     state.insert("repeatGroupEnabled", config.beepEnabled);
     state.insert("macroGroupEnabled", config.macroBeepEnabled);
     state.insert("actions", QVariantList{button("accept", tr("保存")), button("cancel", tr("取消"), false)});
     refreshAvailability(state);
-    present("DialogSound.qml", state, QSize(490, 410), true);
+    present("DialogSound.qml", state, QSize(580, 410), true);
 }
 
-SoundSettings SoundSettingsDialog::settings() const { return SoundSettingsData::settings(dialogState()); }
+SoundSettings SoundSettingsDialog::settings() const { return SoundSettingsData::settings(dialogState(), initialSettings_); }
 
 void SoundSettingsDialog::refreshAvailability(QVariantMap& state) const {
-    const auto options = SoundSettingsData::settings(state);
+    const auto options = SoundSettingsData::settings(state, initialSettings_);
     auto events = state.value("events").toList();
     for (auto& event : events) {
         auto entry = event.toMap();
@@ -34,7 +34,7 @@ void SoundSettingsDialog::refreshAvailability(QVariantMap& state) const {
 
 void SoundSettingsDialog::applyState(QVariantMap state) {
     refreshAvailability(state);
-    for (const auto& field : {"events", "group", "selectedEvent", "status"}) setValue(field, state.value(field));
+    for (const auto& field : {"events", "selectedEvent", "status"}) setValue(field, state.value(field));
 }
 
 void SoundSettingsDialog::editField(const QString& field, const QVariant& argument) {

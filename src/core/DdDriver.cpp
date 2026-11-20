@@ -690,6 +690,14 @@ bool DdDriver::SendTap(const KeyDescriptor& key, InputSource src) {
 }
 
 bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
+    return SendDownInternal(key, src, true);
+}
+
+bool DdDriver::RestorePhysicalDown(const KeyDescriptor& key, InputSource src) {
+    return SendDownInternal(key, src, false);
+}
+
+bool DdDriver::SendDownInternal(const KeyDescriptor& key, InputSource src, bool trackHold) {
     std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) return false;
     if (simulateDepth_.load() > 3) return false;
@@ -700,7 +708,7 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     if (key.device == InputDevice::Mouse) {
         ++simulateDepth_;
         const bool result = SendMouseDown(key.code);
-        if (result) RegisterPress(key);
+        if (result && trackHold) RegisterPress(key);
         --simulateDepth_;
         NoteMouseInjectResult(key, true, result);
         if (!result && trackInjected) RollbackInjected(key, true);
@@ -714,7 +722,7 @@ bool DdDriver::SendDown(const KeyDescriptor& key, InputSource src) {
     }
     ++simulateDepth_;
     const int result = ddKey_(ddCode, 1);
-    if (result == 1) RegisterPress(key);
+    if (result == 1 && trackHold) RegisterPress(key);
     --simulateDepth_;
     if (result != 1 && trackInjected) RollbackInjected(key, true);
     return result == 1;

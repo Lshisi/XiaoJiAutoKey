@@ -11,7 +11,7 @@ void KeyCaptureDialogBase::prepareEditor(QVariantMap fields, std::function<bool(
     const QSize& initialSize) {
     supportsMouseMove_ = std::move(supportsMouseMove);
     const QVariantMap defaults{{"keyText", capturedKey_ ? QString::fromStdWString(GetKeyDisplayName(*capturedKey_)) : tr("点击录制")},
-        {"captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。")},
+        {"captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。")},
         {"isMouse", capturedKey_ && capturedKey_->device == InputDevice::Mouse},
         {"positionVisible", true},
         {"supportsPosition", supportsMouseMove_ && supportsMouseMove_()}, {"positionHint", tr("未拾取")},
@@ -49,8 +49,8 @@ void KeyCaptureDialogBase::handleCapturedKey(quint64 encodedKey) {
 
 void KeyCaptureDialogBase::showModifierPending(const KeyDescriptor& key) {
     setValue("keyText", QString::fromStdWString(ModifierPrefix(ModifierMaskFromKey(key)))
-        + tr("已按住，再按主键"));
-    setValue("captureHint", tr("录制组合键：先按住 Ctrl／Shift／Alt，再按主键；松开修饰键则录制单独修饰键。"));
+        + tr("已按住，再按另一个键"));
+    setValue("captureHint", tr("再按一个键，就能录成组合键。只想录制刚才按住的 Ctrl、Shift 或 Alt，直接松开即可。"));
 }
 
 void KeyCaptureDialogBase::handleModifierReleased(KeyDescriptor key) {
@@ -85,7 +85,7 @@ void KeyCaptureDialogBase::editField(const QString& field, const QVariant& argum
 void KeyCaptureDialogBase::handleAction(const QString& action, const QVariant& argument) {
     if (action == "record") {
         setValue("keyText", tr("录制中"));
-        setValue("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
+        setValue("captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。"));
         emit keyCaptureRequested();
     } else if (action == "pick" && supportsMouseMove_ && supportsMouseMove_() && value("fixed").toBool()) {
         const auto point = ScreenPointPicker::pick(this);

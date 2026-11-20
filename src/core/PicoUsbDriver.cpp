@@ -297,11 +297,19 @@ bool PicoUsbDriver::SendTap(const KeyDescriptor& key, InputSource src) {
 }
 
 bool PicoUsbDriver::SendDown(const KeyDescriptor& key, InputSource) {
+    return SendDownInternal(key, true);
+}
+
+bool PicoUsbDriver::RestorePhysicalDown(const KeyDescriptor& key, InputSource) {
+    return SendDownInternal(key, false);
+}
+
+bool PicoUsbDriver::SendDownInternal(const KeyDescriptor& key, bool trackHold) {
     if (!key.IsValid()) return false;
     std::lock_guard lock(mutex_);
     if (handle_ == INVALID_HANDLE_VALUE) return false;
     if (!SendCommandLocked(BuildCommand('D', key))) return false;
-    ++pressedKeys_[EncodeKey(key)];
+    if (trackHold) ++pressedKeys_[EncodeKey(key)];
     return true;
 }
 

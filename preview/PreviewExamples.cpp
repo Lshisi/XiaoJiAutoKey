@@ -10,20 +10,19 @@ void PreviewController::showSoundSettings(bool macro) {
     auto state = SoundSettingsData::build(soundSettings_, macro ? SoundGroup::Macro : SoundGroup::Repeat);
     state.insert("repeatGroupEnabled", keys_.model()->state().value("beepEnabled"));
     state.insert("macroGroupEnabled", macros_.model()->state().value("beepEnabled"));
+    state.insert("defaultSoundsAvailable", demoData_);
     auto events = state.value("events").toList();
     for (auto& event : events) {
         auto entry = event.toMap();
-        const QString id = entry.value("id").toString();
-        entry.insert("available", !entry.value("customPath").toString().isEmpty()
-            || QStringList{"repeatOn", "repeatOff", "macroOn", "macroOff"}.contains(id));
+        entry.insert("available", demoData_ || !entry.value("customPath").toString().isEmpty());
         event = entry;
     }
     state.insert("events", events);
     state.insert("actions", QVariantList{
         QVariantMap{{"id", "accept"}, {"text", tr("保存")}, {"primary", true}, {"enabled", true}},
         QVariantMap{{"id", "cancel"}, {"text", tr("取消")}, {"primary", false}, {"enabled", true}}});
-    dialog_.present("DialogSound.qml", tr("提示音设置"), state,
-        [this](const QVariantMap& values) { soundSettings_ = SoundSettingsData::settings(values); }, 490);
+    dialog_.present("DialogSound.qml", macro ? tr("循环连发提示音设置") : tr("按键连发提示音设置"), state,
+        [this](const QVariantMap& values) { soundSettings_ = SoundSettingsData::settings(values, soundSettings_); }, 580);
 }
 
 void PreviewController::showDriverReport() {

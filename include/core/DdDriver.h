@@ -37,6 +37,7 @@ public:
 
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
+    bool RestorePhysicalDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendUp(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendMouseMove(int deltaX, int deltaY, InputSource src = InputSource::Injected) override;
     [[nodiscard]] bool SupportsMouseMove() const override;
@@ -54,6 +55,7 @@ private:
     using DD_move_t = int(__stdcall*)(int, int);
 
     bool LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind);
+    bool SendDownInternal(const KeyDescriptor& key, InputSource src, bool trackHold);
     bool SendKeyboardTap(std::uint32_t vk);
     bool SendMouseTap(std::uint32_t vk);
     bool SendMouseDown(std::uint32_t vk);

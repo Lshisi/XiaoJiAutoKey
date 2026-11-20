@@ -105,6 +105,11 @@ void GlobalInputHook::setPhysicalInputFilter(std::function<bool(const KeyDescrip
     physicalInputFilter_ = std::move(filter);
 }
 
+void GlobalInputHook::setPhysicalKeyObserver(std::function<void(const KeyDescriptor&, bool)> observer) {
+    std::lock_guard lock(stateMutex_);
+    physicalKeyObserver_ = std::move(observer);
+}
+
 bool GlobalInputHook::isDialogOpen() const noexcept {
     return dialogOpen_.load();
 }
@@ -136,6 +141,18 @@ void GlobalInputHook::runHookLoop() {
     if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierShift;
     if (GetAsyncKeyState(VK_LMENU) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierAlt;
     if (GetAsyncKeyState(VK_RMENU) & 0x8000) physicalKeyboardModifiers_ |= kKeyModifierAlt;
+    std::function<void(const KeyDescriptor&, bool)> physicalKeyObserver;
+    {
+        std::lock_guard lock(stateMutex_);
+        physicalKeyObserver = physicalKeyObserver_;
+    }
+    if (physicalKeyObserver) {
+        for (const auto key : {VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT,
+                 VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN}) {
+            physicalKeyObserver({InputDevice::Keyboard, static_cast<std::uint32_t>(key)},
+                (GetAsyncKeyState(key) & 0x8000) != 0);
+        }
+    }
     keyboardHook_ = SetWindowsHookExW(WH_KEYBOARD_LL, &GlobalInputHook::KeyboardHookProc, nullptr, 0);
     mouseHook_ = SetWindowsHookExW(WH_MOUSE_LL, &GlobalInputHook::MouseHookProc, nullptr, 0);
     {
@@ -170,9 +187,27 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     const bool pressed = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
     const bool released = wParam == WM_KEYUP || wParam == WM_SYSKEYUP;
     if (!pressed && !released) return CallNextHookEx(nullptr, code, wParam, lParam);
-    if (info->flags & LLKHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     auto* hook = g_hookInstance;
+    std::optional<KeyDescriptor> controlHotkey;
+    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
+    std::function<bool(const KeyDescriptor&)> physicalInputFilter;
+    std::function<void(const KeyDescriptor&, bool)> physicalKeyObserver;
+    bool captureActive = false;
+    {
+        std::lock_guard lock(hook->stateMutex_);
+        controlHotkey = hook->controlHotkey_;
+        selfInjectedFilter = hook->selfInjectedFilter_;
+        physicalInputFilter = hook->physicalInputFilter_;
+        physicalKeyObserver = hook->physicalKeyObserver_;
+        captureActive = hook->captureActive_;
+    }
+    // Temporary modifier releases/restores are output, never physical input.
+    const bool selfInjected = selfInjectedFilter && selfInjectedFilter(key, pressed);
+    if (selfInjected || (info->flags & LLKHF_INJECTED)) {
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    }
+    if (physicalKeyObserver) physicalKeyObserver(key, pressed);
     KeyDescriptor event = key;
     if (modifierEvent) {
         const auto mask = ModifierMaskFromKey(key);
@@ -208,25 +243,10 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     }
 
     const bool repeatRunning = hook->repeatRunning_.load();
-    std::optional<KeyDescriptor> controlHotkey;
-    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
-    std::function<bool(const KeyDescriptor&)> physicalInputFilter;
-    bool captureActive = false;
-    {
-        std::lock_guard lock(hook->stateMutex_);
-        controlHotkey = hook->controlHotkey_;
-        selfInjectedFilter = hook->selfInjectedFilter_;
-        physicalInputFilter = hook->physicalInputFilter_;
-        captureActive = hook->captureActive_;
-    }
 
     const bool blockPhysicalInput = repeatRunning && !captureActive && !hook->dialogOpen_.load()
         && physicalInputFilter && physicalInputFilter(event);
     if (!blockPhysicalInput && !captureActive && hook->rawKeyboardActive_.load()) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-
-    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
 

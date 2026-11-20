@@ -18,6 +18,14 @@ constexpr std::uint8_t kPhysicalShiftLeft = 0x40;
 constexpr std::uint8_t kPhysicalShiftRight = 0x80;
 constexpr std::uint8_t kPhysicalAltLeft = 0x01;
 constexpr std::uint8_t kPhysicalAltRight = 0x02;
+constexpr std::uint8_t kPhysicalWinLeft = 0x04;
+constexpr std::uint8_t kPhysicalWinRight = 0x08;
+constexpr std::array<std::uint32_t, 8> kModifierKeys = {
+    VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN
+};
+constexpr auto kIsolatedTapWidth = std::chrono::milliseconds(10);
+constexpr auto kModifierReleaseGap = std::chrono::milliseconds(kInputPulseWidthMs);
+constexpr std::uint64_t kIsolatedModifierEventTtlMs = 250;
 
 std::uint8_t PhysicalModifierKeyBit(const KeyDescriptor& key) {
     if (key.device != InputDevice::Keyboard) return 0;
@@ -28,8 +36,29 @@ std::uint8_t PhysicalModifierKeyBit(const KeyDescriptor& key) {
     case VK_RSHIFT: return kPhysicalShiftRight;
     case VK_LMENU: return kPhysicalAltLeft;
     case VK_RMENU: return kPhysicalAltRight;
+    case VK_LWIN: return kPhysicalWinLeft;
+    case VK_RWIN: return kPhysicalWinRight;
     default: return 0;
     }
+}
+
+std::size_t ModifierKeyIndex(const KeyDescriptor& key) {
+    if (key.device != InputDevice::Keyboard) return kModifierKeys.size();
+    const auto found = std::find(kModifierKeys.begin(), kModifierKeys.end(), key.code);
+    return static_cast<std::size_t>(found - kModifierKeys.begin());
+}
+
+void UpdatePhysicalModifier(std::atomic<std::uint8_t>& state, std::uint8_t bit, bool pressed) {
+    if (pressed) state.fetch_or(bit);
+    else state.fetch_and(static_cast<std::uint8_t>(~bit));
+}
+
+bool ConsumePendingEvent(std::atomic<unsigned>& count) {
+    auto pending = count.load();
+    while (pending != 0) {
+        if (count.compare_exchange_weak(pending, pending - 1)) return true;
+    }
+    return false;
 }
 
 }
@@ -43,21 +72,24 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     repeaterState_.heldKeys.clear();
     macroState_.heldKeys.clear();
     arbitrationSkipDiag_.clear();
+    for (auto& events : isolatedModifierEvents_) {
+        events.down.store(0);
+        events.up.store(0);
+    }
 }
 
 void InputDriverRouter::NotePhysicalKey(const KeyDescriptor& key, bool pressed) {
     const auto bit = PhysicalModifierKeyBit(key);
     if (bit == 0) return;
-    auto modifiers = physicalModifiers_.load(std::memory_order_relaxed);
-    while (true) {
-        const auto next = pressed
-            ? static_cast<std::uint8_t>(modifiers | bit)
-            : static_cast<std::uint8_t>(modifiers & ~bit);
-        if (physicalModifiers_.compare_exchange_weak(modifiers, next,
-            std::memory_order_relaxed, std::memory_order_relaxed)) {
-            return;
-        }
-    }
+    UpdatePhysicalModifier(physicalModifiers_, bit, pressed);
+}
+
+void InputDriverRouter::NoteHookPhysicalKey(const KeyDescriptor& key, bool pressed) noexcept {
+    const auto bit = PhysicalModifierKeyBit(key);
+    if (bit == 0) return;
+    UpdatePhysicalModifier(hookPhysicalModifiers_, bit, pressed);
+    hookPhysicalModifiersKnown_.store(true);
+    physicalModifierRevision_.fetch_add(1);
 }
 
 InputDriver* InputDriverRouter::CurrentDriver() const noexcept {
@@ -79,6 +111,159 @@ bool InputDriverRouter::SendTap(const KeyDescriptor& key, InputSource src) {
     if (!SendDown(key, src)) return false;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     return SendUp(key, src);
+}
+
+InputDriverRouter::IsolatedTapResult InputDriverRouter::SendIsolatedTap(
+    const KeyDescriptor& key, InputSource src, const std::function<bool()>& canSend,
+    const std::function<void()>& beforeTap) {
+    // Keep macro output out of the entire release/tap/restore transaction.
+    std::lock_guard lock(mutex_);
+    const auto components = KeyComponents(key);
+    if (!driver_ || !IsArbitratedSource(src) || components.empty()) return IsolatedTapResult::Failed;
+    if (!canSend()) return IsolatedTapResult::Deferred;
+    for (const auto& component : components) {
+        const auto encoded = EncodeKey(component);
+        const auto owner = owners_.find(encoded);
+        if (StateFor(src).activeKeys.count(encoded) == 0
+            || (owner != owners_.end() && owner->second != src)) {
+            NoteArbitrationSkipLocked(encoded, src, "isolated tap owner unavailable");
+            return IsolatedTapResult::Deferred;
+        }
+    }
+    if (forwardedDown_.count(EncodeKey(components.back())) != 0) return IsolatedTapResult::Deferred;
+
+    const auto physicalModifiers = [this]() {
+        return hookPhysicalModifiersKnown_.load() ? hookPhysicalModifiers_.load() : physicalModifiers_.load();
+    };
+    std::array<bool, kModifierKeys.size()> releasedModifiers{};
+    std::array<std::optional<ForwardedPress>, kModifierKeys.size()> suspendedModifiers;
+    std::vector<std::uint64_t> tapKeys;
+    bool ok = true;
+    bool settled = false;
+    bool hadModifiers = false;
+    bool tapped = false;
+    auto result = IsolatedTapResult::Deferred;
+
+    // A newly pressed modifier during the release gap must also be released.
+    // Stop before the tap if physical input keeps changing.
+    for (int attempt = 0; attempt < 3 && ok; ++attempt) {
+        const auto revision = physicalModifierRevision_.load();
+        const auto physical = physicalModifiers();
+        for (std::size_t index = 0; index < kModifierKeys.size(); ++index) {
+            const KeyDescriptor modifier{InputDevice::Keyboard, kModifierKeys[index]};
+            const auto encoded = EncodeKey(modifier);
+            const auto forwarded = forwardedDown_.find(encoded);
+            if ((physical & PhysicalModifierKeyBit(modifier)) == 0 && forwarded == forwardedDown_.end()) continue;
+            const auto modifierSource = forwarded != forwardedDown_.end() ? forwarded->second.source : src;
+            if (!SendIsolatedModifierLocked(modifier, false, modifierSource)) {
+                ok = false;
+                break;
+            }
+            releasedModifiers[index] = true;
+            hadModifiers = true;
+            if (forwarded != forwardedDown_.end()) {
+                suspendedModifiers[index] = forwarded->second;
+                forwardedDown_.erase(forwarded);
+            }
+        }
+        PublishHeldKeysLocked();
+        if (!ok) break;
+        if (hadModifiers) std::this_thread::sleep_for(kModifierReleaseGap);
+        if (revision == physicalModifierRevision_.load()) {
+            settled = true;
+            break;
+        }
+    }
+
+    if (ok && settled && canSend()) {
+        for (const auto& component : components) {
+            if (!canSend()) break;
+            if (tapKeys.size() + 1 == components.size()) beforeTap();
+            const auto encoded = EncodeKey(component);
+            const bool modifier = PhysicalModifierKeyBit(component) != 0;
+            const bool sent = modifier
+                ? SendIsolatedModifierLocked(component, true, src)
+                : SendDownLocked(component, src);
+            if (sent && modifier) {
+                forwardedDown_.insert_or_assign(encoded, ForwardedPress{src, std::chrono::steady_clock::now()});
+            }
+            if (!sent || forwardedDown_.count(encoded) == 0) {
+                ok = false;
+                break;
+            }
+            tapKeys.push_back(encoded);
+        }
+        tapped = tapKeys.size() == components.size();
+        if (tapped) {
+            std::this_thread::sleep_for(kIsolatedTapWidth);
+            result = IsolatedTapResult::Completed;
+        }
+    }
+
+    // Always release the primary before restoring any user's modifier.
+    for (auto it = tapKeys.rbegin(); it != tapKeys.rend(); ++it) {
+        const auto component = DecodeKey(*it);
+        if (PhysicalModifierKeyBit(component) == 0) {
+            ok = ReleaseForwardedKeyLocked(*it) && ok;
+        } else if (SendIsolatedModifierLocked(component, false, src)) {
+            forwardedDown_.erase(*it);
+        } else {
+            ok = false;
+        }
+    }
+    if (tapped && hadModifiers) std::this_thread::sleep_for(kModifierReleaseGap);
+    for (std::size_t index = 0; index < kModifierKeys.size(); ++index) {
+        if (!releasedModifiers[index]) continue;
+        const KeyDescriptor modifier{InputDevice::Keyboard, kModifierKeys[index]};
+        const auto encoded = EncodeKey(modifier);
+        if (const auto& previous = suspendedModifiers[index]) {
+            if (SendIsolatedModifierLocked(modifier, true, previous->source)) {
+                forwardedDown_.insert_or_assign(encoded,
+                    ForwardedPress{previous->source, std::chrono::steady_clock::now()});
+            } else {
+                ok = false;
+            }
+        } else if ((physicalModifiers() & PhysicalModifierKeyBit(modifier)) != 0) {
+            ok = SendIsolatedModifierLocked(modifier, true, src, true) && ok;
+            // A release can arrive on the hook while the driver call is in flight.
+            if ((physicalModifiers() & PhysicalModifierKeyBit(modifier)) == 0) {
+                ok = SendIsolatedModifierLocked(modifier, false, src) && ok;
+            }
+        }
+    }
+    PublishHeldKeysLocked();
+    return ok ? result : IsolatedTapResult::Failed;
+}
+
+bool InputDriverRouter::SendIsolatedModifierLocked(const KeyDescriptor& key, bool pressed,
+    InputSource src, bool physicalRestore) {
+    const auto index = ModifierKeyIndex(key);
+    if (!driver_ || index == kModifierKeys.size()) return false;
+    auto& events = isolatedModifierEvents_[index];
+    auto& count = pressed ? events.down : events.up;
+    auto& lastTick = pressed ? events.lastDownTick : events.lastUpTick;
+    const auto now = ::GetTickCount64();
+    if (now - lastTick.load() > kIsolatedModifierEventTtlMs) count.store(0);
+    lastTick.store(now);
+    count.fetch_add(1);
+    const bool sent = pressed
+        ? (physicalRestore ? driver_->RestorePhysicalDown(key, src) : driver_->SendDown(key, src))
+        : driver_->SendUp(key, src);
+    if (!sent) ConsumePendingEvent(count);
+    return sent;
+}
+
+bool InputDriverRouter::ConsumeIsolatedModifier(const KeyDescriptor& key, bool pressed) noexcept {
+    const auto index = ModifierKeyIndex(key);
+    if (index == kModifierKeys.size()) return false;
+    auto& events = isolatedModifierEvents_[index];
+    auto& count = pressed ? events.down : events.up;
+    const auto lastTick = (pressed ? events.lastDownTick : events.lastUpTick).load();
+    if (::GetTickCount64() - lastTick > kIsolatedModifierEventTtlMs) {
+        count.store(0);
+        return false;
+    }
+    return ConsumePendingEvent(count);
 }
 
 bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
@@ -293,8 +478,10 @@ void InputDriverRouter::ClearAllStates() {
 
 bool InputDriverRouter::ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) {
     // Hook callbacks must not wait on the router while driver I/O is in progress.
+    const bool isolatedModifier = ConsumeIsolatedModifier(key, pressed);
     auto* driver = selfInjectedDriver_.load();
-    return driver && driver->ConsumeSelfInjected(key, pressed);
+    const bool injected = driver && driver->ConsumeSelfInjected(key, pressed);
+    return isolatedModifier || injected;
 }
 
 bool InputDriverRouter::IsHeldDown(const KeyDescriptor& key) const noexcept {

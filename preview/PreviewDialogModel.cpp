@@ -174,9 +174,8 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
             for (auto& event : events) {
                 auto entry = event.toMap();
                 if (entry.value("id") != state_.value("selectedEvent")) continue;
-                const QString id = entry.value("id").toString();
                 entry.insert("available", action == "chooseSound"
-                    || QStringList{"repeatOn", "repeatOff", "macroOn", "macroOff"}.contains(id));
+                    || state_.value("defaultSoundsAvailable").toBool());
                 event = entry;
                 break;
             }
@@ -204,7 +203,7 @@ void PreviewDialogModel::dispatch(const QString& action, const QVariant& argumen
         recording_ = true;
         pendingModifierKeys_.clear();
         edit("keyText", tr("请按键或点击鼠标…"));
-        edit("captureHint", tr("先按住 Ctrl／Shift／Alt，再按主键；单独使用修饰键时直接松开。"));
+        edit("captureHint", tr("组合键如 Ctrl+1，先按住 Ctrl 再按 1；只录制 Ctrl，按一下再松开即可。"));
     } else if (action == "pick") {
         edit("positionHint", tr("示例固定点位：50%，50%"));
     } else if (action == "add" || action == "selectProcess") {
@@ -295,7 +294,8 @@ bool PreviewDialogModel::eventFilter(QObject* watched, QEvent* event) {
         if (isModifierKey(pressed->key())) {
             pendingModifierKeys_.append(pressed->key());
             edit("keyText", QKeySequence(pressed->keyCombination()).toString(QKeySequence::PortableText)
-                + tr(" 已按住，再按主键"));
+                + tr(" 已按住，再按另一个键"));
+            edit("captureHint", tr("再按一个键，就能录成组合键。只想录制刚才按住的 Ctrl、Shift 或 Alt，直接松开即可。"));
             return true;
         }
         key = QKeySequence(pressed->keyCombination()).toString(QKeySequence::PortableText);

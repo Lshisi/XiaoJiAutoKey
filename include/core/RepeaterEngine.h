@@ -34,12 +34,13 @@ struct TaskConfig {
 };
 
 struct MartialAssistRuntime {
-    enum class Phase { Idle, Holding, GameRepeat, Closing, CloseFailed };
+    enum class Phase { Idle, Holding, GameRepeat, ManualHolding, Closing, CloseFailed };
 
     Phase phase = Phase::Idle;
     HWND window = nullptr;
     std::chrono::steady_clock::time_point nextAction{};
-    bool closeForwarded = false;
+    std::chrono::steady_clock::time_point manualDownTime{};
+    bool manualHoldInterrupted = false;
 };
 
 struct TaskRuntime {
@@ -108,7 +109,7 @@ private:
     [[nodiscard]] bool IsMartialAssistForegroundLocked(HWND window,
         std::chrono::steady_clock::time_point now) const;
     [[nodiscard]] std::optional<std::chrono::steady_clock::time_point> MartialAssistDownSinceLocked(
-        const TaskRuntime& task, bool closing) const;
+        const TaskRuntime& task) const;
     void AdvanceMartialAssistLocked(std::chrono::steady_clock::time_point now);
     bool SyncOutputsLocked();
     void RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key);
@@ -168,7 +169,6 @@ private:
     struct OutputState {
         KeyDescriptor key;
         bool held = false;
-        bool martialAssistClose = false;
         bool longPressPrimary = false;
         bool martialAssist = false;
         bool traceRelease = false;

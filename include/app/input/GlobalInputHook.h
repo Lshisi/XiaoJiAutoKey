@@ -34,6 +34,7 @@ public:
     void setRawMouseActive(bool active);
     void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter);
     void setPhysicalInputFilter(std::function<bool(const KeyDescriptor&)> filter);
+    void setPhysicalKeyObserver(std::function<void(const KeyDescriptor&, bool)> observer);
 
     [[nodiscard]] bool isDialogOpen() const noexcept;
     [[nodiscard]] bool isRawKeyboardActive() const noexcept;
@@ -74,6 +75,7 @@ private:
     std::uint8_t physicalKeyboardModifiers_ = 0;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
     std::function<bool(const KeyDescriptor&)> physicalInputFilter_;
+    std::function<void(const KeyDescriptor&, bool)> physicalKeyObserver_;
     bool captureActive_ = false;
     ULONGLONG captureStartedTick_ = 0;
 

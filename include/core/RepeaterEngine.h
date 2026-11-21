@@ -36,13 +36,11 @@ struct TaskConfig {
 };
 
 struct MartialAssistRuntime {
-    enum class Phase { Idle, Holding, GameRepeat, ManualHolding, Closing, CloseFailed };
+    enum class Phase { Idle, Holding, GameRepeat, ManualControl, Closing, CloseFailed };
 
     Phase phase = Phase::Idle;
     HWND window = nullptr;
     std::chrono::steady_clock::time_point nextAction{};
-    std::chrono::steady_clock::time_point manualDownTime{};
-    bool manualHoldInterrupted = false;
 };
 
 struct TaskRuntime {

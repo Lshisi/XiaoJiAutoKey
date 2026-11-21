@@ -284,18 +284,12 @@ void RepeaterEngine::OnPhysicalDown(const KeyDescriptor& key) {
     const auto now = Now();
     for (auto& task : tasks_) {
         auto& assist = task.martialAssist;
-        if (assist.phase == AssistPhase::ManualHolding) {
-            const auto modifier = ModifierMaskFromKey(key);
-            if (modifier != 0 && (task.config.key.modifiers & modifier) == 0) {
-                assist.manualHoldInterrupted = true;
-            }
-            continue;
-        }
         if (toolRunning_ && IsMartialAssistEnabledLocked(task)
             && (assist.phase == AssistPhase::GameRepeat || assist.phase == AssistPhase::Closing)
             && KeyMatchesEvent(task.config.key, key) && IsMartialAssistForegroundLocked(assist.window, now)) {
-            assist = {AssistPhase::ManualHolding, assist.window, {}, now};
-            DiagLog::Write("martial assist manual down code=" + std::to_string(key.code));
+            assist = {AssistPhase::ManualControl, assist.window};
+            DiagLog::Write("martial assist manual control code=" + std::to_string(key.code)
+                + " result=no automatic restart or close");
         }
     }
     SyncOutputsLocked();
@@ -305,24 +299,6 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     waiter_.Wake();
     const auto encoded = EncodeKey(key);
-    const auto now = Now();
-    for (auto& task : tasks_) {
-        auto& assist = task.martialAssist;
-        if (assist.phase != AssistPhase::ManualHolding) continue;
-        if (SamePrimaryKey(task.config.key, key)) {
-            const bool gameRepeat = !assist.manualHoldInterrupted
-                && now >= assist.manualDownTime + kMartialAssistHold
-                && IsMartialAssistForegroundLocked(assist.window, now);
-            assist = {gameRepeat ? AssistPhase::GameRepeat : AssistPhase::Idle,
-                assist.window, now + kMartialAssistReleaseGap};
-            task.longPressAttemptLogged = false;
-            task.longPressForwardedLogged = false;
-            DiagLog::Write("martial assist manual up code=" + std::to_string(key.code)
-                + " result=" + (gameRepeat ? "game repeat" : "restart pending"));
-        } else if ((task.config.key.modifiers & ModifierMaskFromKey(key)) != 0) {
-            assist.manualHoldInterrupted = true;
-        }
-    }
 
     if (IsKeyboardModifierKey(key)) {
         if (pauseModifierGate_.UsesHookModifierState(key)) {
@@ -648,9 +624,8 @@ void RepeaterEngine::AdvanceMartialAssistLocked(std::chrono::steady_clock::time_
         }
 
         const bool sameForeground = IsMartialAssistForegroundLocked(assist.window, now);
-        if (assist.phase == AssistPhase::ManualHolding) {
+        if (assist.phase == AssistPhase::ManualControl) {
             if (!enabled) reset();
-            else if (!sameForeground) assist.manualHoldInterrupted = true;
             continue;
         }
         if (assist.phase == AssistPhase::Closing) {
@@ -747,7 +722,7 @@ bool RepeaterEngine::SyncEngineOutputsLocked() {
     for (const auto& task : tasks_) {
         const auto phase = task.martialAssist.phase;
         const bool closing = phase == AssistPhase::Closing;
-        if (closing || ((phase == AssistPhase::GameRepeat || phase == AssistPhase::ManualHolding) && toolRunning_)) {
+        if (closing || (phase == AssistPhase::GameRepeat && toolRunning_)) {
             const auto encoded = EncodeKey(task.config.key);
             if (activeEncoded.insert(encoded).second) activeKeys.push_back(task.config.key);
             continue;

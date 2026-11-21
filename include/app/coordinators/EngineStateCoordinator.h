@@ -25,6 +25,7 @@ public:
         std::function<void()> refreshHookState;
         std::function<void()> refreshStatusIndicators;
         std::function<void(bool, bool)> playToggleSound;
+        std::function<bool()> validateDriverOutputs;
     };
 
     explicit EngineStateCoordinator(QObject* parent = nullptr);

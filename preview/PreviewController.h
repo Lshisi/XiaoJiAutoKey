@@ -93,11 +93,13 @@ private:
     PreviewOnboardingModel onboarding_;
     QPointer<QWindow> window_;
     QString currentPage_ = QStringLiteral("keys");
-    DriverMode driverMode_ = DriverMode::Legacy;
+    DriverMode driverMode_ = DriverMode::Xiaoji;
     QStringList processes_{QStringLiteral("mumu*")};
     QVariantMap overlayOptions_;
     SoundSettings soundSettings_ = DefaultSoundSettings();
     bool demoData_ = false;
+    bool xiaojiInstalled_ = true;
+    bool xiaojiTrustEstablished_ = true;
     bool ddInstalled_ = true;
     bool hidInstalled_ = true;
     bool overlayLocked_ = false;

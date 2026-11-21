@@ -30,6 +30,7 @@
 - 开关模式（Toggle）：工具启动后自动开始连发，停止后统一停止
 - 长按模式（LongPress）：工具启动后持续按住配置键，停止时松开；切换前台窗口后自动恢复长按，仍遵循游戏前台限制、暂停键、按压优先和冲突规则
 - 武学助手：在长按项中启用，配合按压优先和游戏内置长按连发使用。每轮固定按住 3.1 秒，计时中失焦则回到原窗口后重新计时。
+- 小叽驱动下，武学助手支持对新按下的单独 Alt／Ctrl／Shift 暂停键先完成收尾、再转交暂停键，并保持后续输入顺序；此前已按住的修饰键及绕过低级钩子的游戏输入路径仍有隔离限制。
 - 按压模式（Hold）：按住配置键才连发，松开立即停止
 - 独立模式：启动工具后按配置键开启连发，按其他独立模式键可切换，同一时间只连发一个。默认再按当前键停止，添加或编辑按键时开启「防误停」后，再按当前键会继续连发
 - 切换模式：通过切换键轮换当前连发按键，列表下方显示当前段，停用按键会被跳过；可选择记住上次切换位置
@@ -55,7 +56,7 @@
 - 循环步骤支持批量修改启用状态、动作后间隔及保持／等待时长，未勾选字段保留原值；启动前检查按下／松开配对和总时长
 - 暂停时释放当前持有键并冻结计时，恢复后继续剩余保持／等待；已经发送的点击不会重发。停止、切换配置和退出时清理持有键
 - 循环步骤可设置可选名称，列表中的「动作」与「名称」分列显示；悬浮窗显示当前动作及名称
-- 滚轮输出使用 DD/HID 运行库的 `DD_whl`，可选方向与 1–100 格；当前 USB 固件没有滚轮命令，含滚轮的循环在该驱动下会提示无法启动
+- 滚轮输出支持小叽驱动及 DD 的 `DD_whl`，可选方向与 1–100 格；当前 USB 固件没有滚轮命令，含滚轮的循环在该驱动下会提示无法启动
 - 每个循环最多 512 步；单次录制接近剩余容量时自动停止并进入确认，分享导入遇到超限内容会拒绝，不截断步骤
 - 循环次数、触发模式（开关/按压）和宏暂停键独立配置
 - 独立快捷键触发，多个宏可共用触发键，同一时间只有当前选中的宏响应
@@ -80,8 +81,9 @@
 
 ### 驱动
 
-- DD/HID 驱动级按键模拟，适用于游戏等场景
-- 驱动管理页查看 DD/HID 状态、切换驱动模式、卸载 HID
+- 小叽驱动默认为第一驱动，DD 为第二驱动，USB 为第三驱动；已接入现有连发和循环输出路径
+- 驱动管理页查看状态、切换及管理小叽/DD 驱动；旧 HID 只保留卸载，检测到残留即持续显示按钮
+- 小叽驱动接入 NKRO 多键保持、F1–F24、媒体/浏览器键、鼠标五键、移动和滚轮；当前面向 Windows x64，本机签名安装依赖 .NET Framework 4.8、Windows PowerShell 及系统信任策略。
 - 驱动管理页可预览并复制诊断信息，报告不包含个人路径、剪贴板内容和完整配置
 - 支持键盘和鼠标按键（左键、右键、中键、侧键）及 Ctrl／Shift／Alt 组合主键
 - 自定义提示音：保留按键／循环整组开关，各事件可分别设置开关、音量与音频；支持整体启停、独立键启停与换键、切换模式换键、暂停／恢复和录制开始／结束（mp3、wav、wma、mid、midi）。默认音频文件名见 [提示音配置](docs/sound-cues.md)。
@@ -99,13 +101,13 @@
 2. 解压到任意目录（无需安装）
 3. 以管理员身份运行 `XiaoJiAutoKey.exe`
 
-> 解压后的 `driver/` 目录包含 DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll），请保持在 exe 同级目录。`config.json` 为运行时自动生成的用户配置，升级新版本时会被自动保留。
+> 解压后的 `driver/` 目录包含 DD 运行库（DD32.dll / DD64.dll）和小叽驱动管理/本机签名组件（xiaoji/xiaoji.exe、xiaoji/xiaoji-setup.exe），请保持在 exe 同级目录。小叽驱动已内置安装包，首次安装在单独确认证书信任后自动完成本机签名和安装；已有可信包时优先复用。`config.json` 为运行时自动生成的用户配置，升级新版本时会被自动保留。
 
 ## 快速上手
 
 首次打开软件会显示新手引导，依次介绍驱动、添加按键、模式与启用状态、启停快捷键、生效范围以及启动/暂停/停止。驱动已就绪时直接进入按键配置，异常时先衔接驱动自检。引导中不会自动开始连发，完成后由用户主动启动。可随时跳过，之后在「关于软件 → 配置说明 → 新手引导」重新查看；已有配置的升级用户不会自动重走。
 
-1. **安装驱动**：首次使用请在「驱动管理」页确认 DD/HID 驱动状态，必要时切换驱动模式（默认 DD，也可切换 HID）
+1. **安装驱动**：首次使用请在「驱动管理」页确认小叽驱动状态，点击安装/修复，按首次提示确认证书信任后自动安装，或按需切换到 DD / USB。旧 HID 不再提供安装和启用功能
 2. **配置全局启停键**：在按键连发页设置一个全局快捷键，按一次启动连发，再按一次停止
 3. **添加连发按键**：点击「添加按键」录制按键，选择模式（开关/按压/独立/切换/长按）和间隔；长按模式无需间隔
 4. **（可选）配置循环**：在「循环连发」页点击「添加步骤」手工编排，或用「录制一轮」生成步骤，设置循环次数和触发键；首次进入有独立的简短引导
@@ -126,6 +128,7 @@
 
 - Windows 10/11
 - Visual Studio 2022（MSVC v143 x64 和 Windows SDK）
+- .NET Framework 4.8（用于构建和运行小叽本机签名助手；无需另装驱动 WDK 或签名工具）
 - 官方独立版 CMake 3.30+（不要使用 VS BuildTools 自带 CMake）
 - Qt 6.8 或更新版本，包含 Qt QML、Qt Quick、Qt Quick Controls、Qt Quick Widgets、Qt SVG、Qt Shader Tools
 - 发布包使用静态 Qt，安装路径由 `CMAKE_PREFIX_PATH` 指定，不再使用旧 Qt 构建目录
@@ -163,7 +166,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath "D:\Qt\6.8.3-static" -CMakePath "D:\software\cmake-3.31.6\bin\cmake.exe"
 ```
 
-打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音和 DD/HID 运行库；打包脚本会自动排除 `config.json`。
+打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音、DD 运行库及小叽驱动管理、本机签名组件和许可证；打包脚本会自动排除 `config.json`。
 
 更详细的构建注意事项见 [AGENTS.md](AGENTS.md)。
 
@@ -203,7 +206,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 | `beepEnabled` | 按键连发整组提示音开关；各事件还需开启自己的单项开关 |
 | `macroBeepEnabled` | 循环连发及录制整组提示音开关 |
 | `closeAction` | 关闭窗口行为（`ask` / `minimize` / `exit`） |
-| `driverMode` | 驱动模式（`legacy` = DD，`hid` = HID，`usb` = USB 硬件） |
+| `driverMode` | 驱动模式（`xiaoji` = 小叽，默认；`legacy` = DD；`usb` = USB 硬件；旧 `hid` 自动迁移到小叽） |
 | `faction` | 门派主题 ID |
 | `latestKnownVersion` | 最近一次手动检查发现的版本号，仅用于保持"有新版本"标签显示，不触发联网 |
 | `dailyUsageMs` | 本机每日连发运行时长，键为 `YYYY-MM-DD`，值为毫秒数；不随按键方案分享 |
@@ -252,7 +255,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 
 ### 物理按键与注入事件的区分
 
-DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪机制区分物理事件和自身注入事件：
+小叽/DD 驱动发送的按键可能不携带 `LLKHF_INJECTED` 标志，优先通过 Raw Input 设备身份及父节点过滤自身输出，钩子同时跟踪自身报告事件；现有引擎还保留以下状态追踪：
 
 - `physicalDown_` + `ignoreCount_`：通用物理按键状态追踪，用计数器过滤 SendTap 产生的事件
 - `holdPhysicalDown_` + `holdUpIgnoreCount_`：Hold 模式按键的独立物理状态追踪
@@ -275,7 +278,8 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 │   ├── pico/               # 基于 Pico SDK + TinyUSB 的 USB 复合设备固件
 │   └── ch552/              # CH552 固件
 ├── third_party/
-│   ├── dd/                 # DD 驱动运行库（DD32.dll / DD64.dll / hid）
+│   ├── dd/                 # DD 驱动运行库（DD32.dll / DD64.dll）
+│   ├── xiaoji/             # 小叽驱动传输与管理源码、许可证及来源说明
 │   └── miniz/              # zip 解压库（更新功能使用）
 └── scripts/                # 构建、打包脚本与本地输入查看工具
 ```
@@ -291,6 +295,7 @@ DD 驱动发送的按键不携带 `LLKHF_INJECTED` 标志，采用双轨追踪�
 ## 开源协议
 
 - 本项目代码以 [GPL-3.0](./LICENSE) 协议开源
+- `third_party/xiaoji/`：派生自 [XiaojiDriver](https://github.com/ZyphrZero/XiaojiDriver) 与其上游 [HIDMaestro](https://github.com/hifihedgehog/HIDMaestro)，保留 [AGPL-3.0](third_party/xiaoji/LICENSE-AGPL-3.0) 与 [MIT 许可证及版权声明](third_party/xiaoji/LICENSE-HIDMaestro-MIT)；组合发布须提供相应源码并遵守许可证要求。
 - `third_party/miniz/`：miniz，公有领域 / MIT
 - `third_party/dd/` 下的 DD 驱动运行库为第三方闭源组件，版权归其原作者所有，仅作为运行时依赖分发
 

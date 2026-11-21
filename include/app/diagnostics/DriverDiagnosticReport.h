@@ -16,7 +16,7 @@ struct DriverRuntimeDiagnosticState {
 };
 
 struct DriverDiagnosticInput {
-    DriverMode mode = DriverMode::Legacy;
+    DriverMode mode = DriverMode::Xiaoji;
     bool driverReady = false;
     bool uninstalledByUser = false;
     bool guardsInspected = false;

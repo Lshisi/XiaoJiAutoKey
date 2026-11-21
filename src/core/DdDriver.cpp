@@ -2,8 +2,6 @@
 
 #include "DiagLog.h"
 
-#include <SetupAPI.h>
-#include <hidsdi.h>
 
 #include <algorithm>
 #include <array>
@@ -21,13 +19,6 @@
 
 namespace {
 
-constexpr auto kHidInitGuardTailDelay = std::chrono::milliseconds(100);
-constexpr int kHidInitCornerTolerancePx = 3;
-constexpr wchar_t kDdxoftHidDeviceToken[] = L"ddhid63340";
-constexpr DWORD kDdxoftHidMouseOutputReportBytes = 65;
-constexpr std::uint8_t kDdxoftHidOutputReportId = 0x40;
-constexpr std::uint8_t kDdxoftHidMouseCommand = 0x09;
-constexpr std::uint8_t kDdxoftHidRelativeMouseReportId = 0x04;
 constexpr ULONGLONG kSelfInjectedTtlMs = 80;
 constexpr int kMaxPendingInjectedEvents = 8;
 
@@ -35,40 +26,6 @@ bool IsInjectedSource(InputSource src) {
     return src == InputSource::Injected ||
         src == InputSource::Repeater ||
         src == InputSource::Macro;
-}
-
-bool IsNearHidInitCorner(const POINT& point) {
-    const int virtualLeft = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
-    const int virtualTop = ::GetSystemMetrics(SM_YVIRTUALSCREEN);
-    const bool nearVirtualTopLeft =
-        std::abs(point.x - virtualLeft) <= kHidInitCornerTolerancePx &&
-        std::abs(point.y - virtualTop) <= kHidInitCornerTolerancePx;
-    const bool nearPrimaryTopLeft =
-        std::abs(point.x) <= kHidInitCornerTolerancePx &&
-        std::abs(point.y) <= kHidInitCornerTolerancePx;
-    return nearVirtualTopLeft || nearPrimaryTopLeft;
-}
-
-LRESULT CALLBACK BlockWinKeyProc(int code, WPARAM wParam, LPARAM lParam) {
-    if (code == HC_ACTION) {
-        const auto* event = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
-        if (event != nullptr && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN ||
-                wParam == WM_KEYUP || wParam == WM_SYSKEYUP) &&
-            (event->vkCode == VK_LWIN || event->vkCode == VK_RWIN)) {
-            return 1;
-        }
-    }
-    return ::CallNextHookEx(nullptr, code, wParam, lParam);
-}
-
-LRESULT CALLBACK BlockHidInitMouseProc(int code, WPARAM wParam, LPARAM lParam) {
-    if (code == HC_ACTION && wParam == WM_MOUSEMOVE) {
-        const auto* event = reinterpret_cast<const MSLLHOOKSTRUCT*>(lParam);
-        if (event != nullptr && IsNearHidInitCorner(event->pt)) {
-            return 1;
-        }
-    }
-    return ::CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
 class MouseSettingsGuard {
@@ -106,98 +63,6 @@ private:
     bool mouseSpeedCaptured_ = false;
 };
 
-class HidInitGuard {
-public:
-    HidInitGuard() {
-        stopEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        readyEvent_ = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        if (stopEvent_ != nullptr && readyEvent_ != nullptr) {
-            hookThread_ = std::thread([this]() {
-                const HHOOK keyboardHook = ::SetWindowsHookExW(
-                    WH_KEYBOARD_LL,
-                    BlockWinKeyProc,
-                    ::GetModuleHandleW(nullptr),
-                    0);
-                const HHOOK mouseHook = ::SetWindowsHookExW(
-                    WH_MOUSE_LL,
-                    BlockHidInitMouseProc,
-                    ::GetModuleHandleW(nullptr),
-                    0);
-                ::SetEvent(readyEvent_);
-
-                MSG message{};
-                while (true) {
-                    const DWORD waitResult = ::MsgWaitForMultipleObjects(
-                        1,
-                        &stopEvent_,
-                        FALSE,
-                        INFINITE,
-                        QS_ALLINPUT);
-                    if (waitResult == WAIT_OBJECT_0) {
-                        break;
-                    }
-                    while (::PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
-                        ::TranslateMessage(&message);
-                        ::DispatchMessageW(&message);
-                    }
-                }
-
-                if (mouseHook != nullptr) {
-                    ::UnhookWindowsHookEx(mouseHook);
-                }
-                if (keyboardHook != nullptr) {
-                    ::UnhookWindowsHookEx(keyboardHook);
-                }
-            });
-            ::WaitForSingleObject(readyEvent_, 1000);
-        }
-
-        cursorCaptured_ = ::GetCursorPos(&oldPos_) != FALSE;
-    }
-
-    ~HidInitGuard() {
-        // Keep the input guard briefly after DD_btn(0) returns because the HID runtime may emit delayed input.
-        std::this_thread::sleep_for(kHidInitGuardTailDelay);
-        RestoreCursorIfHidJumped();
-        if (stopEvent_ != nullptr) {
-            ::SetEvent(stopEvent_);
-        }
-        if (hookThread_.joinable()) {
-            hookThread_.join();
-        }
-        if (readyEvent_ != nullptr) {
-            ::CloseHandle(readyEvent_);
-        }
-        if (stopEvent_ != nullptr) {
-            ::CloseHandle(stopEvent_);
-        }
-    }
-
-    HidInitGuard(const HidInitGuard&) = delete;
-    HidInitGuard& operator=(const HidInitGuard&) = delete;
-
-private:
-    void RestoreCursorIfHidJumped() const {
-        if (!cursorCaptured_ || IsNearHidInitCorner(oldPos_)) {
-            return;
-        }
-
-        POINT current{};
-        if (::GetCursorPos(&current) == FALSE) {
-            return;
-        }
-        if (IsNearHidInitCorner(current)) {
-            ::SetCursorPos(oldPos_.x, oldPos_.y);
-        }
-    }
-
-    POINT oldPos_{};
-    HANDLE readyEvent_ = nullptr;
-    HANDLE stopEvent_ = nullptr;
-    std::thread hookThread_;
-    bool cursorCaptured_ = false;
-};
-
 std::uint64_t EncodeKey(const KeyDescriptor& key) {
     return (static_cast<std::uint64_t>(key.device == InputDevice::Mouse ? 1 : 0) << 32) | key.code;
 }
@@ -217,50 +82,6 @@ std::optional<std::pair<int, int>> ToMouseCodes(std::uint32_t vk) {
     default:
         return std::nullopt;
     }
-}
-
-std::optional<std::uint8_t> ToHidMouseButtonBit(std::uint32_t vk) {
-    switch (vk) {
-    case VK_LBUTTON:
-        return 0x01;
-    case VK_RBUTTON:
-        return 0x02;
-    case VK_MBUTTON:
-        return 0x04;
-    case VK_XBUTTON1:
-        return 0x08;
-    case VK_XBUTTON2:
-        return 0x10;
-    default:
-        return std::nullopt;
-    }
-}
-
-std::wstring ToLower(std::wstring value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch) {
-        return static_cast<wchar_t>(std::towlower(ch));
-    });
-    return value;
-}
-
-bool IsDdxoftHidDevicePath(const wchar_t* devicePath) {
-    if (devicePath == nullptr || *devicePath == L'\0') {
-        return false;
-    }
-    return ToLower(devicePath).find(kDdxoftHidDeviceToken) != std::wstring::npos;
-}
-
-bool HasDdxoftHidOutputReport(HANDLE handle) {
-    PHIDP_PREPARSED_DATA preparsedData = nullptr;
-    if (!::HidD_GetPreparsedData(handle, &preparsedData)) {
-        return false;
-    }
-
-    HIDP_CAPS caps{};
-    const NTSTATUS capsStatus = ::HidP_GetCaps(preparsedData, &caps);
-    ::HidD_FreePreparsedData(preparsedData);
-    return capsStatus == HIDP_STATUS_SUCCESS &&
-        caps.OutputReportByteLength >= kDdxoftHidMouseOutputReportBytes;
 }
 
 using DDToDcFn = int(__stdcall*)(int);
@@ -386,14 +207,6 @@ DdDriver::~DdDriver() {
 }
 
 bool DdDriver::LoadFrom(const std::wstring& dllPath) {
-    return LoadFrom(dllPath, RuntimeKind::Legacy);
-}
-
-bool DdDriver::LoadHidFrom(const std::wstring& dllPath) {
-    return LoadFrom(dllPath, RuntimeKind::Hid);
-}
-
-bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
     // DD DLL initialization can change mouse acceleration inside LoadLibraryW.
     MouseSettingsGuard mouseSettingsGuard;
     Unload();
@@ -425,22 +238,14 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
         ddMov_ = reinterpret_cast<DD_move_t>(::GetProcAddress(module_, "dd_mov"));
     }
 
-    int initResult = [this, runtimeKind]() {
-        if (runtimeKind == RuntimeKind::Hid) {
-            HidInitGuard guard;
-            return ddBtn_(0);
-        }
-        return ddBtn_(0);
-    }();
+    int initResult = ddBtn_(0);
     if (initResult != 1) {
         std::wstring bindError;
-        if (runtimeKind == RuntimeKind::Legacy && TryBindInfDeviceHandles(dllPath, &bindError)) {
+        if (TryBindInfDeviceHandles(dllPath, &bindError)) {
             initResult = ddBtn_(0);
         }
         if (initResult != 1) {
-            lastError_ = runtimeKind == RuntimeKind::Hid
-                ? L"Please install the DD HID driver package first"
-                : L"Please install the DD INF driver package first; DD_btn(0)=" + std::to_wstring(initResult);
+            lastError_ = L"Please install the DD INF driver package first; DD_btn(0)=" + std::to_wstring(initResult);
             if (!bindError.empty()) {
                 lastError_ += L"; INF bind=" + bindError;
             }
@@ -456,7 +261,7 @@ bool DdDriver::LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind) {
         return false;
     }
 
-    runtimeKind_ = runtimeKind;
+    runtimeKind_ = RuntimeKind::Legacy;
     lastError_.clear();
     return true;
 }
@@ -482,7 +287,7 @@ bool DdDriver::LoadLegacyFromDirectory(const std::wstring& directoryPath) {
 
     std::wstring firstMeaningfulError;
     for (const auto& candidate : candidates) {
-        if (LoadFrom(candidate.wstring(), RuntimeKind::Legacy)) {
+        if (LoadFrom(candidate.wstring())) {
             return true;
         }
         if (firstMeaningfulError.empty() ||
@@ -507,11 +312,6 @@ bool DdDriver::LoadLegacyFromDirectory(const std::wstring& directoryPath) {
 void DdDriver::Unload() {
     // DLL teardown can restore stale settings after the user changed them.
     MouseSettingsGuard mouseSettingsGuard;
-    {
-        std::lock_guard lock(hidMouseMutex_);
-        CloseHidMouseHandleLocked();
-        hidMouseButtonState_ = 0;
-    }
     CloseInjectedInfHandles();
     if (module_ != nullptr) {
         ::FreeLibrary(module_);
@@ -531,7 +331,7 @@ void DdDriver::SwapWith(DdDriver& other) {
         return;
     }
 
-    std::scoped_lock lock(mutex_, other.mutex_, hidMouseMutex_, other.hidMouseMutex_);
+    std::scoped_lock lock(mutex_, other.mutex_);
     std::swap(module_, other.module_);
     std::swap(ddBtn_, other.ddBtn_);
     std::swap(ddKey_, other.ddKey_);
@@ -551,8 +351,6 @@ void DdDriver::SwapWith(DdDriver& other) {
 
     pressedKeys_.swap(other.pressedKeys_);
     selfInjected_.swap(other.selfInjected_);
-    std::swap(hidMouseHandle_, other.hidMouseHandle_);
-    std::swap(hidMouseButtonState_, other.hidMouseButtonState_);
 }
 
 bool DdDriver::TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage) {
@@ -785,13 +583,7 @@ void DdDriver::ReleaseAll() {
         }
     }
     pressedKeys_.clear();
-    {
-        std::lock_guard hidLock(hidMouseMutex_);
-        hidMouseButtonState_ = 0;
-        if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
-            WriteHidMouseReportLocked();
-        }
-    }
+
 }
 
 void DdDriver::ClearAllStates() {
@@ -831,15 +623,6 @@ bool DdDriver::SendMouseTap(std::uint32_t vk) {
 }
 
 bool DdDriver::SendMouseDown(std::uint32_t vk) {
-    if (runtimeKind_ == RuntimeKind::Hid) {
-        if (SendHidMouseButton(vk, true)) {
-            return true;
-        }
-        if (vk == VK_XBUTTON1 || vk == VK_XBUTTON2) {
-            return false;
-        }
-    }
-
     const auto mouseCodes = ToMouseCodes(vk);
     if (!mouseCodes.has_value()) {
         return false;
@@ -848,15 +631,6 @@ bool DdDriver::SendMouseDown(std::uint32_t vk) {
 }
 
 bool DdDriver::SendMouseUp(std::uint32_t vk) {
-    if (runtimeKind_ == RuntimeKind::Hid) {
-        if (SendHidMouseButton(vk, false)) {
-            return true;
-        }
-        if (vk == VK_XBUTTON1 || vk == VK_XBUTTON2) {
-            return false;
-        }
-    }
-
     const auto mouseCodes = ToMouseCodes(vk);
     if (!mouseCodes.has_value()) {
         return false;
@@ -867,30 +641,6 @@ bool DdDriver::SendMouseUp(std::uint32_t vk) {
 bool DdDriver::SendMouseMove(int deltaX, int deltaY, InputSource) {
     std::lock_guard ioLock(ioMutex_);
     if (!IsReady()) return false;
-
-    if (runtimeKind_ == RuntimeKind::Hid) {
-        // ddxoft HID 相对鼠标报文，位移按有符号字节分块发送。
-        std::lock_guard hidLock(hidMouseMutex_);
-        if (!EnsureHidMouseHandleLocked()) {
-            return false;
-        }
-        while (deltaX != 0 || deltaY != 0) {
-            const auto step = [](int value) -> signed char {
-                return static_cast<signed char>(std::clamp(value, -127, 127));
-            };
-            const int stepX = step(deltaX);
-            const int stepY = step(deltaY);
-            if (!WriteHidMouseReportLocked(stepX, stepY)) {
-                CloseHidMouseHandleLocked();
-                if (!EnsureHidMouseHandleLocked() || !WriteHidMouseReportLocked(stepX, stepY)) {
-                    return false;
-                }
-            }
-            deltaX -= stepX;
-            deltaY -= stepY;
-        }
-        return true;
-    }
 
     if (ddMovR_ != nullptr) {
         return ddMovR_(deltaX, deltaY) == 1;
@@ -906,175 +656,7 @@ bool DdDriver::SendMouseMove(int deltaX, int deltaY, InputSource) {
 }
 
 bool DdDriver::SupportsMouseMove() const {
-    if (runtimeKind_ == RuntimeKind::Hid) {
-        return true;  // 句柄按需打开
-    }
     return ddMov_ != nullptr || ddMovR_ != nullptr;
-}
-
-bool DdDriver::SendHidMouseButton(std::uint32_t vk, bool down) {
-    const auto buttonBit = ToHidMouseButtonBit(vk);
-    if (!buttonBit.has_value()) {
-        return false;
-    }
-
-    std::lock_guard lock(hidMouseMutex_);
-    if (!EnsureHidMouseHandleLocked()) {
-        return false;
-    }
-
-    const std::uint8_t oldState = hidMouseButtonState_;
-    if (down) {
-        hidMouseButtonState_ = static_cast<std::uint8_t>(hidMouseButtonState_ | *buttonBit);
-    } else {
-        hidMouseButtonState_ = static_cast<std::uint8_t>(hidMouseButtonState_ & ~*buttonBit);
-    }
-
-    if (WriteHidMouseReportLocked()) {
-        return true;
-    }
-
-    CloseHidMouseHandleLocked();
-    if (!EnsureHidMouseHandleLocked()) {
-        hidMouseButtonState_ = oldState;
-        return false;
-    }
-    if (WriteHidMouseReportLocked()) {
-        return true;
-    }
-
-    hidMouseButtonState_ = oldState;
-    return false;
-}
-
-bool DdDriver::EnsureHidMouseHandleLocked() {
-    if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
-        return true;
-    }
-
-    GUID hidGuid{};
-    ::HidD_GetHidGuid(&hidGuid);
-
-    HDEVINFO deviceInfo = ::SetupDiGetClassDevsW(
-        &hidGuid,
-        nullptr,
-        nullptr,
-        DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-    if (deviceInfo == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    bool opened = false;
-    int matchedInterfaces = 0;
-    int capsRejected = 0;
-    DWORD lastCreateError = 0;
-    for (DWORD index = 0; !opened; ++index) {
-        SP_DEVICE_INTERFACE_DATA interfaceData{};
-        interfaceData.cbSize = sizeof(interfaceData);
-        if (!::SetupDiEnumDeviceInterfaces(deviceInfo, nullptr, &hidGuid, index, &interfaceData)) {
-            break;
-        }
-
-        DWORD requiredSize = 0;
-        ::SetupDiGetDeviceInterfaceDetailW(
-            deviceInfo,
-            &interfaceData,
-            nullptr,
-            0,
-            &requiredSize,
-            nullptr);
-        if (requiredSize == 0) {
-            continue;
-        }
-
-        std::vector<BYTE> detailBuffer(requiredSize);
-        auto* detailData = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(detailBuffer.data());
-        detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
-        if (!::SetupDiGetDeviceInterfaceDetailW(
-                deviceInfo,
-                &interfaceData,
-                detailData,
-                requiredSize,
-                nullptr,
-                nullptr)) {
-            continue;
-        }
-
-        if (!IsDdxoftHidDevicePath(detailData->DevicePath)) {
-            continue;
-        }
-        ++matchedInterfaces;
-
-        HANDLE handle = ::CreateFileW(
-            detailData->DevicePath,
-            GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            nullptr,
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            nullptr);
-        if (handle == INVALID_HANDLE_VALUE) {
-            lastCreateError = ::GetLastError();
-            continue;
-        }
-
-        if (!HasDdxoftHidOutputReport(handle)) {
-            ++capsRejected;
-            ::CloseHandle(handle);
-            continue;
-        }
-
-        ::HidD_SetNumInputBuffers(handle, 64);
-        hidMouseHandle_ = handle;
-        opened = true;
-    }
-
-    ::SetupDiDestroyDeviceInfoList(deviceInfo);
-    if (opened) {
-        hidMouseOpenDiagLogged_ = false;
-        return true;
-    }
-
-    if (!hidMouseOpenDiagLogged_) {
-        hidMouseOpenDiagLogged_ = true;
-        char line[160] = {};
-        std::snprintf(line, sizeof(line),
-            "HID mouse handle open failed: matched=%d capsRejected=%d createError=%lu",
-            matchedInterfaces, capsRejected, lastCreateError);
-        DiagLog::Write(line);
-    }
-    return false;
-}
-
-bool DdDriver::WriteHidMouseReportLocked(int deltaX, int deltaY) {
-    if (hidMouseHandle_ == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    std::array<BYTE, kDdxoftHidMouseOutputReportBytes> report{};
-    report[0] = kDdxoftHidOutputReportId;
-    report[1] = kDdxoftHidMouseCommand;
-    report[2] = kDdxoftHidRelativeMouseReportId;
-    report[3] = hidMouseButtonState_;
-    // 报文第 4/5 字节是相对位移（有符号字节），单次最多 127 像素。
-    report[4] = static_cast<BYTE>(static_cast<signed char>(deltaX));
-    report[5] = static_cast<BYTE>(static_cast<signed char>(deltaY));
-
-    DWORD written = 0;
-    return ::WriteFile(
-        hidMouseHandle_,
-        report.data(),
-        static_cast<DWORD>(report.size()),
-        &written,
-        nullptr) != FALSE &&
-        written == report.size();
-}
-
-void DdDriver::CloseHidMouseHandleLocked() {
-    if (hidMouseHandle_ != INVALID_HANDLE_VALUE) {
-        ::CloseHandle(hidMouseHandle_);
-        hidMouseHandle_ = INVALID_HANDLE_VALUE;
-    }
 }
 
 void DdDriver::NoteMouseInjectResult(const KeyDescriptor& key, bool down, bool ok) {
@@ -1092,7 +674,7 @@ void DdDriver::NoteMouseInjectResult(const KeyDescriptor& key, bool down, bool o
     std::snprintf(line, sizeof(line), "mouse %s inject failed: vk=%u runtime=%s",
         down ? "down" : "up",
         key.code,
-        runtimeKind_ == RuntimeKind::Hid ? "hid" : "dd");
+        "dd");
     DiagLog::Write(line);
 }
 

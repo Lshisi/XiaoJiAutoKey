@@ -13,7 +13,7 @@
 - `XiaoJiAutoKey.exe` -- 主程序
 - `使用说明.mhtml` -- 离线使用说明
 - `audio/` -- 内置提示音文件
-- `driver/` -- DD/HID 运行库（DD32.dll / DD64.dll / hid/ddhid.63340.dll）
+- `driver/` -- DD 运行库（DD32.dll / DD64.dll）、小叽驱动管理/本机签名组件和许可证（xiaoji/xiaoji.exe、xiaoji/xiaoji-setup.exe 等）；可选的已签名小叽驱动包放在 xiaoji/package/。旧 HID 文件不再发布。
 
 不应包含：
 

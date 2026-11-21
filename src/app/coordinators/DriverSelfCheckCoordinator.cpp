@@ -24,7 +24,7 @@ QVector<QPair<Action, QString>> closeActions() {
 
 QString modeText(DriverMode mode) {
     if (mode == DriverMode::Usb) return QStringLiteral("USB");
-    return mode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
+    return mode == DriverMode::Xiaoji ? QObject::tr("小叽") : QStringLiteral("DD");
 }
 
 QString guardItemsHtml(const CodeIntegrityInspector::GuardStatus& guards) {
@@ -126,10 +126,8 @@ void DriverSelfCheckCoordinator::inspectSnapshot(std::shared_ptr<Snapshot> snaps
         try {
             if (inspectRuntime)
                 snapshot->status = inspectRuntime(snapshot->driverReady, snapshot->status.lastError);
-            const bool hid = snapshot->mode == DriverMode::Hid;
-            const bool runtimeExists = hid ? snapshot->status.hidRuntimeExists : snapshot->status.legacyRuntimeExists;
-            if (fullReport || (snapshot->mode != DriverMode::Usb && runtimeExists && !snapshot->driverReady
-                && !snapshot->uninstalledByUser && !(hid && snapshot->status.hidServicePendingDelete))) {
+            if (fullReport || (snapshot->mode == DriverMode::Legacy && snapshot->status.legacyRuntimeExists
+                && !snapshot->driverReady && !snapshot->uninstalledByUser)) {
                 snapshot->guards = CodeIntegrityInspector::Inspect(true);
                 snapshot->guardsInspected = true;
             }
@@ -204,9 +202,44 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
         return conclusion;
     }
 
-    const bool hid = snapshot.mode == DriverMode::Hid;
-    const bool runtimeExists = hid ? status.hidRuntimeExists : status.legacyRuntimeExists;
-    const QString runtimePath = QString::fromStdWString(hid ? status.hidRuntimePath : status.legacyRuntimePath);
+    if (snapshot.mode == DriverMode::Xiaoji) {
+        conclusion.severity = snapshot.driverReady ? DriverSelfCheckDialog::Severity::Ok
+            : DriverSelfCheckDialog::Severity::Warning;
+        conclusion.heading = snapshot.driverReady ? tr("小叽驱动已就绪") : tr("小叽驱动尚未就绪");
+        QStringList body;
+        body << tr("键盘：%1；鼠标：%2。")
+            .arg(status.xiaojiKeyboardReady ? tr("已启动") : tr("未就绪"),
+                 status.xiaojiMouseReady ? tr("已启动") : tr("未就绪"));
+        if (!snapshot.driverReady && snapshot.uninstalledByUser) {
+            const bool remnants = status.xiaojiKeyboardPresent || status.xiaojiMousePresent
+                || status.xiaojiConfigurationPresent || status.xiaojiBoundPackagePresent;
+            conclusion.heading = remnants ? tr("小叽驱动已停用，仍有安装残留") : tr("小叽驱动已卸载");
+            body << (remnants ? tr("你已主动停用小叽驱动，系统中仍有设备或卸载记录。"
+                "可在驱动管理页继续卸载；需要恢复使用时请主动重新连接或安装/修复。")
+                : tr("小叽驱动设备和卸载记录已移除，需要再次使用时请在驱动管理页主动安装。"));
+            conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
+            return conclusion;
+        }
+        if (!snapshot.driverReady) {
+            if (!status.xiaojiKeyboardReady || !status.xiaojiMouseReady) {
+                body << tr("请在驱动管理页点击安装/修复。程序会使用内置驱动包，首次需要你单独确认本机签名证书信任；"
+                    "已有可信安装包时会优先复用。日常启动不会自动安装或添加证书。");
+                if (!status.xiaojiManagerExists) body << tr("缺少 driver/xiaoji/xiaoji.exe，请恢复完整发布包中的管理工具。");
+                if (!status.xiaojiInstallerExists) body << tr("缺少 driver/xiaoji/xiaoji-setup.exe，请恢复完整发布包中的本机签名组件。");
+            } else if (!status.xiaojiProfileReady) {
+                body << tr("当前设备仍使用旧的输入配置。请点击安装/修复，升级为 NKRO 键盘、媒体键和五键鼠标配置。");
+            } else body << tr("系统设备已启动，但输入通道未连接。请在驱动管理页点击重新连接；"
+                "同时关闭其他使用小叽驱动的发送程序。");
+            if (!status.lastError.empty()) body << QString::fromStdWString(status.lastError).toHtmlEscaped();
+            if (!status.xiaojiError.empty()) body << QString::fromStdWString(status.xiaojiError).toHtmlEscaped();
+        }
+        body << tr("新版配置支持 NKRO 键盘、F1–F24、媒体/浏览器键、鼠标五键、移动与滚轮。"
+            "此自检只读取状态，不安装驱动、不发送输入。");
+        conclusion.bodyHtml = body.join(QStringLiteral("<br><br>"));
+        return conclusion;
+    }
+    const bool runtimeExists = status.legacyRuntimeExists;
+    const QString runtimePath = QString::fromStdWString(status.legacyRuntimePath);
     // Missing files take precedence over security settings and historical events.
     if (!runtimeExists) {
         conclusion.severity = snapshot.driverReady
@@ -246,39 +279,23 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
         conclusion.bodyHtml = tr("你已主动发起 %1 驱动卸载，程序保留了当前模式，并停用了自动安装。"
                                  "<br><br>需要再次使用时，请在驱动管理页点击“安装 %1”；"
                                  "也可以自行选择其他驱动模式。").arg(name);
-        if (hid && status.hidServicePendingDelete)
-            conclusion.bodyHtml += tr("<br><br>Windows 仍在等待删除 HID 驱动服务，请先重启电脑完成卸载。");
         return conclusion;
     }
 
     conclusion.severity = DriverSelfCheckDialog::Severity::Danger;
-    if (hid && status.hidServicePendingDelete) {
-        conclusion.heading = tr("HID 驱动卸载尚未完成");
-        conclusion.bodyHtml = tr("Windows 已将 HID 驱动服务标记为待删除。"
-                                 "请先重启电脑，让系统完成卸载，再到驱动管理页点击“安装/修复 HID”。");
-        return conclusion;
-    }
-
     QStringList missingComponents;
-    if (hid) {
-        if (!status.hidServiceInstalled) missingComponents << tr("HID 驱动服务");
-        if (!status.hidSysInstalled) missingComponents << QStringLiteral("ddhid63340.sys");
-    } else {
-        if (!status.infKeyboardServiceInstalled) missingComponents << tr("DD 键盘驱动服务");
-        if (!status.infMouseServiceInstalled) missingComponents << tr("DD 鼠标驱动服务");
-        if (!status.infKeyboardSysInstalled) missingComponents << QStringLiteral("dd.key.96688.sys");
-        if (!status.infMouseSysInstalled) missingComponents << QStringLiteral("dd.mou.96688.sys");
-    }
-    const bool devicesReady = hid ? (status.hidRootDeviceOk && status.hidChildDeviceOk)
-        : (status.infKeyboardDeviceStarted && status.infMouseDeviceStarted
-            && status.infKeyboardDeviceBound && status.infMouseDeviceBound);
+    if (!status.infKeyboardServiceInstalled) missingComponents << tr("DD 键盘驱动服务");
+    if (!status.infMouseServiceInstalled) missingComponents << tr("DD 鼠标驱动服务");
+    if (!status.infKeyboardSysInstalled) missingComponents << QStringLiteral("dd.key.96688.sys");
+    if (!status.infMouseSysInstalled) missingComponents << QStringLiteral("dd.mou.96688.sys");
+    const bool devicesReady = status.infKeyboardDeviceStarted && status.infMouseDeviceStarted
+        && status.infKeyboardDeviceBound && status.infMouseDeviceBound;
     QStringList body;
     if (!missingComponents.isEmpty()) {
         conclusion.heading = tr("%1 驱动安装不完整").arg(name);
         body << tr("运行文件已找到，但以下系统安装组件未找到：<br>%1")
             .arg(missingComponents.join(QStringLiteral("<br>")));
-        const bool embeddedDriverExists = hid ? status.hidEmbeddedDriverExists
-            : (status.embeddedInfVariant0Exists || status.embeddedInfVariant1Exists);
+        const bool embeddedDriverExists = status.embeddedInfVariant0Exists || status.embeddedInfVariant1Exists;
         if (!embeddedDriverExists) {
             body << tr("当前程序的内置驱动安装资源也不可用，请重新下载完整发布包后再安装。");
         } else {
@@ -287,15 +304,10 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
     } else if (!devicesReady) {
         conclusion.heading = tr("%1 驱动设备未就绪").arg(name);
         body << tr("运行文件、驱动服务和 SYS 文件已找到，但以下设备未就绪：");
-        if (hid) {
-            if (!status.hidRootDeviceOk) body << tr("HID 根设备：未就绪");
-            if (!status.hidChildDeviceOk) body << tr("HID 子设备：未就绪");
-        } else {
-            if (!status.infKeyboardDeviceStarted || !status.infKeyboardDeviceBound)
-                body << tr("DD 键盘设备：未启动或未绑定驱动服务");
-            if (!status.infMouseDeviceStarted || !status.infMouseDeviceBound)
-                body << tr("DD 鼠标设备：未启动或未绑定驱动服务");
-        }
+        if (!status.infKeyboardDeviceStarted || !status.infKeyboardDeviceBound)
+            body << tr("DD 键盘设备：未启动或未绑定驱动服务");
+        if (!status.infMouseDeviceStarted || !status.infMouseDeviceBound)
+            body << tr("DD 鼠标设备：未启动或未绑定驱动服务");
         body << tr("请先重新启动程序；若刚安装或卸载过驱动，可重启电脑后重新自检。");
     } else {
         conclusion.heading = tr("%1 驱动加载失败").arg(name);
@@ -310,9 +322,7 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
     QStringList records;
     for (const auto& block : snapshot.guards.recentBlocks) {
         const QString fileName = QString::fromStdWString(block.fileName);
-        const bool matchesMode = hid
-            ? fileName.compare(QStringLiteral("ddhid63340.sys"), Qt::CaseInsensitive) == 0
-            : (fileName.compare(QStringLiteral("dd.key.96688.sys"), Qt::CaseInsensitive) == 0
+        const bool matchesMode = (fileName.compare(QStringLiteral("dd.key.96688.sys"), Qt::CaseInsensitive) == 0
                 || fileName.compare(QStringLiteral("dd.mou.96688.sys"), Qt::CaseInsensitive) == 0);
         if (!matchesMode) continue;
         records << QStringLiteral("- %1 · %2 (%3)")

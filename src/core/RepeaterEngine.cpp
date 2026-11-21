@@ -4,6 +4,7 @@
 #include "DiagLog.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 constexpr int kWasdProtectionMinIntervalMs = 35;
@@ -34,7 +35,7 @@ bool IsWasdKey(const KeyDescriptor& key) {
 }  // namespace
 
 RepeaterEngine::RepeaterEngine(InputDriverRouter& driver)
-    : driver_(driver) {}
+    : driver_(driver), pauseModifierGate_(driver, [this] { waiter_.Wake(); }) {}
 
 RepeaterEngine::~RepeaterEngine() {
     StopThread();
@@ -47,14 +48,22 @@ void RepeaterEngine::StartThread() {
 }
 
 void RepeaterEngine::StopThread() {
+    pauseModifierGate_.Arm({}, nullptr);
     exit_ = true;
     waiter_.Wake();
     if (worker_.joinable()) worker_.join();
     ReleaseAll();
+    pauseModifierGate_.Cancel();
 }
 
 bool RepeaterEngine::IsToolRunning() const noexcept {
     return running_.load();
+}
+
+void RepeaterEngine::SetPauseChangedCallback(std::function<void(bool)> callback) {
+    std::lock_guard lock(mutex_);
+    pauseChanged_ = std::move(callback);
+    notifiedPause_ = toolRunning_ && IsPauseActive();
 }
 
 void RepeaterEngine::SetMixedMode(bool enabled) {
@@ -140,7 +149,19 @@ void RepeaterEngine::RefreshLongPressForeground(HWND window, bool allowed) {
 }
 
 bool RepeaterEngine::IsPauseActive() const {
-    return !pauseKeysDown_.empty();
+    return !pauseKeysDown_.empty() || pauseModifierGate_.IsPausing();
+}
+
+bool RepeaterEngine::InterceptPauseInput(const KeyDescriptor& key, bool pressed, bool allowStart) {
+    return pauseModifierGate_.InterceptKey(key, pressed, allowStart);
+}
+
+bool RepeaterEngine::InterceptPauseWheel(int delta) {
+    return pauseModifierGate_.InterceptWheel(delta);
+}
+
+bool RepeaterEngine::UsesHookModifierState(const KeyDescriptor& key) const {
+    return pauseModifierGate_.UsesHookModifierState(key);
 }
 
 bool RepeaterEngine::IsPausedByInputLocked() const {
@@ -304,6 +325,9 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     }
 
     if (IsKeyboardModifierKey(key)) {
+        if (pauseModifierGate_.UsesHookModifierState(key)) {
+            DiagLog::Write("pause modifier physical up code=" + std::to_string(key.code));
+        }
         const auto modifierMask = ModifierMaskFromKey(key);
         const auto usesModifier = [modifierMask](const KeyDescriptor& item) {
             return (item.modifiers & modifierMask) != 0;
@@ -615,6 +639,8 @@ void RepeaterEngine::AdvanceMartialAssistLocked(std::chrono::steady_clock::time_
             if (enabled && now >= assist.nextAction && IsTaskActiveLocked(task, now)
                 && IsMartialAssistForegroundLocked(target, now)) {
                 assist = {AssistPhase::Holding, target};
+                task.longPressAttemptLogged = false;
+                task.longPressForwardedLogged = false;
             } else if (!enabled) {
                 reset();
             }
@@ -664,6 +690,52 @@ void RepeaterEngine::AdvanceMartialAssistLocked(std::chrono::steady_clock::time_
 }
 
 bool RepeaterEngine::SyncOutputsLocked() {
+    const bool wasPausing = pauseModifierGate_.IsPausing();
+    NotifyPauseChangedLocked();
+    LogPauseStateLocked();
+    const bool ok = SyncEngineOutputsLocked();
+    const auto now = Now();
+    const bool canArm = toolRunning_ && !IsPauseActive()
+        && std::any_of(tasks_.begin(), tasks_.end(), [&](const auto& task) {
+            return IsMartialAssistEnabledLocked(task)
+                && (task.martialAssist.phase == AssistPhase::Holding
+                    || task.martialAssist.phase == AssistPhase::GameRepeat)
+                && IsMartialAssistForegroundLocked(task.martialAssist.window, now);
+        });
+    pauseModifierGate_.Arm(pauseKeys_, canArm ? longPressForegroundWindow_ : nullptr);
+    const bool relayed = pauseModifierGate_.Dispatch(IsMartialAssistClosingLocked());
+    NotifyPauseChangedLocked();
+    LogPauseStateLocked();
+    if (wasPausing && !pauseModifierGate_.IsPausing()) waiter_.Wake();
+    return relayed && ok;
+}
+
+void RepeaterEngine::NotifyPauseChangedLocked() {
+    if (!toolRunning_) {
+        notifiedPause_ = false;
+        return;
+    }
+    const bool paused = IsPauseActive();
+    if (paused == notifiedPause_) return;
+    notifiedPause_ = paused;
+    // The application callback only queues a GUI-thread notification.
+    if (pauseChanged_) pauseChanged_(paused);
+}
+
+void RepeaterEngine::LogPauseStateLocked() {
+    const bool paused = IsPausedByInputLocked();
+    if (!toolRunning_ || paused == loggedPaused_) {
+        if (!toolRunning_) loggedPaused_ = false;
+        return;
+    }
+    loggedPaused_ = paused;
+    DiagLog::Write(std::string("repeater pause ") + (paused ? "entered" : "cleared")
+        + " pauseKeys=" + std::to_string(pauseKeysDown_.size())
+        + " intercepted=" + std::to_string(pauseModifierGate_.IsPausing())
+        + " holdPriority=" + std::to_string(mixedMode_ && IsHoldActive()));
+}
+
+bool RepeaterEngine::SyncEngineOutputsLocked() {
     std::vector<OutputState> desired;
     std::vector<KeyDescriptor> activeKeys;
     std::unordered_set<std::uint64_t> activeEncoded;
@@ -764,9 +836,8 @@ bool RepeaterEngine::SyncOutputsLocked() {
         if (output.martialAssist && !IsMartialAssistForegroundLocked(longPressForegroundWindow_, Now())) return false;
         if (source != tasks_.end()) {
             if (CanUseClickPosition(output.key) && source->config.clickPos.IsFixed()) {
-                if (const auto point = ResolveClickAnchorScreenPoint(source->config.clickPos)) {
-                    MoveCursorToScreenPoint(driver_, point->x, point->y);
-                }
+                const auto point = ResolveClickAnchorScreenPoint(source->config.clickPos);
+                if (!point || !MoveCursorToScreenPoint(driver_, point->x, point->y)) return false;
             }
         }
         if (output.martialAssist && !IsMartialAssistForegroundLocked(longPressForegroundWindow_, Now())) {
@@ -800,9 +871,8 @@ bool RepeaterEngine::SyncOutputsLocked() {
         if (assist.phase != AssistPhase::Closing || Now() < assist.nextAction) continue;
         if (CanUseClickPosition(task.config.key) && task.config.clickPos.IsFixed()
             && IsMartialAssistForegroundLocked(assist.window, Now())) {
-            if (const auto point = ResolveClickAnchorScreenPoint(task.config.clickPos)) {
-                MoveCursorToScreenPoint(driver_, point->x, point->y);
-            }
+            const auto point = ResolveClickAnchorScreenPoint(task.config.clickPos);
+            if (!point || !MoveCursorToScreenPoint(driver_, point->x, point->y)) return false;
         }
         const auto result = driver_.SendIsolatedTap(task.config.key, InputSource::Repeater, [&]() {
             return IsMartialAssistForegroundLocked(assist.window, Now());
@@ -1022,6 +1092,7 @@ void RepeaterEngine::WorkerLoop() {
 
             const bool outputsSynced = SyncOutputsLocked();
             const auto syncedAt = Now();
+            if (pauseModifierGate_.HasPendingInput()) schedule(syncedAt + std::chrono::milliseconds(1));
             if (!outputsSynced) schedule(syncedAt + std::chrono::milliseconds(kDefaultDelayMs));
             const bool assistClosing = IsMartialAssistClosingLocked();
             if (assistWasClosing && !assistClosing) schedule(Now());

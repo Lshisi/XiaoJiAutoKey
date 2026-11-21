@@ -24,6 +24,11 @@ void EngineHookCoordinator::bind(Context context) {
     connect(context_.hook, &GlobalInputHook::macroTriggerChanged, this, [this](const KeyDescriptor& key, bool pressed) {
         handleMacroTriggerChanged(key, pressed);
     });
+    connect(context_.hook, &GlobalInputHook::hookPhysicalKeyChanged, this, [this](const KeyDescriptor& key, bool pressed) {
+        if (context_.rawInput) context_.rawInput->noteHookPhysicalKey(key, pressed);
+        if (context_.hook->isRecordingActive()) return;
+        handleRawInputChanged(key, pressed);
+    });
 
     if (context_.rawInput) {
         connect(context_.rawInput, &RawInputManager::keyboardChanged, this, [this](const KeyDescriptor& key, bool pressed) {

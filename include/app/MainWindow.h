@@ -2,6 +2,7 @@
 
 #include "AppTypes.h"
 #include "DdDriver.h"
+#include "XiaojiDriver.h"
 #include "ForegroundWatcher.h"
 #include "InputDriverRouter.h"
 #include "ShareCodec.h"
@@ -14,6 +15,7 @@
 #include "controllers/ProfileController.h"
 #include "RepeaterEngine.h"
 #include "services/DdRuntimeService.h"
+#include "services/XiaojiRuntimeService.h"
 #include "services/CodeIntegrityInspector.h"
 #include "services/SoundService.h"
 #include "coordinators/DriverCoordinator.h"
@@ -40,6 +42,7 @@
 #include <QMainWindow>
 #include <QStringList>
 #include <QTimer>
+#include <cstdint>
 
 class QMimeData;
 
@@ -69,7 +72,7 @@ private:
     void refreshStatusOverlay();
     void openStatusOverlaySettings(bool macroPage);
     bool loadConfiguredDriver();
-    bool loadHidDriver();
+    bool loadXiaojiDriver();
     bool loadLegacyDriver();
     bool loadCh552UsbDriver();
     bool activeInputDriverReady() const;
@@ -77,7 +80,7 @@ private:
     bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
     bool canLoadCh552UsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
-    bool ensureHidDriverInstalledForSwitch(bool repairRequested);
+    bool prepareXiaojiDriverForSwitch();
     void logDriverUnavailableOnce();
     // 任何“驱动不可用”的触发点（启动失败/切换失败/热键撞上死驱动）自动打开一次自检向导，
     // 不区分根因——向导内部会做诊断分诊。
@@ -86,8 +89,8 @@ private:
     void applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& status,
         const CodeIntegrityInspector::GuardStatus& guards, const std::wstring& detectedUsbPort);
     DriverCoordinator::SwitchResult switchDriverMode(DriverMode mode);
-    bool prepareDriverUninstall(DriverMode mode);
-    void finalizeDriverUninstall(DriverMode mode);
+    bool prepareDriverUninstall(DriverRemovalTarget target);
+    void finalizeDriverUninstall(DriverRemovalTarget target, bool succeeded);
     bool restartForDriverModeChange();
     bool restartApplication(const QString& reasonMessage);
     void quitApplication();
@@ -135,6 +138,7 @@ private:
     ProfileController profileController_;
     MacroController macroController_;
 
+    XiaojiDriver xiaojiDriver_;
     DdDriver driver_;
     Ch552UsbDriver ch552Driver_;
     InputDriverRouter inputDriver_;
@@ -144,6 +148,7 @@ private:
     RawInputManager rawInput_;
     ForegroundWatcher gameWatcher_;
     DdRuntimeService ddRuntimeService_;
+    XiaojiRuntimeService xiaojiRuntimeService_;
     SoundService soundService_;
     StatusOverlayWindow statusOverlay_;
     DriverCoordinator driverCoordinator_;
@@ -184,6 +189,10 @@ private:
     bool onboardingStartupScheduled_ = false;
     // 每次运行只自动弹一次自检向导，避免反复失败时打扰。
     bool selfCheckAutoOpened_ = false;
+    std::uint64_t selfCheckPromptGeneration_ = 0;
+    bool driverUninstallInProgress_ = false;
+    bool driverUninstallPreviousState_ = false;
+    bool driverUninstallFailed_ = false;
     std::wstring driverStatusNote_;
     bool exitRequested_ = false;
     bool systemShutdownRequested_ = false;

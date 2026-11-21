@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ConfigStore.h"
 #include "DdDriver.h"
+#include "XiaojiDriver.h"
 #include "services/AppPaths.h"
 #include "services/CodeIntegrityInspector.h"
 #include "services/DdRuntimeService.h"
@@ -101,8 +102,6 @@ void PreserveTimerResolution() {
 
 const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
     switch (kind) {
-    case DdDriver::RuntimeKind::Hid:
-        return "hid";
     case DdDriver::RuntimeKind::Legacy:
         return "legacy";
     default:
@@ -112,8 +111,8 @@ const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
 
 const char* DriverModeText(DriverMode mode) {
     switch (mode) {
-    case DriverMode::Hid:
-        return "hid";
+    case DriverMode::Xiaoji:
+        return "xiaoji";
     case DriverMode::Usb:
         return "usb";
     default:
@@ -153,6 +152,8 @@ std::string DetectDriverModeFromRawConfig(const std::string& text) {
         text.find("\"driverMode\":\"pico\"") != std::string::npos) {
         return "usb";
     }
+    if (text.find("\"driverMode\": \"xiaoji\"") != std::string::npos
+        || text.find("\"driverMode\":\"xiaoji\"") != std::string::npos) return "xiaoji";
     return "unknown";
 }
 
@@ -193,14 +194,6 @@ int main(int argc, char *argv[]) {
         // Agent installation is temporarily disabled.
         return 2;
     }
-    if (args.contains(QStringLiteral("--probe-dd-hid"))) {
-        const int index = args.indexOf(QStringLiteral("--probe-dd-hid"));
-        if (index < 0 || index + 1 >= args.size()) {
-            return 2;
-        }
-        DdDriver probeDriver;
-        return probeDriver.LoadHidFrom(args.at(index + 1).toStdWString()) ? 0 : 3;
-    }
     if (args.contains(QStringLiteral("--diagnose-driver"))) {
         AppPaths appPaths;
         const std::string rawConfigText = ReadFileText(appPaths.configPath());
@@ -208,6 +201,9 @@ int main(int argc, char *argv[]) {
         const AppConfig config = store.Load();
         DdRuntimeService runtime(std::filesystem::path(appPaths.exeDir()), appPaths.logsDir());
         DdDriver driver;
+        XiaojiDriver xiaojiDriver;
+        InputDriver* selected = config.driverMode == DriverMode::Xiaoji
+            ? static_cast<InputDriver*>(&xiaojiDriver) : &driver;
         std::error_code error;
         std::filesystem::create_directories(appPaths.logsDir(), error);
         std::ostringstream reportText;
@@ -222,16 +218,12 @@ int main(int argc, char *argv[]) {
             loadSkippedReason = "The selected driver was explicitly uninstalled by the user.";
         } else if (config.driverMode == DriverMode::Usb) {
             loadSkippedReason = "USB connection is not probed by this command.";
-        } else if (config.driverMode == DriverMode::Hid) {
-            const bool installed = statusBefore.hidServiceInstalled && statusBefore.hidSysInstalled &&
-                (statusBefore.hidRootDeviceOk || statusBefore.hidChildDeviceOk);
-            if (statusBefore.hidRuntimeExists && installed && !statusBefore.hidServicePendingDelete) {
+        } else if (config.driverMode == DriverMode::Xiaoji) {
+            if (statusBefore.xiaojiKeyboardReady && statusBefore.xiaojiMouseReady) {
                 loadAttempted = true;
-                loadOk = driver.LoadHidFrom(statusBefore.hidRuntimePath);
-                loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Hid;
-            } else {
-                loadSkippedReason = "HID runtime or installed driver is not ready; diagnosis does not install drivers.";
-            }
+                loadOk = xiaojiDriver.Connect();
+                loadedAsConfigured = loadOk;
+            } else loadSkippedReason = "Xiaoji keyboard/mouse not ready; diagnosis never installs drivers.";
         } else {
             const bool installed = statusBefore.infKeyboardServiceInstalled && statusBefore.infMouseServiceInstalled &&
                 statusBefore.infKeyboardSysInstalled && statusBefore.infMouseSysInstalled;
@@ -247,25 +239,18 @@ int main(int argc, char *argv[]) {
         WriteText(reportText, "config_path", appPaths.configPath().string());
         WriteText(reportText, "config_driver_mode_raw_scan", DetectDriverModeFromRawConfig(rawConfigText));
         WriteText(reportText, "config_driver_mode", DriverModeText(config.driverMode));
-        WriteBool(reportText, "status_hid_runtime_exists", statusBefore.hidRuntimeExists);
-        WriteBool(reportText, "status_hid_service_installed", statusBefore.hidServiceInstalled);
-        WriteBool(reportText, "status_hid_sys_installed", statusBefore.hidSysInstalled);
-        WriteBool(reportText, "status_hid_root_device_ok", statusBefore.hidRootDeviceOk);
-        WriteBool(reportText, "status_hid_child_device_ok", statusBefore.hidChildDeviceOk);
+        WriteBool(reportText, "status_xiaoji_keyboard_ready", statusBefore.xiaojiKeyboardReady);
+        WriteBool(reportText, "status_xiaoji_mouse_ready", statusBefore.xiaojiMouseReady);
         WriteBool(reportText, "status_legacy32_exists", statusBefore.legacy32Exists);
         WriteBool(reportText, "status_legacy64_exists", statusBefore.legacy64Exists);
         WriteBool(reportText, "driver_uninstalled_by_user", uninstalledByUser);
         WriteBool(reportText, "load_attempted", loadAttempted);
         WriteText(reportText, "load_skipped_reason", loadSkippedReason);
-        WriteBool(reportText, "probe_hid_ok", config.driverMode == DriverMode::Hid && loadOk);
-        WriteText(reportText, "probe_hid_message", config.driverMode != DriverMode::Hid
-            ? "Not run: HID is not the selected mode."
-            : (!loadAttempted ? loadSkippedReason : (loadOk ? "HID runtime loaded." : ToUtf8Line(driver.GetLastError()))));
         WriteBool(reportText, "load_ok", loadOk);
         WriteBool(reportText, "loaded_as_configured", loadedAsConfigured);
-        WriteText(reportText, "loaded_runtime_kind", RuntimeKindText(driver.GetRuntimeKind()));
-        WriteBool(reportText, "driver_ready", driver.IsReady());
-        WriteText(reportText, "driver_last_error", ToUtf8Line(driver.GetLastError()));
+        WriteText(reportText, "loaded_runtime_kind", config.driverMode == DriverMode::Xiaoji ? "xiaoji" : RuntimeKindText(driver.GetRuntimeKind()));
+        WriteBool(reportText, "driver_ready", selected->IsReady());
+        WriteText(reportText, "driver_last_error", ToUtf8Line(selected->GetLastError()));
 
         const auto guards = CodeIntegrityInspector::Inspect(true);
         WriteBool(reportText, "guard_memory_integrity_running", guards.memoryIntegrityRunning);

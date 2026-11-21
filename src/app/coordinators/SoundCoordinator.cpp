@@ -42,7 +42,6 @@ void SoundCoordinator::handleRepeatInput(const RepeaterStatus& before, const Rep
             : before.independentKey ? SoundEvent::IndependentSwitch : SoundEvent::IndependentOn);
     }
     if (before.sequenceTaskId != after.sequenceTaskId && after.sequenceTaskId) playEvent(SoundEvent::SequenceSwitch);
-    if (before.paused != after.paused) playEvent(after.paused ? SoundEvent::RepeatPause : SoundEvent::RepeatResume);
 }
 
 void SoundCoordinator::openSettings(SoundGroup group) {

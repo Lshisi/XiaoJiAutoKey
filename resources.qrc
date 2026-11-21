@@ -64,9 +64,5 @@
     <file alias="dd/inf/1/dd.mou.96688.cat">third_party/dd/inf/1/dd.mou.96688.cat</file>
     <file alias="dd/inf/1/dd.mou.96688.inf">third_party/dd/inf/1/dd.mou.96688.inf</file>
     <file alias="dd/inf/1/dd.mou.96688.sys">third_party/dd/inf/1/dd.mou.96688.sys</file>
-    <file alias="dd/hid/drv/ddc.exe">third_party/dd/hid/drv/ddc.exe</file>
-    <file alias="dd/hid/drv/ddhid63340.cat">third_party/dd/hid/drv/ddhid63340.cat</file>
-    <file alias="dd/hid/drv/ddhid63340.inf">third_party/dd/hid/drv/ddhid63340.inf</file>
-    <file alias="dd/hid/drv/ddhid63340.sys">third_party/dd/hid/drv/ddhid63340.sys</file>
 </qresource>
 </RCC>

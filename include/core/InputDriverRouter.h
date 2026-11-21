@@ -20,9 +20,14 @@ public:
     void NotePhysicalKey(const KeyDescriptor& key, bool pressed);
     void NoteHookPhysicalKey(const KeyDescriptor& key, bool pressed) noexcept;
     [[nodiscard]] InputDriver* CurrentDriver() const noexcept;
+    [[nodiscard]] bool CanRelayPauseModifier(const KeyDescriptor& key) const noexcept;
+    void SetPhysicalModifierIntercepted(const KeyDescriptor& key, bool intercepted) noexcept;
+    bool RelayPhysicalKey(const KeyDescriptor& key, bool pressed);
+    void ReleaseRelayedKeys();
 
     [[nodiscard]] bool IsReady() const noexcept override;
     [[nodiscard]] std::wstring GetLastError() const override;
+    [[nodiscard]] std::wstring KeySupportError(const KeyDescriptor& key) const override;
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     IsolatedTapResult SendIsolatedTap(const KeyDescriptor& key, InputSource src,
         const std::function<bool()>& canSend, const std::function<void()>& beforeTap);
@@ -38,6 +43,8 @@ public:
     void ReleaseAll() override;
     void ClearAllStates() override;
     bool ConsumeSelfInjected(const KeyDescriptor& key, bool pressed) override;
+    bool ConsumeSelfInjectedRaw(const KeyDescriptor& key, bool pressed) override;
+    bool ConsumeSelfInjectedWheel(int delta) override;
     [[nodiscard]] bool IsHeldDown(const KeyDescriptor& key) const noexcept;
     [[nodiscard]] std::optional<std::chrono::steady_clock::time_point> ForwardedDownSince(
         const KeyDescriptor& key, InputSource src) const;
@@ -94,6 +101,9 @@ private:
     std::atomic<std::uint8_t> hookPhysicalModifiers_{0};
     std::atomic<bool> hookPhysicalModifiersKnown_{false};
     std::atomic<std::uint64_t> physicalModifierRevision_{0};
+    std::atomic<bool> pauseModifierRelaySupported_{false};
+    std::atomic<std::uint8_t> interceptedModifiers_{0};
+    HeldKeySet relayedKeys_;
     std::array<PendingModifierEvents, 8> isolatedModifierEvents_;
     std::unordered_map<std::uint64_t, ForwardedPress> forwardedDown_;
     // 仲裁跳过诊断：记录每个 (key, source) 首次被静默跳过，恢复正常注入后清除，避免高频刷日志。

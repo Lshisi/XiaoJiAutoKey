@@ -68,24 +68,50 @@ set(MOC_HEADERS
 set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
 set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
 set(AUTOKEY_DD_DLL64 "${AUTOKEY_DD_DIR}/DD64.dll")
-set(AUTOKEY_DD_HID_DIR "${AUTOKEY_DD_DIR}/hid")
-set(AUTOKEY_DD_HID_DLL "${AUTOKEY_DD_HID_DIR}/ddhid.63340.dll")
-set(AUTOKEY_DD_HID_DRV_DIR "${AUTOKEY_DD_HID_DIR}/drv")
-set(AUTOKEY_DD_HID_DDC "${AUTOKEY_DD_HID_DRV_DIR}/ddc.exe")
-set(AUTOKEY_DD_HID_CAT "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.cat")
-set(AUTOKEY_DD_HID_INF "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.inf")
-set(AUTOKEY_DD_HID_SYS "${AUTOKEY_DD_HID_DRV_DIR}/ddhid63340.sys")
 set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
+set(XIAOJI_SIGNED_DRIVER_DIR "" CACHE PATH "Optional trusted signed XiaojiDriver INF/DLL/CAT package")
+
+add_library(XiaojiNative STATIC third_party/xiaoji/xiaoji_native.cpp)
+target_include_directories(XiaojiNative PUBLIC "${CMAKE_SOURCE_DIR}/third_party/xiaoji")
+target_link_libraries(XiaojiNative PUBLIC setupapi cfgmgr32 newdev advapi32 shell32 ole32)
+add_executable(XiaojiManagement third_party/xiaoji/management_cli.cpp)
+target_link_libraries(XiaojiManagement PRIVATE XiaojiNative wintrust crypt32)
+set_target_properties(XiaojiManagement PROPERTIES OUTPUT_NAME "xiaoji"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/driver/xiaoji")
+foreach(xiaoji_target XiaojiNative XiaojiManagement)
+    set_target_properties(${xiaoji_target} PROPERTIES AUTOMOC OFF AUTORCC OFF)
+    target_compile_definitions(${xiaoji_target} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    if(MSVC)
+        target_compile_options(${xiaoji_target} PRIVATE /utf-8 /W4 /permissive-)
+        set_property(TARGET ${xiaoji_target} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+endforeach()
+
+find_program(XIAOJI_POWERSHELL_EXECUTABLE NAMES powershell.exe
+    HINTS "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0" REQUIRED)
+set(XIAOJI_LOCAL_INSTALLER "${CMAKE_BINARY_DIR}/xiaoji-installer/xiaoji-setup.exe")
+add_custom_command(OUTPUT "${XIAOJI_LOCAL_INSTALLER}"
+    COMMAND "${XIAOJI_POWERSHELL_EXECUTABLE}" -NoProfile -NonInteractive -ExecutionPolicy Bypass
+        -File "${CMAKE_SOURCE_DIR}/scripts/build-xiaoji-installer.ps1" -OutputPath "${XIAOJI_LOCAL_INSTALLER}"
+    DEPENDS scripts/build-xiaoji-installer.ps1
+        third_party/xiaoji/LocalInstaller.cs third_party/xiaoji/LocalSetup.cs third_party/xiaoji/DriverStore.cs
+        third_party/xiaoji/driver/xiaoji.dll third_party/xiaoji/driver/xiaoji.inf
+        third_party/xiaoji/driver/xiaoji.cat third_party/xiaoji/driver/payload.json
+    VERBATIM)
+add_custom_target(XiaojiLocalInstaller DEPENDS "${XIAOJI_LOCAL_INSTALLER}")
 
 set(CORE_SOURCES
     src/core/AppTypes.cpp
     src/core/ClickPositioning.cpp
     src/core/ConfigStore.cpp
     src/core/DdDriver.cpp
+    src/core/XiaojiDriver.cpp
+    src/core/XiaojiKeyMap.cpp
     src/core/DiagLog.cpp
     src/core/FactionTheme.cpp
     src/core/ForegroundWatcher.cpp
     src/core/InputDriverRouter.cpp
+    src/core/PauseModifierGate.cpp
     src/core/JsonLite.cpp
     src/core/MacroEngine.cpp
     src/core/MacroTiming.cpp
@@ -166,6 +192,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/app/services/AutoStartService.h
     include/app/services/CodeIntegrityInspector.h
     include/app/services/DdRuntimeService.h
+    include/app/services/XiaojiRuntimeService.h
     include/app/services/SoundService.h
     include/app/services/UpdateService.h
     include/app/dialogs/BindingEditDialog.h
@@ -193,6 +220,8 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/core/MacroEngine.h
     include/core/MacroTiming.h
     include/core/InputDriver.h
+    include/core/XiaojiDriver.h
+    include/core/XiaojiKeyMap.h
     include/core/InputDriverRouter.h
     include/core/Ch552UsbDriver.h
     include/core/PicoUsbDriver.h
@@ -231,6 +260,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/services/AutoStartService.cpp
     src/app/services/CodeIntegrityInspector.cpp
     src/app/services/DdRuntimeService.cpp
+    src/app/services/XiaojiRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/services/UpdateService.cpp
     src/app/services/AgentService.cpp
@@ -405,6 +435,7 @@ target_compile_definitions(XiaoJiAutoKey PRIVATE
 )
 
 target_link_libraries(XiaoJiAutoKey PRIVATE
+    XiaojiNative
     Qt6::Widgets
     Qt6::Svg
     Qt6::Qml
@@ -419,7 +450,6 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     dwmapi
     d3d11
     dxgi
-    hid
     setupapi
     cfgmgr32
     advapi32
@@ -435,6 +465,34 @@ if(MSVC)
 endif()
 
 set_target_properties(XiaoJiAutoKey PROPERTIES OUTPUT_NAME "XiaoJiAutoKey")
+add_dependencies(XiaoJiAutoKey XiaojiManagement XiaojiLocalInstaller)
+add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${XIAOJI_LOCAL_INSTALLER}"
+        "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/xiaoji-setup.exe"
+    VERBATIM)
+
+foreach(xiaoji_license LICENSE-AGPL-3.0 LICENSE-HIDMaestro-MIT)
+    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/third_party/xiaoji/${xiaoji_license}"
+            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/${xiaoji_license}"
+        VERBATIM)
+endforeach()
+if(XIAOJI_SIGNED_DRIVER_DIR)
+    foreach(xiaoji_file xiaoji.inf xiaoji.dll xiaoji.cat)
+        if(NOT EXISTS "${XIAOJI_SIGNED_DRIVER_DIR}/${xiaoji_file}")
+            message(FATAL_ERROR "Signed XiaojiDriver package is incomplete: ${xiaoji_file}")
+        endif()
+        add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/package"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${XIAOJI_SIGNED_DRIVER_DIR}/${xiaoji_file}"
+                "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/package/${xiaoji_file}"
+            VERBATIM)
+    endforeach()
+endif()
 
 if(EXISTS "${AUTOKEY_DD_DLL32}")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
@@ -455,40 +513,6 @@ if(EXISTS "${AUTOKEY_DD_DLL64}")
             "${AUTOKEY_DD_DLL64}"
             "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD64.dll"
         COMMENT "Copying DD64.dll to the target driver directory"
-    )
-endif()
-
-if(EXISTS "${AUTOKEY_DD_HID_DLL}")
-    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_HID_DLL}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/ddhid.63340.dll"
-        COMMENT "Copying DD HID runtime DLL to the target driver directory"
-    )
-endif()
-
-if(EXISTS "${AUTOKEY_DD_HID_DDC}" OR
-   EXISTS "${AUTOKEY_DD_HID_CAT}" OR
-   EXISTS "${AUTOKEY_DD_HID_INF}" OR
-   EXISTS "${AUTOKEY_DD_HID_SYS}")
-    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_HID_DDC}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddc.exe"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_HID_CAT}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.cat"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_HID_INF}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.inf"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_HID_SYS}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/hid/drv/ddhid63340.sys"
-        COMMENT "Copying DD HID driver helper files to the target driver directory"
     )
 endif()
 

@@ -35,17 +35,29 @@ PreviewController::PreviewController(QObject* parent)
     connect(&settingsPage_, &SettingsPageModel::gameGateProcessesEditRequested, this, &PreviewController::showProcesses);
     connect(&driverPage_, &DriverPageModel::driverModeChanged, this, [this](DriverMode mode) {
         if (mode == driverMode_) {
+            if (mode == DriverMode::Xiaoji && !xiaojiInstalled_ && !xiaojiTrustEstablished_) {
+                dialog_.present("DialogMessage.qml", tr("信任小叽本机签名证书"),
+                    {{"message", tr("正式程序首次安装时，会单独确认本机签名证书信任，然后自动签名并安装内置驱动。\n\n"
+                        "此处只预览确认后的界面状态，不操作证书、驱动或文件。")}},
+                    [this](const QVariantMap&) {
+                        xiaojiTrustEstablished_ = true;
+                        xiaojiInstalled_ = true;
+                        refreshDriver();
+                    }, 460, true);
+                return;
+            }
             if (mode == DriverMode::Legacy) ddInstalled_ = true;
-            if (mode == DriverMode::Hid) hidInstalled_ = true;
+            if (mode == DriverMode::Xiaoji) xiaojiInstalled_ = true;
         }
         driverMode_ = mode;
         refreshDriver();
     });
-    connect(&driverPage_, &DriverPageModel::uninstallDriverRequested, this, [this](DriverMode mode) {
+    connect(&driverPage_, &DriverPageModel::uninstallDriverRequested, this, [this](DriverRemovalTarget mode) {
         dialog_.present("DialogMessage.qml", tr("卸载驱动"), {{"message", tr("确认展示卸载后的界面状态？此操作只修改预览数据。")}},
             [this, mode](const QVariantMap&) {
-                if (mode == DriverMode::Legacy) ddInstalled_ = false;
-                if (mode == DriverMode::Hid) hidInstalled_ = false;
+                if (mode == DriverRemovalTarget::Legacy) ddInstalled_ = false;
+                if (mode == DriverRemovalTarget::Xiaoji) xiaojiInstalled_ = false;
+                if (mode == DriverRemovalTarget::RetiredHid) hidInstalled_ = false;
                 refreshDriver();
             }, 400, true);
     });
@@ -118,6 +130,8 @@ void PreviewController::setDemoData(bool enabled) {
         days[today.toString(Qt::ISODate).toStdString()] = 92 * 60000;
     }
     usagePage_.setUsage(days, false);
+    xiaojiInstalled_ = enabled;
+    xiaojiTrustEstablished_ = enabled;
     ddInstalled_ = enabled;
     hidInstalled_ = enabled;
     refreshDriver();
@@ -156,16 +170,19 @@ void PreviewController::minimizeWindow() { if (window_) window_->showMinimized()
 void PreviewController::closeWindow() { if (window_) window_->close(); }
 
 void PreviewController::refreshDriver() {
-    const QString name = QStringList{"DD", "HID", "USB"}[static_cast<int>(driverMode_)];
-    const bool ready = driverMode_ == DriverMode::Legacy ? ddInstalled_
-        : driverMode_ == DriverMode::Hid ? hidInstalled_ : demoData_;
+    const QString name = QStringList{tr("小叽"), "DD", "USB"}[static_cast<int>(driverMode_)];
+    const bool ready = driverMode_ == DriverMode::Xiaoji ? xiaojiInstalled_
+        : driverMode_ == DriverMode::Legacy ? ddInstalled_ : demoData_;
     driverPage_.setDriverMode(driverMode_);
-    driverPage_.setDriverActions(ddInstalled_, hidInstalled_);
+    driverPage_.setDriverActions(xiaojiInstalled_, ddInstalled_, hidInstalled_);
     driverPage_.setInstallAction(!ready && driverMode_ != DriverMode::Usb, tr("安装 %1").arg(name));
     driverPage_.setStatusSummary(ready ? tr("%1 · 已就绪（示例）").arg(name) : tr("%1 · 未就绪（示例）").arg(name));
-    driverPage_.setDetailText(tr("配置驱动: %1\n当前错误: %2\nDD32.dll: 已找到\nDD64.dll: 已找到\nINF 键盘服务: %3\nINF 鼠标服务: %3\nINF 键盘设备: %4\nINF 鼠标设备: %4\nHID DLL: 已找到\nHID 服务: %5\nHID SYS: %5\nHID Root 设备: %6\nHID 子设备: %6\nUSB 设备: 示例设备\nUSB 通信: %7\nUSB 固件: 界面预览")
-        .arg(name, ready ? tr("无（示例状态）") : tr("示例驱动未安装"),
-            ddInstalled_ ? tr("已安装") : tr("未安装"), ddInstalled_ ? QStringLiteral("OK") : tr("未安装"),
-            hidInstalled_ ? tr("已安装") : tr("未安装"), hidInstalled_ ? QStringLiteral("OK") : tr("未安装"),
-            demoData_ ? tr("已连接") : tr("未连接")));
+    QStringList lines{tr("配置驱动: %1").arg(name), QString(), tr("小叽驱动（默认）"),
+        tr("键盘/鼠标: %1").arg(xiaojiInstalled_ ? tr("已就绪") : tr("未安装")),
+        tr("本机签名安装: 可用（示例）"),
+        tr("输出范围: NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮"),
+        QString(), QStringLiteral("DD"), tr("服务/设备: %1").arg(ddInstalled_ ? tr("已就绪") : tr("未安装")),
+        QString(), QStringLiteral("USB"), tr("通信: %1").arg(demoData_ ? tr("已连接") : tr("未连接"))};
+    if (hidInstalled_) lines << QString() << tr("旧 HID: 检测到安装残留，仅提供卸载入口");
+    driverPage_.setDetailText(lines.join(QLatin1Char('\n')));
 }

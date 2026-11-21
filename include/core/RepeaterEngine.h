@@ -3,10 +3,12 @@
 #include "AppTypes.h"
 #include "InputDriverRouter.h"
 #include "PrecisionWaiter.h"
+#include "PauseModifierGate.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -74,6 +76,7 @@ public:
     void ForgetProfileRuntimeState(std::uint64_t profileId);
     void SetToolRunning(bool running);
     bool IsToolRunning() const noexcept;
+    void SetPauseChangedCallback(std::function<void(bool)> callback);
     void SetMixedMode(bool enabled);
     void SetWasdProtection(bool enabled);
     void SetSequenceSwitchKey(std::optional<KeyDescriptor> key);
@@ -88,6 +91,9 @@ public:
 
     void OnPhysicalDown(const KeyDescriptor& key);
     void OnPhysicalUp(const KeyDescriptor& key);
+    bool InterceptPauseInput(const KeyDescriptor& key, bool pressed, bool allowStart);
+    bool InterceptPauseWheel(int delta);
+    [[nodiscard]] bool UsesHookModifierState(const KeyDescriptor& key) const;
     void ReleaseAll();
 
     bool HasActiveHoldKeys() const;
@@ -112,6 +118,9 @@ private:
         const TaskRuntime& task) const;
     void AdvanceMartialAssistLocked(std::chrono::steady_clock::time_point now);
     bool SyncOutputsLocked();
+    bool SyncEngineOutputsLocked();
+    void LogPauseStateLocked();
+    void NotifyPauseChangedLocked();
     void RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key);
     static std::chrono::steady_clock::time_point Now();
 
@@ -122,12 +131,16 @@ private:
     std::atomic<bool> suspended_{false};
     std::thread worker_;
     PrecisionWaiter waiter_;
+    PauseModifierGate pauseModifierGate_;
 
     mutable std::mutex mutex_;
     std::vector<TaskRuntime> tasks_;
 
     std::unordered_set<KeyDescriptor, KeyDescriptorHash> physicalDown_;
     bool toolRunning_ = false;
+    bool loggedPaused_ = false;
+    bool notifiedPause_ = false;
+    std::function<void(bool)> pauseChanged_;
     bool mixedMode_ = false;
     bool wasdProtection_ = false;
     std::atomic<bool> longPressForegroundInvalidated_{false};

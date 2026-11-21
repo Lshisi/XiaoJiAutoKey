@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/ZyphrZero/XiaojiDriver",
+  "release": "v0.1.0",
+  "sourceCommit": "080c3f08c9243da13fc82dd153ba119490208659",
+  "archive": "https://github.com/ZyphrZero/XiaojiDriver/releases/download/v0.1.0/xiaoji-driver-0.1.0-win-x64-unsigned.zip",
+  "archiveSha256": "cad8d78d2f701f29eed5cbeb6c5d9aea74bed2f594fbf06cfbb293a2716406cd",
+  "files": {
+    "xiaoji.dll": "ffa02500cab8edf2ad4a71eaa5b45e8899b78ee28e30487062bc88bc041a088a",
+    "xiaoji.inf": "872140e386a1d8831498f22457de286a7fb41acc142916508fd4a387e8032312",
+    "xiaoji.cat": "f851959afda7bbb73ec00e0c13c8060e32486ad5240eabf0a44147c549d499a8"
+  }
+}

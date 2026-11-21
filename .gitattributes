@@ -1,0 +1,4 @@
+# Keep the catalogue's pinned member bytes intact on every checkout.
+third_party/xiaoji/driver/xiaoji.inf -text
+third_party/xiaoji/driver/xiaoji.cat -text
+third_party/xiaoji/driver/xiaoji.dll -text

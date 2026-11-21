@@ -38,6 +38,7 @@ void EngineStateCoordinator::setRepeatRunning(bool running) {
 bool EngineStateCoordinator::setRepeatRunningFast(bool running) {
     if (!context_.repeaterEngine) return false;
     if (context_.repeaterEngine->IsToolRunning() == running) return false;
+    if (running && context_.validateDriverOutputs && !context_.validateDriverOutputs()) return false;
 
     context_.repeaterEngine->SetToolRunning(running);
     if (context_.inputHook) context_.inputHook->setRepeatRunning(running);

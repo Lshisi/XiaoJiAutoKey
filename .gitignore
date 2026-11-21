@@ -38,8 +38,7 @@ third_party/libwdi/*
 # Keep bundled DD runtime DLLs in version control
 !third_party/dd/DD32.dll
 !third_party/dd/DD64.dll
-!third_party/dd/hid/
-!third_party/dd/hid/**
+!third_party/xiaoji/driver/xiaoji.dll
 !third_party/inf
 
 # CMake generated

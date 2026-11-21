@@ -1,9 +1,11 @@
 #include "input/RawInputManager.h"
 
 #include <SetupAPI.h>
+#include <cfgmgr32.h>
 
 #include <algorithm>
 #include <cwctype>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -17,12 +19,11 @@ std::wstring ToLower(std::wstring value) {
 
 bool ContainsAnyVirtualToken(const std::wstring& lowerName) {
     constexpr const wchar_t* tokens[] = {
-        L"ddhid",
-        L"ddhid63340",
         L"dd.key",
         L"dd.mou",
         L"ddxoft",
-        L"root#ddhid",
+        L"root\\xiaoji\\kbd0001",
+        L"root\\xiaoji\\mou0001",
         L"vid_1209&pid_584a",
     };
     for (const auto* token : tokens) {
@@ -125,6 +126,20 @@ std::wstring QueryDeviceIdentity(const std::wstring& devicePath) {
         identity += QueryRegistryProperty(deviceInfo, deviceData, property);
     }
 
+    // Raw HID child paths do not necessarily contain the root enumerator's
+    // name. Walk the parent chain to identify the two fixed Xiaoji devices.
+    DEVINST node = deviceData.DevInst;
+    for (int depth = 0; depth < 12; ++depth) {
+        wchar_t instance[MAX_DEVICE_ID_LEN]{};
+        if (CM_Get_Device_IDW(node, instance, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
+            identity += L' ';
+            identity += instance;
+        }
+        DEVINST parent = 0;
+        if (CM_Get_Parent(&parent, node, 0) != CR_SUCCESS) break;
+        node = parent;
+    }
+
     ::SetupDiDestroyDeviceInfoList(deviceInfo);
     return identity;
 }
@@ -149,7 +164,7 @@ bool RawInputManager::registerWindow(HWND hwnd) {
         RAWINPUTDEVICE device{};
         device.usUsagePage = 0x01;
         device.usUsage = usage;
-        device.dwFlags = RIDEV_INPUTSINK;
+        device.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
         device.hwndTarget = hwnd;
         return RegisterRawInputDevices(&device, 1, sizeof(device)) != FALSE;
     };
@@ -159,12 +174,11 @@ bool RawInputManager::registerWindow(HWND hwnd) {
     hwnd_ = hwnd;
     deviceCache_.clear();
     keyboardModifiers_ = 0;
-    if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) keyboardModifiers_ |= kKeyModifierCtrl;
-    if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) keyboardModifiers_ |= kKeyModifierCtrl;
-    if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) keyboardModifiers_ |= kKeyModifierShift;
-    if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) keyboardModifiers_ |= kKeyModifierShift;
-    if (GetAsyncKeyState(VK_LMENU) & 0x8000) keyboardModifiers_ |= kKeyModifierAlt;
-    if (GetAsyncKeyState(VK_RMENU) & 0x8000) keyboardModifiers_ |= kKeyModifierAlt;
+    modifierKeysDown_.clear();
+    for (const auto code : {VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU}) {
+        if (GetAsyncKeyState(code) & 0x8000)
+            updateModifierState({InputDevice::Keyboard, static_cast<std::uint32_t>(code)}, true);
+    }
     return keyboardActive_ && mouseActive_;
 }
 
@@ -200,7 +214,32 @@ bool RawInputManager::isMouseActive() const noexcept {
     return mouseActive_;
 }
 
+void RawInputManager::setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter) {
+    selfInjectedFilter_ = std::move(filter);
+}
+
+void RawInputManager::setHookModifierSource(std::function<bool(const KeyDescriptor&)> source) {
+    hookModifierSource_ = std::move(source);
+}
+
+void RawInputManager::updateModifierState(const KeyDescriptor& key, bool pressed) {
+    if (ModifierMaskFromKey(key) == 0) return;
+    if (pressed) modifierKeysDown_.insert(key.code);
+    else modifierKeysDown_.erase(key.code);
+    keyboardModifiers_ = 0;
+    for (const auto code : modifierKeysDown_)
+        keyboardModifiers_ |= ModifierMaskFromKey({InputDevice::Keyboard, code});
+}
+
+void RawInputManager::noteHookPhysicalKey(const KeyDescriptor& key, bool pressed) {
+    updateModifierState(key, pressed);
+}
+
 bool RawInputManager::handleNativeMessage(MSG* message, qintptr* result) {
+    if (message && message->message == WM_INPUT_DEVICE_CHANGE) {
+        deviceCache_.clear();
+        return false;
+    }
     if ((!keyboardActive_ && !mouseActive_) || !message || message->message != WM_INPUT) {
         return false;
     }
@@ -238,17 +277,21 @@ bool RawInputManager::handleNativeMessage(MSG* message, qintptr* result) {
         if (!key.IsValid()) {
             return false;
         }
+        if (!raw.header.hDevice && selfInjectedFilter_ && selfInjectedFilter_(key, pressed)) return false;
+        // Intercepted modifier edges may never produce WM_INPUT. Once the
+        // hook owns this modifier's physical state, late raw edges must not
+        // reintroduce a stale DOWN or trigger the engines a second time.
+        if (hookModifierSource_ && hookModifierSource_(key)) return false;
         KeyDescriptor event = key;
         const auto modifierMask = ModifierMaskFromKey(key);
         if (modifierMask != 0) {
-            if (pressed) keyboardModifiers_ |= modifierMask;
-            else keyboardModifiers_ &= static_cast<std::uint8_t>(~modifierMask);
+            updateModifierState(key, pressed);
         } else {
             event.modifiers = keyboardModifiers_;
         }
         emit keyboardChanged(event, pressed);
     } else if (raw.header.dwType == RIM_TYPEMOUSE && mouseActive_) {
-        emitRawMouseChanges(raw.data.mouse);
+        emitRawMouseChanges(raw.data.mouse, !raw.header.hDevice);
     } else {
         return false;
     }
@@ -317,12 +360,14 @@ KeyDescriptor RawInputManager::rawKeyboardKeyDescriptor(const RAWKEYBOARD& keybo
         flags);
 }
 
-void RawInputManager::emitRawMouseChanges(const RAWMOUSE& mouse) {
+void RawInputManager::emitRawMouseChanges(const RAWMOUSE& mouse, bool unknownDevice) {
     const USHORT flags = mouse.usButtonFlags;
-    const auto emitButton = [this, flags](USHORT downFlag, USHORT upFlag, std::uint32_t vk) {
+    const auto emitButton = [this, flags, unknownDevice](USHORT downFlag, USHORT upFlag, std::uint32_t vk) {
         KeyDescriptor key{InputDevice::Mouse, vk, keyboardModifiers_};
-        if ((flags & downFlag) != 0) emit mouseChanged(key, true);
-        if ((flags & upFlag) != 0) emit mouseChanged(key, false);
+        if ((flags & downFlag) != 0 && !(unknownDevice && selfInjectedFilter_ && selfInjectedFilter_(key, true)))
+            emit mouseChanged(key, true);
+        if ((flags & upFlag) != 0 && !(unknownDevice && selfInjectedFilter_ && selfInjectedFilter_(key, false)))
+            emit mouseChanged(key, false);
     };
 
     emitButton(RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, VK_LBUTTON);

@@ -14,9 +14,18 @@ public:
         std::wstring lastError;
         bool driverRootExists = false;
         std::wstring driverRootPath;
-        std::wstring hidRuntimePath;
-        bool hidRuntimeExists = false;
-        bool hidEmbeddedDriverExists = false;
+        bool xiaojiManagerExists = false;
+        bool xiaojiInstallerExists = false;
+        bool xiaojiKeyboardPresent = false;
+        bool xiaojiMousePresent = false;
+        bool xiaojiKeyboardReady = false;
+        bool xiaojiMouseReady = false;
+        bool xiaojiProfileReady = false;
+        bool xiaojiBoundPackagePresent = false;
+        bool xiaojiConfigurationPresent = false;
+        std::wstring xiaojiError;
+        // Legacy HID detection exists only to keep its uninstall entry available.
+        bool hidDevicesPresent = false;
         bool hidServiceInstalled = false;
         bool hidServicePendingDelete = false;
         bool hidSysInstalled = false;
@@ -47,11 +56,9 @@ public:
 
     [[nodiscard]] RuntimeStatus Inspect(const DdDriver& driver) const;
     [[nodiscard]] RuntimeStatus Inspect(bool driverReady, const std::wstring& lastError) const;
-    [[nodiscard]] bool InstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool UninstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool UninstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
-    [[nodiscard]] bool ProbeHidRuntime(int timeoutMs, std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
                                                std::wstring* resultMessage = nullptr) const;
     void LogRuntimeError(const wchar_t* fileName, const std::wstring& message) const;
@@ -61,7 +68,6 @@ public:
     [[nodiscard]] std::filesystem::path DriverRootDir() const;
 
 private:
-    [[nodiscard]] bool EmbeddedHidDriverExists() const;
     [[nodiscard]] bool EmbeddedInfVariantExists(int variant) const;
     [[nodiscard]] bool HidRootDeviceOk() const;
     [[nodiscard]] bool HidChildDeviceOk() const;
@@ -69,8 +75,6 @@ private:
     [[nodiscard]] bool ServiceExists(const wchar_t* serviceName) const;
     [[nodiscard]] std::filesystem::path SystemDriversDir() const;
     [[nodiscard]] bool HidDriverStorePresent() const;
-    [[nodiscard]] std::filesystem::path HidRootPath() const;
-    [[nodiscard]] std::filesystem::path HidRuntimePath() const;
     [[nodiscard]] std::filesystem::path Legacy32Path() const;
     [[nodiscard]] std::filesystem::path Legacy64Path() const;
 

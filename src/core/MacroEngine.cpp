@@ -63,6 +63,10 @@ void MacroEngine::OnTriggerDown(const KeyDescriptor& key) {
         if (!rt.error.empty()) continue;
         for (const auto& step : rt.config.steps) {
             if (!step.enabled) continue;
+            if (MacroActionNeedsKey(step.action)) {
+                rt.error = driver_.KeySupportError(step.key);
+                if (!rt.error.empty()) break;
+            }
             if (step.action == MacroAction::Wheel && !driver_.SupportsMouseWheel()) {
                 rt.error = L"当前驱动不支持滚轮，请切换支持滚轮的驱动后启动。";
                 break;
@@ -246,7 +250,7 @@ void MacroEngine::ExecuteStepLocked(MacroRuntime& rt) {
     }
     if (MacroActionNeedsKey(step.action)) {
         if (!SyncOutputsLocked()) {
-            rt.error = L"按键输出失败，循环已停止。";
+            rt.error = L"按键输出失败，循环已停止。" + driver_.GetLastError();
             ResetRuntime(rt);
             return;
         }

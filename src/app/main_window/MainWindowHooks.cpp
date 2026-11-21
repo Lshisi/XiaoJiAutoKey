@@ -6,15 +6,44 @@
 #include <stdexcept>
 
 void MainWindow::setupHooks() {
+    engine_.SetPauseChangedCallback([this](bool paused) {
+        QMetaObject::invokeMethod(this, [this, paused] {
+            if (engine_.IsToolRunning())
+                soundCoordinator_.playEvent(paused ? SoundEvent::RepeatPause : SoundEvent::RepeatResume);
+        }, Qt::QueuedConnection);
+    });
+    rawInput_.setSelfInjectedFilter([this](const KeyDescriptor& key, bool pressed) {
+        return inputDriver_.ConsumeSelfInjectedRaw(key, pressed);
+    });
+    rawInput_.setHookModifierSource([this](const KeyDescriptor& key) {
+        return engine_.UsesHookModifierState(key);
+    });
     rawInput_.registerWindow(reinterpret_cast<HWND>(winId()));
+    for (const auto code : {VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT,
+             VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN}) {
+        const KeyDescriptor modifier{InputDevice::Keyboard, static_cast<std::uint32_t>(code)};
+        const bool pressed = (GetAsyncKeyState(code) & 0x8000) != 0;
+        inputDriver_.NotePhysicalKey(modifier, pressed);
+        inputDriver_.NoteHookPhysicalKey(modifier, pressed);
+    }
     inputHook_.setSelfInjectedFilter([this](const KeyDescriptor& key, bool pressed) {
         return inputDriver_.ConsumeSelfInjected(key, pressed);
+    });
+    inputHook_.setSelfInjectedWheelFilter([this](int delta) {
+        return inputDriver_.ConsumeSelfInjectedWheel(delta);
     });
     inputHook_.setPhysicalInputFilter([this](const KeyDescriptor& key) {
         return inputDriver_.IsHeldDown(key);
     });
     inputHook_.setPhysicalKeyObserver([this](const KeyDescriptor& key, bool pressed) {
         inputDriver_.NoteHookPhysicalKey(key, pressed);
+    });
+    inputHook_.setPauseInputInterceptor([this](const KeyDescriptor& key, bool pressed, bool allowStart) {
+        return engine_.InterceptPauseInput(key, pressed, allowStart);
+    }, [this](int delta) {
+        return engine_.InterceptPauseWheel(delta);
+    }, [this](const KeyDescriptor& key) {
+        return engine_.UsesHookModifierState(key);
     });
 
     engineHookCoordinator_.bind(EngineHookCoordinator::Context{

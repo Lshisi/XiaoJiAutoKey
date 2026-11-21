@@ -43,9 +43,9 @@ void PreviewController::showDriverReport() {
 }
 
 void PreviewController::showDiagnosticReport() {
-    const QString mode = QStringList{"DD", "HID", "USB"}[static_cast<int>(driverMode_)];
-    const bool ready = driverMode_ == DriverMode::Legacy ? ddInstalled_
-        : driverMode_ == DriverMode::Hid ? hidInstalled_ : demoData_;
+    const QString mode = QStringList{tr("小叽"), "DD", "USB"}[static_cast<int>(driverMode_)];
+    const bool ready = driverMode_ == DriverMode::Xiaoji ? xiaojiInstalled_
+        : driverMode_ == DriverMode::Legacy ? ddInstalled_ : demoData_;
     const QString report = tr("［小叽按键诊断信息（界面预览示例）］\n"
         "生成时间: 示例时间\n\n"
         "［基础环境］\n"
@@ -60,7 +60,7 @@ void PreviewController::showDiagnosticReport() {
         "［运行库与设备］\n"
         "驱动目录: 示例状态\n"
         "DD32.dll / DD64.dll: 示例状态\n"
-        "HID 运行库与服务: 示例状态\n"
+        "小叽键盘/鼠标及扩展输入配置: 示例状态\n本机签名组件: 示例状态\n旧 HID 残留（仅供卸载）: 示例状态\n"
         "USB 设备: 示例状态\n\n"
         "［最近错误］\n无\n\n"
         "［安全环境］\n"

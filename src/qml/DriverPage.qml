@@ -27,7 +27,7 @@ QuietScrollView {
                 anchors.fill: parent
                 spacing: 10
                 QuietHeading { text: qsTr("驱动管理"); pageTitle: true }
-                QuietLabel { Layout.fillWidth: true; text: qsTr("管理 DD、HID 和 USB 小叽硬件驱动，查看当前状态、切换驱动、安装或卸载驱动。"); color: Theme.muted }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("小叽为默认驱动，DD 和 USB 可按需切换。旧 HID 仅保留卸载入口。"); color: Theme.muted }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("运行模式") }
                 RowLayout {
@@ -36,7 +36,7 @@ QuietScrollView {
                     QuietCombo {
                         id: driverChoice
                         Layout.preferredWidth: 190
-                        model: ["DD", "HID", "USB"]
+                        model: [qsTr("小叽（默认）"), "DD", "USB"]
                         currentIndex: root.page.state.mode
                         enabled: !root.page.state.busy
                         onActivated: root.page.selectMode(currentIndex)
@@ -56,8 +56,14 @@ QuietScrollView {
                     QuietHeading { text: qsTr("当前状态"); Layout.fillWidth: true }
                     ActionButton { text: qsTr("诊断信息"); enabled: !root.page.state.busy; onClicked: root.page.diagnosticsRequested() }
                     ActionButton { text: qsTr("一键自检"); enabled: !root.page.state.busy; onClicked: root.page.selfCheckRequested() }
-                    ActionButton { visible: root.page.state.ddInstalled; text: qsTr("卸载 DD"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(0) }
-                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("卸载 HID"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(1) }
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    visible: root.page.state.xiaojiInstalled || root.page.state.ddInstalled || root.page.state.hidInstalled
+                    ActionButton { visible: root.page.state.xiaojiInstalled; text: qsTr("卸载小叽"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(0) }
+                    ActionButton { visible: root.page.state.ddInstalled; text: qsTr("卸载 DD"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(1) }
+                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("卸载 HID"); enabled: !root.page.state.busy; onClicked: root.page.uninstallRetiredHid() }
                 }
                 RowLayout {
                     Layout.fillWidth: true

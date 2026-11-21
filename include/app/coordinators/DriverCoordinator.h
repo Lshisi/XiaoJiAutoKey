@@ -2,6 +2,7 @@
 
 #include "AppTypes.h"
 #include "services/DdRuntimeService.h"
+#include "services/XiaojiRuntimeService.h"
 
 #include <QObject>
 #include <functional>
@@ -23,10 +24,11 @@ public:
         DriverPageModel* page = nullptr;
         AppConfig* config = nullptr;
         DdRuntimeService* runtimeService = nullptr;
+        XiaojiRuntimeService* xiaojiRuntimeService = nullptr;
         QWidget* parentWidget = nullptr;
         std::function<SwitchResult(DriverMode)> switchDriverMode;
-        std::function<bool(DriverMode)> prepareDriverUninstall;
-        std::function<void(DriverMode)> finalizeDriverUninstall;
+        std::function<bool(DriverRemovalTarget)> prepareDriverUninstall;
+        std::function<void(DriverRemovalTarget, bool)> finalizeDriverUninstall;
         std::function<bool()> rebootComputer;
         std::function<void()> refreshStatus;
         std::function<void()> saveConfig;

@@ -39,6 +39,11 @@ bool GlobalInputHook::start() {
     }
 
     g_hookInstance = this;
+    physicalKeyboardModifiers_ = 0;
+    for (const auto code : {VK_LCONTROL, VK_RCONTROL, VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU}) {
+        if ((GetAsyncKeyState(code) & 0x8000) != 0)
+            physicalKeyboardModifiers_ |= ModifierMaskFromKey({InputDevice::Keyboard, static_cast<std::uint32_t>(code)});
+    }
     // 只保留很短的启动静默窗，避免把用户首个启停热键也吞掉。
     startupIgnoreUntilTick_ = GetTickCount64() + kStartupIgnoreWindowMs;
     hookThread_ = std::thread(&GlobalInputHook::runHookLoop, this);
@@ -100,6 +105,11 @@ void GlobalInputHook::setSelfInjectedFilter(std::function<bool(const KeyDescript
     selfInjectedFilter_ = std::move(filter);
 }
 
+void GlobalInputHook::setSelfInjectedWheelFilter(std::function<bool(int)> filter) {
+    std::lock_guard lock(stateMutex_);
+    selfInjectedWheelFilter_ = std::move(filter);
+}
+
 void GlobalInputHook::setPhysicalInputFilter(std::function<bool(const KeyDescriptor&)> filter) {
     std::lock_guard lock(stateMutex_);
     physicalInputFilter_ = std::move(filter);
@@ -108,6 +118,15 @@ void GlobalInputHook::setPhysicalInputFilter(std::function<bool(const KeyDescrip
 void GlobalInputHook::setPhysicalKeyObserver(std::function<void(const KeyDescriptor&, bool)> observer) {
     std::lock_guard lock(stateMutex_);
     physicalKeyObserver_ = std::move(observer);
+}
+
+void GlobalInputHook::setPauseInputInterceptor(
+    std::function<bool(const KeyDescriptor&, bool, bool)> interceptor, std::function<bool(int)> wheelInterceptor,
+    std::function<bool(const KeyDescriptor&)> modifierSource) {
+    std::lock_guard lock(stateMutex_);
+    pauseInputInterceptor_ = std::move(interceptor);
+    pauseWheelInterceptor_ = std::move(wheelInterceptor);
+    hookModifierSource_ = std::move(modifierSource);
 }
 
 bool GlobalInputHook::isDialogOpen() const noexcept {
@@ -194,6 +213,8 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     std::function<bool(const KeyDescriptor&)> physicalInputFilter;
     std::function<void(const KeyDescriptor&, bool)> physicalKeyObserver;
     bool captureActive = false;
+    std::function<bool(const KeyDescriptor&, bool, bool)> pauseInterceptor;
+    std::function<bool(const KeyDescriptor&)> modifierSource;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
@@ -201,12 +222,19 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
         physicalInputFilter = hook->physicalInputFilter_;
         physicalKeyObserver = hook->physicalKeyObserver_;
         captureActive = hook->captureActive_;
+        pauseInterceptor = hook->pauseInputInterceptor_;
+        modifierSource = hook->hookModifierSource_;
     }
     // Temporary modifier releases/restores are output, never physical input.
     const bool selfInjected = selfInjectedFilter && selfInjectedFilter(key, pressed);
     if (selfInjected || (info->flags & LLKHF_INJECTED)) {
         return CallNextHookEx(nullptr, code, wParam, lParam);
     }
+    // Decide before recording the new physical modifier: once forwarded to
+    // Windows it cannot be isolated by another HID keyboard's neutral report.
+    const bool intercepted = pauseInterceptor && pauseInterceptor(key, pressed,
+        hook->repeatRunning_.load() && !captureActive && !hook->dialogOpen_.load()
+            && !hook->recordingActive_.load() && GetTickCount64() >= hook->startupIgnoreUntilTick_.load());
     if (physicalKeyObserver) physicalKeyObserver(key, pressed);
     KeyDescriptor event = key;
     if (modifierEvent) {
@@ -216,6 +244,13 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     } else {
         event.modifiers = hook->physicalKeyboardModifiers_;
     }
+    const bool hookOwnsModifier = modifierSource && modifierSource(key);
+    if (hookOwnsModifier || (intercepted && (released || !hook->rawKeyboardActive_.load()))) {
+        QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+            emit hook->hookPhysicalKeyChanged(event, pressed);
+        }, Qt::QueuedConnection);
+    }
+    if (intercepted) return 1;
     if (key.code == VK_F10 && hook->recordingStopKeyDown_) {
         if (released) hook->recordingStopKeyDown_ = false;
         return 1;
@@ -281,6 +316,7 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     }
 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
+    if (hookOwnsModifier) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool isControlHotkey = controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, event);
     if (!pressed && modifierEvent && controlHotkey.has_value()
@@ -308,10 +344,44 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
 LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM lParam) {
     if (code < 0 || !g_hookInstance) return CallNextHookEx(nullptr, code, wParam, lParam);
     const auto* info = reinterpret_cast<MSLLHOOKSTRUCT*>(lParam);
+    if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
+    std::function<bool(const KeyDescriptor&, bool)> outputFilter;
+    std::function<bool(int)> wheelFilter;
+    std::function<bool(const KeyDescriptor&, bool, bool)> pauseInterceptor;
+    std::function<bool(int)> pauseWheelInterceptor;
+    {
+        std::lock_guard lock(g_hookInstance->stateMutex_);
+        outputFilter = g_hookInstance->selfInjectedFilter_;
+        wheelFilter = g_hookInstance->selfInjectedWheelFilter_;
+        pauseInterceptor = g_hookInstance->pauseInputInterceptor_;
+        pauseWheelInterceptor = g_hookInstance->pauseWheelInterceptor_;
+    }
+    if (wParam == WM_MOUSEWHEEL && wheelFilter
+        && wheelFilter(static_cast<short>(HIWORD(info->mouseData))))
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    if ((IsMouseDownMessage(wParam) || IsMouseUpMessage(wParam)) && outputFilter
+        && outputFilter(MouseMessageToDescriptor(wParam, *info), IsMouseDownMessage(wParam)))
+        return CallNextHookEx(nullptr, code, wParam, lParam);
+    if (wParam == WM_MOUSEWHEEL && pauseWheelInterceptor
+        && pauseWheelInterceptor(static_cast<short>(HIWORD(info->mouseData)))) return 1;
+    if ((IsMouseDownMessage(wParam) || IsMouseUpMessage(wParam)) && pauseInterceptor) {
+        const auto key = MouseMessageToDescriptor(wParam, *info);
+        const bool pressed = IsMouseDownMessage(wParam);
+        if (pauseInterceptor(key, pressed, false)) {
+            auto* hook = g_hookInstance;
+            KeyDescriptor event = key;
+            event.modifiers = hook->physicalKeyboardModifiers_;
+            if (!pressed || !hook->rawMouseActive_.load()) {
+                QMetaObject::invokeMethod(hook, [hook, event, pressed] {
+                    emit hook->hookPhysicalKeyChanged(event, pressed);
+                }, Qt::QueuedConnection);
+            }
+            return 1;
+        }
+    }
 
     auto* recordingHook = g_hookInstance;
     if (recordingHook->recordingActive_.load()) {
-        if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
         DWORD process = 0;
         GetWindowThreadProcessId(WindowFromPoint(info->pt), &process);
         if (process != GetCurrentProcessId()
@@ -347,23 +417,17 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     KeyDescriptor event = key;
     event.modifiers = hook->physicalKeyboardModifiers_;
     std::optional<KeyDescriptor> controlHotkey;
-    std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter;
     std::function<bool(const KeyDescriptor&)> physicalInputFilter;
     bool captureActive = false;
     ULONGLONG captureStartedTick = 0;
     {
         std::lock_guard lock(hook->stateMutex_);
         controlHotkey = hook->controlHotkey_;
-        selfInjectedFilter = hook->selfInjectedFilter_;
         physicalInputFilter = hook->physicalInputFilter_;
         captureActive = hook->captureActive_;
         captureStartedTick = hook->captureStartedTick_;
     }
 
-    if (selfInjectedFilter && selfInjectedFilter(key, pressed)) {
-        return CallNextHookEx(nullptr, code, wParam, lParam);
-    }
-    if (info->flags & LLMHF_INJECTED) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const ULONGLONG nowTick = GetTickCount64();
     const ULONGLONG ignoreUntil = hook->startupIgnoreUntilTick_.load();

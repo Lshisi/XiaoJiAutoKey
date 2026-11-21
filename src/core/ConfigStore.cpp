@@ -490,14 +490,15 @@ AppConfig ConfigStore::Load() const {
     }
 
     if (const auto driverMode = GetStringField(*object, "driverMode"); driverMode.has_value()) {
-        if (*driverMode == "hid") config.driverMode = DriverMode::Hid;
-        else if (*driverMode == "usb" || *driverMode == "pico") config.driverMode = DriverMode::Usb;
-        else config.driverMode = DriverMode::Legacy;
+        if (*driverMode == "usb" || *driverMode == "pico") config.driverMode = DriverMode::Usb;
+        else if (*driverMode == "legacy") config.driverMode = DriverMode::Legacy;
+        // Retired "hid", missing and unknown values migrate to the new default.
+        else config.driverMode = DriverMode::Xiaoji;
     }
     if (const auto uninstalled = GetBoolField(*object, "ddDriverUninstalledByUser"); uninstalled.has_value())
         config.ddDriverUninstalledByUser = *uninstalled;
-    if (const auto uninstalled = GetBoolField(*object, "hidDriverUninstalledByUser"); uninstalled.has_value())
-        config.hidDriverUninstalledByUser = *uninstalled;
+    if (const auto uninstalled = GetBoolField(*object, "xiaojiDriverUninstalledByUser"); uninstalled.has_value())
+        config.xiaojiDriverUninstalledByUser = *uninstalled;
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
@@ -670,12 +671,12 @@ bool ConfigStore::Save(
     if (config.closeAction == CloseAction::Minimize) closeActionStr = "minimize";
     else if (config.closeAction == CloseAction::Exit) closeActionStr = "exit";
     root.emplace("closeAction", closeActionStr);
-    const char* driverMode = "legacy";
-    if (config.driverMode == DriverMode::Hid) driverMode = "hid";
+    const char* driverMode = "xiaoji";
+    if (config.driverMode == DriverMode::Legacy) driverMode = "legacy";
     else if (config.driverMode == DriverMode::Usb) driverMode = "usb";
     root.emplace("driverMode", std::string(driverMode));
     root.emplace("ddDriverUninstalledByUser", config.ddDriverUninstalledByUser);
-    root.emplace("hidDriverUninstalledByUser", config.hidDriverUninstalledByUser);
+    root.emplace("xiaojiDriverUninstalledByUser", config.xiaojiDriverUninstalledByUser);
 
     if (!config.faction.empty())
         root.emplace("faction", config.faction);

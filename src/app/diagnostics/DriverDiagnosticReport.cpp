@@ -16,7 +16,7 @@ QString boolText(bool value) {
 
 QString modeText(DriverMode mode) {
     if (mode == DriverMode::Usb) return QStringLiteral("USB");
-    return mode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
+    return mode == DriverMode::Xiaoji ? QObject::tr("小叽") : QStringLiteral("DD");
 }
 
 QString nativeArchitecture() {
@@ -46,11 +46,11 @@ void appendRuntimeLine(QStringList* lines, const QString& name, bool value) {
 }
 
 QString noteText(const std::wstring& note) {
-    if (note.find(L"DD is not ready.") != std::wstring::npos) {
+    if (note.find(L"Selected input driver is not ready.") != std::wstring::npos) {
         return QString::fromWCharArray(L"当前选中驱动未就绪，输入模拟会失败。");
     }
-    if (note.find(L"No HID runtime or DD runtime") != std::wstring::npos) {
-        return QString::fromWCharArray(L"未找到匹配当前进程架构的 HID/DD 运行库。");
+    if (note.find(L"No DD runtime") != std::wstring::npos) {
+        return QString::fromWCharArray(L"未找到匹配当前进程架构的 DD 运行库。");
     }
     if (note.find(L"No embedded driver package") != std::wstring::npos) {
         return QString::fromWCharArray(L"未找到内置驱动安装包。");
@@ -98,16 +98,26 @@ QString FormatDriverDiagnosticReport(const DriverDiagnosticReport& report) {
 
     QStringList runtimeLines;
     appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"驱动目录"), runtime.driverRootExists);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽键盘设备"), runtime.xiaojiKeyboardReady);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽鼠标设备"), runtime.xiaojiMouseReady);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽管理工具"), runtime.xiaojiManagerExists);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽本机签名组件"), runtime.xiaojiInstallerExists);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽扩展输入配置"), runtime.xiaojiProfileReady);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽设备配置记录"), runtime.xiaojiConfigurationPresent);
+    appendRuntimeLine(&runtimeLines, QObject::tr("小叽绑定包或待清理包记录"), runtime.xiaojiBoundPackagePresent);
     appendRuntimeLine(&runtimeLines, QStringLiteral("DD32.dll"), runtime.legacy32Exists);
     appendRuntimeLine(&runtimeLines, QStringLiteral("DD64.dll"), runtime.legacy64Exists);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 运行库"), runtime.hidRuntimeExists);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 内置安装包"), runtime.hidEmbeddedDriverExists);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 服务"), runtime.hidServiceInstalled);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 服务等待重启删除"), runtime.hidServicePendingDelete);
-    appendRuntimeLine(&runtimeLines, QStringLiteral("ddhid63340.sys"), runtime.hidSysInstalled);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID DriverStore"), runtime.hidDriverStorePresent);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 根设备"), runtime.hidRootDeviceOk);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"HID 子设备"), runtime.hidChildDeviceOk);
+    const bool retiredHidPresent = runtime.hidDevicesPresent || runtime.hidServiceInstalled
+        || runtime.hidServicePendingDelete || runtime.hidSysInstalled || runtime.hidDriverStorePresent;
+    runtimeLines << (retiredHidPresent ? QObject::tr("旧 HID: 检测到安装残留，仅提供卸载入口")
+        : QObject::tr("旧 HID: 未检测到安装残留"));
+    if (retiredHidPresent) {
+        runtimeLines << QObject::tr("旧 HID 服务存在: ") + boolText(runtime.hidServiceInstalled)
+            << QObject::tr("旧 HID 服务待删除: ") + boolText(runtime.hidServicePendingDelete)
+            << QObject::tr("旧 HID 设备存在: ") + boolText(runtime.hidDevicesPresent)
+            << QObject::tr("旧 HID SYS 存在: ") + boolText(runtime.hidSysInstalled)
+            << QObject::tr("旧 HID 驱动包存在: ") + boolText(runtime.hidDriverStorePresent);
+    }
     appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 键盘服务"), runtime.infKeyboardServiceInstalled);
     appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 鼠标服务"), runtime.infMouseServiceInstalled);
     appendRuntimeLine(&runtimeLines, QStringLiteral("dd.key.96688.sys"), runtime.infKeyboardSysInstalled);

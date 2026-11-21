@@ -17,6 +17,7 @@
 #include "ui/styles/DesignTokens.h"
 
 #include <QAction>
+#include <QFileInfo>
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -28,6 +29,7 @@
 #include <QMimeData>
 #include <QProcess>
 #include <QScreen>
+#include <QScopeGuard>
 #include <QString>
 #include <QThread>
 #include <QTimer>
@@ -168,7 +170,7 @@ void applySuggestedDpiRect(HWND hwnd, const RECT* rect) {
         SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-struct HidInstallResult {
+struct XiaojiInstallResult {
     bool ok = false;
     std::wstring message;
 };
@@ -205,6 +207,7 @@ MainWindow::MainWindow(QWidget* parent)
       inputHook_(this),
       rawInput_(this),
       ddRuntimeService_(std::filesystem::path(appPaths_.exeDir()), appPaths_.logsDir()),
+      xiaojiRuntimeService_(std::filesystem::path(appPaths_.exeDir())),
       soundService_(appPaths_.exeDir()),
       statusOverlay_(nullptr),
       driverSelfCheckCoordinator_(this),
@@ -220,6 +223,19 @@ MainWindow::MainWindow(QWidget* parent)
     });
     usbHeartbeatTimer_.setInterval(750);
     connect(&usbHeartbeatTimer_, &QTimer::timeout, this, [this]() {
+        if (config_.driverMode == DriverMode::Xiaoji) {
+            if (inputDriver_.CurrentDriver() == &xiaojiDriver_ && !xiaojiDriver_.IsReady()) {
+                (void)engineStateCoordinator_.setRepeatRunningFast(false);
+                macroEngine_.StopAll();
+                inputDriver_.ReleaseAll();
+                driverStatusNote_ = xiaojiDriver_.GetLastError();
+                inputDriver_.SetDriver(nullptr);
+                engineHookCoordinator_.refreshState();
+                refreshStatusOverlay();
+                refreshDriverStatusUi();
+            }
+            return;
+        }
         if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) return;
         if (ch552Driver_.FirmwareVersion() != kBundledUsbDriverVersion ||
             ch552Driver_.Heartbeat()) return;
@@ -240,6 +256,7 @@ MainWindow::~MainWindow() {
     gameWatcher_.SetCallback(nullptr);
     gameWatcher_.SetWindowChangeCallback(nullptr);
     gameWatcher_.Stop();
+    inputHook_.stop();
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
@@ -329,93 +346,60 @@ void MainWindow::ShowForStartup() {
 }
 
 bool MainWindow::loadConfiguredDriver() {
+    driverUninstallFailed_ = false;
     driverStatusNote_.clear();
     if (config_.IsDriverUninstalledByUser(config_.driverMode)) {
-        const auto status = ddRuntimeService_.Inspect(driver_);
-        const bool installed = config_.driverMode == DriverMode::Hid
-            ? (status.hidRuntimeExists && status.hidServiceInstalled && status.hidSysInstalled &&
-                status.hidRootDeviceOk && status.hidChildDeviceOk && !status.hidServicePendingDelete)
-            : (status.legacyRuntimeExists &&
-                status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
-                status.infKeyboardSysInstalled && status.infMouseSysInstalled &&
-                status.infKeyboardDeviceStarted && status.infMouseDeviceStarted &&
-                status.infKeyboardDeviceBound && status.infMouseDeviceBound &&
-                !status.infKeyboardServicePendingDelete && !status.infMouseServicePendingDelete);
-        if (!installed) {
+        if (config_.driverMode == DriverMode::Xiaoji) {
             inputDriver_.SetDriver(nullptr);
-            driverStatusNote_ = tr("当前驱动已由你主动卸载，自动安装已停用。"
-                                  "可在驱动管理页点击“安装”恢复当前模式。").toStdWString();
+            driverStatusNote_ = tr("小叽驱动已由你主动停用，请在驱动管理页主动安装或重新连接。").toStdWString();
             return false;
         }
-        // Restored configs can retain an uninstall flag after the driver was reinstalled.
+        const auto status = ddRuntimeService_.Inspect(driver_);
+        const bool installed = status.legacyRuntimeExists && status.infKeyboardServiceInstalled && status.infMouseServiceInstalled
+                && status.infKeyboardSysInstalled && status.infMouseSysInstalled
+                && status.infKeyboardDeviceStarted && status.infMouseDeviceStarted
+                && status.infKeyboardDeviceBound && status.infMouseDeviceBound
+                && !status.infKeyboardServicePendingDelete && !status.infMouseServicePendingDelete;
+        if (!installed) {
+            inputDriver_.SetDriver(nullptr);
+            driverStatusNote_ = tr("当前驱动已由你主动卸载。需要再次使用时，请在驱动管理页主动安装。").toStdWString();
+            return false;
+        }
         config_.SetDriverUninstalledByUser(config_.driverMode, false);
         configCoordinator_.save(false);
     }
-    if (config_.driverMode == DriverMode::Usb) {
-        if (loadCh552UsbDriver()) {
-            driverUnavailableLogged_ = false;
-            return true;
-        }
-        return false;
-    }
-    if (config_.driverMode == DriverMode::Hid) {
-        if (loadHidDriver()) {
-            driverUnavailableLogged_ = false;
-            return true;
-        }
-        return false;
-    }
-    const bool legacyLoaded = loadLegacyDriver();
-    if (legacyLoaded) {
-        driverUnavailableLogged_ = false;
-    }
-    return legacyLoaded;
+    const bool loaded = config_.driverMode == DriverMode::Xiaoji ? loadXiaojiDriver()
+        : config_.driverMode == DriverMode::Usb ? loadCh552UsbDriver() : loadLegacyDriver();
+    if (loaded) driverUnavailableLogged_ = false;
+    return loaded;
 }
 
-bool MainWindow::loadHidDriver() {
+bool MainWindow::loadXiaojiDriver() {
     inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
-
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    const bool hidInstalled = status.hidServiceInstalled && status.hidSysInstalled &&
-        (status.hidRootDeviceOk || status.hidChildDeviceOk);
-    const std::wstring hidDllPath = (ddRuntimeService_.DriverRootDir() / L"hid" / L"ddhid.63340.dll").wstring();
-
-    if (!status.hidRuntimeExists) {
-        driverStatusNote_ = tr("HID 运行文件缺失：%1")
-            .arg(QString::fromStdWString(hidDllPath)).toStdWString();
+    const auto status = xiaojiRuntimeService_.Inspect();
+    if (!status.keyboardReady || !status.mouseReady) {
+        driverStatusNote_ = tr("小叽驱动键盘或鼠标尚未就绪。请在驱动管理页点击安装，程序会准备内置驱动。")
+            .toStdWString();
+        if (!status.error.empty()) driverStatusNote_ += L"\n" + status.error;
         return false;
     }
-    if (status.hidServicePendingDelete) {
-        driverStatusNote_ = tr("HID 驱动服务正在等待删除，请重启电脑完成卸载。").toStdWString();
+    if (!status.profileReady) {
+        driverStatusNote_ = tr("小叽驱动输入配置需要升级，请在驱动管理页点击安装/修复，以启用多键保持、扩展键和鼠标侧键。").toStdWString();
         return false;
     }
-    // Only load HID directly when Windows already reports the HID service and devices ready.
-    if (status.hidRuntimeExists && hidInstalled) {
-        if (driver_.LoadHidFrom(hidDllPath) &&
-            driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) {
-            inputDriver_.SetDriver(&driver_);
-            return true;
-        }
-
-        if (driver_.GetRuntimeKind() != DdDriver::RuntimeKind::Unknown) {
-            driver_.ReleaseAll();
-            driver_.Unload();
-        }
-    }
-
-    if (hidInstalled) {
-        driverStatusNote_ = driver_.GetLastError();
+    if (!xiaojiDriver_.Connect()) {
+        driverStatusNote_ = xiaojiDriver_.GetLastError();
         return false;
     }
-
-    driverStatusNote_ = tr("HID 驱动安装组件或设备尚未就绪，请运行自检查看缺失项。").toStdWString();
-    return false;
+    inputDriver_.SetDriver(&xiaojiDriver_);
+    return true;
 }
 
 bool MainWindow::loadLegacyDriver() {
+    xiaojiDriver_.Disconnect();
     inputDriver_.SetDriver(nullptr);
     ch552Driver_.Disconnect();
     driver_.ReleaseAll();
@@ -454,6 +438,7 @@ bool MainWindow::loadLegacyDriver() {
 }
 
 bool MainWindow::loadCh552UsbDriver() {
+    xiaojiDriver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
@@ -522,6 +507,7 @@ bool MainWindow::activeInputDriverReady() const {
 std::wstring MainWindow::activeInputDriverError() const {
     if (activeInputDriverReady()) return {};
     if (!driverStatusNote_.empty()) return driverStatusNote_;
+    if (config_.driverMode == DriverMode::Xiaoji) return xiaojiDriver_.GetLastError();
     return config_.driverMode == DriverMode::Usb ? ch552Driver_.GetLastError() : driver_.GetLastError();
 }
 
@@ -597,55 +583,95 @@ bool MainWindow::ensureLegacyDdInfInstalled(std::wstring* resultMessage) {
         postInstallStatus.infMouseSysInstalled;
 }
 
-bool MainWindow::ensureHidDriverInstalledForSwitch(bool repairRequested) {
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    const bool hidReady = status.hidRuntimeExists &&
-        status.hidServiceInstalled &&
-        status.hidSysInstalled &&
-        (status.hidRootDeviceOk || status.hidChildDeviceOk);
-    if (hidReady && !repairRequested) {
-        return true;
-    }
-
+bool MainWindow::prepareXiaojiDriverForSwitch() {
+    const bool wasDialogOpen = inputHook_.isDialogOpen();
     inputHook_.setDialogOpen(true);
-    auto* progressDialog = new DriverProgressDialog(
-        QString::fromWCharArray(L"\u5b89\u88c5 HID \u9a71\u52a8"),
-        QString::fromWCharArray(L"\u6b63\u5728\u5b89\u88c5 HID \u9a71\u52a8\uff0c\u5b8c\u6210\u540e\u5c06\u91cd\u542f\u5c0f\u53fd\u3002"),
-        this);
-    const auto result = std::make_shared<HidInstallResult>();
-    auto* thread = QThread::create([runtimeService = &ddRuntimeService_, result]() {
-        result->ok = runtimeService->InstallEmbeddedHidDriver(&result->message);
+    view_.driverPage()->setBusy(true);
+    const auto restoreUi = qScopeGuard([this, wasDialogOpen] {
+        view_.driverPage()->setBusy(false);
+        inputHook_.setDialogOpen(wasDialogOpen);
     });
-    thread->setParent(this);
-
-    connect(thread, &QThread::finished, this, [this, progressDialog, thread, result]() {
-        thread->deleteLater();
-        if (progressDialog) {
-            progressDialog->markFinished(result->ok
-                ? QString::fromWCharArray(L"HID \u9a71\u52a8\u5b89\u88c5\u5b8c\u6210\uff0c\u6b63\u5728\u51c6\u5907\u91cd\u542f\u5c0f\u53fd...")
-                : QString::fromWCharArray(L"HID \u9a71\u52a8\u5b89\u88c5\u5931\u8d25\u3002"));
-            progressDialog->accept();
-            progressDialog->deleteLater();
-        }
-        inputHook_.setDialogOpen(false);
-    }, Qt::QueuedConnection);
-
-    thread->start();
-    progressDialog->exec();
-    inputHook_.setDialogOpen(false);
-
-    if (!result->ok) {
-        ddRuntimeService_.LogRuntimeError(L"dd-runtime.log",
-            L"HID install during driver switch failed.\n" +
-            (result->message.empty() ? std::wstring(L"(none)") : result->message));
-        AppMessageDialog::warning(
-            this,
-            QString::fromWCharArray(L"HID \u5b89\u88c5\u5931\u8d25"),
-            tr("无法安装 HID 驱动，当前选择的模式保持不变。\n\n%1\n\n详细过程已写入 logs 目录。")
-                .arg(QString::fromStdWString(result->message)));
+    const auto status = xiaojiRuntimeService_.Inspect();
+    const bool needsInstall = !status.keyboardReady || !status.mouseReady || !status.profileReady;
+    const bool repairExisting = needsInstall && status.boundPackagePresent;
+    const auto infPath = xiaojiRuntimeService_.BundledInfPath();
+    const bool signedBundle = needsInstall && !repairExisting
+        && QFileInfo(QString::fromStdWString(infPath.wstring())).isFile();
+    const bool localInstall = needsInstall && !repairExisting && !signedBundle;
+    std::wstring approvedToken;
+    if (needsInstall && !status.managerExists) {
+        AppMessageDialog::warning(this, tr("管理工具缺失"),
+            tr("请从完整发布包恢复 driver/xiaoji/xiaoji.exe 后再安装或修复小叽驱动。"));
         return false;
     }
-    return true;
+    if (localInstall) {
+        if (!status.installerExists) {
+            AppMessageDialog::warning(this, tr("本机签名组件缺失"),
+                tr("请从完整发布包恢复 driver/xiaoji/xiaoji-setup.exe。该组件已内置驱动安装包。"));
+            return false;
+        }
+        std::wstring error;
+        if (!xiaojiRuntimeService_.ReadTrustToken(&approvedToken, &error)) {
+            AppMessageDialog::warning(this, tr("无法读取签名证书状态"), QString::fromStdWString(error));
+            return false;
+        }
+        if (!approvedToken.empty()) {
+            const QString fingerprint = approvedToken == L"new" ? tr("首次生成") : QString::fromStdWString(approvedToken);
+            const bool approved = ConfigConfirmDialog::confirm(this, tr("信任小叽本机签名证书"),
+                tr("将创建或复用小叽的本机签名证书，并将其公钥加入 Windows 的受信任根证书颁发机构和受信任发布者。"
+                   "这会让本机信任该发布者。私钥保留在本机，不会上传。\n\n证书指纹：%1\n\n"
+                   "确认后自动签名和安装内置驱动，不更改 Secure Boot 或测试签名启动设置。是否继续？").arg(fingerprint), tr("信任并安装"));
+            if (!approved) return false;
+        }
+    }
+    engineStateCoordinator_.setRepeatRunning(false);
+    macroEngine_.StopAll();
+    inputDriver_.ReleaseAll();
+    if (config_.driverMode == DriverMode::Xiaoji) {
+        inputDriver_.SetDriver(nullptr);
+        xiaojiDriver_.Disconnect();
+    }
+    const QString message = repairExisting ? tr("正在修复设备并升级按键和鼠标支持，完成后重新启动小叽按键。")
+        : localInstall ? tr("正在进行本机签名并安装内置驱动，完成后重新启动小叽按键。")
+        : signedBundle ? tr("正在校验并安装已签名驱动，完成后重新启动小叽按键。")
+        : tr("正在连接小叽驱动的键盘和鼠标通道。");
+    auto* progress = new DriverProgressDialog(tr("准备小叽驱动"), message, this);
+    const auto result = std::make_shared<XiaojiInstallResult>();
+    auto* thread = QThread::create([service = xiaojiRuntimeService_, result, infPath,
+        repairExisting, localInstall, signedBundle, approvedToken, needsInstall] {
+        try {
+            if (repairExisting && !service.Repair(&result->message)) return;
+            if (localInstall && !service.InstallLocal(approvedToken, &result->message)) return;
+            if (signedBundle && !service.Install(infPath, &result->message)) return;
+            XiaojiDriver candidate;
+            result->ok = candidate.Connect();
+            if (!result->ok && !needsInstall && service.Inspect().boundPackagePresent) {
+                // This is an explicit reconnect/repair request, before any output.
+                // Rebuild only the two owned nodes if the old channel is stale.
+                const auto firstError = candidate.GetLastError();
+                candidate.Disconnect();
+                std::wstring repairMessage;
+                if (service.Repair(&repairMessage)) result->ok = candidate.Connect();
+                result->message += L"\n" + firstError + L"\n" + repairMessage;
+            }
+            if (!result->ok) result->message += L"\n" + candidate.GetLastError();
+        } catch (const std::exception& error) {
+            result->message = ToWide(error.what());
+        }
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    connect(thread, &QThread::finished, this, [progress] { progress->accept(); }, Qt::QueuedConnection);
+    thread->start();
+    progress->exec();
+    progress->deleteLater();
+    ddRuntimeService_.LogRuntimeError(L"xiaoji-runtime.log",
+        (result->ok ? std::wstring(L"Driver preparation completed.\n") : std::wstring(L"Driver preparation failed.\n"))
+            + result->message);
+    if (result->ok) return true;
+    AppMessageDialog::warning(this, tr("小叽驱动未就绪"),
+        tr("驱动未能就绪，当前选择保持不变。\n\n%1\n\n详细过程已写入 logs/xiaoji-runtime.log。")
+            .arg(QString::fromStdWString(result->message)));
+    return false;
 }
 
 void MainWindow::refreshDriverStatusUi() {
@@ -688,6 +714,18 @@ void MainWindow::refreshDriverStatusUi() {
             if (auto* page = view_.driverPage()) page->setStatusSummary(tr("驱动状态读取失败，请稍后重试"));
             return;
         }
+        if (config_.driverMode == DriverMode::Xiaoji && inputDriver_.CurrentDriver() == &xiaojiDriver_
+            && (!result->runtime.xiaojiKeyboardReady || !result->runtime.xiaojiMouseReady
+                || !result->runtime.xiaojiProfileReady)) {
+            (void)engineStateCoordinator_.setRepeatRunningFast(false);
+            macroEngine_.StopAll();
+            inputDriver_.ReleaseAll();
+            inputDriver_.SetDriver(nullptr);
+            xiaojiDriver_.Disconnect();
+            driverStatusNote_ = tr("小叽驱动设备或输入配置已发生变化，请重新连接或安装/修复。").toStdWString();
+            engineHookCoordinator_.refreshState();
+            refreshStatusOverlay();
+        }
         applyDriverStatusUi(result->runtime, result->guards, result->detectedUsbPort);
     }, Qt::QueuedConnection);
     thread->start();
@@ -696,177 +734,101 @@ void MainWindow::refreshDriverStatusUi() {
 void MainWindow::applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& status,
     const CodeIntegrityInspector::GuardStatus& guards, const std::wstring& detectedUsbPort) {
     auto* page = view_.driverPage();
-    if (!page) {
-        return;
-    }
-
+    if (!page) return;
     page->setDriverMode(config_.driverMode);
-
-    const bool userUninstalled = config_.IsDriverUninstalledByUser(config_.driverMode);
-    const bool runtimeExists = config_.driverMode == DriverMode::Hid
-        ? status.hidRuntimeExists : status.legacyRuntimeExists;
-    const bool pendingDelete = config_.driverMode == DriverMode::Hid && status.hidServicePendingDelete;
-    QString summary = tr("可用");
-    if (userUninstalled) {
-        summary = pendingDelete ? tr("已停用 · 等待重启") : tr("已停用 · 主动卸载");
-    } else if (config_.driverMode != DriverMode::Usb && !runtimeExists) {
-        summary = activeInputDriverReady() ? tr("运行文件缺失 · 需恢复") : tr("不可用 · 运行文件缺失");
-    } else if (pendingDelete) {
-        summary = tr("不可用 · 等待重启");
-    } else if (!activeInputDriverReady()) {
-        summary = tr("不可用 · 请运行自检");
-    }
-    page->setStatusSummary(summary);
-    const QString name = config_.driverMode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
-    page->setInstallAction(config_.driverMode != DriverMode::Usb && !activeInputDriverReady()
-            && runtimeExists && !pendingDelete,
-        userUninstalled ? tr("安装 %1").arg(name) : tr("安装/修复 %1").arg(name));
-    const bool ddUninstallAvailable = status.infKeyboardServiceInstalled ||
-        status.infMouseServiceInstalled || status.infKeyboardSysInstalled ||
-        status.infMouseSysInstalled || status.infKeyboardDeviceStarted ||
-        status.infMouseDeviceStarted || status.infKeyboardDeviceBound ||
-        status.infMouseDeviceBound;
-    const bool hidUninstallAvailable = status.hidServiceInstalled || status.hidServicePendingDelete ||
-        status.hidSysInstalled || status.hidDriverStorePresent ||
-        status.hidRootDeviceOk || status.hidChildDeviceOk;
-    page->setDriverActions(ddUninstallAvailable, hidUninstallAvailable);
-
-    std::wstringstream detail;
-    detail << L"\u914d\u7f6e\u9a71\u52a8: ";
-    if (config_.driverMode == DriverMode::Usb) detail << L"USB";
-    else detail << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
-    detail << L"\n";
-    if (!activeInputDriverError().empty())
-        detail << L"当前错误: " << activeInputDriverError() << L"\n";
-    // 仅展示安全配置；功能开启不代表本次驱动加载被拦截。
-    detail << L"\u5185\u6838\u9694\u79bb: ";
-    if (guards.memoryIntegrityRunning) {
-        detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u8fd0\u884c\u4e2d";
-    } else if (guards.memoryIntegrityConfigured) {
-        detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u5df2\u5f00\u542f\uff08\u7b49\u5f85\u91cd\u542f\u751f\u6548\uff09";
-    } else {
-        detail << L"\u5185\u5b58\u5b8c\u6574\u6027 \u5173\u95ed";
-    }
-    detail << L"\uff0c\u963b\u6b62\u5217\u8868 " << (guards.vulnerableBlocklistEnabled ? L"\u5f00\u542f" : L"\u5173\u95ed");
-    if (guards.smartAppControlState == 1) detail << L"\uff0c\u667a\u80fd\u5e94\u7528\u63a7\u5236 \u5f00\u542f";
-    detail << L"\n";
-    detail << L"\n";
-    const bool usbCommunicationReady = ch552Driver_.IsReady();
-    const std::wstring usbPortName = usbCommunicationReady
-        ? ch552Driver_.PortName()
-        : detectedUsbPort;
-    detail << L"USB \u8bbe\u5907: " << (!usbPortName.empty() ? L"\u5df2\u63d2\u5165" : L"\u672a\u63d2\u5165") << L"\n";
-    detail << L"USB \u901a\u4fe1: ";
-    if (usbCommunicationReady) {
-        detail << L"\u5df2\u8fde\u63a5";
-    } else if (config_.driverMode == DriverMode::Usb) {
-        detail << L"\u8fde\u63a5\u5931\u8d25";
-    } else {
-        detail << L"\u672a\u542f\u7528\uff08\u5f53\u524d\u4f7f\u7528 "
-               << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD") << L"\uff09";
-    }
-    detail << L"\n";
-    if (usbCommunicationReady) {
-        detail << L"USB \u56fa\u4ef6: " << ch552Driver_.FirmwareVersion() << L"\n";
-    } else if (config_.driverMode == DriverMode::Usb && !ch552Driver_.GetLastError().empty()) {
-        detail << L"USB \u9519\u8bef: " << ch552Driver_.GetLastError() << L"\n";
-    }
-    detail << L"\n";
-    detail << L"HID DLL: " << (status.hidRuntimeExists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
-    detail << L"HID \u670d\u52a1: "
-           << (status.hidServiceInstalled ? L"\u5df2\u5b89\u88c5" :
-               (status.hidServicePendingDelete ? L"\u7b49\u5f85\u91cd\u542f" : L"\u672a\u5b89\u88c5"))
-           << L"\n";
-    detail << L"HID SYS: " << (status.hidSysInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
-    detail << L"HID DriverStore: " << (status.hidDriverStorePresent ? L"\u4ecd\u5b58\u5728" : L"\u5df2\u79fb\u9664") << L"\n";
-    const bool hidInstalled = status.hidServiceInstalled || status.hidSysInstalled || status.hidDriverStorePresent;
-    const bool hidPendingRestart = status.hidServicePendingDelete && !status.hidSysInstalled && !status.hidDriverStorePresent;
-    detail << L"HID Root \u8bbe\u5907: " << (status.hidRootDeviceOk ? L"OK" : (hidPendingRestart ? L"\u7b49\u5f85\u91cd\u542f" : (hidInstalled ? L"\u5f02\u5e38" : L"\u672a\u5b89\u88c5"))) << L"\n";
-    detail << L"HID Child \u8bbe\u5907: " << (status.hidChildDeviceOk ? L"OK" : (hidPendingRestart ? L"\u7b49\u5f85\u91cd\u542f" : (hidInstalled ? L"\u5f02\u5e38" : L"\u672a\u5b89\u88c5"))) << L"\n\n";
-    detail << L"DD32.dll: " << (status.legacy32Exists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
-    detail << L"DD64.dll: " << (status.legacy64Exists ? L"\u5df2\u627e\u5230" : L"\u672a\u627e\u5230") << L"\n";
-    detail << L"INF \u952e\u76d8\u670d\u52a1: " << (status.infKeyboardServiceInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
-    detail << L"INF \u9f20\u6807\u670d\u52a1: " << (status.infMouseServiceInstalled ? L"\u5df2\u5b89\u88c5" : L"\u672a\u5b89\u88c5") << L"\n";
-    detail << L"INF \u952e\u76d8\u8bbe\u5907: " << ((status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound) ? L"OK" : L"\u5f02\u5e38") << L"\n";
-    detail << L"INF \u9f20\u6807\u8bbe\u5907: " << ((status.infMouseDeviceStarted && status.infMouseDeviceBound) ? L"OK" : L"\u5f02\u5e38") << L"\n";
-    if (!status.notes.empty()) {
-        detail << L"\n\u68c0\u67e5\u63d0\u793a:\n";
-        for (const auto& note : status.notes) {
-            detail << L"- " << note << L"\n";
-        }
-    }
-    page->setDetailText(QString::fromStdWString(detail.str()));
+    const bool xiaoji = config_.driverMode == DriverMode::Xiaoji;
+    const bool dd = config_.driverMode == DriverMode::Legacy;
+    const bool ready = activeInputDriverReady();
+    const bool uninstalled = config_.IsDriverUninstalledByUser(config_.driverMode);
+    const bool xiaojiInstalled = status.xiaojiKeyboardPresent || status.xiaojiMousePresent
+        || status.xiaojiConfigurationPresent || status.xiaojiBoundPackagePresent;
+    const QString name = xiaoji ? tr("小叽") : dd ? QStringLiteral("DD") : QStringLiteral("USB");
+    page->setStatusSummary(driverUninstallFailed_ ? tr("卸载未完成 · 可重试")
+        : uninstalled ? (xiaoji ? (xiaojiInstalled ? tr("已停用 · 仍有安装残留") : tr("已卸载"))
+            : tr("已停用 · 主动卸载")) : ready ? tr("可用")
+        : dd && !status.legacyRuntimeExists ? tr("不可用 · 运行文件缺失") : tr("不可用 · 请运行自检"));
+    page->setInstallAction(!ready && ((xiaoji && (status.xiaojiManagerExists
+            || (status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady))) || (dd && status.legacyRuntimeExists)),
+        xiaoji && status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady ? tr("重新连接小叽")
+            : uninstalled ? tr("安装 %1").arg(name) : tr("安装/修复 %1").arg(name));
+    const bool ddInstalled = status.infKeyboardServiceInstalled || status.infMouseServiceInstalled
+        || status.infKeyboardSysInstalled || status.infMouseSysInstalled || status.infKeyboardDeviceStarted
+        || status.infMouseDeviceStarted || status.infKeyboardDeviceBound || status.infMouseDeviceBound;
+    const bool oldHidInstalled = status.hidDevicesPresent || status.hidServiceInstalled
+        || status.hidServicePendingDelete || status.hidSysInstalled || status.hidDriverStorePresent;
+    page->setDriverActions(xiaojiInstalled, ddInstalled, oldHidInstalled);
+    QStringList lines;
+    lines << tr("配置驱动: %1").arg(name);
+    if (!activeInputDriverError().empty()) lines << tr("当前错误: %1").arg(QString::fromStdWString(activeInputDriverError()));
+    lines << QString() << tr("小叽驱动（默认）")
+        << tr("键盘: %1").arg(status.xiaojiKeyboardReady ? tr("已就绪") : status.xiaojiKeyboardPresent ? tr("未启动或身份异常") : tr("未安装"))
+        << tr("鼠标: %1").arg(status.xiaojiMouseReady ? tr("已就绪") : status.xiaojiMousePresent ? tr("未启动或身份异常") : tr("未安装"))
+        << tr("管理工具: %1").arg(status.xiaojiManagerExists ? tr("已找到") : tr("未找到"))
+        << tr("本机签名安装: %1").arg(status.xiaojiInstallerExists ? tr("可用") : tr("组件缺失"))
+        << tr("输入支持: %1").arg(status.xiaojiProfileReady ? tr("已启用") : tr("需安装或升级配置"))
+        << tr("输出范围: NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮");
+    if (!status.xiaojiError.empty()) lines << QString::fromStdWString(status.xiaojiError);
+    lines << QString() << QStringLiteral("DD")
+        << tr("运行文件: %1").arg(status.legacyRuntimeExists ? tr("已找到") : tr("未找到"))
+        << tr("键盘服务/设备: %1 / %2").arg(status.infKeyboardServiceInstalled ? tr("已安装") : tr("未安装"),
+            status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound ? tr("已就绪") : tr("未就绪"))
+        << tr("鼠标服务/设备: %1 / %2").arg(status.infMouseServiceInstalled ? tr("已安装") : tr("未安装"),
+            status.infMouseDeviceStarted && status.infMouseDeviceBound ? tr("已就绪") : tr("未就绪"));
+    const bool usbReady = ch552Driver_.IsReady();
+    const auto usbPort = usbReady ? ch552Driver_.PortName() : detectedUsbPort;
+    lines << QString() << QStringLiteral("USB")
+        << tr("设备: %1").arg(usbPort.empty() ? tr("未插入") : tr("已插入"))
+        << tr("通信: %1").arg(usbReady ? tr("已连接") : tr("未连接"));
+    if (usbReady) lines << tr("固件: %1").arg(QString::fromStdWString(ch552Driver_.FirmwareVersion()));
+    if (oldHidInstalled) lines << QString() << tr("旧 HID: 检测到安装残留，仅提供卸载入口")
+        << tr("服务: %1；设备: %2；驱动包: %3")
+            .arg(status.hidServicePendingDelete ? tr("等待重启删除") : status.hidServiceInstalled ? tr("存在") : tr("无"),
+                status.hidDevicesPresent ? tr("存在") : tr("无"), status.hidDriverStorePresent ? tr("存在") : tr("无"));
+    lines << QString() << tr("内存完整性: %1（仅供核对）")
+        .arg(guards.memoryIntegrityRunning ? tr("运行中") : guards.memoryIntegrityConfigured ? tr("等待重启生效") : tr("关闭"));
+    page->setDetailText(lines.join(QLatin1Char('\n')));
 }
 
 DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
     const DriverMode originalMode = config_.driverMode;
     const bool sameMode = mode == originalMode;
-    if (sameMode && activeInputDriverReady()) {
-        refreshDriverStatusUi();
-        return DriverCoordinator::SwitchResult::Succeeded;
-    }
-
-    const QString targetName = mode == DriverMode::Hid
-        ? QStringLiteral("HID")
-        : (mode == DriverMode::Usb ? QStringLiteral("USB") : QStringLiteral("DD"));
-    if (mode != DriverMode::Usb) {
-        const auto status = ddRuntimeService_.Inspect(driver_);
-        const bool runtimeExists = mode == DriverMode::Hid
-            ? status.hidRuntimeExists : status.legacyRuntimeExists;
-        if (!runtimeExists) {
-            const auto& path = mode == DriverMode::Hid ? status.hidRuntimePath : status.legacyRuntimePath;
-            AppMessageDialog::warning(this, tr("运行文件缺失"),
-                tr("未找到 %1 模式所需的运行文件：\n%2\n\n"
-                   "请从完整发布包恢复 driver 目录后再操作。当前选择的模式保持不变。")
-                    .arg(targetName, QString::fromStdWString(path)));
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
-        if (mode == DriverMode::Hid && status.hidServicePendingDelete) {
-            AppMessageDialog::warning(this, tr("HID 驱动等待重启"),
-                tr("Windows 正在等待删除 HID 驱动服务，请先重启电脑完成卸载，再安装 HID。"));
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
+    if (sameMode && activeInputDriverReady()) return DriverCoordinator::SwitchResult::Succeeded;
+    const QString name = mode == DriverMode::Xiaoji ? tr("小叽")
+        : mode == DriverMode::Legacy ? QStringLiteral("DD") : QStringLiteral("USB");
+    if (mode == DriverMode::Legacy && !ddRuntimeService_.Inspect(driver_).legacyRuntimeExists) {
+        AppMessageDialog::warning(this, tr("运行文件缺失"), tr("请从完整发布包恢复 DD 运行文件后再切换。"));
+        return DriverCoordinator::SwitchResult::Canceled;
     }
     inputHook_.setDialogOpen(true);
-    const bool confirmed = ConfigConfirmDialog::confirm(
-        this,
-        sameMode ? tr("安装/修复 %1").arg(targetName) : tr("驱动切换"),
-        sameMode ? tr("将尝试安装或修复当前 %1 驱动，完成后重新启动小叽按键。是否继续？").arg(targetName)
-            : tr("切换到 %1 需要重启小叽按键，点击确定后将自动重新启动。").arg(targetName),
-        QString::fromWCharArray(L"\u786e\u5b9a"));
+    const bool confirmed = ConfigConfirmDialog::confirm(this, tr("准备 %1 驱动").arg(name),
+        tr("将停止当前连发和循环，准备 %1 驱动，成功后重新启动小叽按键。"
+           "小叽驱动修复可能重建其虚拟键盘和鼠标，请关闭其他使用它的发送程序；首次安装会单独确认证书信任。是否继续？").arg(name), tr("继续"));
     inputHook_.setDialogOpen(false);
-    if (!confirmed) {
+    if (!confirmed) return DriverCoordinator::SwitchResult::Canceled;
+    engineStateCoordinator_.setRepeatRunning(false);
+    macroEngine_.StopAll();
+    inputDriver_.ReleaseAll();
+    if (mode == DriverMode::Xiaoji && !prepareXiaojiDriverForSwitch()) {
         refreshDriverStatusUi();
         return DriverCoordinator::SwitchResult::Canceled;
     }
-
-    if (mode == DriverMode::Hid && !ensureHidDriverInstalledForSwitch(sameMode)) {
-        refreshDriverStatusUi();
-        return DriverCoordinator::SwitchResult::Canceled;
-    }
-
     if (mode == DriverMode::Legacy) {
-        DdDriver stagedLegacyDriver;
-        std::wstring legacyError;
-        if (!loadLegacyDriverInto(stagedLegacyDriver, &legacyError)) {
-            AppMessageDialog::warning(this, tr("DD 驱动安装或加载失败"),
-                tr("DD 驱动未能就绪，当前选择的模式保持不变。\n\n%1")
-                    .arg(QString::fromStdWString(legacyError)));
+        DdDriver candidate;
+        std::wstring error;
+        if (!loadLegacyDriverInto(candidate, &error)) {
+            AppMessageDialog::warning(this, tr("DD 驱动未就绪"), QString::fromStdWString(error));
             refreshDriverStatusUi();
             return DriverCoordinator::SwitchResult::Canceled;
         }
     }
     if (mode == DriverMode::Usb) {
-        std::wstring usbError;
-        if (!canLoadCh552UsbDriver(&usbError)) {
-            AppMessageDialog::warning(this, tr("USB 连接失败"),
-                tr("目标 USB 设备未能连接，当前选择的模式保持不变。\n\n%1")
-                    .arg(QString::fromStdWString(usbError)));
+        std::wstring error;
+        if (!canLoadCh552UsbDriver(&error)) {
+            AppMessageDialog::warning(this, tr("USB 连接失败"), QString::fromStdWString(error));
             refreshDriverStatusUi();
             return DriverCoordinator::SwitchResult::Canceled;
         }
     }
-
     const bool wasUninstalled = config_.IsDriverUninstalledByUser(mode);
     config_.driverMode = mode;
     config_.SetDriverUninstalledByUser(mode, false);
@@ -874,6 +836,7 @@ DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
         config_.driverMode = originalMode;
         config_.SetDriverUninstalledByUser(mode, wasUninstalled);
         configCoordinator_.save();
+        loadConfiguredDriver();
         refreshDriverStatusUi();
         return DriverCoordinator::SwitchResult::Failed;
     }
@@ -896,40 +859,50 @@ bool MainWindow::restartForDriverModeChange() {
     return true;
 }
 
-bool MainWindow::prepareDriverUninstall(DriverMode mode) {
-    // Persist the user's intent before touching Windows driver state.
-    const bool wasUninstalled = config_.IsDriverUninstalledByUser(mode);
+bool MainWindow::prepareDriverUninstall(DriverRemovalTarget target) {
+    if (driverUninstallInProgress_) return false;
+    driverUninstallInProgress_ = true;
+    // A deliberate disconnect is not a driver failure. Invalidate already
+    // queued automatic checks before stopping input or opening nested dialogs.
+    ++selfCheckPromptGeneration_;
+    pendingSelfCheckPrompt_ = false;
+    if (target == DriverRemovalTarget::RetiredHid) return true;
+    const auto mode = target == DriverRemovalTarget::Xiaoji ? DriverMode::Xiaoji : DriverMode::Legacy;
+    driverUninstallPreviousState_ = config_.IsDriverUninstalledByUser(mode);
     config_.SetDriverUninstalledByUser(mode, true);
     if (!configCoordinator_.save()) {
-        config_.SetDriverUninstalledByUser(mode, wasUninstalled);
+        config_.SetDriverUninstalledByUser(mode, driverUninstallPreviousState_);
+        driverUninstallInProgress_ = false;
         return false;
     }
     if (mode != config_.driverMode) return true;
-
+    selfCheckAutoOpened_ = true;
     engineStateCoordinator_.setRepeatRunning(false);
     macroEngine_.StopAll();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
-
-    if ((mode == DriverMode::Hid && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Hid) ||
-        (mode == DriverMode::Legacy && driver_.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy)) {
-        driver_.ReleaseAll();
-        driver_.Unload();
-        inputDriver_.SetDriver(nullptr);
-    }
+    inputDriver_.SetDriver(nullptr);
+    if (mode == DriverMode::Xiaoji) xiaojiDriver_.Disconnect();
+    else driver_.Unload();
     return true;
 }
 
-void MainWindow::finalizeDriverUninstall(DriverMode mode) {
-    if (config_.driverMode == mode) {
-        inputDriver_.SetDriver(nullptr);
-        if (mode != DriverMode::Usb) {
-            driver_.Unload();
-        }
+void MainWindow::finalizeDriverUninstall(DriverRemovalTarget target, bool succeeded) {
+    driverUninstallInProgress_ = false;
+    ++selfCheckPromptGeneration_;
+    if (target != DriverRemovalTarget::RetiredHid) {
+        const auto mode = target == DriverRemovalTarget::Xiaoji ? DriverMode::Xiaoji : DriverMode::Legacy;
+        config_.SetDriverUninstalledByUser(mode, succeeded || driverUninstallPreviousState_);
+        if (!succeeded) configCoordinator_.save();
     }
-    if (config_.driverMode == mode) {
-        driverStatusNote_ = tr("已按你的选择停用当前驱动，自动安装已停用。"
-                              "需要再次使用时，请在驱动管理页点击“安装”。").toStdWString();
+    const bool active = (target == DriverRemovalTarget::Xiaoji && config_.driverMode == DriverMode::Xiaoji)
+        || (target == DriverRemovalTarget::Legacy && config_.driverMode == DriverMode::Legacy);
+    if (active) {
+        inputDriver_.SetDriver(nullptr);
+        driverUninstallFailed_ = !succeeded;
+        driverStatusNote_ = succeeded
+            ? tr("当前驱动已卸载，需要再次使用时请在驱动管理页主动安装。").toStdWString()
+            : tr("卸载未完成，当前输入已断开。请通过保留的卸载按钮重试；需要恢复使用时可主动重新连接或安装/修复。").toStdWString();
     }
     engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
@@ -955,6 +928,7 @@ void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
     inputDriver_.SetDriver(nullptr);
+    xiaojiDriver_.Disconnect();
     driver_.ReleaseAll();
     driver_.Unload();
     ch552Driver_.Disconnect();
@@ -1041,7 +1015,13 @@ void MainWindow::showEvent(QShowEvent* event) {
     pendingSelfCheckPrompt_ = false;
     selfCheckAutoOpened_ = true;
     // 先让主窗口完成首帧渲染，再弹自检向导，避免开屏即模态。
-    QTimer::singleShot(250, this, [this]() {
+    const auto promptGeneration = selfCheckPromptGeneration_;
+    QTimer::singleShot(250, this, [this, promptGeneration]() {
+        if (promptGeneration != selfCheckPromptGeneration_ || driverUninstallInProgress_
+            || config_.IsDriverUninstalledByUser(config_.driverMode)) {
+            onboardingCoordinator_.initialize();
+            return;
+        }
         connect(&driverSelfCheckCoordinator_, &DriverSelfCheckCoordinator::dialogsClosed,
             &onboardingCoordinator_, &OnboardingCoordinator::initialize, Qt::SingleShotConnection);
         driverSelfCheckCoordinator_.open();
@@ -1100,7 +1080,7 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 #ifdef Q_OS_WIN
     auto* msg = static_cast<MSG*>(message);
     if (msg) {
-        if (msg->message == WM_INPUT) {
+        if (msg->message == WM_INPUT || msg->message == WM_INPUT_DEVICE_CHANGE) {
             rawInput_.handleNativeMessage(msg, result);
         }
         switch (msg->message) {
@@ -1130,6 +1110,8 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
         case WM_DEVICECHANGE:
             if (isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
                 usbDeviceRefreshTimer_.start(650);
+            } else if (msg->wParam == DBT_DEVNODES_CHANGED && config_.driverMode == DriverMode::Xiaoji) {
+                refreshDriverStatusUi();
             }
             break;
         case WM_THEMECHANGED:
@@ -1655,7 +1637,8 @@ void MainWindow::applyImportedSharePayload(const SharePayload& payload) {
 }
 
 void MainWindow::showDdUnavailableMessage() {
-    if (suppressDdUnavailablePrompt_) {
+    if (suppressDdUnavailablePrompt_ || driverUninstallInProgress_
+        || config_.IsDriverUninstalledByUser(config_.driverMode)) {
         return;
     }
 
@@ -1665,12 +1648,16 @@ void MainWindow::showDdUnavailableMessage() {
 }
 
 void MainWindow::openSelfCheckAfterDriverFailure() {
-    if (selfCheckAutoOpened_) {
+    if (selfCheckAutoOpened_ || driverUninstallInProgress_
+        || config_.IsDriverUninstalledByUser(config_.driverMode)) {
         return;
     }
     selfCheckAutoOpened_ = true;
     // 延迟到当前事件循环结束，让安装/切换的进度弹窗先收尾、热键处理先返回，再弹自检向导。
-    QTimer::singleShot(0, this, [this]() {
+    const auto promptGeneration = selfCheckPromptGeneration_;
+    QTimer::singleShot(0, this, [this, promptGeneration]() {
+        if (promptGeneration != selfCheckPromptGeneration_ || driverUninstallInProgress_
+            || inputHook_.isDialogOpen() || config_.IsDriverUninstalledByUser(config_.driverMode)) return;
         driverSelfCheckCoordinator_.open();
     });
 }
@@ -1685,16 +1672,13 @@ void MainWindow::logDriverUnavailableOnce() {
     std::wstringstream errorLog;
     errorLog << L"driver_mode=";
     if (config_.driverMode == DriverMode::Usb) errorLog << L"USB";
-    else errorLog << (config_.driverMode == DriverMode::Hid ? L"HID" : L"DD");
+    else errorLog << (config_.driverMode == DriverMode::Xiaoji ? L"Xiaoji" : L"DD");
     errorLog << L"\n"
              << L"last_error=" << (activeInputDriverError().empty() ? L"(none)" : activeInputDriverError()) << L"\n"
              << L"runtime_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
              << L"runtime_kind=" << static_cast<int>(driver_.GetRuntimeKind()) << L"\n"
-             << L"hid_runtime=" << status.hidRuntimeExists << L"\n"
-             << L"hid_service=" << status.hidServiceInstalled << L"\n"
-             << L"hid_sys=" << status.hidSysInstalled << L"\n"
-             << L"hid_root_device=" << status.hidRootDeviceOk << L"\n"
-             << L"hid_child_device=" << status.hidChildDeviceOk << L"\n"
+             << L"xiaoji_keyboard=" << status.xiaojiKeyboardReady << L"\n"
+             << L"xiaoji_mouse=" << status.xiaojiMouseReady << L"\n"
              << L"inf_keyboard_service=" << status.infKeyboardServiceInstalled << L"\n"
              << L"inf_mouse_service=" << status.infMouseServiceInstalled << L"\n"
              << L"inf_keyboard_device="

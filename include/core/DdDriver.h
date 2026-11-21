@@ -16,7 +16,6 @@ class DdDriver : public InputDriver {
 public:
     enum class RuntimeKind {
         Unknown,
-        Hid,
         Legacy,
     };
 
@@ -24,7 +23,6 @@ public:
     ~DdDriver() override;
 
     bool LoadFrom(const std::wstring& dllPath);
-    bool LoadHidFrom(const std::wstring& dllPath);
     bool LoadLegacyFromDirectory(const std::wstring& directoryPath);
     void Unload();
     void SwapWith(DdDriver& other);
@@ -54,16 +52,11 @@ private:
     using DD_todc_t = int(__stdcall*)(int);
     using DD_move_t = int(__stdcall*)(int, int);
 
-    bool LoadFrom(const std::wstring& dllPath, RuntimeKind runtimeKind);
     bool SendDownInternal(const KeyDescriptor& key, InputSource src, bool trackHold);
     bool SendKeyboardTap(std::uint32_t vk);
     bool SendMouseTap(std::uint32_t vk);
     bool SendMouseDown(std::uint32_t vk);
     bool SendMouseUp(std::uint32_t vk);
-    bool SendHidMouseButton(std::uint32_t vk, bool down);
-    bool EnsureHidMouseHandleLocked();
-    bool WriteHidMouseReportLocked(int deltaX = 0, int deltaY = 0);
-    void CloseHidMouseHandleLocked();
     // 鼠标注入结果诊断：连续失败只在首次记录（调用方需持有 ioMutex_）。
     void NoteMouseInjectResult(const KeyDescriptor& key, bool down, bool ok);
     bool TryBindInfDeviceHandles(const std::wstring& dllPath, std::wstring* errorMessage);
@@ -100,11 +93,6 @@ private:
     mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, int> pressedKeys_;
     std::unordered_map<std::uint64_t, InjectedState> selfInjected_;
-
-    std::mutex hidMouseMutex_;
-    HANDLE hidMouseHandle_ = INVALID_HANDLE_VALUE;
-    std::uint8_t hidMouseButtonState_ = 0;
-    bool hidMouseOpenDiagLogged_ = false;  // hidMouseMutex_ 保护：句柄打开失败只记录一次
 
     std::unordered_set<std::uint64_t> mouseInjectFailDiag_;  // ioMutex_ 保护：连续注入失败只记录首次
 };

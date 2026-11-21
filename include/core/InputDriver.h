@@ -11,6 +11,9 @@ public:
 
     [[nodiscard]] virtual bool IsReady() const noexcept = 0;
     [[nodiscard]] virtual std::wstring GetLastError() const = 0;
+    [[nodiscard]] virtual std::wstring KeySupportError(const KeyDescriptor&) const { return {}; }
+    [[nodiscard]] virtual bool SupportsPhysicalModifierIsolation() const { return true; }
+    [[nodiscard]] virtual bool SupportsPauseModifierRelay() const { return false; }
 
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
@@ -35,4 +38,6 @@ public:
     virtual void ReleaseAll() = 0;
     virtual void ClearAllStates() {}
     virtual bool ConsumeSelfInjected(const KeyDescriptor&, bool) { return false; }
+    virtual bool ConsumeSelfInjectedRaw(const KeyDescriptor&, bool) { return false; }
+    virtual bool ConsumeSelfInjectedWheel(int) { return false; }
 };

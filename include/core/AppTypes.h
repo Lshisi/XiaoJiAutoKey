@@ -98,10 +98,13 @@ enum class OnboardingStatus {
 };
 
 enum class DriverMode {
+    Xiaoji,
     Legacy,
-    Hid,
     Usb,
 };
+
+// Retired HID is an uninstall target only; it cannot be selected or loaded.
+enum class DriverRemovalTarget { Xiaoji, Legacy, RetiredHid };
 
 enum class MacroTriggerMode {
     Toggle,
@@ -194,9 +197,9 @@ struct AppConfig {
     bool autoStartEnabled = false;
     StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
-    DriverMode driverMode = DriverMode::Legacy;
+    DriverMode driverMode = DriverMode::Xiaoji;
+    bool xiaojiDriverUninstalledByUser = false;
     bool ddDriverUninstalledByUser = false;
-    bool hidDriverUninstalledByUser = false;
     std::string faction = "cangjian";
     // Latest version seen through a manual update check; only used to keep
     // the update badge visible across restarts. Never triggers a check.
@@ -212,11 +215,11 @@ struct AppConfig {
 
     [[nodiscard]] bool IsDriverUninstalledByUser(DriverMode mode) const noexcept {
         return mode == DriverMode::Legacy ? ddDriverUninstalledByUser
-            : mode == DriverMode::Hid && hidDriverUninstalledByUser;
+            : mode == DriverMode::Xiaoji && xiaojiDriverUninstalledByUser;
     }
     void SetDriverUninstalledByUser(DriverMode mode, bool value) noexcept {
         if (mode == DriverMode::Legacy) ddDriverUninstalledByUser = value;
-        else if (mode == DriverMode::Hid) hidDriverUninstalledByUser = value;
+        else if (mode == DriverMode::Xiaoji) xiaojiDriverUninstalledByUser = value;
     }
 };
 

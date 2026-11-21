@@ -1,4 +1,5 @@
 #include "services/DdRuntimeService.h"
+#include "services/XiaojiRuntimeService.h"
 
 #include <Windows.h>
 #include <SetupAPI.h>
@@ -401,11 +402,6 @@ std::vector<std::wstring> EnumerateInfDriverPublishedNames(const std::wstring& p
     return publishedNames;
 }
 
-bool HidCreateDeviceAlreadyExists(const std::wstring& text) {
-    const std::wstring lowerText = ToLower(text);
-    return ContainsText(lowerText, L"already exists") &&
-           ContainsText(lowerText, L"ddhid63340");
-}
 
 bool PnputilDeleteDriverSucceeded(bool processOk, DWORD exitCode, const std::wstring& output) {
     if (processOk || exitCode == ERROR_SUCCESS_REBOOT_REQUIRED) {
@@ -642,7 +638,7 @@ std::wstring QueryDeviceRegistryStringProperty(HDEVINFO deviceInfo,
 
 std::vector<std::wstring> EnumerateHidRootDeviceInstanceIds() {
     std::vector<std::wstring> ids;
-    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT);
+    HDEVINFO deviceInfo = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_ALLCLASSES);
     if (deviceInfo == INVALID_HANDLE_VALUE) {
         return ids;
     }
@@ -685,7 +681,7 @@ bool RemoveDeviceInstanceBestEffort(const std::wstring& instanceId, std::wstring
     }
 
     DEVINST devInst = 0;
-    CONFIGRET locateResult = CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(instanceId.c_str()), CM_LOCATE_DEVNODE_NORMAL);
+    CONFIGRET locateResult = CM_Locate_DevNodeW(&devInst, const_cast<DEVINSTID_W>(instanceId.c_str()), CM_LOCATE_DEVNODE_PHANTOM);
     if (locateResult != CR_SUCCESS) {
         if (detail) {
             *detail = L"locate=" + FormatConfigRet(locateResult);
@@ -1112,15 +1108,25 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, cons
     status.lastError = lastError;
     status.driverRootPath = DriverRootDir().wstring();
     status.driverRootExists = QFileInfo(QString::fromStdWString(status.driverRootPath)).isDir();
-    status.hidRuntimePath = HidRuntimePath().wstring();
-    status.hidRuntimeExists = QFileInfo(QString::fromStdWString(status.hidRuntimePath)).isFile();
-    status.hidEmbeddedDriverExists = EmbeddedHidDriverExists();
+    const auto xiaojiStatus = XiaojiRuntimeService(exeDir_).Inspect();
+    status.xiaojiManagerExists = xiaojiStatus.managerExists;
+    status.xiaojiInstallerExists = xiaojiStatus.installerExists;
+    status.xiaojiKeyboardPresent = xiaojiStatus.keyboardPresent;
+    status.xiaojiMousePresent = xiaojiStatus.mousePresent;
+    status.xiaojiKeyboardReady = xiaojiStatus.keyboardReady;
+    status.xiaojiMouseReady = xiaojiStatus.mouseReady;
+    status.xiaojiProfileReady = xiaojiStatus.profileReady;
+    status.xiaojiBoundPackagePresent = xiaojiStatus.boundPackagePresent;
+    status.xiaojiConfigurationPresent = xiaojiStatus.configurationPresent;
+    status.xiaojiError = xiaojiStatus.error;
     status.hidServiceInstalled = ServiceExists(kHidServiceName);
     status.hidServicePendingDelete = ServiceMarkedForDelete(kHidServiceName);
     status.hidSysInstalled = std::filesystem::exists(SystemDriversDir() / kHidSysName);
     status.hidDriverStorePresent = HidDriverStorePresent();
     status.hidRootDeviceOk = HidRootDeviceOk();
     status.hidChildDeviceOk = HidChildDeviceOk();
+    status.hidDevicesPresent = !EnumerateHidRootDeviceInstanceIds().empty() ||
+        !EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix).empty();
     status.legacy32Exists = QFileInfo(QString::fromStdWString(Legacy32Path().wstring())).isFile();
     status.legacy64Exists = QFileInfo(QString::fromStdWString(Legacy64Path().wstring())).isFile();
 #if defined(_WIN64)
@@ -1155,18 +1161,17 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, cons
     status.infKeyboardDeviceBound = keyDevice.boundToService;
     status.infMouseDeviceBound = mouseDevice.boundToService;
     status.candidateDlls = {
-        HidRuntimePath().wstring(),
         Legacy64Path().wstring(),
         Legacy32Path().wstring(),
     };
 
     if (!status.driverReady) {
-        status.notes.push_back(L"DD is not ready. Input simulation will fail until the selected runtime and driver are available.");
+        status.notes.push_back(L"Selected input driver is not ready. Input simulation will fail until the selected driver is available.");
     }
-    if (!status.hidRuntimeExists && !status.legacyRuntimeExists) {
-        status.notes.push_back(L"No HID runtime or DD runtime matching this process architecture was found in the application directory.");
+    if (!status.legacyRuntimeExists) {
+        status.notes.push_back(L"No DD runtime matching this process architecture was found in the application directory.");
     }
-    if (!status.hidEmbeddedDriverExists && !status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
+    if (!status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
         status.notes.push_back(L"No embedded driver package was found.");
     }
     if (!status.infKeyboardDeviceStarted || !status.infMouseDeviceStarted ||
@@ -1175,140 +1180,6 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, cons
     }
 
     return status;
-}
-
-bool DdRuntimeService::InstallEmbeddedHidDriver(std::wstring* resultMessage) const {
-    const QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    if (tempRoot.isEmpty()) {
-        if (resultMessage) {
-            *resultMessage = L"Unable to resolve the temp directory.";
-        }
-        return false;
-    }
-
-    const std::wstring pnputilPath = ResolvePnputilPath();
-    if (pnputilPath.empty()) {
-        if (resultMessage) {
-            *resultMessage = L"Unable to resolve the Windows system directory.";
-        }
-        return false;
-    }
-
-    if (!EmbeddedHidDriverExists()) {
-        if (resultMessage) {
-            *resultMessage = L"No embedded HID driver package is available.";
-        }
-        return false;
-    }
-
-    {
-        std::wstring probeMessage;
-        const bool serviceReady = ServiceExists(kHidServiceName);
-        const bool sysReady = std::filesystem::exists(SystemDriversDir() / kHidSysName);
-        const bool rootDeviceOk = HidRootDeviceOk();
-        const bool childDeviceOk = HidChildDeviceOk();
-        const bool runtimeProbeOk = ProbeHidRuntime(8000, &probeMessage);
-        if (serviceReady && sysReady && rootDeviceOk && childDeviceOk && runtimeProbeOk) {
-            std::wstringstream summary;
-            summary << L"HID install skipped: runtime is already ready.\n"
-                    << L"HID final state -> service=yes, sys=yes, root_device=yes, child_device=yes, runtime_probe=yes\n";
-            if (!probeMessage.empty()) {
-                summary << probeMessage << L"\n";
-            }
-            if (resultMessage) {
-                *resultMessage = summary.str();
-            }
-            AppendLog(logsDir_, L"dd-hid-install.log", summary.str());
-            return true;
-        }
-    }
-
-    const auto uniqueToken = std::to_wstring(GetCurrentProcessId()) + L"-" +
-        std::to_wstring(static_cast<unsigned long long>(GetTickCount64()));
-    const QString installRoot = QDir(tempRoot).filePath(QStringLiteral("xiaoji-dd-hid"));
-    const QString outputDir = QDir(installRoot).filePath(QString::fromStdWString(uniqueToken));
-    QDir().mkpath(outputDir);
-
-    const QString ddcPath = QDir(outputDir).filePath(QStringLiteral("ddc.exe"));
-    const QString infPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.inf"));
-    const QString catPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.cat"));
-    const QString sysPath = QDir(outputDir).filePath(QStringLiteral("ddhid63340.sys"));
-
-    QString extractError;
-    const QString prefix = QStringLiteral(":/dd/hid/drv/");
-    std::wstringstream message;
-    if (!CopyResourceFile(prefix + QStringLiteral("ddc.exe"), ddcPath, &extractError) ||
-        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.inf"), infPath, &extractError) ||
-        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.cat"), catPath, &extractError) ||
-        !CopyResourceFile(prefix + QStringLiteral("ddhid63340.sys"), sysPath, &extractError)) {
-        message << L"HID extract failed: " << extractError.toStdWString() << L"\n";
-        if (resultMessage) {
-            *resultMessage = message.str();
-        }
-        AppendLog(logsDir_, L"dd-hid-install.log", message.str());
-        return false;
-    }
-
-    DWORD exitCode = 1;
-    std::wstring stepOutput;
-    std::wstring stepError;
-    const bool addHidProcessOk = RunProcess(
-        pnputilPath,
-        {L"/add-driver", infPath.toStdWString(), L"/install"},
-        &exitCode,
-        &stepOutput,
-        &stepError);
-    const bool addHidOk = PnputilAddDriverSucceeded(addHidProcessOk, exitCode, stepOutput);
-    message << L"HID add inf -> "
-            << FormatStepResult(addHidOk, addHidProcessOk, exitCode, stepOutput, stepError) << L"\n";
-
-    stepOutput.clear();
-    stepError.clear();
-    exitCode = 1;
-    const bool createDeviceOk = RunProcess(
-        ddcPath.toStdWString(),
-        {},
-        &exitCode,
-        &stepOutput,
-        &stepError,
-        outputDir.toStdWString(),
-        15000,
-        QByteArray("\r\n\r\n"));
-    const bool createDeviceAccepted = createDeviceOk || HidCreateDeviceAlreadyExists(stepOutput) ||
-        HidCreateDeviceAlreadyExists(stepError);
-    message << L"HID create device -> "
-            << FormatStepResult(createDeviceAccepted, createDeviceOk, exitCode, stepOutput, stepError) << L"\n";
-
-    const bool serviceReady = ServiceExists(kHidServiceName);
-    const bool sysReady = std::filesystem::exists(SystemDriversDir() / kHidSysName);
-    const bool rootDeviceOk = HidRootDeviceOk();
-    const bool childDeviceOk = HidChildDeviceOk();
-    std::wstring probeMessage;
-    const bool runtimeProbeOk = ProbeHidRuntime(8000, &probeMessage);
-    const bool overallInstalled = serviceReady && sysReady && rootDeviceOk && childDeviceOk && runtimeProbeOk;
-    message << L"HID final state -> service="
-            << (serviceReady ? L"yes" : L"no")
-            << L", sys="
-            << (sysReady ? L"yes" : L"no")
-            << L", root_device="
-            << (rootDeviceOk ? L"yes" : L"no")
-            << L", child_device="
-            << (childDeviceOk ? L"yes" : L"no")
-            << L", runtime_probe="
-            << (runtimeProbeOk ? L"yes" : L"no")
-            << L"\n";
-    if (!probeMessage.empty()) {
-        message << probeMessage << L"\n";
-    }
-
-    std::wstringstream summary;
-    summary << (overallInstalled ? L"HID install succeeded.\n" : L"HID install did not complete successfully.\n");
-    summary << message.str();
-    if (resultMessage) {
-        *resultMessage = summary.str();
-    }
-    AppendLog(logsDir_, L"dd-hid-install.log", summary.str());
-    return overallInstalled;
 }
 
 bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) const {
@@ -1337,6 +1208,7 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
         !ServiceExists(kHidServiceName) &&
         !std::filesystem::exists(SystemDriversDir() / kHidSysName) &&
         !HidDriverStorePresent() &&
+        EnumerateHidRootDeviceInstanceIds().empty() &&
         EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix).empty()) {
         const std::wstring summary = L"HID uninstall skipped: runtime and driver package are already removed.\n";
         if (resultMessage) {
@@ -1399,6 +1271,8 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
 
     if (scExitCode == ERROR_SERVICE_MARKED_FOR_DELETE &&
         removedPackage &&
+        EnumerateHidRootDeviceInstanceIds().empty() &&
+        EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix).empty() &&
         !HidRootDeviceOk() &&
         !HidChildDeviceOk() &&
         !std::filesystem::exists(SystemDriversDir() / kHidSysName) &&
@@ -1445,8 +1319,8 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
         message << L"\n";
     }
 
-    const bool stillHasRoot = HidRootDeviceOk();
-    const bool stillHasChild = HidChildDeviceOk();
+    const bool stillHasRoot = !EnumerateHidRootDeviceInstanceIds().empty();
+    const bool stillHasChild = !EnumerateDeviceInstanceIdsFromSetupApi(kHidChildDevicePrefix).empty();
     const bool stillHasService = ServiceExists(kHidServiceName);
     const bool stillHasSys = std::filesystem::exists(SystemDriversDir() / kHidSysName);
     const bool stillHasDriverStore = HidDriverStorePresent();
@@ -1522,27 +1396,7 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
     AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
     return overallUninstalled || pendingRebootOnly || pendingSysFileCleanup || sysDeleteScheduled;
 }
-#if 0
-    std::wstringstream summary;
-    summary << (overallUninstalled
-        ? L"HID 卸载成功。\n"
-        : L"HID 卸载未完全完成。\n");
-    if (!stillHasRoot && !stillHasChild && (!stillHasService || servicePendingDelete) && removedPackage) {
-        summary << L"驱动服务、驱动包和设备节点已移除。\n";
-    } else if (!stillHasRoot && !stillHasChild && removedPackage) {
-        summary << L"驱动包和设备节点已移除，服务状态可能需重启后完全释放。\n";
-    } else {
-        summary << L"系统中仍可能残留部分设备节点或服务状态。\n";
-    }
-    summary << L"建议重启系统；至少也请重启软件后再继续使用。\n";
-    summary << L"详细过程已写入日志。";
-    if (resultMessage) {
-        *resultMessage = summary.str();
-    }
-    AppendLog(logsDir_, L"dd-hid-uninstall.log", summary.str() + L"\n\n" + message.str());
-    return overallUninstalled;
-}
-#endif
+
 
 bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) const {
     const std::wstring pnputilPath = ResolvePnputilPath();
@@ -1734,47 +1588,6 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
     return overallInstalled;
 }
 
-bool DdRuntimeService::ProbeHidRuntime(int timeoutMs, std::wstring* resultMessage) const {
-    wchar_t exePath[MAX_PATH] = {};
-    const DWORD exePathLen = GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    if (exePathLen == 0 || exePathLen >= MAX_PATH) {
-        if (resultMessage) {
-            *resultMessage = L"Unable to resolve the executable path.";
-        }
-        return false;
-    }
-
-    DWORD exitCode = 1;
-    std::wstring output;
-    std::wstring error;
-    const bool ok = RunProcess(
-        exePath,
-        {L"--probe-dd-hid", HidRuntimePath().wstring()},
-        &exitCode,
-        &output,
-        &error,
-        ExeDir().wstring(),
-        timeoutMs);
-
-    std::wstringstream message;
-    message << L"HID runtime probe -> ";
-    if (ok && exitCode == 0) {
-        message << L"ok";
-    } else if (!error.empty()) {
-        message << L"failed (" << error << L")";
-    } else {
-        message << L"failed (exit_code=" << exitCode << L")";
-    }
-    if (!output.empty()) {
-        message << L"\n" << output;
-    }
-    if (resultMessage) {
-        *resultMessage = message.str();
-    }
-    AppendLog(logsDir_, L"dd-hid-probe.log", message.str());
-    return ok && exitCode == 0;
-}
-
 bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
                                                std::wstring* resultMessage) const {
     const std::wstring pnputilPath = ResolvePnputilPath();
@@ -1873,10 +1686,6 @@ std::filesystem::path DdRuntimeService::LogsDir() const noexcept {
 
 std::filesystem::path DdRuntimeService::DriverRootDir() const {
     return exeDir_ / L"driver";
-}
-
-bool DdRuntimeService::EmbeddedHidDriverExists() const {
-    return QFile::exists(QStringLiteral(":/dd/hid/drv/ddhid63340.inf"));
 }
 
 bool DdRuntimeService::EmbeddedInfVariantExists(int variant) const {
@@ -2026,14 +1835,6 @@ bool DdRuntimeService::HidDriverStorePresent() const {
         }
     }
     return false;
-}
-
-std::filesystem::path DdRuntimeService::HidRootPath() const {
-    return DriverRootDir() / L"hid";
-}
-
-std::filesystem::path DdRuntimeService::HidRuntimePath() const {
-    return HidRootPath() / L"ddhid.63340.dll";
 }
 
 std::filesystem::path DdRuntimeService::Legacy32Path() const {

@@ -9,6 +9,7 @@
 #include <QTimer>
 
 #include <memory>
+#include <exception>
 #include <QPointer>
 #include <utility>
 
@@ -18,25 +19,26 @@ struct DriverUninstallResult {
     std::wstring message;
 };
 
-QString driverName(DriverMode mode) {
-    return mode == DriverMode::Hid ? QStringLiteral("HID") : QStringLiteral("DD");
+QString driverName(DriverRemovalTarget mode) {
+    if (mode == DriverRemovalTarget::RetiredHid) return QStringLiteral("HID");
+    return mode == DriverRemovalTarget::Xiaoji ? QObject::tr("小叽") : QStringLiteral("DD");
 }
 
 class DriverUninstallProgressDialog final : public QmlDialog {
 public:
-    explicit DriverUninstallProgressDialog(DriverMode mode, QWidget* parent) : QmlDialog(parent) {
+    explicit DriverUninstallProgressDialog(DriverRemovalTarget mode, QWidget* parent) : QmlDialog(parent) {
         const QString name = driverName(mode);
         setWindowTitle(tr("%1 驱动卸载").arg(name));
         setWindowModality(Qt::ApplicationModal);
         present("DialogReport.qml", {{"heading", tr("正在后台卸载 %1").arg(name)},
-            {"body", tr("请勿关闭程序，卸载完成后将尝试重启电脑。")}, {"bodyRich", false},
+            {"body", mode == DriverRemovalTarget::Xiaoji ? tr("请勿关闭程序，正在移除小叽驱动设备及其所属驱动包。") : tr("请勿关闭程序，卸载完成后将尝试重启电脑。")}, {"bodyRich", false},
             {"status", QString()}, {"severity", 0}, {"progressVisible", true},
             {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()},
             {"closeAllowed", false}}, QSize(420, 168), true);
     }
-    void markFinished() {
+    void markFinished(bool ok) {
         setValue("progressVisible", false);
-        setValue("status", tr("卸载已完成，正在处理后续状态…"));
+        setValue("status", ok ? tr("卸载已完成，正在处理后续状态…") : tr("卸载未完成，正在保留重试入口…"));
     }
 };
 }
@@ -71,68 +73,58 @@ void DriverCoordinator::bind(Context context) {
         if (context_.openDiagnostics) context_.openDiagnostics();
     });
 
-    connect(context_.page, &DriverPageModel::uninstallDriverRequested, this, [this](DriverMode mode) {
-        if (mode == DriverMode::Usb) {
+    connect(context_.page, &DriverPageModel::uninstallDriverRequested, this, [this](DriverRemovalTarget target) {
+        if (!context_.runtimeService || !context_.xiaojiRuntimeService) return;
+        const QString name = driverName(target);
+        const bool retired = target == DriverRemovalTarget::RetiredHid;
+        const bool xiaoji = target == DriverRemovalTarget::Xiaoji;
+        const QString message = retired
+            ? tr("将卸载旧 HID 驱动并清理其安装残留。旧 HID 已停止提供安装和输入功能，卸载后无法重新启用。"
+                 "完成后将重启电脑，请先保存其他工作。是否继续？")
+            : xiaoji ? tr("将移除小叽驱动的键盘、鼠标及其所属驱动包，保留本机签名证书和签名缓存。需要再次使用时可在此主动安装。是否继续？")
+                : tr("将卸载 DD 驱动并停用其自动安装，完成后重启电脑。请先保存其他工作。是否继续？");
+        context_.page->setBusy(true);
+        if (context_.setDialogOpen) context_.setDialogOpen(true);
+        const bool confirmed = ConfigConfirmDialog::confirm(context_.parentWidget,
+            tr("卸载 %1 驱动").arg(name), message, tr("卸载"));
+        if (!confirmed || (context_.prepareDriverUninstall && !context_.prepareDriverUninstall(target))) {
+            context_.page->setBusy(false);
+            if (context_.setDialogOpen) context_.setDialogOpen(false);
             return;
         }
-        if (!context_.runtimeService) return;
-        const QString name = driverName(mode);
-        const bool confirmed = ConfigConfirmDialog::confirm(
-            context_.parentWidget,
-            QString::fromWCharArray(L"\u5378\u8f7d ") + name + QString::fromWCharArray(L" \u9a71\u52a8"),
-            tr("卸载后 %1 将不可用，程序会保留当前选择，并停用该驱动的自动安装。"
-               "卸载完成后将重启电脑。需要再次使用时，可在驱动管理页主动安装。"
-               "卸载过程中请勿关闭程序。是否继续？").arg(name),
-            QString::fromWCharArray(L"\u5378\u8f7d"));
-        if (!confirmed) return;
-
-        if (context_.prepareDriverUninstall && !context_.prepareDriverUninstall(mode)) return;
-        if (context_.page) context_.page->setBusy(true);
-        if (context_.setDialogOpen) context_.setDialogOpen(true);
-
-        auto* progressDialog = new DriverUninstallProgressDialog(mode, context_.parentWidget);
-        const QPointer<DriverUninstallProgressDialog> progressDialogPtr(progressDialog);
+        auto* progress = new DriverUninstallProgressDialog(target, context_.parentWidget);
         const auto result = std::make_shared<DriverUninstallResult>();
-        auto* thread = QThread::create([runtimeService = context_.runtimeService, result, mode]() {
-            result->ok = mode == DriverMode::Hid
-                ? runtimeService->UninstallEmbeddedHidDriver(&result->message)
-                : runtimeService->UninstallEmbeddedInfDriver(&result->message);
+        auto* thread = QThread::create([runtime = context_.runtimeService,
+            xiaojiRuntime = context_.xiaojiRuntimeService, result, target] {
+            try {
+                if (target == DriverRemovalTarget::Xiaoji)
+                    result->ok = xiaojiRuntime->Uninstall(&result->message);
+                else if (target == DriverRemovalTarget::RetiredHid)
+                    result->ok = runtime->UninstallEmbeddedHidDriver(&result->message);
+                else result->ok = runtime->UninstallEmbeddedInfDriver(&result->message);
+            } catch (const std::exception& error) {
+                result->message = ToWide(error.what());
+            }
         });
         thread->setParent(this);
-
-        connect(thread, &QThread::finished, this, [this, progressDialog, thread, result, mode, name]() {
+        connect(thread, &QThread::finished, this, [this, progress, thread, result, target, name, xiaoji] {
             thread->deleteLater();
-
-            if (context_.finalizeDriverUninstall) context_.finalizeDriverUninstall(mode);
-            if (context_.page) context_.page->setBusy(false);
+            if (context_.finalizeDriverUninstall) context_.finalizeDriverUninstall(target, result->ok);
             if (context_.refreshStatus) context_.refreshStatus();
-
-            if (progressDialog) {
-                progressDialog->markFinished();
-                progressDialog->accept();
-                progressDialog->deleteLater();
+            progress->markFinished(result->ok);
+            progress->accept();
+            progress->deleteLater();
+            if (!result->ok) {
+                AppMessageDialog::warning(context_.parentWidget, tr("%1 卸载未完成").arg(name),
+                    tr("请检查卸载结果；残留仍存在时会继续保留卸载按钮，可在重启后重试。\n\n%1")
+                        .arg(QString::fromStdWString(result->message)));
+            } else if (!xiaoji && (!context_.rebootComputer || !context_.rebootComputer())) {
+                AppMessageDialog::warning(context_.parentWidget, tr("请重启电脑"), tr("请手动重启电脑以完成驱动卸载。"));
             }
+            if (context_.page) context_.page->setBusy(false);
             if (context_.setDialogOpen) context_.setDialogOpen(false);
-
-            if (result->ok) {
-                const bool rebootStarted = context_.rebootComputer && context_.rebootComputer();
-                if (!rebootStarted) {
-                    AppMessageDialog::warning(
-                        context_.parentWidget,
-                        QString::fromWCharArray(L"\u91cd\u542f\u5931\u8d25"),
-                        QString::fromWCharArray(L"\u65e0\u6cd5\u81ea\u52a8\u53d1\u8d77\u7cfb\u7edf\u91cd\u542f\uff0c\u8bf7\u624b\u52a8\u91cd\u542f\u7535\u8111\u3002"));
-                }
-            } else {
-                AppMessageDialog::warning(
-                    context_.parentWidget,
-                    name + QString::fromWCharArray(L" \u5378\u8f7d\u9700\u8981\u624b\u52a8\u5904\u7406"),
-                    name + QString::fromWCharArray(L" \u9a71\u52a8\u5df2\u8fdb\u5165\u5378\u8f7d\u6d41\u7a0b\uff0c\u4f46 Windows \u4ecd\u663e\u793a\u6709\u8bbe\u5907\u6216\u670d\u52a1\u5904\u4e8e\u5f85\u91ca\u653e\u72b6\u6001\u3002\n\n\u8bf7\u624b\u52a8\u91cd\u542f\u7535\u8111\u540e\u518d\u7ee7\u7eed\u4f7f\u7528\u3002\n\n\u5378\u8f7d\u7ed3\u679c\uff1a\n") +
-                        QString::fromStdWString(result->message));
-            }
         }, Qt::QueuedConnection);
-
         thread->start();
-        progressDialog->exec();
-        if (progressDialogPtr && context_.setDialogOpen) context_.setDialogOpen(false);
+        progress->exec();
     });
 }

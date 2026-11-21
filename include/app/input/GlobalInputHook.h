@@ -33,8 +33,11 @@ public:
     void setRawKeyboardActive(bool active);
     void setRawMouseActive(bool active);
     void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter);
+    void setSelfInjectedWheelFilter(std::function<bool(int)> filter);
     void setPhysicalInputFilter(std::function<bool(const KeyDescriptor&)> filter);
     void setPhysicalKeyObserver(std::function<void(const KeyDescriptor&, bool)> observer);
+    void setPauseInputInterceptor(std::function<bool(const KeyDescriptor&, bool, bool)> interceptor,
+        std::function<bool(int)> wheelInterceptor, std::function<bool(const KeyDescriptor&)> modifierSource);
 
     [[nodiscard]] bool isDialogOpen() const noexcept;
     [[nodiscard]] bool isRawKeyboardActive() const noexcept;
@@ -48,6 +51,7 @@ signals:
     void controlHotkeyPressed();
     void physicalKeyChanged(KeyDescriptor key, bool pressed);
     void macroTriggerChanged(KeyDescriptor key, bool pressed);
+    void hookPhysicalKeyChanged(KeyDescriptor key, bool pressed);
 
 protected:
     bool event(QEvent* event) override;
@@ -74,8 +78,12 @@ private:
     std::optional<KeyDescriptor> controlHotkey_;
     std::uint8_t physicalKeyboardModifiers_ = 0;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
+    std::function<bool(int)> selfInjectedWheelFilter_;
     std::function<bool(const KeyDescriptor&)> physicalInputFilter_;
     std::function<void(const KeyDescriptor&, bool)> physicalKeyObserver_;
+    std::function<bool(const KeyDescriptor&, bool, bool)> pauseInputInterceptor_;
+    std::function<bool(int)> pauseWheelInterceptor_;
+    std::function<bool(const KeyDescriptor&)> hookModifierSource_;
     bool captureActive_ = false;
     ULONGLONG captureStartedTick_ = 0;
 

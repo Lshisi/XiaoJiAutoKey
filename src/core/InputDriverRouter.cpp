@@ -67,6 +67,8 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
     std::lock_guard lock(mutex_);
     heldDownKeys_.store(nullptr);
     driver_ = driver;
+    pauseModifierRelaySupported_.store(driver && driver->SupportsPauseModifierRelay());
+    relayedKeys_.clear();
     selfInjectedDriver_.store(driver);
     forwardedDown_.clear();
     repeaterState_.heldKeys.clear();
@@ -81,13 +83,16 @@ void InputDriverRouter::SetDriver(InputDriver* driver) noexcept {
 void InputDriverRouter::NotePhysicalKey(const KeyDescriptor& key, bool pressed) {
     const auto bit = PhysicalModifierKeyBit(key);
     if (bit == 0) return;
-    UpdatePhysicalModifier(physicalModifiers_, bit, pressed);
+    const auto previous = pressed ? physicalModifiers_.fetch_or(bit)
+        : physicalModifiers_.fetch_and(static_cast<std::uint8_t>(~bit));
+    if (((previous & bit) != 0) != pressed) physicalModifierRevision_.fetch_add(1);
 }
 
 void InputDriverRouter::NoteHookPhysicalKey(const KeyDescriptor& key, bool pressed) noexcept {
     const auto bit = PhysicalModifierKeyBit(key);
     if (bit == 0) return;
     UpdatePhysicalModifier(hookPhysicalModifiers_, bit, pressed);
+    if (!pressed) physicalModifiers_.fetch_and(static_cast<std::uint8_t>(~bit));
     hookPhysicalModifiersKnown_.store(true);
     physicalModifierRevision_.fetch_add(1);
 }
@@ -95,6 +100,52 @@ void InputDriverRouter::NoteHookPhysicalKey(const KeyDescriptor& key, bool press
 InputDriver* InputDriverRouter::CurrentDriver() const noexcept {
     std::lock_guard lock(mutex_);
     return driver_;
+}
+
+bool InputDriverRouter::CanRelayPauseModifier(const KeyDescriptor& key) const noexcept {
+    const auto bit = PhysicalModifierKeyBit(key);
+    // Do not take over an auto-repeat of a key Windows has already seen, or
+    // promise isolation while another real modifier is already down.
+    auto* driver = selfInjectedDriver_.load();
+    return bit != 0 && pauseModifierRelaySupported_.load() && driver && driver->IsReady()
+        && (hookPhysicalModifiers_.load() & bit) == 0
+        && ((physicalModifiers_.load() | hookPhysicalModifiers_.load())
+            & static_cast<std::uint8_t>(~(bit | interceptedModifiers_.load()))) == 0;
+}
+
+void InputDriverRouter::SetPhysicalModifierIntercepted(const KeyDescriptor& key, bool intercepted) noexcept {
+    const auto bit = PhysicalModifierKeyBit(key);
+    if (bit == 0) return;
+    UpdatePhysicalModifier(interceptedModifiers_, bit, intercepted);
+    physicalModifierRevision_.fetch_add(1);
+}
+
+bool InputDriverRouter::RelayPhysicalKey(const KeyDescriptor& key, bool pressed) {
+    std::lock_guard lock(mutex_);
+    if (!driver_ || !driver_->IsReady()) return false;
+    const auto encoded = EncodeKey(key);
+    if (pressed) {
+        if (relayedKeys_.count(encoded)) return true;
+        if (!forwardedDown_.count(encoded) && !driver_->SendDown(key, InputSource::Injected)) return false;
+        relayedKeys_.insert(encoded);
+    } else {
+        if (!relayedKeys_.count(encoded)) return true;
+        if (!forwardedDown_.count(encoded) && !driver_->SendUp(key, InputSource::Injected)) return false;
+        relayedKeys_.erase(encoded);
+    }
+    return true;
+}
+
+void InputDriverRouter::ReleaseRelayedKeys() {
+    std::lock_guard lock(mutex_);
+    std::vector<std::uint64_t> keys(relayedKeys_.begin(), relayedKeys_.end());
+    std::stable_sort(keys.begin(), keys.end(), [](auto left, auto right) {
+        return PhysicalModifierKeyBit(DecodeKey(left)) < PhysicalModifierKeyBit(DecodeKey(right));
+    });
+    for (const auto encoded : keys) {
+        if (!forwardedDown_.count(encoded) && driver_) driver_->SendUp(DecodeKey(encoded), InputSource::Injected);
+    }
+    relayedKeys_.clear();
 }
 
 bool InputDriverRouter::IsReady() const noexcept {
@@ -111,6 +162,21 @@ bool InputDriverRouter::SendTap(const KeyDescriptor& key, InputSource src) {
     if (!SendDown(key, src)) return false;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     return SendUp(key, src);
+}
+
+std::wstring InputDriverRouter::KeySupportError(const KeyDescriptor& key) const {
+    std::lock_guard lock(mutex_);
+    return driver_ ? driver_->KeySupportError(key) : L"当前驱动未就绪。";
+}
+
+bool InputDriverRouter::ConsumeSelfInjectedWheel(int delta) {
+    auto* driver = selfInjectedDriver_.load();
+    return driver && driver->ConsumeSelfInjectedWheel(delta);
+}
+
+bool InputDriverRouter::ConsumeSelfInjectedRaw(const KeyDescriptor& key, bool pressed) {
+    auto* driver = selfInjectedDriver_.load();
+    return driver && driver->ConsumeSelfInjectedRaw(key, pressed);
 }
 
 InputDriverRouter::IsolatedTapResult InputDriverRouter::SendIsolatedTap(
@@ -130,11 +196,23 @@ InputDriverRouter::IsolatedTapResult InputDriverRouter::SendIsolatedTap(
             return IsolatedTapResult::Deferred;
         }
     }
-    if (forwardedDown_.count(EncodeKey(components.back())) != 0) return IsolatedTapResult::Deferred;
+    if (forwardedDown_.count(EncodeKey(components.back())) != 0
+        || relayedKeys_.count(EncodeKey(components.back())) != 0) return IsolatedTapResult::Deferred;
 
     const auto physicalModifiers = [this]() {
-        return hookPhysicalModifiersKnown_.load() ? hookPhysicalModifiers_.load() : physicalModifiers_.load();
+        const auto visible = static_cast<std::uint8_t>(~interceptedModifiers_.load());
+        auto raw = static_cast<std::uint8_t>(physicalModifiers_.load() & visible);
+        auto hook = static_cast<std::uint8_t>(hookPhysicalModifiers_.load() & visible);
+        for (const auto encoded : relayedKeys_) {
+            const auto bit = PhysicalModifierKeyBit(DecodeKey(encoded));
+            raw |= bit;
+            hook |= bit;
+        }
+        if (!driver_->SupportsPhysicalModifierIsolation()) return static_cast<std::uint8_t>(raw | hook);
+        return hookPhysicalModifiersKnown_.load() ? hook : raw;
     };
+    if (!driver_->SupportsPhysicalModifierIsolation() && physicalModifiers() != 0)
+        return IsolatedTapResult::Deferred;
     std::array<bool, kModifierKeys.size()> releasedModifiers{};
     std::array<std::optional<ForwardedPress>, kModifierKeys.size()> suspendedModifiers;
     std::vector<std::uint64_t> tapKeys;
@@ -149,6 +227,7 @@ InputDriverRouter::IsolatedTapResult InputDriverRouter::SendIsolatedTap(
     for (int attempt = 0; attempt < 3 && ok; ++attempt) {
         const auto revision = physicalModifierRevision_.load();
         const auto physical = physicalModifiers();
+        if (!driver_->SupportsPhysicalModifierIsolation() && physical != 0) break;
         for (std::size_t index = 0; index < kModifierKeys.size(); ++index) {
             const KeyDescriptor modifier{InputDevice::Keyboard, kModifierKeys[index]};
             const auto encoded = EncodeKey(modifier);
@@ -175,9 +254,11 @@ InputDriverRouter::IsolatedTapResult InputDriverRouter::SendIsolatedTap(
         }
     }
 
-    if (ok && settled && canSend()) {
+    if (ok && settled && canSend()
+        && (driver_->SupportsPhysicalModifierIsolation() || physicalModifiers() == 0)) {
         for (const auto& component : components) {
             if (!canSend()) break;
+            if (!driver_->SupportsPhysicalModifierIsolation() && physicalModifiers() != 0) break;
             if (tapKeys.size() + 1 == components.size()) beforeTap();
             const auto encoded = EncodeKey(component);
             const bool modifier = PhysicalModifierKeyBit(component) != 0;
@@ -460,6 +541,7 @@ void InputDriverRouter::ReleaseAll() {
     heldDownKeys_.store(nullptr);
     if (driver_) driver_->ReleaseAll();
     forwardedDown_.clear();
+    relayedKeys_.clear();
     owners_.clear();
     repeaterState_.activeKeys.clear();
     macroState_.activeKeys.clear();
@@ -472,6 +554,7 @@ void InputDriverRouter::ClearAllStates() {
     heldDownKeys_.store(nullptr);
     if (driver_) driver_->ClearAllStates();
     forwardedDown_.clear();
+    relayedKeys_.clear();
     repeaterState_.heldKeys.clear();
     macroState_.heldKeys.clear();
 }
@@ -604,7 +687,8 @@ void InputDriverRouter::PublishHeldKeysLocked() {
 bool InputDriverRouter::ReleaseForwardedKeyLocked(std::uint64_t encoded) {
     const auto forwarded = forwardedDown_.find(encoded);
     if (forwarded == forwardedDown_.end()) return true;
-    if (!driver_ || !driver_->SendUp(DecodeKey(encoded), forwarded->second.source)) return false;
+    if (!driver_) return false;
+    if (!relayedKeys_.count(encoded) && !driver_->SendUp(DecodeKey(encoded), forwarded->second.source)) return false;
     forwardedDown_.erase(forwarded);
     return true;
 }
@@ -628,7 +712,9 @@ void InputDriverRouter::NoteArbitrationSkipLocked(std::uint64_t encoded, InputSo
 
 bool InputDriverRouter::IsPhysicalModifierActiveLocked(std::uint8_t modifiers) const {
     if (modifiers == 0) return false;
-    const auto physical = physicalModifiers_.load(std::memory_order_relaxed);
+    auto physical = static_cast<std::uint8_t>(physicalModifiers_.load(std::memory_order_relaxed)
+        & static_cast<std::uint8_t>(~interceptedModifiers_.load()));
+    for (const auto encoded : relayedKeys_) physical |= PhysicalModifierKeyBit(DecodeKey(encoded));
     if ((modifiers & kKeyModifierCtrl) != 0
         && (physical & (kPhysicalCtrlLeft | kPhysicalCtrlRight)) != 0) {
         return true;

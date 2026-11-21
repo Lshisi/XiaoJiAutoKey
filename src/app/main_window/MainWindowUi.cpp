@@ -4,6 +4,7 @@
 #include "config/ActiveConfigValidator.h"
 #include "dialogs/StatusOverlaySettingsDialog.h"
 #include "dialogs/KeyOverviewDialog.h"
+#include "dialogs/AppMessageDialog.h"
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
@@ -53,7 +54,23 @@ bool MainWindow::setupUi() {
         [this]() { return macroController_.activeMacro(); },
         [this]() { engineHookCoordinator_.refreshState(); },
         [this]() { refreshStatusOverlay(); },
-        [this](bool running, bool macroMode) { soundCoordinator_.playToggleSound(running, macroMode); }
+        [this](bool running, bool macroMode) { soundCoordinator_.playToggleSound(running, macroMode); },
+        [this]() {
+            if (!activeInputDriverReady()) { showDdUnavailableMessage(); return false; }
+            const auto* profile = profileController_.activeProfile();
+            if (!profile || !profile->enabled) return false;
+            for (const auto& binding : profile->bindings) {
+                if (!binding.enabled) continue;
+                auto error = inputDriver_.KeySupportError(binding.key);
+                if (error.empty() && CanUseClickPosition(binding.key) && binding.clickPos.IsFixed()
+                    && !inputDriver_.SupportsMouseMove()) error = L"当前驱动不支持固定点位。";
+                if (!error.empty()) {
+                    AppMessageDialog::warning(this, tr("当前驱动不支持此配置"), QString::fromStdWString(error));
+                    return false;
+                }
+            }
+            return true;
+        }
     });
 
     configCoordinator_.bind(ConfigCoordinator::Context{
@@ -234,10 +251,11 @@ bool MainWindow::setupUi() {
         view_.driverPage(),
         &config_,
         &ddRuntimeService_,
+        &xiaojiRuntimeService_,
         this,
         [this](DriverMode mode) { return switchDriverMode(mode); },
-        [this](DriverMode mode) { return prepareDriverUninstall(mode); },
-        [this](DriverMode mode) { finalizeDriverUninstall(mode); },
+        [this](DriverRemovalTarget target) { return prepareDriverUninstall(target); },
+        [this](DriverRemovalTarget target, bool succeeded) { finalizeDriverUninstall(target, succeeded); },
         [this]() { return rebootComputer(); },
         [this]() { refreshDriverStatusUi(); },
         [this]() { configCoordinator_.save(); },

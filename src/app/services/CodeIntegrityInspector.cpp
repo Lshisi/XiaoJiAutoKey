@@ -156,7 +156,7 @@ const std::vector<std::wstring>& CodeIntegrityInspector::bundledKernelDrivers() 
     static const std::vector<std::wstring> files = {
         L"dd.key.96688.sys",
         L"dd.mou.96688.sys",
-        L"ddhid63340.sys",
+        L"xiaoji.dll",
     };
     return files;
 }

@@ -172,7 +172,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 
 打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音、DD 运行库及小叽驱动管理、本机签名组件和许可证；打包脚本会自动排除 `config.json`。
 
-代码可一次推送到 Gitee 和 GitHub；在 Gitee 发布后，GitHub 工作流会同步发布说明与同一份 zip，也支持手动立即同步。配置与操作见 [双平台同步](docs/repository-sync.md)。
+代码可一次推送到 Gitee 和 GitHub；发行版由维护者在两个平台分别手动发布，使用相同的 tag、发布说明和同一份 zip。配置与操作见 [双平台同步](docs/repository-sync.md)。
 
 更详细的构建注意事项见 [AGENTS.md](AGENTS.md)。
 

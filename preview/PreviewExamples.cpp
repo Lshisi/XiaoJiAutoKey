@@ -39,7 +39,7 @@ void PreviewController::showDriverReport() {
                     {"danger", false}, {"enabled", true}}}}},
         [this](const QVariantMap&) {
             QTimer::singleShot(0, this, &PreviewController::showDiagnosticReport);
-        }, 500);
+        }, 480);
 }
 
 void PreviewController::showDiagnosticReport() {

@@ -3,7 +3,7 @@ DriverSelfCheckDialog::DriverSelfCheckDialog(QWidget* parent) : QmlDialog(parent
     setWindowTitle(tr("驱动自检"));
     present("DialogReport.qml", {{"heading", QString()}, {"body", QString()}, {"bodyRich", true}, {"status", QString()},
         {"severity", 0}, {"progressVisible", false}, {"progressIndeterminate", true}, {"progressValue", 0}, {"progressText", QString()}},
-        QSize(360, 180), true, true);
+        QSize(480, 180), true);
 }
 void DriverSelfCheckDialog::beginCheck() {
     busy_ = true;

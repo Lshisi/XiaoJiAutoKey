@@ -8,7 +8,8 @@ on:
         required: false
         type: string
   schedule:
-    - cron: '17 * * * *'
+    # GitHub schedules use UTC; this is 09:17 in UTC+8.
+    - cron: '17 1 * * *'
   push:
     branches:
       - master

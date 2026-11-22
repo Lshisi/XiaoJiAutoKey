@@ -38,7 +38,7 @@ git remote set-url --add --push origin git@github.com:Lshisi/XiaoJiAutoKey.git
 1. 更新 `CMakeLists.txt` 的项目版本，按现有流程构建和打包，产出 `dist/XiaoJiAutoKey.zip`。发布包禁止包含 `config.json`。
 2. 提交发布代码，在对应提交上创建 `vx.y.z` 标签，并将 `master` 和标签推送到两个平台。
 3. 在 [Gitee Releases](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases) 创建对应标签的正式发行版，填写说明并上传 `XiaoJiAutoKey-vx.y.z.zip`。自动生成的源码压缩包不能代替应用发布包。
-4. GitHub 的 [Sync Gitee releases](https://github.com/Lshisi/XiaoJiAutoKey/actions/workflows/sync-gitee-releases.yml) 每小时在第 17 分钟计划执行，自动补齐发行版。GitHub 调度可能延后；需要立即同步时，在该页面点击 **Run workflow**，选择 `master`，`tag` 留空同步全部版本，或填写一个具体标签。
+4. GitHub 的 [Sync Gitee releases](https://github.com/Lshisi/XiaoJiAutoKey/actions/workflows/sync-gitee-releases.yml) 每天 09:17（UTC+8）计划执行一次，自动补齐发行版。GitHub 调度可能延后；需要立即同步时，在该页面点击 **Run workflow**，选择 `master`，`tag` 留空同步全部版本，或填写一个具体标签。
 5. 在 [GitHub Releases](https://github.com/Lshisi/XiaoJiAutoKey/releases) 查看相同版本的说明和下载附件。
 
 工作流只读取已经发布、带有上传 zip 附件的 Gitee 发行版。新 GitHub 发行版先作为草稿创建，附件完整上传后才公开；下载包会检查主程序是否存在，并拒绝含有 `config.json` 的包。标签缺失或提交不一致时会停止同步，避免将附件关联到错误的源码。

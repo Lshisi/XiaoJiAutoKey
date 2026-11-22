@@ -1,0 +1,42 @@
+name: Sync Gitee releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '只同步指定 tag；留空则同步所有正式发行版'
+        required: false
+        type: string
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/sync-gitee-releases.yml
+      - scripts/sync-gitee-releases.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-gitee-releases
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'Lshisi/XiaoJiAutoKey'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Copy release notes and zip attachments
+        run: python scripts/sync-gitee-releases.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_TAG: ${{ inputs.tag }}

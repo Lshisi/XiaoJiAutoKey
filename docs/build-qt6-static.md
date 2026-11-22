@@ -86,7 +86,7 @@ dist\XiaoJiAutoKey\driver\
 dist\XiaoJiAutoKey.zip
 ```
 
-`build-qt6\Release` 与旧版 `build\Release` 保持同一运行时结构，可以直接从该目录启动或调试；`dist\XiaoJiAutoKey.zip` 用于 Gitee Release。发布包绝不包含 `config.json`。
+`build-qt6\Release` 与旧版 `build\Release` 保持同一运行时结构，可以直接从该目录启动或调试；`dist\XiaoJiAutoKey.zip` 用于 Gitee 和 GitHub Release，双平台使用同一份发布包，流程见 [双平台同步](repository-sync.md)。发布包绝不包含 `config.json`。
 
 Qt 6 QML、Quick Controls、SVG 和 Shader Tools 静态链接进 exe 后，单文件体积通常在 35–70 MB；当前 Qt 6.8.3 构建约为 41.5 MB，zip 压缩后约 24.8 MB。这是 QML 架构静态发布的正常范围，不是构建残留。
 

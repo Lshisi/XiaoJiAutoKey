@@ -4,8 +4,11 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D4.svg)](#从源码构建)
 [![Qt](https://img.shields.io/badge/Qt-6.8%2B-41CD52.svg)](#从源码构建)
 [![Release](https://img.shields.io/badge/下载-Gitee%20Releases-brightgreen.svg)](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases)
+[![GitHub Release](https://img.shields.io/badge/下载-GitHub%20Releases-181717.svg)](https://github.com/Lshisi/XiaoJiAutoKey/releases)
 
 基于 Qt 6 + QML 的 Windows 按键连发工具。支持键盘和鼠标按键的自动连发与循环连发，提供剑三门派主题的中文界面，单文件绿色免安装，可静驻系统托盘。
+
+源码同步开源于 [Gitee](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key) 和 [GitHub](https://github.com/Lshisi/XiaoJiAutoKey)，使用相同的 Git 历史和许可证。
 
 ## 目录
 
@@ -98,7 +101,7 @@
 
 ## 下载与安装
 
-1. 前往 [Gitee Releases](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases) 下载最新版本的 zip 压缩包
+1. 前往 [Gitee Releases](https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases) 或 [GitHub Releases](https://github.com/Lshisi/XiaoJiAutoKey/releases) 下载最新版本的 zip 压缩包
 2. 解压到任意目录（无需安装）
 3. 以管理员身份运行 `XiaoJiAutoKey.exe`
 
@@ -168,6 +171,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 ```
 
 打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音、DD 运行库及小叽驱动管理、本机签名组件和许可证；打包脚本会自动排除 `config.json`。
+
+代码可一次推送到 Gitee 和 GitHub；在 Gitee 发布后，GitHub 工作流会同步发布说明与同一份 zip，也支持手动立即同步。配置与操作见 [双平台同步](docs/repository-sync.md)。
 
 更详细的构建注意事项见 [AGENTS.md](AGENTS.md)。
 

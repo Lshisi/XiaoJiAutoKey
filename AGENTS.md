@@ -51,9 +51,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath D:\Qt\6.8.3-static -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe
 ```
-3. 在仓库打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致），将发布分支和标签推送到两个平台。本机 `origin` 已配置 Gitee/GitHub 双 push URL；其他克隆需单独配置，不能假设 `.git/config` 会随源码同步。
+3. 将发布分支推送到两个平台，在发布提交上打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致），先用 `git push gitee vx.y.z` 只将该 tag 推到 Gitee。本机 `origin` 已配置 Gitee/GitHub 双 push URL，`gitee` 和 `github` 分别单独访问对应平台，`push.followTags=false`；不要用 `git push origin --tags` 提前把发版 tag 同时推到两边。其他克隆需单独配置，不能假设 `.git/config` 会随源码同步。
 4. 在 Gitee 上基于该 tag 创建"发行版（Release）"，并把 `XiaoJiAutoKey.zip` 重命名后（建议 `XiaoJiAutoKey-vx.y.z.zip`）作为附件上传。附件的下载地址形如 `.../releases/download/...`，程序只把这种附件当作可用的更新包；Gitee 自动生成的源码包（`/archive/refs/tags/...`）会被忽略。
-5. GitHub 的 `Sync Gitee releases` 工作流每天 09:17（UTC+8）同步已发布的 Gitee 发行版，也可在 Actions 页面手动运行；复用相同 tag、说明和 zip，不另行构建，不复制自动生成的源码包。已有同名附件保留，更换安装包应发布新版本。
+5. Gitee 发行版和 zip 上传完成后，用 `git push github vx.y.z` 将同一个 tag 推到 GitHub，触发 `Sync Gitee releases` 只同步该 tag 的发行版；复用相同说明和 zip，不另行构建，不复制自动生成的源码包。工作流不定时执行、不随普通分支推送执行，也可在 Actions 页面手动运行以补同步或重试。已有同名附件保留，更换安装包应发布新版本。
 6. 更新包约束：必须是 zip；顶层目录（如有）会被自动剥掉；`config.json` 永远不会被更新包覆盖；PowerShell 5.1 生成的反斜杠路径条目和 GBK 文件名条目都能被解压逻辑兼容。
 
 注意事项：

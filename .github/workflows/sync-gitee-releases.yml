@@ -7,15 +7,9 @@ on:
         description: '只同步指定 tag；留空则同步所有正式发行版'
         required: false
         type: string
-  schedule:
-    # GitHub schedules use UTC; this is 09:17 in UTC+8.
-    - cron: '17 1 * * *'
   push:
-    branches:
-      - master
-    paths:
-      - .github/workflows/sync-gitee-releases.yml
-      - scripts/sync-gitee-releases.py
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -26,7 +20,9 @@ concurrency:
 
 jobs:
   sync:
-    if: github.repository == 'Lshisi/XiaoJiAutoKey'
+    if: >-
+      github.repository == 'Lshisi/XiaoJiAutoKey'
+      && (github.event_name != 'push' || !github.event.deleted)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -40,4 +36,4 @@ jobs:
         run: python scripts/sync-gitee-releases.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNC_TAG: ${{ inputs.tag }}
+          SYNC_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}

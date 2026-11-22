@@ -853,7 +853,7 @@ struct InfVariantPaths {
     QString mouSysPath;
 };
 
-bool ExtractInfVariant(int variant, const QString& uniqueToken, InfVariantPaths* paths, std::wstring* message) {
+bool ExtractInfVariant(const QString& payloadRoot, int variant, const QString& uniqueToken, InfVariantPaths* paths, std::wstring* message) {
     if (!paths) {
         return false;
     }
@@ -880,7 +880,7 @@ bool ExtractInfVariant(int variant, const QString& uniqueToken, InfVariantPaths*
     paths->mouSysPath = QDir(paths->outputDir).filePath(QStringLiteral("dd.mou.96688.sys"));
 
     QString extractError;
-    const QString prefix = QStringLiteral(":/dd/inf/%1/").arg(variantName);
+    const QString prefix = QDir(payloadRoot).filePath(variantName) + QLatin1Char('/');
     if (!CopyResourceFile(prefix + QStringLiteral("dc64.exe"), paths->dcPath, &extractError) ||
         !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.inf"), paths->keyInfPath, &extractError) ||
         !CopyResourceFile(prefix + QStringLiteral("dd.key.96688.cat"), paths->keyCatPath, &extractError) ||
@@ -906,14 +906,14 @@ std::wstring ResolvePnputilPath() {
     return (std::filesystem::path(systemDir) / L"pnputil.exe").wstring();
 }
 
-bool InstallInfVariant(int variant,
+bool InstallInfVariant(const QString& payloadRoot, int variant,
                        const std::wstring& pnputilPath,
                        const QString& uniqueToken,
                        bool removeExistingDevices,
                        std::wstringstream* message) {
     InfVariantPaths paths;
     std::wstring extractMessage;
-    if (!ExtractInfVariant(variant, uniqueToken, &paths, &extractMessage)) {
+    if (!ExtractInfVariant(payloadRoot, variant, uniqueToken, &paths, &extractMessage)) {
         if (message) {
             *message << L"variant " << variant << L": " << extractMessage;
         }
@@ -1098,17 +1098,13 @@ DdRuntimeService::DdRuntimeService(std::filesystem::path exeDir, std::filesystem
     : exeDir_(std::move(exeDir)),
       logsDir_(std::move(logsDir)) {}
 
-DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(const DdDriver& driver) const {
-    return Inspect(driver.IsReady(), driver.GetLastError());
-}
-
 DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, const std::wstring& lastError) const {
     RuntimeStatus status;
     status.driverReady = driverReady;
     status.lastError = lastError;
     status.driverRootPath = DriverRootDir().wstring();
     status.driverRootExists = QFileInfo(QString::fromStdWString(status.driverRootPath)).isDir();
-    const auto xiaojiStatus = XiaojiRuntimeService(exeDir_).Inspect();
+    const auto xiaojiStatus = XiaojiRuntimeService(xiaojiDirectory_.empty() ? exeDir_ : xiaojiDirectory_).Inspect();
     status.xiaojiManagerExists = xiaojiStatus.managerExists;
     status.xiaojiInstallerExists = xiaojiStatus.installerExists;
     status.xiaojiKeyboardPresent = xiaojiStatus.keyboardPresent;
@@ -1169,10 +1165,10 @@ DdRuntimeService::RuntimeStatus DdRuntimeService::Inspect(bool driverReady, cons
         status.notes.push_back(L"Selected input driver is not ready. Input simulation will fail until the selected driver is available.");
     }
     if (!status.legacyRuntimeExists) {
-        status.notes.push_back(L"No DD runtime matching this process architecture was found in the application directory.");
+        status.notes.push_back(L"The optional DD plugin runtime is not installed for this process architecture.");
     }
     if (!status.embeddedInfVariant0Exists && !status.embeddedInfVariant1Exists) {
-        status.notes.push_back(L"No embedded driver package was found.");
+        status.notes.push_back(L"No DD plugin driver payload was found; download the optional DD plugin to install or repair it.");
     }
     if (!status.infKeyboardDeviceStarted || !status.infMouseDeviceStarted ||
         !status.infKeyboardDeviceBound || !status.infMouseDeviceBound) {
@@ -1398,7 +1394,8 @@ bool DdRuntimeService::UninstallEmbeddedHidDriver(std::wstring* resultMessage) c
 }
 
 
-bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) const {
+bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage, bool* restartRequired) const {
+    if (restartRequired) *restartRequired = false;
     const std::wstring pnputilPath = ResolvePnputilPath();
     if (pnputilPath.empty()) {
         if (resultMessage) {
@@ -1411,7 +1408,7 @@ bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) c
     bool enumSucceeded = false;
     auto publishedNames = EnumerateInfDriverPublishedNames(pnputilPath, &message, &enumSucceeded);
 
-    bool removedPackage = publishedNames.empty() && enumSucceeded;
+    bool packageDeletesAccepted = enumSucceeded;
     bool packageRemovalNeedsReboot = false;
     for (const auto& publishedName : publishedNames) {
         DWORD deleteExitCode = 1;
@@ -1426,8 +1423,8 @@ bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) c
             {},
             20000);
         const bool deleteAccepted = PnputilDeleteDriverSucceeded(deleteProcessOk, deleteExitCode, deleteOutput);
+        packageDeletesAccepted = packageDeletesAccepted && deleteAccepted;
         packageRemovalNeedsReboot = packageRemovalNeedsReboot || deleteExitCode == ERROR_SUCCESS_REBOOT_REQUIRED;
-        removedPackage = removedPackage || deleteAccepted;
         message << L"DD delete driver package " << publishedName << L" -> "
                 << FormatStepResult(deleteAccepted, deleteProcessOk, deleteExitCode, deleteOutput, deleteError)
                 << L"\n";
@@ -1468,10 +1465,12 @@ bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) c
     }
 
     bool sysCleanupAccepted = true;
+    bool sysCleanupNeedsReboot = false;
     for (const auto* sysName : {kInfKeyboardSysName, kInfMouseSysName}) {
         std::wstring removeDetail;
         const bool removed = RemoveFileNowOrOnReboot(SystemDriversDir() / sysName, &removeDetail);
         sysCleanupAccepted = sysCleanupAccepted && removed;
+        sysCleanupNeedsReboot = sysCleanupNeedsReboot || removeDetail == L"scheduled_delete_on_reboot";
         message << L"DD remove sys " << sysName << L" -> " << (removed ? L"ok" : L"failed");
         if (!removeDetail.empty()) {
             message << L" (" << removeDetail << L")";
@@ -1495,10 +1494,12 @@ bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) c
         (!stillHasMouseService || mouseServicePendingDelete);
     const bool noSys = !stillHasKeySys && !stillHasMouseSys;
     const bool noPackages = finalEnumSucceeded && remainingPublishedNames.empty();
-    const bool overallUninstalled = noDevices && noServices && noSys && noPackages;
+    const bool overallUninstalled = noDevices && !stillHasKeyService && !stillHasMouseService && noSys && noPackages;
     const bool pendingRebootOnly = noDevices && noServices &&
         (noPackages || packageRemovalNeedsReboot) &&
-        (sysCleanupAccepted || !noSys);
+        packageDeletesAccepted && serviceDeleteAccepted && sysCleanupAccepted &&
+        (packageRemovalNeedsReboot || sysCleanupNeedsReboot || keyServicePendingDelete || mouseServicePendingDelete);
+    if (restartRequired) *restartRequired = !overallUninstalled && pendingRebootOnly;
 
     message << L"DD final state -> key_device=" << (keyDevice.present ? L"yes" : L"no")
             << L", mouse_device=" << (mouseDevice.present ? L"yes" : L"no")
@@ -1527,7 +1528,7 @@ bool DdRuntimeService::UninstallEmbeddedInfDriver(std::wstring* resultMessage) c
         *resultMessage = summary.str();
     }
     AppendLog(logsDir_, L"dd-inf-uninstall.log", summary.str() + L"\n\n" + message.str());
-    return overallUninstalled || pendingRebootOnly || (removedPackage && serviceDeleteAccepted && sysCleanupAccepted);
+    return overallUninstalled || pendingRebootOnly;
 }
 
 bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) const {
@@ -1544,7 +1545,7 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
     if (EmbeddedInfVariantExists(0)) variants.push_back(0);
     if (variants.empty()) {
         if (resultMessage) {
-            *resultMessage = L"No embedded INF driver package is available.";
+            *resultMessage = QStringLiteral("DD 插件的安装载荷缺失，请先在插件中心下载或重新安装 DD 驱动插件。").toStdWString();
         }
         return false;
     }
@@ -1557,7 +1558,7 @@ bool DdRuntimeService::InstallEmbeddedInfDriver(std::wstring* resultMessage) con
         std::to_wstring(static_cast<unsigned long long>(GetTickCount64())));
 
     for (const int variant : variants) {
-        InstallInfVariant(variant, pnputilPath, uniqueToken, false, &message);
+        InstallInfVariant(QString::fromStdWString((DriverRootDir() / L"inf").wstring()), variant, pnputilPath, uniqueToken, false, &message);
 
         const bool servicesReady = ServiceExists(kInfKeyboardServiceName) && ServiceExists(kInfMouseServiceName);
         const bool sysReady = std::filesystem::exists(SystemDriversDir() / kInfKeyboardSysName) &&
@@ -1603,7 +1604,7 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
     if (EmbeddedInfVariantExists(0)) variants.push_back(0);
     if (variants.empty()) {
         if (resultMessage) {
-            *resultMessage = L"No embedded INF driver package is available.";
+            *resultMessage = QStringLiteral("DD 插件的安装载荷缺失，请先在插件中心下载或重新安装 DD 驱动插件。").toStdWString();
         }
         return false;
     }
@@ -1630,7 +1631,7 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
 
     for (const int variant : variants) {
         message << L"variant " << variant << L": repair begin (refresh existing devices)\n";
-        InstallInfVariant(variant, pnputilPath, freshToken(), false, &message);
+        InstallInfVariant(QString::fromStdWString((DriverRootDir() / L"inf").wstring()), variant, pnputilPath, freshToken(), false, &message);
         if (readinessProbe && readinessProbe()) {
             repaired = true;
             repairedVariant = variant;
@@ -1640,7 +1641,7 @@ bool DdRuntimeService::RepairEmbeddedInfDriver(const std::function<bool()>& read
         message << L"variant " << variant << L": readiness probe after refresh -> failed\n";
 
         message << L"variant " << variant << L": repair retry (remove stale devices)\n";
-        InstallInfVariant(variant, pnputilPath, freshToken(), true, &message);
+        InstallInfVariant(QString::fromStdWString((DriverRootDir() / L"inf").wstring()), variant, pnputilPath, freshToken(), true, &message);
         if (readinessProbe && readinessProbe()) {
             repaired = true;
             repairedVariant = variant;
@@ -1689,8 +1690,11 @@ std::filesystem::path DdRuntimeService::DriverRootDir() const {
 }
 
 bool DdRuntimeService::EmbeddedInfVariantExists(int variant) const {
-    const QString variantPath = QStringLiteral(":/dd/inf/%1/dd.key.96688.inf").arg(variant);
-    return QFile::exists(variantPath);
+    const auto pluginRoot = QString::fromStdWString((DriverRootDir() / L"inf").wstring());
+    const auto directory = QDir(pluginRoot).filePath(QString::number(variant));
+    for (const auto* name : {"dc64.exe", "dd.key.96688.inf", "dd.key.96688.cat", "dd.key.96688.sys", "dd.mou.96688.inf", "dd.mou.96688.cat", "dd.mou.96688.sys"})
+        if (!QFile::exists(QDir(directory).filePath(QString::fromLatin1(name)))) return false;
+    return true;
 }
 
 bool DdRuntimeService::HidRootDeviceOk() const {

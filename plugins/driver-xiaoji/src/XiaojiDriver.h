@@ -18,6 +18,9 @@ namespace xiaoji { class Client; }
 
 class XiaojiDriver final : public InputDriver {
 public:
+    std::wstring DiagnosticText() const override {
+        return L"输出范围：NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮。";
+    }
     XiaojiDriver();
     ~XiaojiDriver() override;
     bool Connect();
@@ -27,6 +30,7 @@ public:
     [[nodiscard]] std::wstring KeySupportError(const KeyDescriptor& key) const override;
     [[nodiscard]] bool SupportsPhysicalModifierIsolation() const override { return false; }
     [[nodiscard]] bool SupportsPauseModifierRelay() const override { return true; }
+    [[nodiscard]] bool SupportsPhysicalKeyRelay(const KeyDescriptor& key) const noexcept override;
     bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;
     bool RestorePhysicalDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) override;

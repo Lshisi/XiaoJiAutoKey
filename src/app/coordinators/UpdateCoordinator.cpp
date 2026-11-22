@@ -9,7 +9,10 @@
 #include <QDesktopServices>
 #include <QUrl>
 
-UpdateCoordinator::UpdateCoordinator(QObject* parent) : QObject(parent) {}
+UpdateCoordinator::UpdateCoordinator(QObject* parent) : QObject(parent) {
+    backgroundTimer_.setInterval(6 * 60 * 60 * 1000);
+    connect(&backgroundTimer_, &QTimer::timeout, this, [this] { requestCheck(false); });
+}
 
 void UpdateCoordinator::bind(Context context) {
     context_ = std::move(context);
@@ -18,8 +21,7 @@ void UpdateCoordinator::bind(Context context) {
     }
 
     connect(context_.aboutPage, &AboutPageModel::checkUpdateRequested, this, [this]() {
-        context_.aboutPage->setChecking();
-        context_.updateService->checkForUpdate();
+        requestCheck(true);
     });
 
     // 「下载并安装」/「立即重启更新」：打开更新弹窗，细节都在弹窗里完成。
@@ -66,6 +68,30 @@ void UpdateCoordinator::bind(Context context) {
     });
 }
 
+void UpdateCoordinator::startBackgroundChecks() {
+    backgroundTimer_.start();
+    refreshBackgroundChecks();
+}
+
+void UpdateCoordinator::refreshBackgroundChecks() {
+    if (context_.config && context_.config->automaticUpdateChecks)
+        QTimer::singleShot(2000, this, [this] { requestCheck(false); });
+}
+
+void UpdateCoordinator::requestCheck(bool manual) {
+    if (!context_.updateService || !context_.aboutPage || !context_.config
+        || (!manual && !context_.config->automaticUpdateChecks) || !stagedDir_.isEmpty()) return;
+    if (checking_) {
+        if (manual) { manualCheck_ = true; context_.aboutPage->setChecking(); }
+        return;
+    }
+    if (context_.updateService->isBusy()) return;
+    checking_ = true;
+    manualCheck_ = manual;
+    if (manual) context_.aboutPage->setChecking();
+    context_.updateService->checkForUpdate();
+}
+
 void UpdateCoordinator::restoreBadgeFromConfig() {
     latestKnownVersion_.clear();
     if (!context_.config || !context_.keyPage) {
@@ -83,10 +109,13 @@ void UpdateCoordinator::restoreBadgeFromConfig() {
 
 void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, bool hasUpdate,
     const QString& latestVersion, const QString& assetUrl, const QString& notes) {
+    const bool manual = manualCheck_;
+    checking_ = false;
+    manualCheck_ = false;
     if (!ok) {
-        context_.aboutPage->setUpdateIdle();
-        AppMessageDialog::warning(context_.parent,
-            QString::fromWCharArray(L"\u68c0\u67e5\u66f4\u65b0\u5931\u8d25"), message);
+        if (!latestKnownVersion_.isEmpty()) context_.aboutPage->setUpdateAvailable(latestKnownVersion_, !pendingAssetUrl_.isEmpty());
+        else context_.aboutPage->setUpdateIdle();
+        if (manual) AppMessageDialog::warning(context_.parent, tr("检查更新失败"), message);
         return;
     }
     if (!hasUpdate) {
@@ -102,7 +131,8 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
         if (context_.keyPage) {
             context_.keyPage->setUpdateBadge(QString());
         }
-        context_.aboutPage->setNoUpdate();
+        if (manual) context_.aboutPage->setNoUpdate();
+        else context_.aboutPage->setUpdateIdle();
         return;
     }
 
@@ -119,8 +149,8 @@ void UpdateCoordinator::handleCheckFinished(bool ok, const QString& message, boo
         context_.keyPage->setUpdateBadge(latestVersion);
     }
     context_.aboutPage->setUpdateAvailable(latestVersion, !assetUrl.isEmpty());
-    // 发现新版本：直接弹出更新窗口，展示日志并等待确认。
-    openUpdateDialog();
+    // Discovery only updates the badge and about page. Opening the update
+    // dialog, downloading and restarting require their own user actions.
 }
 
 void UpdateCoordinator::openUpdateDialog() {

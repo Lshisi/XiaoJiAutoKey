@@ -9,10 +9,8 @@
 #include <mutex>
 #include <thread>
 
-// Manual update checks against the Gitee releases of the open-source
-// repository. Nothing here runs on its own: every network request must be
-// triggered explicitly by the user from the about page; the application never
-// checks for updates automatically.
+// Asynchronous release checks, scheduled by UpdateCoordinator. Downloads and
+// installation still require an explicit user action.
 class UpdateService : public QObject {
     Q_OBJECT
 
@@ -26,14 +24,15 @@ public:
     // Fetches the release list and reports the newest version. Runs on a
     // worker thread; results are delivered via checkFinished.
     void checkForUpdate();
+    bool isBusy() const noexcept { return workerBusy_.load(); }
 
     // Downloads the release asset and unpacks it into a staging directory.
     // Results are delivered via downloadProgress / stageFinished.
     void downloadAndStageUpdate(const QString& assetUrl, const QString& version);
 
     // Replaces the installation next to the running exe with a previously
-    // staged package. The caller must stop the engines and unload the input
-    // driver DLLs first; on failure the previous executable is restored.
+    // staged package. The caller must stop output first. Locked native DLLs
+    // are deferred until restart; on failure the previous executable is restored.
     [[nodiscard]] static bool applyStagedUpdate(const QString& stagingDir, QString* errorMessage);
 
     // Removes leftovers from earlier updates (renamed old exe and staging

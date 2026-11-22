@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "example.desktop-pet",
+  "name": "桌宠示例",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "SDK 示例",
+  "description": "独立运行的桌宠与设置页，演示后台生命周期、透明窗口和插件内部通信。",
+  "platforms": ["windows-x64"],
+  "permissions": ["ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own"],
+  "background": {"file": "Background.qml"},
+  "pages": [{"id": "settings", "title": "桌宠设置", "file": "Main.qml", "icon": "puzzle"}],
+  "windows": [{"id": "pet", "title": "桌宠", "file": "Pet.qml", "width": 220, "height": 200, "transparent": true, "frameless": true, "topmost": true}],
+  "commands": [
+    {"id": "snapshot", "title": "查询桌宠状态"},
+    {"id": "poke", "title": "和桌宠打招呼"}
+  ]
+}

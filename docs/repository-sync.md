@@ -5,7 +5,7 @@
 - Gitee：<https://gitee.com/fourteen-fourteen/xiao-ji-auto-key>
 - GitHub：<https://github.com/Lshisi/XiaoJiAutoKey>
 
-Gitee 是软件内手动更新检查的数据源，也是发行版同步的来源。GitHub 复用相同的 tag、发布说明和 zip 附件，不重新构建应用。
+Gitee 是框架更新检查的数据源，也是应用发行版同步的来源。GitHub 复用相同的应用 tag、发布说明和 zip 附件，不重新构建应用。仅在处理 Git 远端、tag 和两端发行版同步时读取本文；打包与更新规则见 [应用发布](release-process.md)。
 
 ## 本机代码推送
 
@@ -68,4 +68,6 @@ git config --local push.followTags false
 
 ## 软件内更新
 
-双平台发布不改变程序的联网时机和更新来源。程序仍仅在用户于关于页点击“检查更新”时读取 Gitee Releases；启动、运行和关机不会触发更新检查。
+框架更新仍读取 Gitee Releases，允许启动后异步及后台低频检查，并保留关于页手动检查；下载、安装和重启由用户主动触发，退出不发起新检查。具体联网约定见 [应用发布与更新](release-process.md#联网与更新交互)。插件目录和独立插件发行使用 [插件发布](plugin-release.md) 中的签名目录及专属 tag，不混入应用发行版同步。
+
+插件与目录采用各自的双平台发布工作流：从同一产物上传 GitHub 和 Gitee，Gitee 凭据为 `XIAOJI_GITEE_TOKEN`；失败时通过 `Retry Gitee plugin mirror` 复用 GitHub 原附件补传。社区插件在任意一端公开标记和发行后自动发现，不必先向主仓库登记。具体标记、包格式及镜像身份以插件发布文档为准。

@@ -85,8 +85,8 @@
 
 ### 驱动
 
-- 小叽驱动默认为第一驱动，DD 为第二驱动，USB 为第三驱动；已接入现有连发和循环输出路径
-- 驱动管理页查看状态、切换及管理小叽/DD 驱动；旧 HID 只保留卸载，检测到残留即持续显示按钮
+- 默认随包提供小叽驱动；DD、USB 可从插件中心按需下载，安装后接入同一连发和循环输出路径
+- 驱动管理页只展示当前已启用插件的状态与管理能力；未安装的驱动不显示详情和操作。旧 HID 仅在检测到残留时提供清理入口
 - 小叽驱动接入 NKRO 多键保持、F1–F24、媒体/浏览器键、鼠标五键、移动和滚轮；当前面向 Windows x64，本机签名安装依赖 .NET Framework 4.8、Windows PowerShell 及系统信任策略。
 - 驱动管理页可预览并复制诊断信息，报告不包含个人路径、剪贴板内容和完整配置
 - 支持键盘和鼠标按键（左键、右键、中键、侧键）及 Ctrl／Shift／Alt 组合主键
@@ -94,10 +94,22 @@
 
 ### 软件更新
 
-- **只在关于页手动点击"检查更新"时联网**（读取 Gitee Releases），其余时间永不联网检查
-- 发现新版本可在程序内直接下载更新包，一键重启完成更新；更新失败自动回滚
+- 启动后异步、后台低频检查框架及插件更新，可在全局设置关闭后台检查；关于页和插件中心仍保留手动检查
+- 发现新版本可在程序内直接下载更新包，主动重启完成更新；失败时保留原因并尝试恢复旧程序
 - 按键连发页显示"有新版本"小标签，点击跳转关于页
 - 无强制弹窗、无强制更新逻辑
+
+### 插件中心
+
+- 提供内置、发现、已安装三个视图，支持从插件中心下载、导入本地 zip、启停、卸载及独立更新，并可按官方／社区、类型和审核状态筛选
+- 只有小叽驱动随包提供，该插件固定保留并启用；DD、USB 为可自由停用和卸载的可选官方插件，新驱动通过公开插件协议接入
+- 卸载驱动插件时可同时清理其专属系统驱动，默认勾选；失败或需要重启电脑时保留插件和工具供继续处理。普通停用保留系统驱动，小叽插件本身不能删除
+- 页面插件显示在可展开、收起的「插件中心」下层，复用框架主题、控件和公开 API
+- 插件可提供常驻后台和独立窗口；用户主动启动后随小叽恢复，切页与最小化不停止，停用或退出统一清理。页面与 QML / 原生后台通过本插件内部命令和事件通信，SDK 包含桌宠和原生后台示例，见 [插件运行时](docs/plugin-runtime.md)
+- 未审核插件可发现并由用户选择安装，审核只对指定版本及包内容有效；下架与禁用分别管理
+- GitHub 通过 `xiaoji-plugin` topic 自动发现，Gitee 通过仓库简介同名标记自动发现；公开声明并发布 Release ZIP 即可，无需首次提交登记 Issue
+- 目录支持 GitHub / Gitee 双源回退，包镜像按相同 SHA-256 校验；官方两端复用同一份插件包
+- 官方目录的维护者在客户端发行时配置可信公钥，第三方发布者不需要申请平台密钥；目录尚未配置时仍可离线使用预装插件和本地插件。开发与配置说明见 [插件开发](docs/plugin-development.md) 和 [插件发布](docs/plugin-release.md)
 
 ## 下载与安装
 
@@ -105,13 +117,13 @@
 2. 解压到任意目录（无需安装）
 3. 以管理员身份运行 `XiaoJiAutoKey.exe`
 
-> 解压后的 `driver/` 目录包含 DD 运行库（DD32.dll / DD64.dll）和小叽驱动管理/本机签名组件（xiaoji/xiaoji.exe、xiaoji/xiaoji-setup.exe），请保持在 exe 同级目录。小叽驱动已内置安装包，首次安装在单独确认证书信任后自动完成本机签名和安装；已有可信包时优先复用。`config.json` 为运行时自动生成的用户配置，升级新版本时会被自动保留。
+> 请保留 exe 同级的 `plugins/` 目录。DD 运行库及小叽管理、本机签名组件分别存放在各自插件版本目录内。小叽驱动已随插件附带安装包，首次安装在单独确认证书信任后完成本机签名和安装；已有可信包时优先复用。`config.json`、已安装插件和插件数据在框架升级时保留。
 
 ## 快速上手
 
 首次打开软件会显示新手引导，依次介绍驱动、添加按键、模式与启用状态、启停快捷键、生效范围以及启动/暂停/停止。驱动已就绪时直接进入按键配置，异常时先衔接驱动自检。引导中不会自动开始连发，完成后由用户主动启动。可随时跳过，之后在「关于软件 → 配置说明 → 新手引导」重新查看；已有配置的升级用户不会自动重走。
 
-1. **安装驱动**：首次使用请在「驱动管理」页确认小叽驱动状态，点击安装/修复，按首次提示确认证书信任后自动安装，或按需切换到 DD / USB。旧 HID 不再提供安装和启用功能
+1. **安装驱动**：首次使用请在「驱动管理」页确认小叽驱动状态，点击安装/修复，按首次提示确认证书信任后自动安装；需要 DD / USB 时，先在插件中心下载并重启，再选择驱动。旧 HID 不再提供安装和启用功能
 2. **配置全局启停键**：在按键连发页设置一个全局快捷键，按一次启动连发，再按一次停止
 3. **添加连发按键**：点击「添加按键」录制按键，选择模式（开关/按压/独立/切换/长按）和间隔；长按模式无需间隔
 4. **（可选）配置循环**：在「循环连发」页点击「添加步骤」手工编排，或用「录制一轮」生成步骤，设置循环次数和触发键；首次进入有独立的简短引导
@@ -124,7 +136,7 @@
 - 关于页 → 软件更新 → 「检查更新」，手动检查新版本
 - 发现新版本后可「下载并安装」，下载完成后「立即重启更新」，程序会自动停止连发/宏、替换文件并重启
 - 也可以点击「前往下载」在浏览器打开发布页手动下载
-- 程序永远不会在启动、运行或关机时自动联网检查更新
+- 后台检查只更新提示，不自动下载或应用更新；退出时不发起新检查，断网不影响已有插件和本地配置
 
 ## 从源码构建
 
@@ -134,7 +146,7 @@
 - Visual Studio 2022（MSVC v143 x64 和 Windows SDK）
 - .NET Framework 4.8（用于构建和运行小叽本机签名助手；无需另装驱动 WDK 或签名工具）
 - 官方独立版 CMake 3.30+（不要使用 VS BuildTools 自带 CMake）
-- Qt 6.8 或更新版本，包含 Qt QML、Qt Quick、Qt Quick Controls、Qt Quick Widgets、Qt SVG、Qt Shader Tools
+- Qt 6.8 或更新版本，包含 Qt Network、Qt QML、Qt Quick、Qt Quick Controls、Qt Quick Widgets、Qt SVG、Qt Shader Tools
 - 发布包使用静态 Qt，安装路径由 `CMAKE_PREFIX_PATH` 指定，不再使用旧 Qt 构建目录
 
 ### 编译
@@ -144,7 +156,7 @@
 & "D:\software\cmake-3.31.6\bin\cmake.exe" --build build-qt6 --config Release --target XiaoJiAutoKey
 ```
 
-输出：`build-qt6/Release`（与旧版结构一致，包含 exe、使用说明、`audio/` 和 `driver/`；QML 组件编译并嵌入 exe，不需要额外分发 QML 文件）。
+输出：`build-qt6/Release`，包含 exe、使用说明、`audio/` 和 `plugins/builtin/`。框架 QML 组件编译并嵌入 exe；页面插件的 QML 随插件包交付。
 
 需要重新编译静态 Qt 时执行：
 
@@ -158,7 +170,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -
 
 本地观察键盘、组合键、长按、鼠标五键和滚轮输出时，可直接用浏览器打开 [输入查看页](scripts/input-viewer.html)。页面离线运行，提供逐键统计、按住时长、连发间隔、事件筛选与 JSON 导出；使用方法和浏览器限制见 [本地输入查看](docs/input-viewer.md)。
 
-主窗口标题栏、六个主页面、剪贴板分享提示条、状态悬浮窗和悬浮窗锁定按钮均使用 QML。标题栏保留原有拖动、最小化和关闭确认；分享提示条保留点击导入、关闭抑制和 8 秒自动隐藏，位置随窗口尺寸自动调整。原生窗口负责 Windows 消息、托盘、鼠标穿透和 DPI 协调。悬浮窗以单个着色器绘制通透底、弧面轮廓、交互高光和阴影；不采集桌面或游戏画面，不包含背景实时折射，也不是苹果原生 Liquid Glass 材质。调整透明度只影响玻璃底，不会使文字一起变淡。
+主窗口标题栏、全部主页面与插件页面、剪贴板分享提示条、状态悬浮窗和悬浮窗锁定按钮均使用 QML。标题栏保留原有拖动、最小化和关闭确认；分享提示条保留点击导入、关闭抑制和 8 秒自动隐藏，位置随窗口尺寸自动调整。原生窗口负责 Windows 消息、托盘、鼠标穿透和 DPI 协调。悬浮窗以单个着色器绘制通透底、弧面轮廓、交互高光和阴影；不采集桌面或游戏画面，不包含背景实时折射，也不是苹果原生 Liquid Glass 材质。调整透明度只影响玻璃底，不会使文字一起变淡。
 
 按键录制、配置命名与确认、退出确认、悬浮窗设置、音效、进程管理、导入导出、更新、驱动自检和卸载进度等自定义弹窗的内容与控件均使用 QML；`QDialog` 仅承载原生窗口、模态和屏幕约束，系统文件选择器保留原生交互。按键引擎及按键方案格式不变。
 
@@ -170,7 +182,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath "D:\Qt\6.8.3-static" -CMakePath "D:\software\cmake-3.31.6\bin\cmake.exe"
 ```
 
-打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音、DD 运行库及小叽驱动管理、本机签名组件和许可证；打包脚本会自动排除 `config.json`。
+打包产物位于 `dist/XiaoJiAutoKey.zip`，包含主程序、离线使用说明、内置提示音，以及小叽驱动插件的当前版本和许可证；DD、USB 不随应用包预装。打包脚本按清单收集插件文件，排除 `config.json`、用户安装插件、插件数据及缓存。
 
 代码可一次推送到 Gitee 和 GitHub；发版时先将 tag 推到 Gitee，完成发行版和 zip 上传后，再将同一个 tag 推到 GitHub，触发工作流同步发布说明与同一份 zip。也支持手动补同步，配置与操作见 [双平台同步](docs/repository-sync.md)。
 
@@ -213,8 +225,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 | `macroBeepEnabled` | 循环连发及录制整组提示音开关 |
 | `closeAction` | 关闭窗口行为（`ask` / `minimize` / `exit`） |
 | `driverMode` | 驱动模式（`xiaoji` = 小叽，默认；`legacy` = DD；`usb` = USB 硬件；旧 `hid` 自动迁移到小叽） |
+| `activeDriverId` | 实际使用的稳定提供方 ID，格式为 `插件ID/提供方ID`；旧配置按 `driverMode` 迁移 |
+| `plugins` | 各插件的启用、安装版本、待激活、回退、独立设置、后台恢复选择和窗口位置，不随按键方案分享 |
+| `pluginNavigationExpanded` | 插件中心子页面菜单的展开状态 |
+| `automaticUpdateChecks` | 是否允许启动后异步及后台低频检查框架与插件更新 |
+| `pluginRegistryUrl` / `pluginRegistryPublicKey` | 签名插件目录的 HTTPS 地址和可信 P-256 公钥 |
+| `pluginRegistryFallbackUrl` | 同一可信公钥下的备用目录；默认 Gitee，主源不可用时尝试，全部失败保留缓存 |
 | `faction` | 门派主题 ID |
-| `latestKnownVersion` | 最近一次手动检查发现的版本号，仅用于保持"有新版本"标签显示，不触发联网 |
+| `latestKnownVersion` | 最近一次检查发现的版本号；界面读取缓存显示标签，联网由更新服务调度 |
 | `dailyUsageMs` | 本机每日连发运行时长，键为 `YYYY-MM-DD`，值为毫秒数；不随按键方案分享 |
 | `onboarding` | 本机新手引导的版本、状态、步骤及已读提示；完成或跳过后不再自动展示，不随按键方案分享 |
 | `sounds` | 按事件 ID 保存 `enabled`、`path` 和 `volume`（0–100）；空路径使用该事件的默认音频，详见 [提示音配置](docs/sound-cues.md) |
@@ -249,7 +267,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 - `InputDriverRouter`：按键级所有权仲裁（见下）
 - `ProfileController` / `MacroController`：配置修改与业务校验
 - `*Coordinator`：连接页面 signal、controller、engine、config 保存和页面刷新
-- `UpdateService` / `UpdateCoordinator`：软件更新（仅手动触发联网）
+- `UpdateService` / `UpdateCoordinator`：框架更新调度与提示，用户主动下载和重启安装
+- `PluginService` / `NativePluginDriver`：插件目录、安装、策略、页面 API 与原生提供方适配
+- `PluginRuntime` / `PluginWindows` / `PluginNativeBackend`：独立于页面的运行实例、窗口管理、原生后台工作线程和内部通信
 
 ### 运行时按键互斥
 
@@ -270,6 +290,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 
 ```
 ├── CMakeLists.txt          # CMake 构建配置，Qt 6 / QML 模块
+├── xiaoji-plugins.json     # 官方多插件自动发现声明
 ├── AGENTS.md               # 构建/发布流程约束说明
 ├── include/
 │   ├── app/                # 应用层：主窗口、coordinator、dialog、service、输入 hook
@@ -280,6 +301,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 │   ├── qml/                # QML 页面与共用控件
 │   └── ui/                 # C++ 页面模型、原生组件、设计令牌
 ├── assets/                 # 图标、音频、门派图标、使用说明
+├── sdk/                    # 公共 C ABI、清单规范、CMake 支持与开发示例
+├── plugins/                # 按能力命名的官方插件模块
+│   ├── driver-xiaoji/      # 小叽驱动与管理、签名组件
+│   ├── driver-dd/          # DD 驱动与运行库、INF
+│   └── driver-usb/         # USB 驱动与固件资料
+├── registry/               # 自由发布、自动收录、审核、上下架与签名目录
 ├── firmware/               # 硬件桥接固件（RP2040 Pico / CH552）
 │   ├── pico/               # 基于 Pico SDK + TinyUSB 的 USB 复合设备固件
 │   └── ch552/              # CH552 固件
@@ -290,13 +317,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 └── scripts/                # 构建、打包脚本与本地输入查看工具
 ```
 
+目录、稳定插件 ID 和构建产物的对应关系见 [项目目录与命名](docs/project-layout.md)。
+
 ## 参与贡献
 
 欢迎通过 Issue 反馈问题、提交 Pull Request 改进代码。提交前请：
 
-- 遵循现有代码风格（分层结构、coordinator 模式、UI 规范见 [AGENTS.md](AGENTS.md)）
+- 遵循现有分层与 coordinator 风格；项目约束和按需阅读索引见 [AGENTS.md](AGENTS.md)，界面细则见 [界面开发规范](docs/ui-guidelines.md)
 - 界面改动请同时验证浅色/深色模式和 100%/125%/150%/200% DPI 缩放
-- 保持"软件更新仅在用户手动触发时联网"的原则
+- 更新检查保持异步和低频；下载、安装与重启由用户触发，不做强制更新
 
 ## 开源协议
 

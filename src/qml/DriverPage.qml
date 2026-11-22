@@ -7,6 +7,7 @@ QuietScrollView {
     id: root
     autoHideScrollBar: true
     readonly property QtObject page: driverPageModel
+    readonly property bool busy: page.state.busy || page.state.pluginBusy
     readonly property var guideTargets: ({ driver: driverChoice })
     contentWidth: availableWidth
     contentHeight: Math.max(pageColumn.implicitHeight, availableHeight)
@@ -26,8 +27,12 @@ QuietScrollView {
                 id: body
                 anchors.fill: parent
                 spacing: 10
-                QuietHeading { text: qsTr("驱动管理"); pageTitle: true }
-                QuietLabel { Layout.fillWidth: true; text: qsTr("小叽为默认驱动，DD 和 USB 可按需切换。旧 HID 仅保留卸载入口。"); color: Theme.muted }
+                RowLayout {
+                    Layout.fillWidth: true
+                    QuietHeading { text: qsTr("驱动管理"); pageTitle: true; Layout.fillWidth: true }
+                    ActionButton { text: qsTr("管理驱动插件"); onClicked: root.page.openPluginCenter() }
+                }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("从已启用的驱动插件中选择，状态和管理操作随当前插件显示。"); color: Theme.muted }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("运行模式") }
                 RowLayout {
@@ -36,34 +41,37 @@ QuietScrollView {
                     QuietCombo {
                         id: driverChoice
                         Layout.preferredWidth: 190
-                        model: [qsTr("小叽（默认）"), "DD", "USB"]
-                        currentIndex: root.page.state.mode
-                        enabled: !root.page.state.busy
-                        onActivated: root.page.selectMode(currentIndex)
+                        model: root.page.state.providers
+                        textRole: "name"
+                        valueRole: "id"
+                        displayText: currentIndex >= 0 ? currentText : count > 0 ? qsTr("请选择驱动") : qsTr("暂无可用驱动")
+                        currentIndex: root.page.state.providerIndex
+                        enabled: !root.busy
+                        onActivated: root.page.selectProvider(currentValue)
                         Accessible.name: qsTr("使用驱动")
                     }
                     ActionButton {
                         visible: root.page.state.installAvailable
                         text: root.page.state.installText
-                        enabled: !root.page.state.busy
-                        onClicked: root.page.selectMode(root.page.state.mode)
+                        enabled: !root.busy
+                        onClicked: root.page.selectProvider(root.page.state.providerId)
                     }
+                    ActionButton { visible: root.page.state.pluginManagement; text: qsTr("安装 / 修复"); enabled: !root.busy; onClicked: root.page.managePlugin("repair") }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
                     QuietHeading { text: qsTr("当前状态"); Layout.fillWidth: true }
-                    ActionButton { text: qsTr("诊断信息"); enabled: !root.page.state.busy; onClicked: root.page.diagnosticsRequested() }
-                    ActionButton { text: qsTr("一键自检"); enabled: !root.page.state.busy; onClicked: root.page.selfCheckRequested() }
+                    ActionButton { visible: root.page.state.diagnosticsAvailable; text: qsTr("诊断信息"); enabled: !root.busy; onClicked: root.page.diagnosticsRequested() }
+                    ActionButton { visible: root.page.state.selfCheckAvailable; text: qsTr("一键自检"); enabled: !root.busy; onClicked: root.page.runSelfCheck() }
                 }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 8
-                    visible: root.page.state.xiaojiInstalled || root.page.state.ddInstalled || root.page.state.hidInstalled
-                    ActionButton { visible: root.page.state.xiaojiInstalled; text: qsTr("卸载小叽"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(0) }
-                    ActionButton { visible: root.page.state.ddInstalled; text: qsTr("卸载 DD"); enabled: !root.page.state.busy; onClicked: root.page.uninstallMode(1) }
-                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("卸载 HID"); enabled: !root.page.state.busy; onClicked: root.page.uninstallRetiredHid() }
+                    visible: root.page.state.hidInstalled || root.page.state.systemDriverUninstall
+                    ActionButton { visible: root.page.state.systemDriverUninstall; text: qsTr("卸载所选系统驱动"); enabled: !root.busy; onClicked: root.page.managePlugin("uninstall") }
+                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("清理旧 HID 残留"); enabled: !root.busy; onClicked: root.page.uninstallRetiredHid() }
                 }
                 RowLayout {
                     Layout.fillWidth: true

@@ -21,6 +21,7 @@ public:
     void NoteHookPhysicalKey(const KeyDescriptor& key, bool pressed) noexcept;
     [[nodiscard]] InputDriver* CurrentDriver() const noexcept;
     [[nodiscard]] bool CanRelayPauseModifier(const KeyDescriptor& key) const noexcept;
+    [[nodiscard]] bool CanRelayPhysicalKey(const KeyDescriptor& key) const noexcept;
     void SetPhysicalModifierIntercepted(const KeyDescriptor& key, bool intercepted) noexcept;
     bool RelayPhysicalKey(const KeyDescriptor& key, bool pressed);
     void ReleaseRelayedKeys();

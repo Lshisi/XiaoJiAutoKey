@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.20)
+project(XiaoJiNativeExample VERSION 1.0.0 LANGUAGES CXX)
+set(XIAOJI_PLUGIN_SDK "${CMAKE_CURRENT_SOURCE_DIR}/../.." CACHE PATH "XiaoJi Plugin SDK source")
+if(NOT TARGET XiaoJi::PluginSDK)
+    if(EXISTS "${XIAOJI_PLUGIN_SDK}/CMakeLists.txt")
+        add_subdirectory("${XIAOJI_PLUGIN_SDK}" "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+    else()
+        find_package(XiaoJiPluginSDK 1 CONFIG REQUIRED)
+    endif()
+endif()
+xiaoji_add_plugin(XiaoJiNativeExample MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/plugin.json"
+    OUTPUT_NAME example-native-driver SOURCES Plugin.cpp LIBRARIES user32)

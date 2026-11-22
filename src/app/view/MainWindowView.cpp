@@ -14,6 +14,7 @@
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/AboutPageModel.h"
 #include "ui/models/UsagePageModel.h"
+#include "ui/models/PluginCenterModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
@@ -246,6 +247,11 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     settingsPage_ = new SettingsPageModel(this);
     aboutPage_ = new AboutPageModel(this);
     usagePage_ = new UsagePageModel(this);
+    pluginCenter_ = new PluginCenterModel(this);
+    connect(pluginCenter_, &PageModel::stateChanged, this, [this] {
+        if (currentPage_.startsWith(QStringLiteral("plugin:")) && pluginCenter_->page(currentPage_).isEmpty())
+            navigateTo(QStringLiteral("plugins"));
+    });
 
     auto* central = new QWidget(window);
     central->setObjectName("mainWindowRoot");
@@ -270,6 +276,7 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     context->setContextProperty("settingsPageModel", settingsPage_);
     context->setContextProperty("aboutPageModel", aboutPage_);
     context->setContextProperty("usagePageModel", usagePage_);
+    context->setContextProperty("pluginCenterModel", pluginCenter_);
     context->setContextProperty("shareBannerModel", shareBanner_);
     updateFactionVisuals(window);
     quickWidget_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/Main.qml")));
@@ -318,13 +325,16 @@ void MainWindowView::initializeTray(QMainWindow* window) {
 
 void MainWindowView::navigateTo(const QString& pageId) {
     if (currentPage_ == pageId) return;
+    if (pageId.startsWith(QStringLiteral("plugin:")) && pluginCenter_)
+        pluginCenter_->dispatch(QStringLiteral("expanded"), {}, true);
     currentPage_ = pageId;
     emit currentPageChanged();
 }
 
 void MainWindowView::selectPage(const QString& pageId) {
     if (pageId != "keys" && pageId != "macro" && pageId != "usage" && pageId != "driver"
-        && pageId != "settings" && pageId != "about") return;
+        && pageId != "settings" && pageId != "about" && pageId != "plugins"
+        && (!pluginCenter_ || pluginCenter_->page(pageId).isEmpty())) return;
     emit pageSelected(pageId);
 }
 

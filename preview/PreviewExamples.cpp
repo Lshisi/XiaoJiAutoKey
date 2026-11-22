@@ -58,10 +58,7 @@ void PreviewController::showDiagnosticReport() {
         "驱动就绪: %3\n"
         "主动卸载后停用自动安装: 否\n\n"
         "［运行库与设备］\n"
-        "驱动目录: 示例状态\n"
-        "DD32.dll / DD64.dll: 示例状态\n"
-        "小叽键盘/鼠标及扩展输入配置: 示例状态\n本机签名组件: 示例状态\n旧 HID 残留（仅供卸载）: 示例状态\n"
-        "USB 设备: 示例状态\n\n"
+        "%8\n\n"
         "［最近错误］\n无\n\n"
         "［安全环境］\n"
         "内存完整性运行中: 示例状态\n"
@@ -78,7 +75,8 @@ void PreviewController::showDiagnosticReport() {
             keys_.model()->state().value("profileEnabled").toBool() ? tr("是") : tr("否"),
             macros_.model()->state().value("profileEnabled").toBool() ? tr("是") : tr("否"),
             keys_.model()->state().value("running").toBool() ? tr("是") : tr("否"),
-            macros_.model()->state().value("running").toBool() ? tr("是") : tr("否"));
+            macros_.model()->state().value("running").toBool() ? tr("是") : tr("否"),
+            driverPage_.state().value("details").toString());
 
     const int request = ++diagnosticPreviewRequest_;
     dialog_.present("DialogShare.qml", tr("诊断信息"),

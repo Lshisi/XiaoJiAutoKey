@@ -14,7 +14,9 @@
 #include "ui/models/SettingsPageModel.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
+#include "ui/models/PluginCenterModel.h"
 #include "ui/styles/DesignTokens.h"
+#include "core/plugins/DeviceDiscovery.h"
 
 #include <QAction>
 #include <QFileInfo>
@@ -222,31 +224,8 @@ MainWindow::MainWindow(QWidget* parent)
         refreshUsbDriverAfterDeviceChange();
     });
     usbHeartbeatTimer_.setInterval(750);
-    connect(&usbHeartbeatTimer_, &QTimer::timeout, this, [this]() {
-        if (config_.driverMode == DriverMode::Xiaoji) {
-            if (inputDriver_.CurrentDriver() == &xiaojiDriver_ && !xiaojiDriver_.IsReady()) {
-                (void)engineStateCoordinator_.setRepeatRunningFast(false);
-                macroEngine_.StopAll();
-                inputDriver_.ReleaseAll();
-                driverStatusNote_ = xiaojiDriver_.GetLastError();
-                inputDriver_.SetDriver(nullptr);
-                engineHookCoordinator_.refreshState();
-                refreshStatusOverlay();
-                refreshDriverStatusUi();
-            }
-            return;
-        }
-        if (config_.driverMode != DriverMode::Usb || !ch552Driver_.IsReady()) return;
-        if (ch552Driver_.FirmwareVersion() != kBundledUsbDriverVersion ||
-            ch552Driver_.Heartbeat()) return;
-        (void)engineStateCoordinator_.setRepeatRunningFast(false);
-        macroEngine_.StopAll();
-        inputDriver_.ReleaseAll();
-        inputDriver_.ClearAllStates();
-        inputDriver_.SetDriver(nullptr);
-        ch552Driver_.Disconnect();
-        refreshStatusOverlay();
-        usbDeviceRefreshTimer_.start(250);
+    connect(&usbHeartbeatTimer_, &QTimer::timeout, this, [this] {
+        if (pluginService_) pluginService_->pollActiveDriver();
     });
 }
 
@@ -260,6 +239,7 @@ MainWindow::~MainWindow() {
     engineStateCoordinator_.stopThreads();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
+    if (pluginService_) pluginService_->shutdownRuntimes();
 }
 
 bool MainWindow::Initialize() {
@@ -281,8 +261,10 @@ bool MainWindow::Initialize() {
         return false;
     }
     configCoordinator_.load();
+    initializePlugins();
     usageStatisticsCoordinator_.initialize(config_, *view_.usagePage());
     updateCoordinator_.restoreBadgeFromConfig();
+    updateCoordinator_.startBackgroundChecks();
     if (config_.backgroundAutoRun) {
         config_.backgroundAutoRun = false;
         configCoordinator_.save(false, 500);
@@ -297,7 +279,8 @@ bool MainWindow::Initialize() {
         logDriverUnavailableOnce();
         // 驱动加载失败不区分根因，等主窗口首次显示后自动打开自检向导
         // （驻托盘启动则推迟到用户打开主窗口时）；根因由向导内部诊断分诊。
-        if (!suppressDdUnavailablePrompt_ && !config_.IsDriverUninstalledByUser(config_.driverMode)) {
+        if (!suppressDdUnavailablePrompt_ && !activeDriverUninstalledByUser()
+            && pluginService_ && pluginService_->available(QString::fromStdString(config_.activeDriverId))) {
             pendingSelfCheckPrompt_ = true;
         }
     }
@@ -346,115 +329,7 @@ void MainWindow::ShowForStartup() {
 }
 
 bool MainWindow::loadConfiguredDriver() {
-    driverUninstallFailed_ = false;
-    driverStatusNote_.clear();
-    if (config_.IsDriverUninstalledByUser(config_.driverMode)) {
-        if (config_.driverMode == DriverMode::Xiaoji) {
-            inputDriver_.SetDriver(nullptr);
-            driverStatusNote_ = tr("小叽驱动已由你主动停用，请在驱动管理页主动安装或重新连接。").toStdWString();
-            return false;
-        }
-        const auto status = ddRuntimeService_.Inspect(driver_);
-        const bool installed = status.legacyRuntimeExists && status.infKeyboardServiceInstalled && status.infMouseServiceInstalled
-                && status.infKeyboardSysInstalled && status.infMouseSysInstalled
-                && status.infKeyboardDeviceStarted && status.infMouseDeviceStarted
-                && status.infKeyboardDeviceBound && status.infMouseDeviceBound
-                && !status.infKeyboardServicePendingDelete && !status.infMouseServicePendingDelete;
-        if (!installed) {
-            inputDriver_.SetDriver(nullptr);
-            driverStatusNote_ = tr("当前驱动已由你主动卸载。需要再次使用时，请在驱动管理页主动安装。").toStdWString();
-            return false;
-        }
-        config_.SetDriverUninstalledByUser(config_.driverMode, false);
-        configCoordinator_.save(false);
-    }
-    const bool loaded = config_.driverMode == DriverMode::Xiaoji ? loadXiaojiDriver()
-        : config_.driverMode == DriverMode::Usb ? loadCh552UsbDriver() : loadLegacyDriver();
-    if (loaded) driverUnavailableLogged_ = false;
-    return loaded;
-}
-
-bool MainWindow::loadXiaojiDriver() {
-    inputDriver_.SetDriver(nullptr);
-    ch552Driver_.Disconnect();
-    driver_.ReleaseAll();
-    driver_.Unload();
-    const auto status = xiaojiRuntimeService_.Inspect();
-    if (!status.keyboardReady || !status.mouseReady) {
-        driverStatusNote_ = tr("小叽驱动键盘或鼠标尚未就绪。请在驱动管理页点击安装，程序会准备内置驱动。")
-            .toStdWString();
-        if (!status.error.empty()) driverStatusNote_ += L"\n" + status.error;
-        return false;
-    }
-    if (!status.profileReady) {
-        driverStatusNote_ = tr("小叽驱动输入配置需要升级，请在驱动管理页点击安装/修复，以启用多键保持、扩展键和鼠标侧键。").toStdWString();
-        return false;
-    }
-    if (!xiaojiDriver_.Connect()) {
-        driverStatusNote_ = xiaojiDriver_.GetLastError();
-        return false;
-    }
-    inputDriver_.SetDriver(&xiaojiDriver_);
-    return true;
-}
-
-bool MainWindow::loadLegacyDriver() {
-    xiaojiDriver_.Disconnect();
-    inputDriver_.SetDriver(nullptr);
-    ch552Driver_.Disconnect();
-    driver_.ReleaseAll();
-    driver_.Unload();
-    const auto status = ddRuntimeService_.Inspect(driver_);
-    if (!status.legacyRuntimeExists) {
-        driverStatusNote_ = tr("DD 运行文件缺失：%1")
-            .arg(QString::fromStdWString(status.legacyRuntimePath)).toStdWString();
-        return false;
-    }
-    std::wstring installMessage;
-    if (!ensureLegacyDdInfInstalled(&installMessage)) {
-        driverStatusNote_ = installMessage;
-        return false;
-    }
-
-    bool loaded = driver_.LoadLegacyFromDirectory(appPaths_.exeDir());
-    if (!loaded) {
-        // Resume can leave the INF services reporting ready while the runtime
-        // handles are still stale. The repair helper probes the runtime first,
-        // then refreshes or rebuilds the device instances only when needed.
-        std::wstring repairMessage;
-        loaded = ddRuntimeService_.RepairEmbeddedInfDriver(
-            [this]() {
-                return driver_.LoadLegacyFromDirectory(appPaths_.exeDir());
-            },
-            &repairMessage);
-        if (!loaded && !repairMessage.empty()) {
-            driverStatusNote_ = repairMessage;
-        }
-    }
-    if (loaded) {
-        inputDriver_.SetDriver(&driver_);
-    }
-    return loaded;
-}
-
-bool MainWindow::loadCh552UsbDriver() {
-    xiaojiDriver_.Disconnect();
-    driver_.ReleaseAll();
-    driver_.Unload();
-    ch552Driver_.Disconnect();
-    const bool loaded = ch552Driver_.AutoConnect();
-    if (loaded) {
-        if (ch552Driver_.FirmwareVersion() == kBundledUsbDriverVersion &&
-            !ch552Driver_.BeginLease()) {
-            ch552Driver_.Disconnect();
-            inputDriver_.SetDriver(nullptr);
-            return false;
-        }
-        inputDriver_.SetDriver(&ch552Driver_);
-    } else {
-        inputDriver_.SetDriver(nullptr);
-    }
-    return loaded;
+    return pluginService_ && loadPluginDriver();
 }
 
 void MainWindow::registerUsbDeviceNotifications() {
@@ -480,21 +355,20 @@ void MainWindow::unregisterUsbDeviceNotifications() {
 }
 
 void MainWindow::refreshUsbDriverAfterDeviceChange() {
-    if (config_.driverMode != DriverMode::Usb) {
+    if (!pluginService_ || config_.activeDriverId != "xiaoji.driver.usb/default" || exitRequested_ || systemShutdownRequested_
+        || driverUninstallInProgress_ || !pluginService_->available(QStringLiteral("xiaoji.driver.usb/default"))) {
+        usbHeartbeatReconnectPending_ = false;
         refreshDriverStatusUi();
         return;
     }
-
+    if (usbHeartbeatReconnectPending_ && activeInputDriverReady()) { usbHeartbeatReconnectPending_ = false; return; }
+    if (pluginService_->busy() || inputHook_.isDialogOpen()) { usbDeviceRefreshTimer_.start(250); return; }
+    usbHeartbeatReconnectPending_ = false;
     engineStateCoordinator_.setRepeatRunning(false);
     macroEngine_.StopAll();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
-    driverStatusNote_.clear();
-
-    const bool loaded = loadCh552UsbDriver();
-    if (loaded) {
-        driverUnavailableLogged_ = false;
-    }
+    loadPluginDriver();
     engineHookCoordinator_.refreshState();
     refreshDriverStatusUi();
     refreshStatusOverlay();
@@ -507,58 +381,55 @@ bool MainWindow::activeInputDriverReady() const {
 std::wstring MainWindow::activeInputDriverError() const {
     if (activeInputDriverReady()) return {};
     if (!driverStatusNote_.empty()) return driverStatusNote_;
-    if (config_.driverMode == DriverMode::Xiaoji) return xiaojiDriver_.GetLastError();
-    return config_.driverMode == DriverMode::Usb ? ch552Driver_.GetLastError() : driver_.GetLastError();
+    if (pluginService_) {
+        const auto* driver = pluginService_->activeDriver();
+        return driver ? driver->GetLastError() : tr("所选驱动插件尚未连接。").toStdWString();
+    }
+    return tr("插件服务尚未初始化。").toStdWString();
 }
 
-bool MainWindow::loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage) {
-    std::wstring installMessage;
-    if (!ensureLegacyDdInfInstalled(&installMessage)) {
-        if (errorMessage) {
-            *errorMessage = installMessage.empty()
-                ? std::wstring(L"DD INF driver is not available.")
-                : installMessage;
+bool MainWindow::connectPluginDriver(Plugins::NativePluginDriver* driver, const QString& providerId, std::wstring* error) {
+    if (!driver) return false;
+    if (driver->connect()) { if (error) error->clear(); return true; }
+    const auto firstError = driver->GetLastError();
+    if (providerId != QStringLiteral("xiaoji.driver.dd/default")) { if (error) *error = firstError; return false; }
+    if (!ddRuntimeService_.Inspect(false, firstError).legacyRuntimeExists) { if (error) *error = firstError; return false; }
+
+    const bool wasDialogOpen = inputHook_.isDialogOpen();
+    const bool wasBusy = view_.driverPage()->state().value("busy").toBool();
+    inputHook_.setDialogOpen(true);
+    view_.driverPage()->setBusy(true);
+    const auto restore = qScopeGuard([this, wasDialogOpen, wasBusy] {
+        view_.driverPage()->setBusy(wasBusy);
+        inputHook_.setDialogOpen(wasDialogOpen);
+    });
+    DriverProgressDialog progress(tr("修复 DD 驱动"), tr("正在检查 DD 连接，刷新或重建设备节点，请稍候。"), this);
+    struct Result { bool ok = false; std::wstring message; };
+    const auto result = std::make_shared<Result>();
+    auto worker = std::unique_ptr<QThread>(QThread::create([service = ddRuntimeService_, driver, result] {
+        try {
+            result->ok = service.RepairEmbeddedInfDriver([driver] { return driver->connect(); }, &result->message);
+        } catch (const std::exception& exception) { result->message = ToWide(exception.what()); }
+        catch (...) { result->message = L"DD repair failed unexpectedly."; }
+    }));
+    connect(worker.get(), &QThread::finished, &progress, &QDialog::accept, Qt::QueuedConnection);
+    worker->start();
+    progress.exec();
+    worker->wait();
+    if (error) {
+        error->clear();
+        if (!result->ok) {
+            *error = firstError;
+            if (!result->message.empty()) *error += L"\n" + result->message;
+            const auto lastError = driver->GetLastError();
+            if (!lastError.empty() && lastError != firstError) *error += L"\n" + lastError;
         }
-        return false;
     }
-
-    if (targetDriver.LoadLegacyFromDirectory(appPaths_.exeDir())) {
-        return true;
-    }
-
-    std::wstring repairMessage;
-    if (ddRuntimeService_.RepairEmbeddedInfDriver(
-            [&targetDriver, this]() {
-                return targetDriver.LoadLegacyFromDirectory(appPaths_.exeDir());
-            },
-            &repairMessage)) {
-        return true;
-    }
-
-    if (errorMessage) {
-        *errorMessage = targetDriver.GetLastError();
-        if (!repairMessage.empty()) {
-            if (!errorMessage->empty()) *errorMessage += L"; ";
-            *errorMessage += repairMessage;
-        }
-    }
-    targetDriver.ReleaseAll();
-    targetDriver.Unload();
-    return false;
-}
-
-bool MainWindow::canLoadCh552UsbDriver(std::wstring* errorMessage) {
-    Ch552UsbDriver probeDriver;
-    const bool loaded = probeDriver.AutoConnect();
-    if (!loaded && errorMessage) {
-        *errorMessage = probeDriver.GetLastError();
-    }
-    probeDriver.Disconnect();
-    return loaded;
+    return result->ok;
 }
 
 bool MainWindow::ensureLegacyDdInfInstalled(std::wstring* resultMessage) {
-    const auto status = ddRuntimeService_.Inspect(driver_);
+    const auto status = ddRuntimeService_.Inspect(activeInputDriverReady(), activeInputDriverError());
     if (status.infKeyboardServiceInstalled && status.infMouseServiceInstalled &&
         status.infKeyboardSysInstalled && status.infMouseSysInstalled) {
         if (resultMessage) {
@@ -576,7 +447,7 @@ bool MainWindow::ensureLegacyDdInfInstalled(std::wstring* resultMessage) {
         return false;
     }
 
-    const auto postInstallStatus = ddRuntimeService_.Inspect(driver_);
+    const auto postInstallStatus = ddRuntimeService_.Inspect(activeInputDriverReady(), activeInputDriverError());
     return postInstallStatus.infKeyboardServiceInstalled &&
         postInstallStatus.infMouseServiceInstalled &&
         postInstallStatus.infKeyboardSysInstalled &&
@@ -629,7 +500,7 @@ bool MainWindow::prepareXiaojiDriverForSwitch() {
     inputDriver_.ReleaseAll();
     if (config_.driverMode == DriverMode::Xiaoji) {
         inputDriver_.SetDriver(nullptr);
-        xiaojiDriver_.Disconnect();
+        if (pluginService_) pluginService_->disconnectDrivers();
     }
     const QString message = repairExisting ? tr("正在修复设备并升级按键和鼠标支持，完成后重新启动小叽按键。")
         : localInstall ? tr("正在进行本机签名并安装内置驱动，完成后重新启动小叽按键。")
@@ -637,24 +508,31 @@ bool MainWindow::prepareXiaojiDriverForSwitch() {
         : tr("正在连接小叽驱动的键盘和鼠标通道。");
     auto* progress = new DriverProgressDialog(tr("准备小叽驱动"), message, this);
     const auto result = std::make_shared<XiaojiInstallResult>();
+    QString probeError;
+    auto* probe = pluginService_ ? pluginService_->openDriver(QStringLiteral("xiaoji.driver.xiaoji/default"), &probeError) : nullptr;
+    if (!probe) {
+        progress->deleteLater();
+        AppMessageDialog::warning(this, tr("插件无法加载"), probeError);
+        return false;
+    }
     auto* thread = QThread::create([service = xiaojiRuntimeService_, result, infPath,
-        repairExisting, localInstall, signedBundle, approvedToken, needsInstall] {
+        repairExisting, localInstall, signedBundle, approvedToken, needsInstall, probe] {
+        const auto release = qScopeGuard([probe] { probe->ReleaseAll(); probe->disconnect(); });
         try {
             if (repairExisting && !service.Repair(&result->message)) return;
             if (localInstall && !service.InstallLocal(approvedToken, &result->message)) return;
             if (signedBundle && !service.Install(infPath, &result->message)) return;
-            XiaojiDriver candidate;
-            result->ok = candidate.Connect();
+            result->ok = probe->connect();
             if (!result->ok && !needsInstall && service.Inspect().boundPackagePresent) {
                 // This is an explicit reconnect/repair request, before any output.
                 // Rebuild only the two owned nodes if the old channel is stale.
-                const auto firstError = candidate.GetLastError();
-                candidate.Disconnect();
+                const auto firstError = probe->GetLastError();
+                probe->disconnect();
                 std::wstring repairMessage;
-                if (service.Repair(&repairMessage)) result->ok = candidate.Connect();
+                if (service.Repair(&repairMessage)) result->ok = probe->connect();
                 result->message += L"\n" + firstError + L"\n" + repairMessage;
             }
-            if (!result->ok) result->message += L"\n" + candidate.GetLastError();
+            if (!result->ok) result->message += L"\n" + probe->GetLastError();
         } catch (const std::exception& error) {
             result->message = ToWide(error.what());
         }
@@ -691,21 +569,23 @@ void MainWindow::refreshDriverStatusUi() {
     };
     const auto result = std::make_shared<StatusResult>();
     const bool ready = activeInputDriverReady();
+    const auto providerId = config_.activeDriverId;
     const std::wstring lastError = activeInputDriverError();
-    const bool usbReady = ch552Driver_.IsReady();
-    auto* thread = QThread::create([runtimeService = ddRuntimeService_, result, ready, lastError, usbReady]() {
+    const bool usbReady = (config_.activeDriverId == "xiaoji.driver.usb/default" && activeInputDriverReady());
+    const auto usbTokens = pluginService_ ? pluginService_->deviceTokensFor(QStringLiteral("xiaoji.driver.usb")) : QStringList{};
+    auto* thread = QThread::create([runtimeService = ddRuntimeService_, result, ready, lastError, usbReady, usbTokens]() {
         try {
             result->runtime = runtimeService.Inspect(ready, lastError);
             result->guards = CodeIntegrityInspector::Inspect(false);
-            if (!usbReady) result->detectedUsbPort = Ch552UsbDriver::DetectPortName();
+            if (!usbReady) result->detectedUsbPort = Plugins::detectSerialPort(usbTokens).toStdWString();
         } catch (const std::exception&) {
             result->failed = true;
         }
     });
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    connect(thread, &QThread::finished, this, [this, result]() {
+    connect(thread, &QThread::finished, this, [this, result, providerId]() {
         driverStatusRefreshRunning_ = false;
-        if (driverStatusRefreshPending_) {
+        if (driverStatusRefreshPending_ || config_.activeDriverId != providerId) {
             driverStatusRefreshPending_ = false;
             refreshDriverStatusUi();
             return;
@@ -714,14 +594,14 @@ void MainWindow::refreshDriverStatusUi() {
             if (auto* page = view_.driverPage()) page->setStatusSummary(tr("驱动状态读取失败，请稍后重试"));
             return;
         }
-        if (config_.driverMode == DriverMode::Xiaoji && inputDriver_.CurrentDriver() == &xiaojiDriver_
+        if (config_.driverMode == DriverMode::Xiaoji && config_.activeDriverId == "xiaoji.driver.xiaoji/default" && activeInputDriverReady()
             && (!result->runtime.xiaojiKeyboardReady || !result->runtime.xiaojiMouseReady
                 || !result->runtime.xiaojiProfileReady)) {
             (void)engineStateCoordinator_.setRepeatRunningFast(false);
             macroEngine_.StopAll();
             inputDriver_.ReleaseAll();
             inputDriver_.SetDriver(nullptr);
-            xiaojiDriver_.Disconnect();
+            if (pluginService_) pluginService_->disconnectDrivers();
             driverStatusNote_ = tr("小叽驱动设备或输入配置已发生变化，请重新连接或安装/修复。").toStdWString();
             engineHookCoordinator_.refreshState();
             refreshStatusOverlay();
@@ -736,50 +616,72 @@ void MainWindow::applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& stat
     auto* page = view_.driverPage();
     if (!page) return;
     page->setDriverMode(config_.driverMode);
-    const bool xiaoji = config_.driverMode == DriverMode::Xiaoji;
-    const bool dd = config_.driverMode == DriverMode::Legacy;
+    const bool xiaoji = config_.activeDriverId == "xiaoji.driver.xiaoji/default";
+    const bool dd = config_.activeDriverId == "xiaoji.driver.dd/default";
     const bool ready = activeInputDriverReady();
-    const bool uninstalled = config_.IsDriverUninstalledByUser(config_.driverMode);
+    const bool uninstalled = activeDriverUninstalledByUser();
     const bool xiaojiInstalled = status.xiaojiKeyboardPresent || status.xiaojiMousePresent
         || status.xiaojiConfigurationPresent || status.xiaojiBoundPackagePresent;
-    const QString name = xiaoji ? tr("小叽") : dd ? QStringLiteral("DD") : QStringLiteral("USB");
-    page->setStatusSummary(driverUninstallFailed_ ? tr("卸载未完成 · 可重试")
-        : uninstalled ? (xiaoji ? (xiaojiInstalled ? tr("已停用 · 仍有安装残留") : tr("已卸载"))
-            : tr("已停用 · 主动卸载")) : ready ? tr("可用")
-        : dd && !status.legacyRuntimeExists ? tr("不可用 · 运行文件缺失") : tr("不可用 · 请运行自检"));
-    page->setInstallAction(!ready && ((xiaoji && (status.xiaojiManagerExists
-            || (status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady))) || (dd && status.legacyRuntimeExists)),
-        xiaoji && status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady ? tr("重新连接小叽")
-            : uninstalled ? tr("安装 %1").arg(name) : tr("安装/修复 %1").arg(name));
     const bool ddInstalled = status.infKeyboardServiceInstalled || status.infMouseServiceInstalled
         || status.infKeyboardSysInstalled || status.infMouseSysInstalled || status.infKeyboardDeviceStarted
         || status.infMouseDeviceStarted || status.infKeyboardDeviceBound || status.infMouseDeviceBound;
     const bool oldHidInstalled = status.hidDevicesPresent || status.hidServiceInstalled
         || status.hidServicePendingDelete || status.hidSysInstalled || status.hidDriverStorePresent;
-    page->setDriverActions(xiaojiInstalled, ddInstalled, oldHidInstalled);
+    const auto providerId = QString::fromStdString(config_.activeDriverId);
+    const bool providerAvailable = pluginService_ && pluginService_->available(providerId);
+    page->setDriverActions(providerAvailable && xiaoji && xiaojiInstalled, providerAvailable && dd && ddInstalled, oldHidInstalled);
+    const auto ui = pluginService_ ? pluginService_->driverUi(providerId) : QVariantMap{};
+    page->setPluginManagement(ui.value("repair").toBool(), ui.value("uninstall").toBool()
+        && (xiaoji ? xiaojiInstalled : dd ? ddInstalled : true));
+    page->setDiagnosticsActions(ui.value("diagnostics").toBool(), ui.value("selfCheck").toBool());
+    const auto* pluginDriver = pluginService_ ? pluginService_->activeDriver() : nullptr;
+    const auto pluginDetails = pluginDriver ? pluginDriver->text(XJ_TEXT_DIAGNOSTIC) : QString();
+    const QString name = pluginService_ ? pluginService_->driverName(QString::fromStdString(config_.activeDriverId)) : QString();
+    if (!xiaoji && !dd && config_.activeDriverId != "xiaoji.driver.usb/default") {
+        page->setStatusSummary(ready ? tr("%1 · 已就绪").arg(name) : tr("未就绪"));
+        page->setInstallAction(!config_.activeDriverId.empty() && !ready, tr("重新连接"));
+        page->setDetailText(tr("驱动提供方：%1\n状态：%2\n%3")
+            .arg(name.isEmpty() ? tr("尚未选择驱动") : name, ready ? tr("已就绪") : tr("未连接"),
+                QString::fromStdWString(activeInputDriverError()) + QLatin1Char('\n') + pluginDetails));
+        return;
+    }
+    page->setStatusSummary(driverUninstallFailed_ ? tr("卸载未完成 · 可重试")
+        : uninstalled ? (xiaoji ? (xiaojiInstalled ? tr("已停用 · 仍有安装残留") : tr("已卸载"))
+            : tr("已停用 · 主动卸载")) : ready ? tr("可用")
+        : dd && !status.legacyRuntimeExists ? tr("不可用 · 运行文件缺失") : tr("未就绪 · 请连接或查看诊断"));
+    page->setInstallAction(!ready && ((xiaoji && (status.xiaojiManagerExists
+            || (status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady))) || (dd && status.legacyRuntimeExists)),
+        xiaoji && status.xiaojiKeyboardReady && status.xiaojiMouseReady && status.xiaojiProfileReady ? tr("重新连接小叽")
+            : uninstalled ? tr("安装 %1").arg(name) : tr("安装/修复 %1").arg(name));
     QStringList lines;
     lines << tr("配置驱动: %1").arg(name);
     if (!activeInputDriverError().empty()) lines << tr("当前错误: %1").arg(QString::fromStdWString(activeInputDriverError()));
-    lines << QString() << tr("小叽驱动（默认）")
-        << tr("键盘: %1").arg(status.xiaojiKeyboardReady ? tr("已就绪") : status.xiaojiKeyboardPresent ? tr("未启动或身份异常") : tr("未安装"))
-        << tr("鼠标: %1").arg(status.xiaojiMouseReady ? tr("已就绪") : status.xiaojiMousePresent ? tr("未启动或身份异常") : tr("未安装"))
-        << tr("管理工具: %1").arg(status.xiaojiManagerExists ? tr("已找到") : tr("未找到"))
-        << tr("本机签名安装: %1").arg(status.xiaojiInstallerExists ? tr("可用") : tr("组件缺失"))
-        << tr("输入支持: %1").arg(status.xiaojiProfileReady ? tr("已启用") : tr("需安装或升级配置"))
-        << tr("输出范围: NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮");
-    if (!status.xiaojiError.empty()) lines << QString::fromStdWString(status.xiaojiError);
-    lines << QString() << QStringLiteral("DD")
-        << tr("运行文件: %1").arg(status.legacyRuntimeExists ? tr("已找到") : tr("未找到"))
-        << tr("键盘服务/设备: %1 / %2").arg(status.infKeyboardServiceInstalled ? tr("已安装") : tr("未安装"),
-            status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound ? tr("已就绪") : tr("未就绪"))
-        << tr("鼠标服务/设备: %1 / %2").arg(status.infMouseServiceInstalled ? tr("已安装") : tr("未安装"),
-            status.infMouseDeviceStarted && status.infMouseDeviceBound ? tr("已就绪") : tr("未就绪"));
-    const bool usbReady = ch552Driver_.IsReady();
-    const auto usbPort = usbReady ? ch552Driver_.PortName() : detectedUsbPort;
-    lines << QString() << QStringLiteral("USB")
-        << tr("设备: %1").arg(usbPort.empty() ? tr("未插入") : tr("已插入"))
-        << tr("通信: %1").arg(usbReady ? tr("已连接") : tr("未连接"));
-    if (usbReady) lines << tr("固件: %1").arg(QString::fromStdWString(ch552Driver_.FirmwareVersion()));
+    if (xiaoji && providerAvailable) {
+        lines << QString() << name
+            << tr("键盘: %1").arg(status.xiaojiKeyboardReady ? tr("已就绪") : status.xiaojiKeyboardPresent ? tr("未启动或身份异常") : tr("未安装"))
+            << tr("鼠标: %1").arg(status.xiaojiMouseReady ? tr("已就绪") : status.xiaojiMousePresent ? tr("未启动或身份异常") : tr("未安装"))
+            << tr("管理工具: %1").arg(status.xiaojiManagerExists ? tr("已找到") : tr("未找到"))
+            << tr("本机签名安装: %1").arg(status.xiaojiInstallerExists ? tr("可用") : tr("组件缺失"))
+            << tr("输入支持: %1").arg(status.xiaojiProfileReady ? tr("已启用") : tr("需安装或升级配置"));
+        if (!status.xiaojiError.empty()) lines << QString::fromStdWString(status.xiaojiError);
+    }
+    if (dd && providerAvailable) {
+        lines << QString() << name
+            << tr("运行文件: %1").arg(status.legacyRuntimeExists ? tr("已找到") : tr("未找到"))
+            << tr("键盘服务/设备: %1 / %2").arg(status.infKeyboardServiceInstalled ? tr("已安装") : tr("未安装"),
+                status.infKeyboardDeviceStarted && status.infKeyboardDeviceBound ? tr("已就绪") : tr("未就绪"))
+            << tr("鼠标服务/设备: %1 / %2").arg(status.infMouseServiceInstalled ? tr("已安装") : tr("未安装"),
+                status.infMouseDeviceStarted && status.infMouseDeviceBound ? tr("已就绪") : tr("未就绪"));
+    }
+    if (config_.activeDriverId == "xiaoji.driver.usb/default" && providerAvailable) {
+        const bool usbReady = activeInputDriverReady();
+        const auto usbPort = usbReady && pluginDriver ? pluginDriver->text(XJ_TEXT_PORT).toStdWString() : detectedUsbPort;
+        lines << QString() << name
+            << tr("设备: %1").arg(usbPort.empty() ? tr("未插入") : tr("已插入"))
+            << tr("通信: %1").arg(usbReady ? tr("已连接") : tr("未连接"));
+        if (usbReady && pluginDriver) lines << tr("固件: %1").arg(pluginDriver->text(XJ_TEXT_FIRMWARE));
+    }
+    if (!pluginDetails.isEmpty()) lines << QString() << pluginDetails;
     if (oldHidInstalled) lines << QString() << tr("旧 HID: 检测到安装残留，仅提供卸载入口")
         << tr("服务: %1；设备: %2；驱动包: %3")
             .arg(status.hidServicePendingDelete ? tr("等待重启删除") : status.hidServiceInstalled ? tr("存在") : tr("无"),
@@ -790,57 +692,8 @@ void MainWindow::applyDriverStatusUi(const DdRuntimeService::RuntimeStatus& stat
 }
 
 DriverCoordinator::SwitchResult MainWindow::switchDriverMode(DriverMode mode) {
-    const DriverMode originalMode = config_.driverMode;
-    const bool sameMode = mode == originalMode;
-    if (sameMode && activeInputDriverReady()) return DriverCoordinator::SwitchResult::Succeeded;
-    const QString name = mode == DriverMode::Xiaoji ? tr("小叽")
-        : mode == DriverMode::Legacy ? QStringLiteral("DD") : QStringLiteral("USB");
-    if (mode == DriverMode::Legacy && !ddRuntimeService_.Inspect(driver_).legacyRuntimeExists) {
-        AppMessageDialog::warning(this, tr("运行文件缺失"), tr("请从完整发布包恢复 DD 运行文件后再切换。"));
-        return DriverCoordinator::SwitchResult::Canceled;
-    }
-    inputHook_.setDialogOpen(true);
-    const bool confirmed = ConfigConfirmDialog::confirm(this, tr("准备 %1 驱动").arg(name),
-        tr("将停止当前连发和循环，准备 %1 驱动，成功后重新启动小叽按键。"
-           "小叽驱动修复可能重建其虚拟键盘和鼠标，请关闭其他使用它的发送程序；首次安装会单独确认证书信任。是否继续？").arg(name), tr("继续"));
-    inputHook_.setDialogOpen(false);
-    if (!confirmed) return DriverCoordinator::SwitchResult::Canceled;
-    engineStateCoordinator_.setRepeatRunning(false);
-    macroEngine_.StopAll();
-    inputDriver_.ReleaseAll();
-    if (mode == DriverMode::Xiaoji && !prepareXiaojiDriverForSwitch()) {
-        refreshDriverStatusUi();
-        return DriverCoordinator::SwitchResult::Canceled;
-    }
-    if (mode == DriverMode::Legacy) {
-        DdDriver candidate;
-        std::wstring error;
-        if (!loadLegacyDriverInto(candidate, &error)) {
-            AppMessageDialog::warning(this, tr("DD 驱动未就绪"), QString::fromStdWString(error));
-            refreshDriverStatusUi();
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
-    }
-    if (mode == DriverMode::Usb) {
-        std::wstring error;
-        if (!canLoadCh552UsbDriver(&error)) {
-            AppMessageDialog::warning(this, tr("USB 连接失败"), QString::fromStdWString(error));
-            refreshDriverStatusUi();
-            return DriverCoordinator::SwitchResult::Canceled;
-        }
-    }
-    const bool wasUninstalled = config_.IsDriverUninstalledByUser(mode);
-    config_.driverMode = mode;
-    config_.SetDriverUninstalledByUser(mode, false);
-    if (!restartForDriverModeChange()) {
-        config_.driverMode = originalMode;
-        config_.SetDriverUninstalledByUser(mode, wasUninstalled);
-        configCoordinator_.save();
-        loadConfiguredDriver();
-        refreshDriverStatusUi();
-        return DriverCoordinator::SwitchResult::Failed;
-    }
-    return DriverCoordinator::SwitchResult::Succeeded;
+    return switchPluginDriver(mode == DriverMode::Legacy ? QStringLiteral("xiaoji.driver.dd/default")
+        : mode == DriverMode::Usb ? QStringLiteral("xiaoji.driver.usb/default") : QStringLiteral("xiaoji.driver.xiaoji/default"));
 }
 
 bool MainWindow::restartForDriverModeChange() {
@@ -875,15 +728,15 @@ bool MainWindow::prepareDriverUninstall(DriverRemovalTarget target) {
         driverUninstallInProgress_ = false;
         return false;
     }
-    if (mode != config_.driverMode) return true;
+    const auto targetId = mode == DriverMode::Xiaoji ? "xiaoji.driver.xiaoji/default" : "xiaoji.driver.dd/default";
+    if (config_.activeDriverId != targetId) return true;
     selfCheckAutoOpened_ = true;
     engineStateCoordinator_.setRepeatRunning(false);
     macroEngine_.StopAll();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
     inputDriver_.SetDriver(nullptr);
-    if (mode == DriverMode::Xiaoji) xiaojiDriver_.Disconnect();
-    else driver_.Unload();
+    if (pluginService_) pluginService_->disconnectDrivers();
     return true;
 }
 
@@ -895,8 +748,8 @@ void MainWindow::finalizeDriverUninstall(DriverRemovalTarget target, bool succee
         config_.SetDriverUninstalledByUser(mode, succeeded || driverUninstallPreviousState_);
         if (!succeeded) configCoordinator_.save();
     }
-    const bool active = (target == DriverRemovalTarget::Xiaoji && config_.driverMode == DriverMode::Xiaoji)
-        || (target == DriverRemovalTarget::Legacy && config_.driverMode == DriverMode::Legacy);
+    const bool active = (target == DriverRemovalTarget::Xiaoji && config_.activeDriverId == "xiaoji.driver.xiaoji/default")
+        || (target == DriverRemovalTarget::Legacy && config_.activeDriverId == "xiaoji.driver.dd/default");
     if (active) {
         inputDriver_.SetDriver(nullptr);
         driverUninstallFailed_ = !succeeded;
@@ -921,17 +774,14 @@ bool MainWindow::rebootComputer() {
 void MainWindow::applyStagedUpdateAndRestart(const QString& stagingDir) {
     if (!configCoordinator_.save()) return;
 
-    // Stop the running sessions and unload the driver DLLs so the package
-    // files next to the exe can be replaced.
+    // Stop output before replacement. Loaded native modules stay resident;
+    // locked DLLs are promoted from .update-pending by the next process.
     (void)engineStateCoordinator_.setRepeatRunningFast(false);
     macroEngine_.StopAll();
     inputDriver_.ReleaseAll();
     inputDriver_.ClearAllStates();
     inputDriver_.SetDriver(nullptr);
-    xiaojiDriver_.Disconnect();
-    driver_.ReleaseAll();
-    driver_.Unload();
-    ch552Driver_.Disconnect();
+    if (pluginService_) pluginService_->disconnectDrivers();
     // 常驻 MCI 音效设备占着 audio/ 内置 wav 的句柄，不先释放会锁住更新覆盖。
     soundService_.closeAllAliases();
 
@@ -1018,7 +868,7 @@ void MainWindow::showEvent(QShowEvent* event) {
     const auto promptGeneration = selfCheckPromptGeneration_;
     QTimer::singleShot(250, this, [this, promptGeneration]() {
         if (promptGeneration != selfCheckPromptGeneration_ || driverUninstallInProgress_
-            || config_.IsDriverUninstalledByUser(config_.driverMode)) {
+            || activeDriverUninstalledByUser()) {
             onboardingCoordinator_.initialize();
             return;
         }
@@ -1108,7 +958,9 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
             if (result) *result = 0;
             return true;
         case WM_DEVICECHANGE:
+            if (pluginService_) pluginService_->notifyDeviceChange();
             if (isXiaoJiUsbDeviceChange(msg->wParam, msg->lParam)) {
+                usbHeartbeatReconnectPending_ = false;
                 usbDeviceRefreshTimer_.start(650);
             } else if (msg->wParam == DBT_DEVNODES_CHANGED && config_.driverMode == DriverMode::Xiaoji) {
                 refreshDriverStatusUi();
@@ -1436,6 +1288,9 @@ void MainWindow::syncQtGeometryWithNativeWindow() {
 }
 
 void MainWindow::refreshStatusOverlay() {
+    if (pluginService_) pluginService_->setRuntimeState({{"version", QStringLiteral(APP_VERSION)},
+        {"driver", pluginService_->driverName(QString::fromStdString(config_.activeDriverId))},
+        {"repeatRunning", engine_.IsToolRunning()}, {"macroRunning", macroEngine_.HasActiveMacro()}});
     auto* profile = profileController_.activeProfile();
     auto* macro = macroController_.activeMacro();
     const auto repeatStatus = engine_.GetStatus();
@@ -1637,8 +1492,16 @@ void MainWindow::applyImportedSharePayload(const SharePayload& payload) {
 }
 
 void MainWindow::showDdUnavailableMessage() {
+    if (pluginService_) {
+        QString error;
+        if (!pluginService_->available(QString::fromStdString(config_.activeDriverId), &error)) {
+            view_.pluginCenter()->setStatus(error);
+            view_.navigateTo(QStringLiteral("plugins"));
+            return;
+        }
+    }
     if (suppressDdUnavailablePrompt_ || driverUninstallInProgress_
-        || config_.IsDriverUninstalledByUser(config_.driverMode)) {
+        || activeDriverUninstalledByUser()) {
         return;
     }
 
@@ -1649,15 +1512,16 @@ void MainWindow::showDdUnavailableMessage() {
 
 void MainWindow::openSelfCheckAfterDriverFailure() {
     if (selfCheckAutoOpened_ || driverUninstallInProgress_
-        || config_.IsDriverUninstalledByUser(config_.driverMode)) {
+        || activeDriverUninstalledByUser()) {
         return;
     }
+    if (!pluginService_ || !pluginService_->driverUi(QString::fromStdString(config_.activeDriverId)).value("selfCheck").toBool()) return;
     selfCheckAutoOpened_ = true;
     // 延迟到当前事件循环结束，让安装/切换的进度弹窗先收尾、热键处理先返回，再弹自检向导。
     const auto promptGeneration = selfCheckPromptGeneration_;
     QTimer::singleShot(0, this, [this, promptGeneration]() {
         if (promptGeneration != selfCheckPromptGeneration_ || driverUninstallInProgress_
-            || inputHook_.isDialogOpen() || config_.IsDriverUninstalledByUser(config_.driverMode)) return;
+            || inputHook_.isDialogOpen() || activeDriverUninstalledByUser()) return;
         driverSelfCheckCoordinator_.open();
     });
 }
@@ -1668,15 +1532,11 @@ void MainWindow::logDriverUnavailableOnce() {
     }
     driverUnavailableLogged_ = true;
 
-    const auto status = ddRuntimeService_.Inspect(driver_);
+    const auto status = ddRuntimeService_.Inspect(activeInputDriverReady(), activeInputDriverError());
     std::wstringstream errorLog;
-    errorLog << L"driver_mode=";
-    if (config_.driverMode == DriverMode::Usb) errorLog << L"USB";
-    else errorLog << (config_.driverMode == DriverMode::Xiaoji ? L"Xiaoji" : L"DD");
-    errorLog << L"\n"
+    errorLog << L"driver_provider=" << QString::fromStdString(config_.activeDriverId).toStdWString() << L"\n"
              << L"last_error=" << (activeInputDriverError().empty() ? L"(none)" : activeInputDriverError()) << L"\n"
-             << L"runtime_error=" << (driver_.GetLastError().empty() ? L"(none)" : driver_.GetLastError()) << L"\n"
-             << L"runtime_kind=" << static_cast<int>(driver_.GetRuntimeKind()) << L"\n"
+             << L"runtime_error=" << (activeInputDriverError().empty() ? L"(none)" : activeInputDriverError()) << L"\n"
              << L"xiaoji_keyboard=" << status.xiaojiKeyboardReady << L"\n"
              << L"xiaoji_mouse=" << status.xiaojiMouseReady << L"\n"
              << L"inf_keyboard_service=" << status.infKeyboardServiceInstalled << L"\n"

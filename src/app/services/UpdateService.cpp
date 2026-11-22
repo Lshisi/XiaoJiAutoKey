@@ -13,6 +13,8 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QSaveFile>
+#include <QRegularExpression>
+#include <QSet>
 #include <QThread>
 #include <QTimer>
 
@@ -32,7 +34,17 @@
 namespace {
 
 constexpr char kReleasesApiUrl[] =
-    "https://gitee.com/api/v5/repos/fourteen-fourteen/xiao-ji-auto-key/releases?per_page=30";
+    "https://gitee.com/api/v5/repos/fourteen-fourteen/xiao-ji-auto-key/releases";
+constexpr int kReleasePageSize = 100;
+constexpr int kMaximumReleasePages = 50;
+constexpr qint64 kMaximumReleasePageBytes = 8 * 1024 * 1024;
+
+bool userDataPath(const QString& path) {
+    const auto name = QDir::fromNativeSeparators(path).toLower();
+    return name == QStringLiteral("config.json") || name.startsWith(QStringLiteral("config.json."))
+        || name.startsWith(QStringLiteral("plugin-data/")) || name.startsWith(QStringLiteral("plugin-cache/"))
+        || name.startsWith(QStringLiteral("plugins/installed/")) || name.startsWith(QStringLiteral("logs/"));
+}
 
 // Archives written by Windows PowerShell 5.1 may store entry names in the
 // local code page instead of UTF-8; fall back when the UTF-8 decode is lossy.
@@ -157,7 +169,7 @@ QString extractZipToDir(const QString& zipPath, const QString& destDir) {
             continue;
         }
         // The user configuration must never be overwritten by the package.
-        if (entry.relativePath.compare(QStringLiteral("config.json"), Qt::CaseInsensitive) == 0) {
+        if (userDataPath(entry.relativePath)) {
             continue;
         }
         if (entry.relativePath.endsWith(QStringLiteral(".old.exe"), Qt::CaseInsensitive)) {
@@ -257,10 +269,13 @@ bool UpdateService::fetchUrl(const QString& url, const std::function<bool(qint64
     parts.dwStructSize = sizeof(parts);
     wchar_t host[256] = {};
     wchar_t path[2048] = {};
+    wchar_t extra[2048] = {};
     parts.lpszHostName = host;
     parts.dwHostNameLength = 255;
     parts.lpszUrlPath = path;
     parts.dwUrlPathLength = 2047;
+    parts.lpszExtraInfo = extra;
+    parts.dwExtraInfoLength = 2047;
     const std::wstring wideUrl = url.toStdWString();
     if (!::WinHttpCrackUrl(wideUrl.c_str(), 0, 0, &parts) || parts.dwHostNameLength == 0) {
         if (error) *error = QString::fromWCharArray(L"\u66f4\u65b0\u5730\u5740\u65e0\u6548");
@@ -308,7 +323,11 @@ bool UpdateService::fetchUrl(const QString& url, const std::function<bool(qint64
     } connectionGuard{connection}, requestGuard{nullptr};
 
     const DWORD requestFlags = (parts.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
-    HINTERNET request = ::WinHttpOpenRequest(connection, L"GET", path, nullptr,
+    std::wstring requestPath(path, parts.dwUrlPathLength);
+    requestPath.append(extra, parts.dwExtraInfoLength);
+    if (const auto fragment = requestPath.find(L'#'); fragment != std::wstring::npos) requestPath.resize(fragment);
+    if (requestPath.empty()) requestPath = L"/";
+    HINTERNET request = ::WinHttpOpenRequest(connection, L"GET", requestPath.c_str(), nullptr,
         WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, requestFlags);
     if (!request) {
         if (error) *error = QString::fromWCharArray(L"\u65e0\u6cd5\u521b\u5efa\u66f4\u65b0\u8bf7\u6c42");
@@ -386,54 +405,66 @@ bool UpdateService::fetchUrl(const QString& url, const std::function<bool(qint64
 
 void UpdateService::checkForUpdate() {
     runWorker([this]() {
-        QByteArray body;
-        DWORD status = 0;
-        QString error;
-        if (!fetchUrl(QString::fromLatin1(kReleasesApiUrl), nullptr, &body, &status, &error)) {
-            emit checkFinished(false, error, false, QString(), QString(), QString());
-            return;
-        }
-
-        QJsonParseError parseError{};
-        const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
-        if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-            emit checkFinished(false,
-                QString::fromWCharArray(L"\u7ebf\u4e0a\u7248\u672c\u4fe1\u606f\u89e3\u6790\u5931\u8d25"),
-                false, QString(), QString(), QString());
-            return;
-        }
-
         QString bestVersion;
         QString bestAssetUrl;
         QString bestNotes;
-        for (const QJsonValue& releaseValue : document.array()) {
-            const QJsonObject release = releaseValue.toObject();
-            const QString version = normalizedVersion(
-                release.value(QStringLiteral("tag_name")).toString());
-            if (version.isEmpty()) {
-                continue;
+        QSet<QString> seenTags;
+        bool complete = false;
+        static const QRegularExpression frameworkTag(QStringLiteral("^v(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$"));
+        for (int page = 1; page <= kMaximumReleasePages; ++page) {
+            QByteArray body;
+            DWORD status = 0;
+            QString error;
+            const auto address = QString::fromLatin1(kReleasesApiUrl) + QStringLiteral("?per_page=%1&page=%2").arg(kReleasePageSize).arg(page);
+            const auto bounded = [](qint64 received, qint64 total) {
+                return received <= kMaximumReleasePageBytes && (total < 0 || total <= kMaximumReleasePageBytes);
+            };
+            if (!fetchUrl(address, bounded, &body, &status, &error)) {
+                emit checkFinished(false, tr("读取发行版第 %1 页失败：%2").arg(page).arg(error), false, {}, {}, {});
+                return;
             }
-            if (!bestVersion.isEmpty() && !isVersionNewer(version, bestVersion)) {
-                continue;
+            QJsonParseError parseError{};
+            const auto document = QJsonDocument::fromJson(body, &parseError);
+            if (parseError.error != QJsonParseError::NoError || !document.isArray() || document.array().size() > kReleasePageSize) {
+                emit checkFinished(false, tr("线上发行版第 %1 页格式无效，已保留已有更新提示。").arg(page), false, {}, {}, {});
+                return;
             }
-            bestVersion = version;
-            // 发行版描述即用户可读的更新日志。
-            bestNotes = release.value(QStringLiteral("body")).toString().trimmed();
-            // Prefer an attached zip asset; Gitee also lists auto-generated
-            // source archives, which are not usable update packages.
-            bestAssetUrl.clear();
-            for (const QJsonValue& assetValue : release.value(QStringLiteral("assets")).toArray()) {
-                const QString assetUrl = assetValue.toObject()
-                    .value(QStringLiteral("browser_download_url")).toString();
-                if (!assetUrl.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)) {
-                    continue;
+            const auto releases = document.array();
+            int newTags = 0;
+            for (const auto releaseValue : releases) {
+                const auto release = releaseValue.toObject();
+                const auto tag = release.value(QStringLiteral("tag_name")).toString();
+                if (!releaseValue.isObject() || tag.isEmpty()) {
+                    emit checkFinished(false, tr("线上发行版记录无效，未更改已有更新提示。"), false, {}, {}, {}); return;
                 }
-                if (!assetUrl.contains(QStringLiteral("/releases/download/"), Qt::CaseInsensitive)) {
-                    continue;
+                if (seenTags.contains(tag)) continue;
+                seenTags.insert(tag); ++newTags;
+                if (!frameworkTag.match(tag).hasMatch() || release.value(QStringLiteral("draft")).toBool()
+                    || release.value(QStringLiteral("prerelease")).toBool()) continue;
+                const auto version = tag.mid(1);
+                if (!bestVersion.isEmpty() && !isVersionNewer(version, bestVersion)) continue;
+                bestVersion = version;
+                bestNotes = release.value(QStringLiteral("body")).toString().trimmed();
+                bestAssetUrl.clear();
+                for (const auto assetValue : release.value(QStringLiteral("assets")).toArray()) {
+                    const auto asset = assetValue.toObject();
+                    const auto assetUrl = asset.value(QStringLiteral("browser_download_url")).toString();
+                    const auto name = asset.value(QStringLiteral("name")).toString();
+                    if (name.compare(QStringLiteral("XiaoJiAutoKey.zip"), Qt::CaseInsensitive) != 0
+                        && name.compare(QStringLiteral("XiaoJiAutoKey-v%1.zip").arg(version), Qt::CaseInsensitive) != 0) continue;
+                    if (!assetUrl.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)
+                        || !assetUrl.contains(QStringLiteral("/releases/download/"), Qt::CaseInsensitive)) continue;
+                    bestAssetUrl = assetUrl;
+                    break;
                 }
-                bestAssetUrl = assetUrl;
-                break;
             }
+            if (!releases.isEmpty() && newTags == 0) {
+                emit checkFinished(false, tr("线上发行版分页重复，未更改已有更新提示。"), false, {}, {}, {}); return;
+            }
+            if (releases.size() < kReleasePageSize) { complete = true; break; }
+        }
+        if (!complete) {
+            emit checkFinished(false, tr("发行版数量超过本次检查范围，已保留已有更新提示，请前往发行页查看。"), false, {}, {}, {}); return;
         }
 
         if (bestVersion.isEmpty()) {
@@ -569,7 +600,7 @@ bool UpdateService::applyStagedUpdate(const QString& stagingDir, QString* errorM
     while (it.hasNext()) {
         const QString sourcePath = it.next();
         const QString relativePath = sourcePath.mid(stagingDir.size() + 1);
-        if (relativePath.compare(QStringLiteral("config.json"), Qt::CaseInsensitive) == 0 ||
+        if (userDataPath(relativePath) ||
             relativePath.endsWith(QStringLiteral(".old.exe"), Qt::CaseInsensitive)) {
             continue;
         }
@@ -646,11 +677,12 @@ void UpdateService::cleanupPreviousUpdateArtifacts() {
     // 已随退出释放，目标文件必定可写；个别失败就留到下次启动再试。
     const QString pendingSuffix = QStringLiteral(".update-pending");
     QDirIterator pendingIt(exeDir,
-        QStringList{QStringLiteral("*") + pendingSuffix}, QDir::Files, QDirIterator::Subdirectories);
+        QStringList{QStringLiteral("*") + pendingSuffix}, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
     while (pendingIt.hasNext()) {
         const QString pendingPath = pendingIt.next();
         const QString targetPath =
             pendingPath.left(pendingPath.size() - pendingSuffix.size());
+        if (userDataPath(QDir(exeDir).relativeFilePath(targetPath))) continue;
         if (QFile::exists(targetPath) && !QFile::remove(targetPath)) {
             continue;
         }

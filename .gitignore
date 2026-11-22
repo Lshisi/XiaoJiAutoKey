@@ -1,9 +1,7 @@
 # Build output
 build/
-build-qt6-dyn/
-build-qt6/
-build-qml-preview/
-build-qml-preview-windows/
+build-*/
+out/
 dist/
 firmware/pico/build/
 firmware/ch552/build/
@@ -24,27 +22,37 @@ firmware/ch552/build/
 *.exp
 *.pdb
 *.ilk
+*.idb
+*.ipch
+*.pch
+*.iobj
+*.ipdb
+*.tlog
+*.lastbuildstate
 
-# Bundled WinUSB installer is embedded into the main executable.
-!firmware/updater/
-!firmware/updater/xiaoji-winusb-installer.exe
-
-# libwdi sources are kept locally for provenance; the shipped installer is
-# already built and embedded, so only the license texts are tracked.
+# Local libwdi source checkout; only the license texts are tracked.
 third_party/libwdi/*
 !third_party/libwdi/COPYING
 !third_party/libwdi/COPYING-LGPL
 
-# Keep bundled DD runtime DLLs in version control
+# Keep bundled driver dependencies in version control
 !third_party/dd/DD32.dll
 !third_party/dd/DD64.dll
 !third_party/xiaoji/driver/xiaoji.dll
+!plugins/driver-dd/driver/DD32.dll
+!plugins/driver-dd/driver/DD64.dll
+!plugins/driver-dd/driver/inf/*/dc64.exe
+!plugins/driver-xiaoji/third_party/xiaoji/driver/xiaoji.dll
 !third_party/inf
 
 # CMake generated
+plugins/*/build*/
+sdk/build*/
 CMakeCache.txt
+CMakeUserPresets.json
 CMakeFiles/
 cmake_install.cmake
+compile_commands.json
 
 # Qt generated
 *_autogen/
@@ -52,19 +60,52 @@ moc_*.cpp
 ui_*.h
 qrc_*.cpp
 
+# Python generated
+__pycache__/
+*.pyc
+*.pyo
+
 # OS files
 Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Build output log
+# Local logs and temporary files
 build_output.txt
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
 
 # Local firmware/toolchain downloads
 /tools/
 
 # Config files (user-specific)
 config.json
+
+# Local credentials and private signing material (public registry key is tracked)
+.env
+.env.*
+!.env.example
+!.env.template
+*.dpapi
+*.pfx
+*.p12
+*.key
+*-private.pem
+*private-key*.pem
+*signing-key*.pem
+
+# Generated plugin payloads and local runtime state
+/plugins/builtin/
+/plugins/installed/
+plugin-data/
+plugin-cache/
+/registry/.cache/
+/registry/dist/
+.cache/
 
 # Kiro
 .kiro/

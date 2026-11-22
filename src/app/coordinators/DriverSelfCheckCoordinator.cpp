@@ -112,9 +112,14 @@ std::shared_ptr<DriverSelfCheckCoordinator::Snapshot> DriverSelfCheckCoordinator
     // Only capture live application state here; device and filesystem scans run in the worker.
     auto snapshot = std::make_shared<Snapshot>();
     snapshot->mode = context_.config->driverMode;
-    snapshot->uninstalledByUser = context_.config->IsDriverUninstalledByUser(snapshot->mode);
+    snapshot->providerId = QString::fromStdString(context_.config->activeDriverId);
+    snapshot->providerName = context_.driverName ? context_.driverName() : modeText(snapshot->mode);
+    snapshot->pluginDetails = context_.driverDetails ? context_.driverDetails() : QString();
+    snapshot->knownProvider = QStringList{QStringLiteral("xiaoji.driver.xiaoji/default"), QStringLiteral("xiaoji.driver.dd/default"), QStringLiteral("xiaoji.driver.usb/default")}.contains(snapshot->providerId);
+    snapshot->uninstalledByUser = snapshot->knownProvider && context_.config->IsDriverUninstalledByUser(snapshot->mode);
     snapshot->driverReady = context_.driverReady ? context_.driverReady() : false;
     snapshot->status.lastError = context_.driverLastError ? context_.driverLastError() : std::wstring{};
+    if (context_.runtimeService) snapshot->runtimeService = context_.runtimeService();
     snapshot->runtimeState = context_.inspectRuntimeState ? context_.inspectRuntimeState()
                                                           : DriverRuntimeDiagnosticState{};
     return snapshot;
@@ -122,11 +127,11 @@ std::shared_ptr<DriverSelfCheckCoordinator::Snapshot> DriverSelfCheckCoordinator
 
 void DriverSelfCheckCoordinator::inspectSnapshot(std::shared_ptr<Snapshot> snapshot, bool fullReport,
     std::function<void(const Snapshot&)> completed) {
-    auto* thread = QThread::create([snapshot, fullReport, inspectRuntime = context_.inspectRuntime]() {
+    auto* thread = QThread::create([snapshot, fullReport]() {
         try {
-            if (inspectRuntime)
-                snapshot->status = inspectRuntime(snapshot->driverReady, snapshot->status.lastError);
-            if (fullReport || (snapshot->mode == DriverMode::Legacy && snapshot->status.legacyRuntimeExists
+            if (snapshot->runtimeService)
+                snapshot->status = snapshot->runtimeService->Inspect(snapshot->driverReady, snapshot->status.lastError);
+            if (fullReport || (snapshot->knownProvider && snapshot->mode == DriverMode::Legacy && snapshot->status.legacyRuntimeExists
                 && !snapshot->driverReady && !snapshot->uninstalledByUser)) {
                 snapshot->guards = CodeIntegrityInspector::Inspect(true);
                 snapshot->guardsInspected = true;
@@ -172,6 +177,9 @@ void DriverSelfCheckCoordinator::runDiagnosticReport(DriverDiagnosticDialog* dia
         }
         DriverDiagnosticInput input;
         input.mode = snapshot.mode;
+        input.providerId = snapshot.providerId;
+        input.providerName = snapshot.providerName;
+        input.pluginDetails = snapshot.pluginDetails;
         input.driverReady = snapshot.driverReady;
         input.uninstalledByUser = snapshot.uninstalledByUser;
         input.guardsInspected = snapshot.guardsInspected;
@@ -187,6 +195,17 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
     conclusion.actions = closeActions();
     const auto& status = snapshot.status;
     const QString name = modeText(snapshot.mode);
+
+    if (!snapshot.knownProvider) {
+        conclusion.severity = snapshot.driverReady ? DriverSelfCheckDialog::Severity::Ok : DriverSelfCheckDialog::Severity::Warning;
+        conclusion.heading = snapshot.driverReady ? tr("插件驱动已就绪") : tr("插件驱动尚未就绪");
+        conclusion.bodyHtml = tr("当前提供方：%1<br><br>%2")
+            .arg((snapshot.providerName.isEmpty() ? snapshot.providerId : snapshot.providerName).toHtmlEscaped(),
+                snapshot.driverReady ? tr("插件已连接，可以使用框架的输入引擎。")
+                    : tr("请在插件中心查看启用和更新状态，并按插件说明连接设备或安装系统驱动。"));
+        if (!status.lastError.empty()) conclusion.bodyHtml += QStringLiteral("<br><br>") + QString::fromStdWString(status.lastError).toHtmlEscaped();
+        return conclusion;
+    }
 
     if (snapshot.mode == DriverMode::Usb) {
         conclusion.severity = snapshot.driverReady
@@ -247,13 +266,12 @@ Conclusion DriverSelfCheckCoordinator::buildConclusion(const Snapshot& snapshot)
         conclusion.heading = status.driverRootExists ? tr("%1 运行文件缺失").arg(name) : tr("驱动目录缺失");
         QStringList body;
         if (!status.driverRootExists) {
-            body << tr("未找到 exe 同级的 driver 目录：<br>%1")
+            body << tr("未找到 DD 插件的 driver 目录：<br>%1")
                 .arg(QString::fromStdWString(status.driverRootPath).toHtmlEscaped());
         }
         body << tr("当前 %1 模式所需的运行文件未找到：<br>%2")
             .arg(name, runtimePath.toHtmlEscaped());
-        body << tr("请从完整发布包中恢复 driver 目录，或重新下载并完整解压发布包，"
-                   "确保 driver 目录与 XiaoJiAutoKey.exe 位于同一目录，再重新启动程序。");
+        body << tr("请恢复完整的 DD 驱动插件包，保留插件目录内的 driver 运行资源，再重新启动程序。");
         body << tr("重启电脑或重新安装系统驱动无法补回这些运行文件，无需为此修改 Windows 安全设置。");
         if (snapshot.driverReady) {
             body << tr("当前已加载的驱动仍处于就绪状态，但运行文件缺失会影响下次启动。");

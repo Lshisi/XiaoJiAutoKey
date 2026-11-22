@@ -1,0 +1,21 @@
+name: 补充插件来源（可选）
+description: 自动发现入口延迟或不可达时补充来源；常规发布无需提交 Issue
+title: "[register] "
+body:
+  - type: markdown
+    attributes:
+      value: 常规发布在 GitHub 添加 xiaoji-plugin topic，或在 Gitee 仓库简介中添加 xiaoji-plugin，并公开仓库声明与 Release zip，即可自动发现。此表单仅用于补充未被搜索收录的来源，不是发布或审核前置步骤。第三方插件 ID 以仓库所有者的小写名称加点开头。
+  - type: textarea
+    id: registration
+    attributes:
+      label: 登记信息
+      description: 保留 JSON 代码围栏。多插件仓库可以附加 tagPrefix 和 assetPrefix。
+      value: |
+        ```json
+        {
+          "id": "yourname.your-plugin",
+          "repository": "https://github.com/yourname/your-plugin"
+        }
+        ```
+    validations:
+      required: true

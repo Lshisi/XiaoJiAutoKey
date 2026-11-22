@@ -32,8 +32,15 @@ Rectangle {
                     anchors.bottomMargin: 12
                     spacing: 2
                     FactionPicker { Layout.fillWidth: true; Layout.preferredHeight: 58; Layout.bottomMargin: 6; sidebar: true }
-                    SidebarNavigation { Layout.fillWidth: true }
-                    Item { Layout.fillHeight: true }
+                    QuietScrollView {
+                        id: navigationScroll
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        autoHideScrollBar: true
+                        contentWidth: availableWidth
+                        contentHeight: navigation.implicitHeight
+                        SidebarNavigation { id: navigation; width: navigationScroll.availableWidth }
+                    }
                 }
             }
             Rectangle {
@@ -49,10 +56,11 @@ Rectangle {
                         case "macro": return "MacroPage.qml"
                         case "usage": return "UsagePage.qml"
                         case "driver": return "DriverPage.qml"
+                        case "plugins": return "PluginCenterPage.qml"
                         case "settings": return "SettingsPage.qml"
                         case "about": return "AboutPage.qml"
                         }
-                        return ""
+                        return appView.currentPage.indexOf("plugin:") === 0 ? "PluginPage.qml" : ""
                     }
                 }
             }

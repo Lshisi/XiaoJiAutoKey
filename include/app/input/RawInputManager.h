@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <QStringList>
 #include <Windows.h>
 
 #include <optional>
@@ -27,6 +28,7 @@ public:
     void setSelfInjectedFilter(std::function<bool(const KeyDescriptor&, bool)> filter);
     void setHookModifierSource(std::function<bool(const KeyDescriptor&)> source);
     void noteHookPhysicalKey(const KeyDescriptor& key, bool pressed);
+    void setPluginDeviceTokens(const QStringList& tokens);
 
 signals:
     void keyboardChanged(KeyDescriptor key, bool pressed);
@@ -52,4 +54,5 @@ private:
     std::unordered_map<HANDLE, DeviceInfo> deviceCache_;
     std::function<bool(const KeyDescriptor&, bool)> selfInjectedFilter_;
     std::function<bool(const KeyDescriptor&)> hookModifierSource_;
+    std::vector<std::wstring> pluginDeviceTokens_;
 };

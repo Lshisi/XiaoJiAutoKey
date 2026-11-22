@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "example.status-page",
+  "name": "运行状态面板",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "SDK 示例",
+  "description": "读取框架运行状态，保存插件自己的显示标题。",
+  "platforms": ["windows-x64"],
+  "permissions": ["ui.page", "engine.read", "settings.own"],
+  "drivers": [],
+  "pages": [{"id": "main", "title": "运行面板", "file": "Main.qml", "icon": "puzzle"}]
+}

@@ -9,6 +9,16 @@
 #include <string>
 #include <vector>
 
+#ifndef XIAOJI_PLUGIN_CATALOG_URL
+#define XIAOJI_PLUGIN_CATALOG_URL ""
+#endif
+#ifndef XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY
+#define XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY ""
+#endif
+#ifndef XIAOJI_PLUGIN_CATALOG_FALLBACK_URL
+#define XIAOJI_PLUGIN_CATALOG_FALLBACK_URL ""
+#endif
+
 enum class InputDevice {
     Keyboard,
     Mouse,
@@ -169,6 +179,22 @@ struct MacroOverlayOptions {
     bool showCurrentStep = true;
 };
 
+struct PluginPreferences {
+    bool enabled = true;
+    bool removed = false;
+    std::string activeVersion;
+    std::string pendingVersion;
+    std::string rollbackVersion;
+    std::string trialVersion;
+    std::vector<std::string> verifiedActivations;
+    bool activationInProgress = false;
+    bool backgroundEnabled = false;
+    bool removalPendingRestart = false;
+    std::string removalError;
+    std::string settingsJson = "{}";
+    std::string windowStateJson = "{}";
+};
+
 struct AppConfig {
     int onboardingVersion = 1;
     OnboardingStatus onboardingStatus = OnboardingStatus::Completed;
@@ -198,11 +224,17 @@ struct AppConfig {
     StartupAction startupAction = StartupAction::Window;
     CloseAction closeAction = CloseAction::Ask;
     DriverMode driverMode = DriverMode::Xiaoji;
+    std::string activeDriverId = "xiaoji.driver.xiaoji/default";
+    std::map<std::string, PluginPreferences> plugins;
+    bool pluginNavigationExpanded = true;
+    bool automaticUpdateChecks = true;
+    std::string pluginRegistryUrl = XIAOJI_PLUGIN_CATALOG_URL;
+    std::string pluginRegistryFallbackUrl = XIAOJI_PLUGIN_CATALOG_FALLBACK_URL;
+    std::string pluginRegistryPublicKey = XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY;
     bool xiaojiDriverUninstalledByUser = false;
     bool ddDriverUninstalledByUser = false;
     std::string faction = "cangjian";
-    // Latest version seen through a manual update check; only used to keep
-    // the update badge visible across restarts. Never triggers a check.
+    // Cached update result. The update coordinator schedules network checks.
     std::string latestKnownVersion;
     std::map<std::string, std::int64_t> dailyUsageMs;
 

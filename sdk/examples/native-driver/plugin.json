@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "example.native-driver",
+  "name": "Windows 键盘输出示例",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "SDK 示例",
+  "description": "展示 C ABI 原生提供方的连接、输出和释放流程，仅支持普通键盘键。",
+  "platforms": ["windows-x64"],
+  "native": "example-native-driver.dll",
+  "permissions": ["driver.provide", "log.write"],
+  "drivers": [{"id": "keyboard", "name": "Windows 键盘示例"}],
+  "pages": []
+}

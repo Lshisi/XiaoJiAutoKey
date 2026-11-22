@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "XiaoJi Plugin Manifest 1",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "version", "apiVersion", "minHostVersion", "author", "description", "platforms", "permissions"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "apiVersion": {"const": 1},
+    "id": {"type": "string", "minLength": 3, "maxLength": 96, "pattern": "^[a-z0-9][a-z0-9.-]{1,94}[a-z0-9]$", "not": {"pattern": "\\.\\."}},
+    "name": {"type": "string", "minLength": 1, "maxLength": 80},
+    "version": {"$ref": "#/$defs/version"},
+    "minHostVersion": {"$ref": "#/$defs/version"},
+    "maxHostVersion": {"$ref": "#/$defs/version"},
+    "author": {"type": "string", "minLength": 1, "maxLength": 120},
+    "description": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "platforms": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 256}, "contains": {"const": "windows-x64"}},
+    "native": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[dD][lL][lL]$"}]},
+    "resources": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+    "permissions": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"enum": ["driver.provide", "device.identify", "device.serial", "ui.page", "engine.read", "engine.control", "settings.own", "log.write", "system.driver.manage", "runtime.background", "ui.window", "messaging.own"]}},
+    "background": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "file": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[qQ][mM][lL]$"}]},
+        "native": {"type": "boolean"}
+      },
+      "anyOf": [{"required": ["file"]}, {"required": ["native"], "properties": {"native": {"const": true}}}]
+    },
+    "windows": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object", "required": ["id", "title", "file"],
+        "properties": {
+          "id": {"$ref": "#/$defs/localId"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 80},
+          "file": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[qQ][mM][lL]$"}]},
+          "width": {"type": "integer", "minimum": 32, "maximum": 2048, "default": 320},
+          "height": {"type": "integer", "minimum": 32, "maximum": 2048, "default": 240},
+          "transparent": {"type": "boolean", "default": false},
+          "frameless": {"type": "boolean", "default": false},
+          "topmost": {"type": "boolean", "default": false}
+        }
+      }
+    },
+    "commands": {
+      "type": "array", "maxItems": 32,
+      "items": {
+        "type": "object", "required": ["id", "title"],
+        "properties": {
+          "id": {"$ref": "#/$defs/localId"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 80},
+          "target": {"enum": ["background", "native"], "default": "background"}
+        }
+      }
+    },
+    "drivers": {
+      "type": "array", "maxItems": 16,
+      "items": {
+        "type": "object", "required": ["id", "name"],
+        "properties": {
+          "id": {"$ref": "#/$defs/localId"},
+          "name": {"type": "string", "minLength": 1, "maxLength": 80},
+          "deviceTokens": {"type": "array", "maxItems": 24, "uniqueItems": true, "items": {"type": "string", "minLength": 5, "maxLength": 256}},
+          "heartbeatMs": {"anyOf": [{"const": 0}, {"type": "integer", "minimum": 250, "maximum": 60000}]},
+          "diagnostics": {"type": "boolean", "default": false},
+          "selfCheck": {"type": "boolean", "default": false}
+        }
+      }
+    },
+    "pages": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object", "required": ["id", "title", "file"],
+        "properties": {
+          "id": {"$ref": "#/$defs/localId"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 80},
+          "file": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[qQ][mM][lL]$"}]},
+          "icon": {"type": "string", "description": "Shared framework icon; unsupported names fall back to puzzle."}
+        }
+      }
+    },
+    "management": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"install": {"$ref": "#/$defs/command"}, "repair": {"$ref": "#/$defs/command"}, "uninstall": {"$ref": "#/$defs/command"}}
+    }
+  },
+  "anyOf": [
+    {"required": ["drivers"], "properties": {"drivers": {"minItems": 1}}},
+    {"required": ["pages"], "properties": {"pages": {"minItems": 1}}},
+    {"required": ["background"]},
+    {"required": ["windows"], "properties": {"windows": {"minItems": 1}}}
+  ],
+  "allOf": [
+    {
+      "if": {"required": ["drivers"], "properties": {"drivers": {"minItems": 1}}},
+      "then": {"required": ["native"], "properties": {"permissions": {"contains": {"const": "driver.provide"}}}}
+    },
+    {
+      "if": {"required": ["pages"], "properties": {"pages": {"minItems": 1}}},
+      "then": {"properties": {"permissions": {"contains": {"const": "ui.page"}}}}
+    },
+    {
+      "if": {"required": ["background"]},
+      "then": {"properties": {"permissions": {"contains": {"const": "runtime.background"}}}}
+    },
+    {
+      "if": {"required": ["background"], "properties": {"background": {"required": ["native"], "properties": {"native": {"const": true}}}}},
+      "then": {"required": ["native"]}
+    },
+    {
+      "if": {"required": ["windows"], "properties": {"windows": {"minItems": 1}}},
+      "then": {"properties": {"permissions": {"contains": {"const": "ui.window"}}}}
+    },
+    {
+      "if": {"required": ["commands"], "properties": {"commands": {"minItems": 1}}},
+      "then": {"properties": {"permissions": {"contains": {"const": "messaging.own"}}}}
+    },
+    {
+      "if": {"required": ["management"], "properties": {"management": {"minProperties": 1}}},
+      "then": {"properties": {"permissions": {"contains": {"const": "system.driver.manage"}}}}
+    }
+  ],
+  "$defs": {
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$"},
+    "localId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"},
+    "path": {"type": "string", "minLength": 1, "maxLength": 256, "description": "A contained relative package path. Absolute paths, traversal, links and Windows reserved names are rejected by the host."},
+    "command": {
+      "type": "object", "required": ["file", "confirmation"],
+      "properties": {
+        "file": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[eE][xX][eE]$"}]},
+        "arguments": {"type": "array", "maxItems": 24, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+        "confirmation": {"type": "string", "minLength": 1, "maxLength": 1500}
+      }
+    }
+  }
+}

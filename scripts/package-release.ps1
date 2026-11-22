@@ -3,10 +3,12 @@ param(
     [Parameter(Mandatory = $true)][string]$QtPrefixPath,
     [string]$CMakePath = "D:\software\cmake-3.31.6\bin\cmake.exe",
     [string]$XiaojiSignedDriverDir = "",
-    [string]$BuildDirectory = "build-qt6"
+    [string]$BuildDirectory = "build-qt6",
+    [string]$PluginCatalogPublicKey = ""
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'plugin-files.ps1')
 
 # Normalize PATH casing for child tool invocations.
 # Some launch environments inject both PATH and Path, which breaks MSBuild/CL startup.
@@ -46,11 +48,6 @@ $packageName = "XiaoJiAutoKey"
 $packageDir = Join-Path $distDir $packageName
 $zipPath = Join-Path $distDir "XiaoJiAutoKey.zip"
 $exePath = Join-Path $buildDir "$Configuration\XiaoJiAutoKey.exe"
-$driverSrcDir = Join-Path $repoRoot "third_party\dd"
-$driverDstDir = Join-Path $packageDir "driver"
-$xiaojiDriverDstDir = Join-Path $driverDstDir "xiaoji"
-$xiaojiManagerPath = Join-Path $buildDir "$Configuration\driver\xiaoji\xiaoji.exe"
-$xiaojiInstallerPath = Join-Path $buildDir "$Configuration\driver\xiaoji\xiaoji-setup.exe"
 $resolvedXiaojiPackage = ""
 if ($XiaojiSignedDriverDir) {
     $resolvedXiaojiPackage = (Resolve-Path -LiteralPath $XiaojiSignedDriverDir).Path
@@ -89,7 +86,14 @@ $cmakeListsPath = Join-Path $repoRoot "CMakeLists.txt"
 # CMAKE_PREFIX_PATH resolution was observed to pick a different kit
 # non-deterministically between runs.
 $qt6ConfigDir = Join-Path $qtPrefixPath "lib\cmake\Qt6"
-& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath" -DQt6_DIR="$qt6ConfigDir" -DXIAOJI_SIGNED_DRIVER_DIR="$resolvedXiaojiPackage"
+$catalogArguments = @()
+if ($PSBoundParameters.ContainsKey('PluginCatalogPublicKey')) {
+    if ($PluginCatalogPublicKey -and $PluginCatalogPublicKey -notmatch '^B[A-Za-z0-9+/]{86}=$') {
+        throw 'The catalog public key must be a Base64 uncompressed P-256 point.'
+    }
+    $catalogArguments += "-DXIAOJI_PLUGIN_CATALOG_PUBLIC_KEY=$PluginCatalogPublicKey"
+}
+& $cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$qtPrefixPath" -DQt6_DIR="$qt6ConfigDir" -DXIAOJI_SIGNED_DRIVER_DIR="$resolvedXiaojiPackage" @catalogArguments
 if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed"
 }
@@ -104,6 +108,14 @@ if (-not (Test-Path $exePath)) {
 }
 
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+$packageAncestor = [System.IO.Path]::GetFullPath($packageDir)
+while ($packageAncestor -and $packageAncestor.Length -ge $repoRoot.Length) {
+    if ((Test-Path -LiteralPath $packageAncestor) -and
+        ((Get-Item -LiteralPath $packageAncestor -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        throw "Linked package directory is not allowed: $packageAncestor"
+    }
+    $packageAncestor = Split-Path -Parent $packageAncestor
+}
 if (Test-Path $packageDir) {
     $resolvedPackageDir = [System.IO.Path]::GetFullPath($packageDir)
     $expectedPackageDir = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dist\XiaoJiAutoKey"))
@@ -136,44 +148,16 @@ Get-ChildItem -LiteralPath $audioSrcDir -Filter "*.wav" -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $audioDstDir $_.Name) -Force
 }
 
-# Driver files
-if (Test-Path $driverSrcDir) {
-    New-Item -ItemType Directory -Path $driverDstDir -Force | Out-Null
-
-    $dd32Path = Join-Path $driverSrcDir "DD32.dll"
-    $dd64Path = Join-Path $driverSrcDir "DD64.dll"
-    if (Test-Path $dd32Path) {
-        Copy-Item $dd32Path (Join-Path $driverDstDir "DD32.dll") -Force
+# Package only the declared current bundled versions, never user installations or caches.
+foreach ($pluginName in @('driver-xiaoji')) {
+    $sourceManifest = Read-XiaojiPluginManifest (Join-Path $repoRoot "plugins\$pluginName")
+    $pluginRelative = 'plugins\builtin\' + $sourceManifest.id + '\' + $sourceManifest.version
+    $pluginOutput = Join-Path (Split-Path -Parent $exePath) $pluginRelative
+    $outputManifest = Read-XiaojiPluginManifest $pluginOutput
+    if ($outputManifest.id -ne $sourceManifest.id -or $outputManifest.version -ne $sourceManifest.version) {
+        throw "Built plugin does not match its source manifest: $pluginName"
     }
-    if (Test-Path $dd64Path) {
-        Copy-Item $dd64Path (Join-Path $driverDstDir "DD64.dll") -Force
-    }
-    if (-not (Test-Path $dd32Path) -and -not (Test-Path $dd64Path)) {
-        Write-Warning "third_party\\dd\\DD32.dll / DD64.dll not found."
-    }
-} else {
-    Write-Warning "third_party\dd directory not found."
-}
-
-# Input transport is linked into XiaoJiAutoKey.exe; no public SDK DLL is required.
-if (-not (Test-Path -LiteralPath $xiaojiManagerPath -PathType Leaf)) {
-    throw "Xiaoji driver manager was not built: $xiaojiManagerPath"
-}
-if (-not (Test-Path -LiteralPath $xiaojiInstallerPath -PathType Leaf)) {
-    throw "Xiaoji local signing installer was not built: $xiaojiInstallerPath"
-}
-New-Item -ItemType Directory -Path $xiaojiDriverDstDir -Force | Out-Null
-Copy-Item -LiteralPath $xiaojiManagerPath -Destination (Join-Path $xiaojiDriverDstDir "xiaoji.exe") -Force
-Copy-Item -LiteralPath $xiaojiInstallerPath -Destination (Join-Path $xiaojiDriverDstDir "xiaoji-setup.exe") -Force
-foreach ($license in @("LICENSE-AGPL-3.0", "LICENSE-HIDMaestro-MIT")) {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "third_party\xiaoji\$license") -Destination (Join-Path $xiaojiDriverDstDir $license) -Force
-}
-if ($resolvedXiaojiPackage) {
-    $signedPackageDir = Join-Path $xiaojiDriverDstDir "package"
-    New-Item -ItemType Directory -Path $signedPackageDir -Force | Out-Null
-    foreach ($fileName in @("xiaoji.inf", "xiaoji.dll", "xiaoji.cat")) {
-        Copy-Item -LiteralPath (Join-Path $resolvedXiaojiPackage $fileName) -Destination (Join-Path $signedPackageDir $fileName) -Force
-    }
+    Copy-XiaojiPluginFiles $pluginOutput (Join-Path $packageDir $pluginRelative)
 }
 
 # Create zip

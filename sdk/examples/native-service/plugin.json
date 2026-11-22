@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "example.native-service",
+  "name": "原生后台通信示例",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "SDK 示例",
+  "description": "无需驱动提供方，演示原生后台启停、命令回复与事件。",
+  "platforms": ["windows-x64"],
+  "permissions": ["runtime.background", "messaging.own", "ui.page"],
+  "native": "example-native-service.dll",
+  "background": {"native": true},
+  "pages": [{"id": "main", "title": "原生后台", "file": "ui/Main.qml", "icon": "puzzle"}],
+  "resources": ["ui"],
+  "commands": [{"id": "increment", "title": "增加计数", "target": "native"}]
+}

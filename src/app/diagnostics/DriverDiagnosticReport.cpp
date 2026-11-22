@@ -92,45 +92,56 @@ QString FormatDriverDiagnosticReport(const DriverDiagnosticReport& report) {
         << QString::fromWCharArray(L"进程架构: ") + report.processArchitecture
         << QString()
         << QString::fromWCharArray(L"［驱动状态］")
-        << QString::fromWCharArray(L"当前模式: ") + modeText(input.mode)
+        << QString::fromWCharArray(L"当前模式: ") + (input.providerName.isEmpty() ? (input.providerId.isEmpty() ? modeText(input.mode) : input.providerId) : input.providerName)
         << QString::fromWCharArray(L"驱动就绪: ") + boolText(input.driverReady)
         << QString::fromWCharArray(L"主动卸载后停用自动安装: ") + boolText(input.uninstalledByUser);
+    if (!input.providerId.isEmpty()) lines << QObject::tr("插件提供方: ") + input.providerId;
 
     QStringList runtimeLines;
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"驱动目录"), runtime.driverRootExists);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽键盘设备"), runtime.xiaojiKeyboardReady);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽鼠标设备"), runtime.xiaojiMouseReady);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽管理工具"), runtime.xiaojiManagerExists);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽本机签名组件"), runtime.xiaojiInstallerExists);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽扩展输入配置"), runtime.xiaojiProfileReady);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽设备配置记录"), runtime.xiaojiConfigurationPresent);
-    appendRuntimeLine(&runtimeLines, QObject::tr("小叽绑定包或待清理包记录"), runtime.xiaojiBoundPackagePresent);
-    appendRuntimeLine(&runtimeLines, QStringLiteral("DD32.dll"), runtime.legacy32Exists);
-    appendRuntimeLine(&runtimeLines, QStringLiteral("DD64.dll"), runtime.legacy64Exists);
+    const bool xiaoji = input.providerId == QStringLiteral("xiaoji.driver.xiaoji/default")
+        || (input.providerId.isEmpty() && input.mode == DriverMode::Xiaoji);
+    const bool dd = input.providerId == QStringLiteral("xiaoji.driver.dd/default")
+        || (input.providerId.isEmpty() && input.mode == DriverMode::Legacy);
+    if (xiaoji) {
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽键盘设备"), runtime.xiaojiKeyboardReady);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽鼠标设备"), runtime.xiaojiMouseReady);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽管理工具"), runtime.xiaojiManagerExists);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽本机签名组件"), runtime.xiaojiInstallerExists);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽扩展输入配置"), runtime.xiaojiProfileReady);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽设备配置记录"), runtime.xiaojiConfigurationPresent);
+        appendRuntimeLine(&runtimeLines, QObject::tr("小叽绑定包或待清理包记录"), runtime.xiaojiBoundPackagePresent);
+    }
+    if (dd) {
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"驱动目录"), runtime.driverRootExists);
+        appendRuntimeLine(&runtimeLines, QStringLiteral("DD32.dll"), runtime.legacy32Exists);
+        appendRuntimeLine(&runtimeLines, QStringLiteral("DD64.dll"), runtime.legacy64Exists);
+    }
     const bool retiredHidPresent = runtime.hidDevicesPresent || runtime.hidServiceInstalled
         || runtime.hidServicePendingDelete || runtime.hidSysInstalled || runtime.hidDriverStorePresent;
-    runtimeLines << (retiredHidPresent ? QObject::tr("旧 HID: 检测到安装残留，仅提供卸载入口")
-        : QObject::tr("旧 HID: 未检测到安装残留"));
     if (retiredHidPresent) {
+        runtimeLines << QObject::tr("旧 HID: 检测到安装残留，仅提供卸载入口");
         runtimeLines << QObject::tr("旧 HID 服务存在: ") + boolText(runtime.hidServiceInstalled)
             << QObject::tr("旧 HID 服务待删除: ") + boolText(runtime.hidServicePendingDelete)
             << QObject::tr("旧 HID 设备存在: ") + boolText(runtime.hidDevicesPresent)
             << QObject::tr("旧 HID SYS 存在: ") + boolText(runtime.hidSysInstalled)
             << QObject::tr("旧 HID 驱动包存在: ") + boolText(runtime.hidDriverStorePresent);
     }
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 键盘服务"), runtime.infKeyboardServiceInstalled);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 鼠标服务"), runtime.infMouseServiceInstalled);
-    appendRuntimeLine(&runtimeLines, QStringLiteral("dd.key.96688.sys"), runtime.infKeyboardSysInstalled);
-    appendRuntimeLine(&runtimeLines, QStringLiteral("dd.mou.96688.sys"), runtime.infMouseSysInstalled);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 内置安装包"), runtime.embeddedInfVariant0Exists
-        || runtime.embeddedInfVariant1Exists);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 键盘设备"), runtime.infKeyboardDeviceStarted
-        && runtime.infKeyboardDeviceBound);
-    appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 鼠标设备"), runtime.infMouseDeviceStarted
-        && runtime.infMouseDeviceBound);
-    lines << QString::fromWCharArray(L"［运行库与设备］");
+    if (dd) {
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 键盘服务"), runtime.infKeyboardServiceInstalled);
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 鼠标服务"), runtime.infMouseServiceInstalled);
+        appendRuntimeLine(&runtimeLines, QStringLiteral("dd.key.96688.sys"), runtime.infKeyboardSysInstalled);
+        appendRuntimeLine(&runtimeLines, QStringLiteral("dd.mou.96688.sys"), runtime.infMouseSysInstalled);
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 插件安装包"), runtime.embeddedInfVariant0Exists
+            || runtime.embeddedInfVariant1Exists);
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 键盘设备"), runtime.infKeyboardDeviceStarted
+            && runtime.infKeyboardDeviceBound);
+        appendRuntimeLine(&runtimeLines, QString::fromWCharArray(L"DD 鼠标设备"), runtime.infMouseDeviceStarted
+            && runtime.infMouseDeviceBound);
+    }
+    lines << QObject::tr("［系统运行库与设备］");
     lines << runtimeLines;
-    if (!runtime.notes.empty()) {
+    if (!input.pluginDetails.isEmpty()) lines << redactPaths(input.pluginDetails);
+    if (dd && !runtime.notes.empty()) {
         lines << QString::fromWCharArray(L"检查提示:");
         for (const auto& note : runtime.notes) {
             lines << QStringLiteral("- ") + noteText(note);

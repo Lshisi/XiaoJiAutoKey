@@ -15,6 +15,7 @@ public:
     void setGameGateEnabled(bool value) { setValue("gameGateEnabled", value); }
     void setGameGateProcessCount(int count) { setValue("gameGateProcessCount", count); }
     void setAutoStartEnabled(bool value) { setValue("autoStartEnabled", value); }
+    void setAutomaticUpdateChecks(bool value) { setValue("automaticUpdateChecks", value); }
     Q_INVOKABLE void selectStartupAction(int value);
     Q_INVOKABLE void selectCloseAction(int value);
 
@@ -26,4 +27,5 @@ signals:
     void gameGateEnabledChanged(bool enabled);
     void gameGateProcessesEditRequested();
     void autoStartToggled(bool enabled);
+    void automaticUpdateChecksToggled(bool enabled);
 };

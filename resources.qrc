@@ -1,6 +1,10 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
 <qresource>
+    <file alias="plugin-examples/status/Main.qml">sdk/examples/status-page/Main.qml</file>
+    <file alias="plugin-examples/desktop-pet/Main.qml">sdk/examples/desktop-pet/Main.qml</file>
+    <file alias="plugin-examples/desktop-pet/Background.qml">sdk/examples/desktop-pet/Background.qml</file>
+    <file alias="plugin-examples/desktop-pet/Pet.qml">sdk/examples/desktop-pet/Pet.qml</file>
     <file>assets/icon.png</file>
     <file>assets/icon-active.png</file>
     <file>assets/icons/add.svg</file>
@@ -11,6 +15,7 @@
     <file>assets/icons/rename.svg</file>
     <file>assets/icons/export.svg</file>
     <file>assets/icons/import.svg</file>
+    <file>assets/icons/puzzle.svg</file>
     <file>assets/icons/check.svg</file>
     <file>assets/icons/chevron-down.svg</file>
     <file>assets/icons/copy.svg</file>
@@ -50,19 +55,5 @@
     <file>assets/factions/wanling.svg</file>
     <file>assets/factions/duanshi.svg</file>
     <file>assets/factions/wuxiang.svg</file>
-    <file alias="dd/inf/0/dc64.exe">third_party/dd/inf/0/dc64.exe</file>
-    <file alias="dd/inf/0/dd.key.96688.cat">third_party/dd/inf/0/dd.key.96688.cat</file>
-    <file alias="dd/inf/0/dd.key.96688.inf">third_party/dd/inf/0/dd.key.96688.inf</file>
-    <file alias="dd/inf/0/dd.key.96688.sys">third_party/dd/inf/0/dd.key.96688.sys</file>
-    <file alias="dd/inf/0/dd.mou.96688.cat">third_party/dd/inf/0/dd.mou.96688.cat</file>
-    <file alias="dd/inf/0/dd.mou.96688.inf">third_party/dd/inf/0/dd.mou.96688.inf</file>
-    <file alias="dd/inf/0/dd.mou.96688.sys">third_party/dd/inf/0/dd.mou.96688.sys</file>
-    <file alias="dd/inf/1/dc64.exe">third_party/dd/inf/1/dc64.exe</file>
-    <file alias="dd/inf/1/dd.key.96688.cat">third_party/dd/inf/1/dd.key.96688.cat</file>
-    <file alias="dd/inf/1/dd.key.96688.inf">third_party/dd/inf/1/dd.key.96688.inf</file>
-    <file alias="dd/inf/1/dd.key.96688.sys">third_party/dd/inf/1/dd.key.96688.sys</file>
-    <file alias="dd/inf/1/dd.mou.96688.cat">third_party/dd/inf/1/dd.mou.96688.cat</file>
-    <file alias="dd/inf/1/dd.mou.96688.inf">third_party/dd/inf/1/dd.mou.96688.inf</file>
-    <file alias="dd/inf/1/dd.mou.96688.sys">third_party/dd/inf/1/dd.mou.96688.sys</file>
 </qresource>
 </RCC>

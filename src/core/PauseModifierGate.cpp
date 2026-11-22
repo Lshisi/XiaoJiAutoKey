@@ -1,7 +1,6 @@
 #include "PauseModifierGate.h"
 
 #include "DiagLog.h"
-#include "XiaojiKeyMap.h"
 
 #include <algorithm>
 #include <thread>
@@ -53,8 +52,8 @@ bool PauseModifierGate::InterceptKey(const KeyDescriptor& physicalKey, bool pres
             const bool begin = allowStart && pause && armedWindow_
                 && armedWindow_ == GetForegroundWindow() && driver_.CanRelayPauseModifier(key);
             if (!barrier_ && !begin) return false;
-            // Do not swallow a physical key the native report cannot reproduce.
-            if (!XiaojiKeys::Resolve(key).IsValid()) return false;
+            // This hook query is provided by the selected driver without I/O or engine locks.
+            if (!driver_.CanRelayPhysicalKey(key)) return false;
             if (!barrier_ && begin) {
                 barrier_ = waitingForClose_ = true;
                 transactionWindow_ = armedWindow_;

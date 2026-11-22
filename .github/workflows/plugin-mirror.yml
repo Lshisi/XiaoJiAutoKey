@@ -1,0 +1,59 @@
+name: Retry Gitee plugin mirror
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'catalog 或 plugins/driver-dd/vx.y.z 等已发布 tag；复用 GitHub 附件，不重新构建'
+        required: true
+        default: catalog
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # Share the catalog queue so a retry cannot overwrite a newer catalog publication.
+  group: plugin-registry
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: github.repository == 'Lshisi/XiaoJiAutoKey'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download published artifacts and mirror them
+        env:
+          GH_TOKEN: ${{ github.token }}
+          XIAOJI_GITEE_TOKEN: ${{ secrets.XIAOJI_GITEE_TOKEN }}
+          MIRROR_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "$XIAOJI_GITEE_TOKEN" ]; then
+            echo '::error::Configure XIAOJI_GITEE_TOKEN before retrying a Gitee publication.'
+            exit 1
+          fi
+          if [ "$MIRROR_TAG" = catalog ]; then
+            gh release download catalog --dir dist/mirror --pattern catalog.json --pattern public-key.txt --pattern collection-errors.json
+            python registry/scripts/publish_gitee.py --tag catalog --replace-catalog dist/mirror/catalog.json dist/mirror/public-key.txt dist/mirror/collection-errors.json
+          else
+            [[ "$MIRROR_TAG" =~ ^plugins/driver-(dd|xiaoji|usb)/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error::Invalid plugin tag'; exit 1; }
+            case "$MIRROR_TAG" in
+              plugins/driver-dd/*) prefix=XiaoJiPluginDD ;;
+              plugins/driver-xiaoji/*) prefix=XiaoJiPluginXiaoji ;;
+              plugins/driver-usb/*) prefix=XiaoJiPluginUSB ;;
+            esac
+            version="${MIRROR_TAG##*/v}"
+            package="$prefix-v$version.zip"
+            encoded=$(jq -rn --arg tag "$MIRROR_TAG" '$tag | @uri')
+            target=$(gh api "repos/$GITHUB_REPOSITORY/commits/$encoded" --jq .sha)
+            gh release download "$MIRROR_TAG" --dir dist/mirror --pattern "$package" --pattern "$package.sha256"
+            python registry/scripts/publish_gitee.py --tag "$MIRROR_TAG" --target "$target" dist/mirror/"$package" dist/mirror/"$package.sha256"
+          fi

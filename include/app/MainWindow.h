@@ -1,15 +1,12 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "DdDriver.h"
-#include "XiaojiDriver.h"
 #include "ForegroundWatcher.h"
 #include "InputDriverRouter.h"
 #include "ShareCodec.h"
 #include "input/GlobalInputHook.h"
 #include "input/RawInputManager.h"
 #include "MacroEngine.h"
-#include "Ch552UsbDriver.h"
 #include "controllers/MacroController.h"
 #include "view/MainWindowView.h"
 #include "controllers/ProfileController.h"
@@ -37,6 +34,7 @@
 #include "services/AppPaths.h"
 #include "services/AutoStartService.h"
 #include "services/UpdateService.h"
+#include "services/PluginService.h"
 #include "widgets/StatusOverlayWindow.h"
 
 #include <QMainWindow>
@@ -72,13 +70,14 @@ private:
     void refreshStatusOverlay();
     void openStatusOverlaySettings(bool macroPage);
     bool loadConfiguredDriver();
-    bool loadXiaojiDriver();
-    bool loadLegacyDriver();
-    bool loadCh552UsbDriver();
+    void initializePlugins();
+    void syncPluginInventory();
+    bool loadPluginDriver();
+    bool connectPluginDriver(Plugins::NativePluginDriver* driver, const QString& providerId, std::wstring* error);
+    bool activeDriverUninstalledByUser() const;
+    DriverCoordinator::SwitchResult switchPluginDriver(const QString& providerId);
     bool activeInputDriverReady() const;
     std::wstring activeInputDriverError() const;
-    bool loadLegacyDriverInto(DdDriver& targetDriver, std::wstring* errorMessage = nullptr);
-    bool canLoadCh552UsbDriver(std::wstring* errorMessage = nullptr);
     bool ensureLegacyDdInfInstalled(std::wstring* resultMessage = nullptr);
     bool prepareXiaojiDriverForSwitch();
     void logDriverUnavailableOnce();
@@ -135,12 +134,10 @@ private:
     AppPaths appPaths_;
     ConfigCoordinator configCoordinator_;
     AppConfig config_;
+    std::unique_ptr<Plugins::PluginService> pluginService_;
     ProfileController profileController_;
     MacroController macroController_;
 
-    XiaojiDriver xiaojiDriver_;
-    DdDriver driver_;
-    Ch552UsbDriver ch552Driver_;
     InputDriverRouter inputDriver_;
     RepeaterEngine engine_;
     MacroEngine macroEngine_;
@@ -169,6 +166,7 @@ private:
     QTimer runtimeVisualRefreshTimer_;
     QTimer usbDeviceRefreshTimer_;
     QTimer usbHeartbeatTimer_;
+    bool usbHeartbeatReconnectPending_ = false;
     void* usbDeviceNotification_ = nullptr;
     void* usbComPortNotification_ = nullptr;
     bool runtimeDpiRefreshPending_ = false;

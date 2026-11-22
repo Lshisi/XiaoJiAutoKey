@@ -2,6 +2,8 @@
 
 本文记录当前机器的 Qt 6 静态版构建、项目编译和发布方式。旧 Qt 5 的 `run-qt-build.ps1` 入口保留同名习惯；Qt 6 现在也是一条命令完成下载源码、初始化 MSVC 环境、下载 Ninja、编译和安装。
 
+仅在重建静态 Qt 或处理其工具链、中间目录时按需读取。本机 kit 与动态版说明见 [构建环境](build-environment.md)，应用包约束见 [发布流程](release-process.md)。以下命令供用户自行执行，全局工作约束见 [项目入口](../AGENTS.md)。
+
 ## 当前约定
 
 | 用途 | 路径 |
@@ -68,7 +70,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 `
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 `
   -QtPrefixPath D:\Qt\6.8.3-static `
-  -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe
+  -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe `
+  -PluginCatalogPublicKey ((Get-Content -LiteralPath .\registry\public-key.txt -Raw).Trim())
 ```
 
 产物结构：
@@ -77,18 +80,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 build-qt6\Release\XiaoJiAutoKey.exe
 build-qt6\Release\使用说明.mhtml
 build-qt6\Release\audio\
-build-qt6\Release\driver\
+build-qt6\Release\plugins\builtin\<插件ID>\<插件版本>\
 
 dist\XiaoJiAutoKey\XiaoJiAutoKey.exe
 dist\XiaoJiAutoKey\使用说明.mhtml
 dist\XiaoJiAutoKey\audio\
-dist\XiaoJiAutoKey\driver\
+dist\XiaoJiAutoKey\plugins\builtin\<插件ID>\<插件版本>\
 dist\XiaoJiAutoKey.zip
 ```
 
-`build-qt6\Release` 与旧版 `build\Release` 保持同一运行时结构，可以直接从该目录启动或调试；`dist\XiaoJiAutoKey.zip` 用于 Gitee 和 GitHub Release，双平台使用同一份发布包，流程见 [双平台同步](repository-sync.md)。发布包绝不包含 `config.json`。
+主程序默认仅构建和部署小叽驱动，DD、USB 保留独立目标，由插件中心按需安装；小叽管理组件随小叽插件交付。已有 `build-qt6\Release` 可能包含历史遗留文件和用户数据，整理干净发布目录时只按清单收集当前随包小叽版本。`dist\XiaoJiAutoKey.zip` 用于 Gitee 和 GitHub Release，两端使用同一份发布包，流程见 [双平台同步](repository-sync.md)。发布包绝不包含 `config.json`、用户安装插件、插件数据和缓存，具体清单见 [发布包内容](release-process.md#发布包内容)。
 
-Qt 6 QML、Quick Controls、SVG 和 Shader Tools 静态链接进 exe 后，单文件体积通常在 35–70 MB；当前 Qt 6.8.3 构建约为 41.5 MB，zip 压缩后约 24.8 MB。这是 QML 架构静态发布的正常范围，不是构建残留。
+Qt 6 QML、Quick Controls、SVG 和 Shader Tools 静态链接进 exe 后，体积会大于旧 Widgets 版本，每次产物以实际构建为准。编译通过与功能运行确认分别记录；构建产物、日志及本机配置均不提交 Git。
+
+在 Windows 的 Visual Studio 根工程中显式编译可选插件时，目标需要带生成工程的相对目录：
+
+```powershell
+& 'D:\software\cmake-3.31.6\bin\cmake.exe' --build build-qt6 --config Release --target plugins/driver-dd/XiaoJiPluginDDPackage plugins/driver-usb/XiaoJiPluginUSBPackage
+```
+
+直接以 `plugins/driver-dd` 或 `plugins/driver-usb` 为源码目录独立配置时，使用对应的普通目标名即可。上述目标只收集独立插件输出，不会把 DD、USB 加入默认随包插件。
 
 ## 手动清理
 

@@ -1,0 +1,87 @@
+name: Publish plugin catalog
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap_catalog:
+        description: 'Initialize the first catalog only when no cache exists and all catalog URLs return 404'
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    - cron: "17 */2 * * *"
+  push:
+    branches: [main, master]
+    paths:
+      - registry/registry.json
+      - registry/reviews.json
+      - registry/policy.json
+      - registry/scripts/**
+      - xiaoji-plugins.json
+      - .github/workflows/plugin-registry.yml
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: write
+concurrency:
+  group: plugin-registry
+  cancel-in-progress: false
+defaults:
+  run:
+    working-directory: registry
+jobs:
+  publish:
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, '[register]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: registry/.cache
+          key: catalog-${{ github.run_id }}
+          restore-keys: catalog-
+      - run: python -m pip install -r requirements.txt
+      - name: Add optional source supplement
+        if: github.event_name == 'issues'
+        run: python scripts/catalog.py --register-event "$GITHUB_EVENT_PATH"
+      - name: Save optional source supplement
+        if: github.event_name == 'issues'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git add registry.json
+          if ! git diff --cached --quiet; then
+            git commit -m "registry: supplement public plugin source"
+            git push
+          fi
+      - name: Discover, collect and sign
+        env:
+          XIAOJI_REGISTRY_SIGNING_KEY_PEM: ${{ secrets.XIAOJI_REGISTRY_SIGNING_KEY_PEM }}
+          XIAOJI_GITHUB_TOKEN: ${{ github.token }}
+          XIAOJI_GITEE_TOKEN: ${{ secrets.XIAOJI_GITEE_TOKEN }}
+          BOOTSTRAP_CATALOG: ${{ github.event_name == 'workflow_dispatch' && inputs.bootstrap_catalog && 'true' || 'false' }}
+        run: |
+          if [ -z "$XIAOJI_REGISTRY_SIGNING_KEY_PEM" ]; then
+            echo "::notice::Configure XIAOJI_REGISTRY_SIGNING_KEY_PEM before publishing the automatically discovered catalog."
+            exit 0
+          fi
+          if [ "$BOOTSTRAP_CATALOG" = "true" ]; then
+            python scripts/catalog.py --collect --bootstrap-catalog
+          else
+            python scripts/catalog.py --collect
+          fi
+      - name: Publish catalog release
+        if: hashFiles('registry/dist/catalog.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view catalog >/dev/null 2>&1 || gh release create catalog --title "Plugin catalog" --notes "Signed plugin metadata. Publication does not imply review."
+          gh release upload catalog dist/catalog.json dist/public-key.txt dist/collection-errors.json --clobber
+      - name: Publish identical catalog to Gitee
+        if: hashFiles('registry/dist/catalog.json') != ''
+        env:
+          XIAOJI_GITEE_TOKEN: ${{ secrets.XIAOJI_GITEE_TOKEN }}
+        run: python scripts/publish_gitee.py --tag catalog --replace-catalog dist/catalog.json dist/public-key.txt dist/collection-errors.json

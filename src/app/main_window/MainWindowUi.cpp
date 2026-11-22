@@ -247,6 +247,8 @@ bool MainWindow::setupUi() {
         [this]() { applyGameGateSettings(); },
         [this]() { applyAutoStartSettings(); }
     });
+    connect(view_.settingsPage(), &SettingsPageModel::automaticUpdateChecksToggled,
+        this, [this](bool) { updateCoordinator_.refreshBackgroundChecks(); });
     driverCoordinator_.bind(DriverCoordinator::Context{
         view_.driverPage(),
         &config_,
@@ -268,9 +270,7 @@ bool MainWindow::setupUi() {
         &config_,
         [this]() { return activeInputDriverReady(); },
         [this]() { return activeInputDriverError(); },
-        [runtimeService = ddRuntimeService_](bool ready, const std::wstring& lastError) {
-            return runtimeService.Inspect(ready, lastError);
-        },
+        [this]() { return ddRuntimeService_; },
         [this]() {
             auto* profile = profileController_.activeProfile();
             auto* macro = macroController_.activeMacro();
@@ -283,7 +283,12 @@ bool MainWindow::setupUi() {
             state.gameGatePaused = config_.gameGateEnabled && !gameWatcher_.IsGameForeground();
             return state;
         },
-        [this](bool open) { inputHook_.setDialogOpen(open); }
+        [this](bool open) { inputHook_.setDialogOpen(open); },
+        [this]() { return pluginService_ ? pluginService_->driverName(QString::fromStdString(config_.activeDriverId)) : QString(); },
+        [this]() {
+            auto* driver = pluginService_ ? pluginService_->activeDriver() : nullptr;
+            return driver ? driver->text(XJ_TEXT_DIAGNOSTIC) : QString();
+        }
     });
     connect(&statusOverlay_, &StatusOverlayWindow::positionChanged, this, [this](const QPoint& position) {
         config_.statusOverlayPositionSaved = true;

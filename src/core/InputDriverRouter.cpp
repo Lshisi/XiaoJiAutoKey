@@ -113,6 +113,11 @@ bool InputDriverRouter::CanRelayPauseModifier(const KeyDescriptor& key) const no
             & static_cast<std::uint8_t>(~(bit | interceptedModifiers_.load()))) == 0;
 }
 
+bool InputDriverRouter::CanRelayPhysicalKey(const KeyDescriptor& key) const noexcept {
+    auto* driver = selfInjectedDriver_.load();
+    return driver && driver->SupportsPhysicalKeyRelay(key);
+}
+
 void InputDriverRouter::SetPhysicalModifierIntercepted(const KeyDescriptor& key, bool intercepted) noexcept {
     const auto bit = PhysicalModifierKeyBit(key);
     if (bit == 0) return;

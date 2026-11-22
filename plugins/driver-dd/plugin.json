@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "xiaoji.driver.dd",
+  "name": "DD 驱动",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "小叽官方",
+  "description": "通过 DD 运行库提供键盘、鼠标移动与滚轮输出。",
+  "platforms": ["windows-x64"],
+  "native": "xiaoji-plugin-dd.dll",
+  "resources": ["driver"],
+  "permissions": ["driver.provide", "device.identify", "log.write"],
+  "drivers": [{ "id": "default", "name": "DD", "deviceTokens": ["dd.key", "dd.mou", "ddxoft"], "diagnostics": true, "selfCheck": true }],
+  "pages": []
+}

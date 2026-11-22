@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "discovery": {"topic": "xiaoji-plugin", "maxPages": 5, "giteeWidget": "wong1slagnlmzwvsu5ya"},
+  "catalogUrls": [
+    "https://github.com/Lshisi/XiaoJiAutoKey/releases/download/catalog/catalog.json",
+    "https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases/download/catalog/catalog.json"
+  ],
+  "sources": [
+    {"id": "xiaoji.driver.xiaoji", "publisher": "github:lshisi", "repository": "https://github.com/Lshisi/XiaoJiAutoKey", "mirrors": ["https://gitee.com/fourteen-fourteen/xiao-ji-auto-key"], "tagPrefix": "plugins/driver-xiaoji/v", "assetPrefix": "XiaoJiPluginXiaoji-"},
+    {"id": "xiaoji.driver.dd", "publisher": "gitee:fourteen-fourteen", "repository": "https://gitee.com/fourteen-fourteen/xiao-ji-auto-key", "mirrors": ["https://github.com/Lshisi/XiaoJiAutoKey"], "tagPrefix": "plugins/driver-dd/v", "assetPrefix": "XiaoJiPluginDD-"},
+    {"id": "xiaoji.driver.usb", "publisher": "github:lshisi", "repository": "https://github.com/Lshisi/XiaoJiAutoKey", "mirrors": ["https://gitee.com/fourteen-fourteen/xiao-ji-auto-key"], "tagPrefix": "plugins/driver-usb/v", "assetPrefix": "XiaoJiPluginUSB-"}
+  ],
+  "officialPublishers": ["github:lshisi", "gitee:fourteen-fourteen"]
+}

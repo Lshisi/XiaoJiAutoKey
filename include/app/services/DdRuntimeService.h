@@ -1,11 +1,10 @@
 #pragma once
 
-#include "DdDriver.h"
-
 #include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
+#include <utility>
 
 class DdRuntimeService {
 public:
@@ -54,11 +53,10 @@ public:
 
     explicit DdRuntimeService(std::filesystem::path exeDir, std::filesystem::path logsDir = {});
 
-    [[nodiscard]] RuntimeStatus Inspect(const DdDriver& driver) const;
     [[nodiscard]] RuntimeStatus Inspect(bool driverReady, const std::wstring& lastError) const;
     [[nodiscard]] bool UninstallEmbeddedHidDriver(std::wstring* resultMessage = nullptr) const;
     [[nodiscard]] bool InstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
-    [[nodiscard]] bool UninstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr) const;
+    [[nodiscard]] bool UninstallEmbeddedInfDriver(std::wstring* resultMessage = nullptr, bool* restartRequired = nullptr) const;
     [[nodiscard]] bool RepairEmbeddedInfDriver(const std::function<bool()>& readinessProbe,
                                                std::wstring* resultMessage = nullptr) const;
     void LogRuntimeError(const wchar_t* fileName, const std::wstring& message) const;
@@ -66,6 +64,7 @@ public:
     [[nodiscard]] std::filesystem::path ExeDir() const noexcept;
     [[nodiscard]] std::filesystem::path LogsDir() const noexcept;
     [[nodiscard]] std::filesystem::path DriverRootDir() const;
+    void SetXiaojiDirectory(std::filesystem::path directory) { xiaojiDirectory_ = std::move(directory); }
 
 private:
     [[nodiscard]] bool EmbeddedInfVariantExists(int variant) const;
@@ -80,4 +79,5 @@ private:
 
     std::filesystem::path exeDir_;
     std::filesystem::path logsDir_;
+    std::filesystem::path xiaojiDirectory_;
 };

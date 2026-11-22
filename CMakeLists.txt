@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.1.7 LANGUAGES C CXX)
+project(XiaoJiAutoKey VERSION 1.1.8 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,10 +10,23 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC OFF)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Svg Qml Quick QuickWidgets QuickControls2 ShaderTools)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Network Widgets Svg Qml Quick QuickWidgets QuickControls2 ShaderTools)
 qt_standard_project_setup(REQUIRES 6.8)
+set(XIAOJI_SIGNED_DRIVER_DIR "" CACHE PATH "Optional trusted signed XiaojiDriver INF/DLL/CAT package")
+set(XIAOJI_PLUGIN_CATALOG_URL "https://github.com/Lshisi/XiaoJiAutoKey/releases/download/catalog/catalog.json" CACHE STRING "Default signed plugin catalog URL")
+set(XIAOJI_PLUGIN_CATALOG_FALLBACK_URL "https://gitee.com/fourteen-fourteen/xiao-ji-auto-key/releases/download/catalog/catalog.json" CACHE STRING "Fallback signed catalog with the same trusted key")
+set(XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY "BG6eHT4Ip1mB6FCeZP19WkIgyu/Cj70w6qX+EiKyeNMM6S38a1eWctlrlE4AOHM/lwMXEjAeYc+TxvqJq5A3+zg=" CACHE STRING "Trusted catalog P-256 public key in Base64 (never a private key)")
+include(cmake/Plugins.cmake)
 
 set(MOC_HEADERS
+    include/app/services/PluginService.h
+    include/app/services/PluginNativeBackend.h
+    include/core/plugins/NativePluginModule.h
+    src/ui/models/PluginCenterModel.h
+    src/ui/components/PluginPageContext.h
+    src/ui/components/PluginPageHost.h
+    src/ui/components/PluginRuntime.h
+    src/ui/components/PluginWindows.h
     include/app/dialogs/KeyOverviewDialog.h
     include/app/dialogs/QmlDialog.h
     include/app/view/MainWindowView.h
@@ -65,20 +78,12 @@ set(MOC_HEADERS
     include/app/services/UpdateService.h
 )
 
-set(AUTOKEY_DD_DIR "${CMAKE_SOURCE_DIR}/third_party/dd")
-set(AUTOKEY_DD_DLL32 "${AUTOKEY_DD_DIR}/DD32.dll")
-set(AUTOKEY_DD_DLL64 "${AUTOKEY_DD_DIR}/DD64.dll")
 set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
-set(XIAOJI_SIGNED_DRIVER_DIR "" CACHE PATH "Optional trusted signed XiaojiDriver INF/DLL/CAT package")
 
 add_library(XiaojiNative STATIC third_party/xiaoji/xiaoji_native.cpp)
 target_include_directories(XiaojiNative PUBLIC "${CMAKE_SOURCE_DIR}/third_party/xiaoji")
 target_link_libraries(XiaojiNative PUBLIC setupapi cfgmgr32 newdev advapi32 shell32 ole32)
-add_executable(XiaojiManagement third_party/xiaoji/management_cli.cpp)
-target_link_libraries(XiaojiManagement PRIVATE XiaojiNative wintrust crypt32)
-set_target_properties(XiaojiManagement PROPERTIES OUTPUT_NAME "xiaoji"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>/driver/xiaoji")
-foreach(xiaoji_target XiaojiNative XiaojiManagement)
+foreach(xiaoji_target XiaojiNative)
     set_target_properties(${xiaoji_target} PROPERTIES AUTOMOC OFF AUTORCC OFF)
     target_compile_definitions(${xiaoji_target} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
     if(MSVC)
@@ -87,26 +92,16 @@ foreach(xiaoji_target XiaojiNative XiaojiManagement)
     endif()
 endforeach()
 
-find_program(XIAOJI_POWERSHELL_EXECUTABLE NAMES powershell.exe
-    HINTS "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0" REQUIRED)
-set(XIAOJI_LOCAL_INSTALLER "${CMAKE_BINARY_DIR}/xiaoji-installer/xiaoji-setup.exe")
-add_custom_command(OUTPUT "${XIAOJI_LOCAL_INSTALLER}"
-    COMMAND "${XIAOJI_POWERSHELL_EXECUTABLE}" -NoProfile -NonInteractive -ExecutionPolicy Bypass
-        -File "${CMAKE_SOURCE_DIR}/scripts/build-xiaoji-installer.ps1" -OutputPath "${XIAOJI_LOCAL_INSTALLER}"
-    DEPENDS scripts/build-xiaoji-installer.ps1
-        third_party/xiaoji/LocalInstaller.cs third_party/xiaoji/LocalSetup.cs third_party/xiaoji/DriverStore.cs
-        third_party/xiaoji/driver/xiaoji.dll third_party/xiaoji/driver/xiaoji.inf
-        third_party/xiaoji/driver/xiaoji.cat third_party/xiaoji/driver/payload.json
-    VERBATIM)
-add_custom_target(XiaojiLocalInstaller DEPENDS "${XIAOJI_LOCAL_INSTALLER}")
-
 set(CORE_SOURCES
+    src/core/plugins/PluginManifest.cpp
+    src/core/plugins/NativePluginDriver.cpp
+    src/core/plugins/NativePluginModule.cpp
+    src/core/plugins/PluginCatalog.cpp
+    src/core/plugins/PluginArchive.cpp
+    src/core/plugins/DeviceDiscovery.cpp
     src/core/AppTypes.cpp
     src/core/ClickPositioning.cpp
     src/core/ConfigStore.cpp
-    src/core/DdDriver.cpp
-    src/core/XiaojiDriver.cpp
-    src/core/XiaojiKeyMap.cpp
     src/core/DiagLog.cpp
     src/core/FactionTheme.cpp
     src/core/ForegroundWatcher.cpp
@@ -118,8 +113,6 @@ set(CORE_SOURCES
     src/core/MacroActions.cpp
     src/core/MacroValidation.cpp
     src/core/MacroRecording.cpp
-    src/core/Ch552UsbDriver.cpp
-    src/core/PicoUsbDriver.cpp
     src/core/RepeaterEngine.cpp
     src/core/RepeatModeRules.cpp
     src/core/ShareCodec.cpp
@@ -127,11 +120,16 @@ set(CORE_SOURCES
 )
 
 set(UI_COMPONENT_SOURCES
+    src/ui/components/PluginPageContext.cpp
+    src/ui/components/PluginPageHost.cpp
+    src/ui/components/PluginRuntime.cpp
+    src/ui/components/PluginWindows.cpp
     src/ui/components/QmlIconProvider.cpp
     src/ui/components/ScreenPointPicker.cpp
 )
 
 set(UI_MODEL_SOURCES
+    src/ui/models/PluginCenterModel.cpp
     src/ui/models/GameProcessData.cpp
     src/ui/models/KeyOverviewData.cpp
     src/ui/models/KeyPageModel.cpp
@@ -220,11 +218,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     include/core/MacroEngine.h
     include/core/MacroTiming.h
     include/core/InputDriver.h
-    include/core/XiaojiDriver.h
-    include/core/XiaojiKeyMap.h
     include/core/InputDriverRouter.h
-    include/core/Ch552UsbDriver.h
-    include/core/PicoUsbDriver.h
     src/app/input/GlobalInputHook.cpp
     src/app/input/RawInputManager.cpp
     src/app/config/ActiveConfigValidator.cpp
@@ -254,6 +248,7 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/main_window/MainWindow.cpp
     src/app/main_window/MainWindowHooks.cpp
     src/app/main_window/MainWindowUi.cpp
+    src/app/main_window/MainWindowPlugins.cpp
     src/app/view/MainWindowView.cpp
     src/app/controllers/ProfileController.cpp
     src/app/services/AppPaths.cpp
@@ -263,6 +258,8 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
     src/app/services/XiaojiRuntimeService.cpp
     src/app/services/SoundService.cpp
     src/app/services/UpdateService.cpp
+    src/app/services/PluginService.cpp
+    src/app/services/PluginNativeBackend.cpp
     src/app/services/AgentService.cpp
     src/app/dialogs/AppMessageDialog.cpp
     src/app/dialogs/QmlDialog.cpp
@@ -302,6 +299,11 @@ qt_add_executable(XiaoJiAutoKey MANUAL_FINALIZATION WIN32
 )
 
 set(QML_FILES
+    src/qml/SidebarEntry.qml
+    src/qml/PluginCenterPage.qml
+    src/qml/PluginDetails.qml
+    src/qml/PluginRow.qml
+    src/qml/PluginPage.qml
     src/qml/Main.qml
     src/qml/Theme.qml
     src/qml/Typography.qml
@@ -399,6 +401,7 @@ qt_add_qml_module(XiaoJiAutoKey
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml
     QML_FILES ${QML_FILES}
+    SOURCES src/ui/components/PluginPageHost.h
 )
 qt_add_shaders(XiaoJiAutoKey overlay_glass
     PREFIX /shaders
@@ -406,6 +409,7 @@ qt_add_shaders(XiaoJiAutoKey overlay_glass
     FILES src/qml/shaders/glass-refract.frag
 )
 target_include_directories(XiaoJiAutoKey PRIVATE
+    include
     include/app
     include/core
     src
@@ -432,11 +436,16 @@ target_compile_definitions(XiaoJiAutoKey PRIVATE
     WIN32_LEAN_AND_MEAN
     NOMINMAX
     APP_VERSION="${PROJECT_VERSION}"
+    XIAOJI_PLUGIN_CATALOG_URL="${XIAOJI_PLUGIN_CATALOG_URL}"
+    XIAOJI_PLUGIN_CATALOG_FALLBACK_URL="${XIAOJI_PLUGIN_CATALOG_FALLBACK_URL}"
+    XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY="${XIAOJI_PLUGIN_CATALOG_PUBLIC_KEY}"
 )
 
 target_link_libraries(XiaoJiAutoKey PRIVATE
+    XiaoJi::PluginSDK
     XiaojiNative
     Qt6::Widgets
+    Qt6::Network
     Qt6::Svg
     Qt6::Qml
     Qt6::Quick
@@ -453,6 +462,7 @@ target_link_libraries(XiaoJiAutoKey PRIVATE
     setupapi
     cfgmgr32
     advapi32
+    bcrypt
 )
 
 if(MSVC)
@@ -465,56 +475,7 @@ if(MSVC)
 endif()
 
 set_target_properties(XiaoJiAutoKey PROPERTIES OUTPUT_NAME "XiaoJiAutoKey")
-add_dependencies(XiaoJiAutoKey XiaojiManagement XiaojiLocalInstaller)
-add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${XIAOJI_LOCAL_INSTALLER}"
-        "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/xiaoji-setup.exe"
-    VERBATIM)
-
-foreach(xiaoji_license LICENSE-AGPL-3.0 LICENSE-HIDMaestro-MIT)
-    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/third_party/xiaoji/${xiaoji_license}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/${xiaoji_license}"
-        VERBATIM)
-endforeach()
-if(XIAOJI_SIGNED_DRIVER_DIR)
-    foreach(xiaoji_file xiaoji.inf xiaoji.dll xiaoji.cat)
-        if(NOT EXISTS "${XIAOJI_SIGNED_DRIVER_DIR}/${xiaoji_file}")
-            message(FATAL_ERROR "Signed XiaojiDriver package is incomplete: ${xiaoji_file}")
-        endif()
-        add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/package"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${XIAOJI_SIGNED_DRIVER_DIR}/${xiaoji_file}"
-                "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/xiaoji/package/${xiaoji_file}"
-            VERBATIM)
-    endforeach()
-endif()
-
-if(EXISTS "${AUTOKEY_DD_DLL32}")
-    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_DLL32}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD32.dll"
-        COMMENT "Copying DD32.dll to the target driver directory"
-    )
-endif()
-
-if(EXISTS "${AUTOKEY_DD_DLL64}")
-    add_custom_command(TARGET XiaoJiAutoKey POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${AUTOKEY_DD_DLL64}"
-            "$<TARGET_FILE_DIR:XiaoJiAutoKey>/driver/DD64.dll"
-        COMMENT "Copying DD64.dll to the target driver directory"
-    )
-endif()
+xiaoji_deploy_builtin_plugins(XiaoJiAutoKey)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/assets/audio")
     add_custom_command(TARGET XiaoJiAutoKey POST_BUILD

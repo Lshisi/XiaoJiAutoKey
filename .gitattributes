@@ -2,3 +2,7 @@
 third_party/xiaoji/driver/xiaoji.inf -text
 third_party/xiaoji/driver/xiaoji.cat -text
 third_party/xiaoji/driver/xiaoji.dll -text
+plugins/driver-xiaoji/third_party/xiaoji/driver/xiaoji.inf -text
+plugins/driver-xiaoji/third_party/xiaoji/driver/xiaoji.cat -text
+plugins/driver-xiaoji/third_party/xiaoji/driver/xiaoji.dll -text
+plugins/driver-dd/driver/inf/** -text

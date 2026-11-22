@@ -1,82 +1,82 @@
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import XiaoJi.UI
 
-Item {
+ColumnLayout {
     id: navigation
-    property Item currentButton: null
-    implicitHeight: entries.implicitHeight
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.margins: 6
-        y: navigation.currentButton ? navigation.currentButton.y : 0
-        height: navigation.currentButton ? navigation.currentButton.height : Theme.navItemHeight
-        visible: navigation.currentButton !== null
-        radius: Theme.buttonRadius
-        color: Theme.accentSoft
-        Accessible.ignored: true
-        Rectangle {
-            x: -2
-            anchors.verticalCenter: parent.verticalCenter
-            width: 3
-            height: 16
-            radius: 1.5
-            color: Theme.accent
+    readonly property var pluginState: pluginCenterModel.state
+    readonly property bool inPluginPage: appView.currentPage.indexOf("plugin:") === 0
+    spacing: 2
+    Repeater {
+        model: [
+            { page: "keys", title: qsTr("按键连发"), icon: "keyboard" },
+            { page: "macro", title: qsTr("循环连发"), icon: "repeat" },
+            { page: "usage", title: qsTr("使用统计"), icon: "bar-chart" },
+            { page: "driver", title: qsTr("驱动管理"), icon: "monitor" }
+        ]
+        delegate: SidebarEntry {
+            required property var modelData
+            Layout.fillWidth: true
+            Layout.leftMargin: 6
+            Layout.rightMargin: 6
+            pageId: modelData.page
+            text: modelData.title
+            iconName: modelData.icon
+        }
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: 6
+        Layout.rightMargin: 6
+        spacing: 0
+        SidebarEntry {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            pageId: "plugins"
+            text: qsTr("插件中心")
+            iconName: "puzzle"
+            selected: appView.currentPage === "plugins" || (navigation.inPluginPage && !navigation.pluginState.expanded)
+        }
+        IconButton {
+            visible: navigation.pluginState.pages.length > 0
+            compact: true
+            iconName: "chevron-down"
+            rotation: navigation.pluginState.expanded ? 0 : -90
+            hint: navigation.pluginState.expanded ? qsTr("收起插件页面") : qsTr("展开插件页面")
+            onClicked: pluginCenterModel.dispatch("expanded", "", !navigation.pluginState.expanded)
         }
     }
     ColumnLayout {
-        id: entries
-        anchors.left: parent.left
-        anchors.right: parent.right
+        visible: navigation.pluginState.expanded && navigation.pluginState.pages.length > 0
+        Layout.fillWidth: true
+        Layout.leftMargin: 18
+        Layout.rightMargin: 6
         spacing: 2
         Repeater {
-            model: [
-                { page: "keys", title: qsTr("按键连发") },
-                { page: "macro", title: qsTr("循环连发") },
-                { page: "usage", title: qsTr("使用统计") },
-                { page: "driver", title: qsTr("驱动管理") },
-                { page: "settings", title: qsTr("全局设置") },
-                { page: "about", title: qsTr("关于软件") }
-            ]
-            delegate: ActionButton {
-                id: navButton
+            model: navigation.pluginState.pages
+            delegate: SidebarEntry {
                 required property var modelData
-                readonly property bool selected: appView.currentPage === modelData.page
                 Layout.fillWidth: true
-                Layout.leftMargin: 6
-                Layout.rightMargin: 6
-                implicitHeight: Math.max(Theme.navItemHeight, contentItem.implicitHeight + topPadding + bottomPadding)
+                pageId: modelData.id
                 text: modelData.title
-                quiet: true
-                Accessible.name: modelData.title
-                onSelectedChanged: { if (selected) navigation.currentButton = navButton }
-                Component.onCompleted: { if (selected) navigation.currentButton = navButton }
-                onClicked: appView.selectPage(modelData.page)
-                contentItem: RowLayout {
-                    spacing: 9
-                    NavIcon {
-                        iconId: navButton.modelData.page
-                        iconColor: navButton.selected ? Theme.accent : Theme.muted
-                    }
-                    QuietLabel {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        text: navButton.text
-                        color: navButton.selected ? Theme.accent : Theme.bodyText
-                        font.weight: navButton.selected ? Theme.headingWeight : Theme.bodyWeight
-                        elide: Text.ElideRight
-                        wrapMode: Text.NoWrap
-                    }
-                }
-                background: Rectangle {
-                    radius: Theme.buttonRadius
-                    color: navButton.down ? Theme.accentSoft : !navButton.selected && navButton.hovered ? Theme.accentSubtle : "transparent"
-                    border.width: navButton.visualFocus ? 2 : 0
-                    border.color: Theme.accent
-                }
+                iconName: modelData.icon
+                nested: true
             }
+        }
+    }
+    Repeater {
+        model: [
+            { page: "settings", title: qsTr("全局设置"), icon: "settings" },
+            { page: "about", title: qsTr("关于软件"), icon: "info" }
+        ]
+        delegate: SidebarEntry {
+            required property var modelData
+            Layout.fillWidth: true
+            Layout.leftMargin: 6
+            Layout.rightMargin: 6
+            pageId: modelData.page
+            text: modelData.title
+            iconName: modelData.icon
         }
     }
 }

@@ -1,123 +1,39 @@
-# 打包规则
+# 小叽按键 · 项目入口
 
-## 配置文件
+Windows / C++ / Qt QML 项目。宿主提供框架和输入引擎，插件扩展驱动、页面、后台与窗口。本文件只保留全局约束和按需阅读索引，详细约定放在 `docs/`。
 
-- `config.json` 是运行时生成的用户配置文件，存放在 exe 同级目录。
-- 打包 zip 时绝对不能包含 `config.json`。
-- 打包脚本 `scripts/package-release.ps1` 中已有清理逻辑，确保 `config.json` 不会被打入发布包。
+## 必须遵守
 
-## 发布包内容
+- 不编写测试类或测试代码，不运行测试；不自行编译、打包、启动程序或预览服务，由用户自行构建和确认功能。文档中的操作命令不代表执行授权；用户后续明确安排的动作按其指令处理。
+- 保护已有用户改动、配置和数据。`config.json` 是 exe 同级的运行时用户配置，发布包绝不能包含它，更新不能覆盖它。
+- 允许异步后台联网检查更新；下载、安装和重启由用户主动触发，不强制更新。
+- 界面沿用现有布局、主题、共用控件和资源；正式页面与预览共用实现，相关改动同步预览适配。
+- 处理 QML 源码前读取项目技能 [.agents/skills/qt-qml/SKILL.md](.agents/skills/qt-qml/SKILL.md)，以用户要求和本项目规则为优先。
+- 变更同步相关专题文档。源码完成、静态核对、编译通过和运行验证分别说明，未执行的动作不能标记为通过。
 
-发布包只应包含：
+## 按需读取
 
-- `XiaoJiAutoKey.exe` -- 主程序
-- `使用说明.mhtml` -- 离线使用说明
-- `audio/` -- 内置提示音文件
-- `driver/` -- DD 运行库（DD32.dll / DD64.dll）、小叽驱动管理/本机签名组件和许可证（xiaoji/xiaoji.exe、xiaoji/xiaoji-setup.exe 等）；可选的已签名小叽驱动包放在 xiaoji/package/。旧 HID 文件不再发布。
+1. 根据当前任务选择下表中的文档；只读取相关文档或章节，不默认遍历、全文加载 `docs/`。
+2. 任务跨越多个领域时，补读对应约定；大型计划优先定位当前阶段和完成标准。
+3. 文档或任务范围变化后再补读相关部分。当前用户明确要求优先于文档中的历史说明。
 
-不应包含：
+| 当前任务 | 读取入口 |
+| --- | --- |
+| 目录、模块边界、命名、移动文件 | [项目目录与命名](docs/project-layout.md) |
+| UI、控件、主题、布局、深色、DPI | [界面开发规范](docs/ui-guidelines.md) |
+| 预览承载、示例状态、资源注册 | [界面预览](docs/ui-preview.md) |
+| CMake、Qt、构建问题与本机路径 | [构建环境](docs/build-environment.md) |
+| 重建静态 Qt、工具链和中间目录 | [Qt 静态构建](docs/build-qt6-static.md) |
+| 应用包、版本、框架更新与发行 | [应用发布与更新](docs/release-process.md) |
+| Git 远端、tag、Gitee / GitHub 同步 | [仓库同步](docs/repository-sync.md) |
+| 插件协议、驱动、页面 API 与生命周期 | [插件开发](docs/plugin-development.md) |
+| 插件常驻后台、独立窗口、页面与后台通信 | [插件运行时](docs/plugin-runtime.md) |
+| 插件发版、收录、审核、签名及策略 | [插件发布](docs/plugin-release.md) |
+| 按键模式、并发、组合键与冲突 | [按键规则](docs/key-mode-rules.md) |
+| 提示音配置、文件与事件 | [提示音](docs/sound-cues.md) |
+| 本地输入查看工具 | [输入查看](docs/input-viewer.md) |
 
-- `config.json` -- 用户配置（运行时自动生成）
+## 文档维护
 
-## 构建注意事项
-
-- **不要使用 VS BuildTools 自带的 CMake**（`...\Common7\IDE\CommonExtensions\Microsoft\CMake\...`）：本机上它的 `cmake -E cmake_autogen` 必定段错误（任何含 AUTOMOC 的工程都在 MOC 步骤崩溃，表现为 MSBuild 报 `系统找不到指定的批处理标签 - VCEnd` / MSB8066）。使用官方独立版 CMake：`D:\software\cmake-3.31.6\bin\cmake.exe`。
-- 如果 MSBuild 报 `System.ArgumentException: 已添加项。字典中的关键字:“Path”所添加的关键字:“PATH”`，说明当前进程环境里同时存在 `Path` / `PATH`。构建前先在当前 PowerShell 进程清掉重复项并设置单一 `Path`。
-- 现使用 Qt 6.8+（QML / Quick / Quick Controls / Quick Widgets / SVG / Shader Tools）。指定实际 Qt 安装目录，使用独立的构建目录，不要复用旧 Qt 构建缓存。当前已装：
-  - 动态版（测试用，aqt 安装）：`D:\Qt\6.8.3\msvc2022_64`，构建目录 `build-qt6-dyn`，产物需 `D:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe --release --qmldir src\qml` 部署 DLL 后才能运行。
-  - 静态版（发布用）：`D:\Qt\6.8.3-static`，项目构建目录 `build-qt6`，运行时输出为 `build-qt6\Release`。
-- Qt 静态版构建规范见 `docs/build-qt6-static.md`。重建 Qt 时优先使用：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-qt-build.ps1 -QtVersion 6.8.3 -QtRoot D:\Qt -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe -RemoveIntermediates
-```
-
-- 动态测试构建命令：
-
-```powershell
-[System.Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
-[System.Environment]::SetEnvironmentVariable('Path', 'C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem', 'Process')
-& 'D:\software\cmake-3.31.6\bin\cmake.exe' -S . -B build-qt6-dyn -G 'Visual Studio 17 2022' -A x64 -DCMAKE_PREFIX_PATH='D:/Qt/6.8.3/msvc2022_64'
-& 'D:\software\cmake-3.31.6\bin\cmake.exe' --build build-qt6-dyn --config Release --target XiaoJiAutoKey
-```
-
-# 发布流程（线上更新）
-
-项目以同一份 Git 历史和 GPL-3.0 许可证开源在 `gitee.com/fourteen-fourteen/xiao-ji-auto-key` 和 `github.com/Lshisi/XiaoJiAutoKey`。程序内"软件更新"功能的数据源仍是 Gitee Releases（基于 git tag），更新逻辑见 `src/app/services/UpdateService.cpp`。双平台推送和发行版同步配置见 `docs/repository-sync.md`。发布新版本时：
-
-1. 提升 `CMakeLists.txt` 里 `project(XiaoJiAutoKey VERSION x.y.z)` 的版本号（`APP_VERSION` 宏由它生成）。README 不写版本号和版本历史，版本信息只存在于 git tag 和两个平台发行版的发布说明里。
-2. 用 `scripts/package-release.ps1` 打包（产物为 `dist/XiaoJiAutoKey.zip`，内部有顶层 `XiaoJiAutoKey/` 目录）：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -QtPrefixPath D:\Qt\6.8.3-static -CMakePath D:\software\cmake-3.31.6\bin\cmake.exe
-```
-3. 将发布分支推送到两个平台，在发布提交上打 tag `vx.y.z`（如 `v1.1.6`，必须带 `v` 前缀，与 CMake 版本号一致），先用 `git push gitee vx.y.z` 只将该 tag 推到 Gitee。本机 `origin` 已配置 Gitee/GitHub 双 push URL，`gitee` 和 `github` 分别单独访问对应平台，`push.followTags=false`；不要用 `git push origin --tags` 提前把发版 tag 同时推到两边。其他克隆需单独配置，不能假设 `.git/config` 会随源码同步。
-4. 在 Gitee 上基于该 tag 创建"发行版（Release）"，并把 `XiaoJiAutoKey.zip` 重命名后（建议 `XiaoJiAutoKey-vx.y.z.zip`）作为附件上传。附件的下载地址形如 `.../releases/download/...`，程序只把这种附件当作可用的更新包；Gitee 自动生成的源码包（`/archive/refs/tags/...`）会被忽略。
-5. Gitee 发行版和 zip 上传完成后，用 `git push github vx.y.z` 将同一个 tag 推到 GitHub，触发 `Sync Gitee releases` 只同步该 tag 的发行版；复用相同说明和 zip，不另行构建，不复制自动生成的源码包。工作流不定时执行、不随普通分支推送执行，也可在 Actions 页面手动运行以补同步或重试。已有同名附件保留，更换安装包应发布新版本。
-6. 更新包约束：必须是 zip；顶层目录（如有）会被自动剥掉；`config.json` 永远不会被更新包覆盖；PowerShell 5.1 生成的反斜杠路径条目和 GBK 文件名条目都能被解压逻辑兼容。
-
-注意事项：
-
-- 更新检查**只在用户于关于页手动点击"检查更新"时发生**，启动、运行、关机都不能触发联网检查；首页"有新版本"标签只读取 `config.json` 里的 `latestKnownVersion`，不允许为了它发请求。
-- 不做强制弹窗、不做强制更新；所有更新动作（检查、下载、重启安装）都由用户主动点击触发。
-- 程序内更新流程：下载 zip 到 `%TEMP%\XiaoJiAutoKeyUpdate` → miniz 解压校验 → 用户点"立即重启更新" → 停引擎、卸载驱动 → 运行中的 exe 改名为 `XiaoJiAutoKey.old.exe` → 覆盖安装目录 → 以 `--restart-wait` 拉起新实例并退出。新实例启动时会自动清理 `.old.exe` 和暂存目录。
-
-# UI 规则
-
-## 已确认的视觉与交互方向
-
-- 在原有界面上精修，不重排用户熟悉的操作顺序：左侧功能导航，中间配置与按键列表，右侧快捷控制、启动触发和设置；启动/停止始终保留在右侧。
-- 整体以安静、清晰、耐看为目标。使用中性背景和明确的信息层级，不增加银杏叶背景、门派纹样铺底、粒子、光晕、大徽记或无功能的装饰文案。
-- 门派身份只通过小尺寸徽记、导航选中态和主要操作的强调色表达，不对整个页面、表格和所有卡片进行门派色染色。
-- 玻璃材质只克制地用于侧栏和右侧快捷控制区，使用细边界、弱高光与轻微通透；按键列表、输入框和参数内容区保持实底。不要堆叠模糊层、强阴影或持续运行的装饰动画。
-- 保留合理留白，不为填满页面添加卡片、统计数字或重复状态。标题、正文和辅助说明保持清晰的三级层次，辅助文字仍需满足深浅色模式下的可读性。
-
-## 按钮与控件
-
-- 使用统一的组件和设计 token，不在各个页面分别手写一套按钮样式。普通按钮高度 32、右侧启动/停止按钮 32、图标按钮 32，均为逻辑像素；文字或 DPI 需要更多空间时允许增高，不固定裁切内容。
-- 正文/控件字号 12px，卡片标题 15px，页面标题 19px；默认窗口 780×560（最大高度 700），标题栏 34、侧栏 130、页边距 16、卡片间距 12、卡片内边距 14，表格行高 40。整体保持与 Qt Widgets 旧版一致的紧凑观感，不做放大处理。
-- 按钮与输入框圆角统一以 8 个逻辑像素为起点，卡片圆角以 13 个逻辑像素为起点；调整时修改统一 token，不将所有控件做成胶囊形，也不随意混用不同圆角。
-- 区分主要操作、次要操作和图标操作：右侧启动/停止为主要操作，新增和保存等动作按当前任务的重要性设置层级，不让一组按钮中的所有动作都使用高饱和填充。
-- 运行中的停止操作仍位于原启动位置，不移动、不隐藏。hover、pressed、disabled 和键盘焦点必须清晰且克制，不能仅用颜色变化表达运行状态。
-- 图标按钮必须提供明确的 tooltip 和可访问名称；删除等危险操作不要紧贴主要操作，沿用现有确认与安全措施。
-- 控件和导航图标统一使用 `assets/icons/` 中的 SVG，通过 `QmlIconProvider`、`QuietIcon.qml` 和通用按钮组件显示；门派徽记使用 `FactionSymbol.qml`。正式程序和预览共用资源及组件，不依赖 Windows 图标字体，也不单独维护预览图标。
-- 按钮组、表单行和卡片遵循下方已有间距与对齐规则，避免为装饰增加嵌套容器。
-
-## QML 技能
-
-- 项目级 `qt-qml` 技能入口为 `.agents/skills/qt-qml/SKILL.md`，来源为 `https://github.com/theqtcompanyrnd/agent-skills`。进行 QML 源码编写或修改前先阅读该技能，并以用户要求和本项目规则为优先。
-- 安装技能不代表已经迁移 Qt 版本或 UI 架构；不要为安装技能附带启动应用、预览服务或修改业务与按键引擎。
-
-## 界面预览维护
-
-- `preview/` 是 Mac 和 Windows 共用的全界面预览入口，Qt 版本与正式程序保持一致，当前为 6.8.3。环境与使用方式见 `docs/ui-preview.md`。
-- 预览直接加载 `src/qml/` 中的正式页面、弹窗、通用控件和主题，并复用图标提供器及素材。样式在这些共用文件中修改，不复制 QML、不另写一套预览样式；`preview/` 只负责窗口承载和示例状态、操作的适配。
-- 新增或修改页面、弹窗、导航、模型字段及交互时，同步调整 `preview/` 中对应的模型、示例数据和入口，保证六个主页面、常用弹窗、悬浮窗、引导和坐标拾取都能查看。新增 QML、SVG 或图标提供器入口时，同步维护正式程序与预览的 CMake/资源注册。
-- 预览只操作内存中的示例数据，不读写用户 `config.json`，不启动按键引擎、不安装驱动、不注册全局钩子、不执行更新或联网请求。
-- 遵守用户不启动程序的要求。需要编译确认时，Mac 使用 `./scripts/preview-macos.sh --build-only`，Windows 使用 `scripts/preview-windows.ps1 -BuildOnly`；程序由用户自行启动。界面调整需考虑深浅色、门派切换、示例/空数据和窗口缩放。
-
-## 深色模式
-
-- 所有页面、滚动区域、滚动视口、卡片、输入框、表格、弹窗和状态区都必须兼容系统深色模式。
-- 页面背景必须使用 `Fluent::Colors` / `FactionTheme::palette()` 里的深色模式感知颜色；QML 通过 `MainWindowView::theme` / `Theme.qml` 读取这些颜色，不能硬编码白色、浅灰或只适合浅色模式的背景。
-- `QScrollArea` 不只设置自身透明，还要确认 `viewport()` 和内部 content widget 不露出默认 `QPalette::Base` 白底。
-- 新增页面或主题刷新入口时，必须接入 `MainWindowView::updateFactionVisuals()` / `refreshRuntimeVisuals()`，确保切换门派、系统主题或运行时刷新后不会残留旧颜色。
-- 原生滚动容器（弹窗、文本框等）的滚动条必须使用 `Fluent::Styles::scrollBarQss()` 统一样式；QML 滚动容器统一使用 `QuietScrollBar.qml`。两者配色均来自 `Fluent::Styles::scrollBarHandle()` / `scrollBarHandleHover()`，禁止各处手写独立滚动条或露出系统原生滚动条。
-- 文本、边框、分割线、hover、selected、disabled 状态必须同时检查浅色和深色模式的对比度。
-
-## 布局和间距
-
-- 页面外边距统一优先使用 `Fluent::Spacing::pageMargin` 和 `Fluent::Spacing::cardGap`。
-- 卡片内边距统一优先使用 `Fluent::Spacing::cardPadding`，不要在同一页面里随意混用不同 padding。
-- 卡片之间的间距、表单行间距、按钮组间距要使用已有 spacing token 或同页面已有模式，避免视觉跳动。
-- 卡片边缘必须对齐：同级卡片左/右边界、标题、主要输入控件和操作按钮要按同一网格对齐。
-- 卡片内不要嵌套无必要的卡片；确实需要内层容器时，必须保证层级、边框和背景在深浅色模式下都清晰。
-- 文本必须能在中文、长配置名和窄窗口下换行或省略，不允许压到按钮、滚动条或相邻控件上。
-
-## DPI 和窗口缩放
-
-- 固定尺寸只用于图标按钮、标题栏、状态栏等稳定控件；原生内容区域使用 `QSizePolicy`、stretch 和布局管理器，QML 内容区域使用 `Layout.*`、implicit size 与最小/最大尺寸自适应。
-- 新增或修改布局后，必须考虑 100%、125%、150%、200% DPI 缩放，以及窗口在不同屏幕间移动后的布局刷新。
-- 不要用裸像素假设屏幕大小。窗口尺寸、最小尺寸和位置约束应走现有 `MainWindowView` 的屏幕/DPI 处理逻辑。
-- 表格列宽、卡片高度、文本编辑区高度等固定值要确认高 DPI 下不会裁切文字、按钮或滚动条。
-- 主题刷新或 DPI 变化后，相关控件应调用已有 refresh/update 方法，必要时 invalidate/activate layout，避免旧尺寸缓存导致错位。
+- 详细规则在对应专题文档维护一份；入口只补必要约束、触发条件和链接，不堆放命令清单、环境细节或临时进度。
+- 变更规则时同步受影响的文档与索引，避免旧约定继续被引用；验证范围和结果保持真实。

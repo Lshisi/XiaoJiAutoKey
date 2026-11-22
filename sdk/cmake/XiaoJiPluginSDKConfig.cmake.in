@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+include("${CMAKE_CURRENT_LIST_DIR}/XiaoJiPluginSDKTargets.cmake")
+if(NOT TARGET XiaoJi::PluginSDK)
+    add_library(XiaoJi::PluginSDK ALIAS XiaoJi::XiaoJiPluginSDK)
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/XiaoJiPlugin.cmake")

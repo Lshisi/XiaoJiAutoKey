@@ -89,7 +89,7 @@ void MainWindow::setupHooks() {
         },
         [this]() { return activeInputDriverReady(); },
         [this]() { showDdUnavailableMessage(); },
-        [this]() { return config_.driverMode == DriverMode::Usb; },
+        [this]() { const auto* driver = pluginService_ ? pluginService_->activeDriver() : nullptr; return driver && driver->hardwareOutput(); },
         this,
         [this]() { return onboardingCoordinator_.blocksStart(); },
         [this](const RepeaterStatus& before, const RepeaterStatus& after) { soundCoordinator_.handleRepeatInput(before, after); }

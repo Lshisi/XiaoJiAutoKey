@@ -17,7 +17,8 @@ std::wstring ToLower(std::wstring value) {
     return value;
 }
 
-bool ContainsAnyVirtualToken(const std::wstring& lowerName) {
+bool ContainsAnyVirtualToken(const std::wstring& lowerName, const std::vector<std::wstring>& pluginTokens) {
+    for (const auto& token : pluginTokens) if (lowerName.find(token) != std::wstring::npos) return true;
     constexpr const wchar_t* tokens[] = {
         L"dd.key",
         L"dd.mou",
@@ -147,6 +148,12 @@ std::wstring QueryDeviceIdentity(const std::wstring& devicePath) {
 }  // namespace
 
 RawInputManager::RawInputManager(QObject* parent) : QObject(parent) {}
+
+void RawInputManager::setPluginDeviceTokens(const QStringList& tokens) {
+    pluginDeviceTokens_.clear();
+    for (const auto& token : tokens) if (token.size() >= 5) pluginDeviceTokens_.push_back(token.toLower().toStdWString());
+    deviceCache_.clear();
+}
 
 RawInputManager::~RawInputManager() {
     unregisterWindow();
@@ -323,7 +330,7 @@ std::optional<RawInputManager::DeviceInfo> RawInputManager::queryDeviceInfo(HAND
     const std::wstring lowerIdentity = ToLower(name + QueryDeviceIdentity(name));
     DeviceInfo info;
     info.name = std::move(name);
-    info.virtualInjector = ContainsAnyVirtualToken(lowerIdentity);
+    info.virtualInjector = ContainsAnyVirtualToken(lowerIdentity, pluginDeviceTokens_);
     return info;
 }
 

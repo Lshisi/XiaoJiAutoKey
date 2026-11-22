@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "xiaoji.driver.usb",
+  "name": "USB 驱动",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "小叽官方",
+  "description": "通过 CH552 USB 设备提供键盘与鼠标按键输出。",
+  "platforms": ["windows-x64"],
+  "native": "xiaoji-plugin-usb.dll",
+  "permissions": ["driver.provide", "device.identify", "device.serial", "log.write"],
+  "drivers": [{ "id": "default", "name": "USB", "deviceTokens": ["vid_1209&pid_584a"], "heartbeatMs": 750, "diagnostics": true, "selfCheck": true }],
+  "pages": []
+}

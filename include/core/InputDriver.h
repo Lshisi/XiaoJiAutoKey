@@ -14,6 +14,7 @@ public:
     [[nodiscard]] virtual std::wstring KeySupportError(const KeyDescriptor&) const { return {}; }
     [[nodiscard]] virtual bool SupportsPhysicalModifierIsolation() const { return true; }
     [[nodiscard]] virtual bool SupportsPauseModifierRelay() const { return false; }
+    [[nodiscard]] virtual bool SupportsPhysicalKeyRelay(const KeyDescriptor&) const noexcept { return false; }
 
     virtual bool SendTap(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;
     virtual bool SendDown(const KeyDescriptor& key, InputSource src = InputSource::Injected) = 0;

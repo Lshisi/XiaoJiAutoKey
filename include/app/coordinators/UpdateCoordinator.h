@@ -5,6 +5,7 @@
 #include <QPointer>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <functional>
 
 class AboutPageModel;
@@ -14,8 +15,8 @@ class UpdateService;
 class QWidget;
 
 // Wires the about page update card, the update dialog, the key page update
-// badge and the update service together. Checks only ever run in response to
-// about page actions; nothing here triggers network access on its own.
+// badge and the update service together. Background checks only update state;
+// downloads, installation and restart are always initiated by the user.
 class UpdateCoordinator : public QObject {
     Q_OBJECT
 
@@ -38,12 +39,15 @@ public:
     // Restores the update badge from the last known version stored in the
     // config. Performs no network access.
     void restoreBadgeFromConfig();
+    void startBackgroundChecks();
+    void refreshBackgroundChecks();
 
 private:
     void handleCheckFinished(bool ok, const QString& message, bool hasUpdate,
         const QString& latestVersion, const QString& assetUrl, const QString& notes);
     // 打开更新弹窗；更新包已就绪时直接进入重启提示状态。
     void openUpdateDialog();
+    void requestCheck(bool manual);
 
     Context context_;
     QPointer<UpdateDialog> updateDialog_;
@@ -51,4 +55,7 @@ private:
     QString latestKnownVersion_;
     QString pendingAssetUrl_;
     QString pendingNotes_;
+    QTimer backgroundTimer_;
+    bool checking_ = false;
+    bool manualCheck_ = false;
 };

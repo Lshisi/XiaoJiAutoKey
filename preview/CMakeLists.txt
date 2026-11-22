@@ -12,6 +12,7 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     PreviewController.h
     PreviewController.cpp
     PreviewExamples.cpp
+    PreviewPlugins.cpp
     PreviewWorkspaceModel.h
     PreviewWorkspaceModel.cpp
     PreviewWorkspaceController.h
@@ -22,6 +23,17 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     PreviewOnboardingModel.h
     PreviewOnboardingModel.cpp
     ${PROJECT_ROOT}/src/ui/models/PageModel.h
+    ${PROJECT_ROOT}/src/ui/models/PluginCenterModel.h
+    ${PROJECT_ROOT}/src/ui/models/PluginCenterModel.cpp
+    ${PROJECT_ROOT}/src/ui/components/PluginPageContext.h
+    ${PROJECT_ROOT}/src/ui/components/PluginPageContext.cpp
+    ${PROJECT_ROOT}/src/ui/components/PluginPageHost.h
+    ${PROJECT_ROOT}/src/ui/components/PluginPageHost.cpp
+    ${PROJECT_ROOT}/src/ui/components/PluginRuntime.h
+    ${PROJECT_ROOT}/src/ui/components/PluginRuntime.cpp
+    ${PROJECT_ROOT}/src/ui/components/PluginWindows.h
+    ${PROJECT_ROOT}/src/ui/components/PluginWindows.cpp
+    ${PROJECT_ROOT}/src/core/plugins/PluginManifest.cpp
     ${PROJECT_ROOT}/src/ui/models/GameProcessData.h
     ${PROJECT_ROOT}/src/ui/models/GameProcessData.cpp
     ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.h
@@ -63,11 +75,14 @@ qt_add_qml_module(XiaoJiPreview
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml
     QML_FILES ${PREVIEW_QML_FILES}
+    SOURCES ${PROJECT_ROOT}/src/ui/components/PluginPageHost.h
 )
 target_include_directories(XiaoJiPreview PRIVATE
+    ${PROJECT_ROOT}/include
     ${PROJECT_ROOT}/include/core
     ${PROJECT_ROOT}/src
     ${PROJECT_ROOT}/src/ui/styles
+    ${PROJECT_ROOT}/src/ui/components
 )
 target_link_libraries(XiaoJiPreview PRIVATE
     Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Svg
@@ -87,6 +102,16 @@ qt_add_resources(XiaoJiPreview preview_assets
     PREFIX "/" BASE "${PROJECT_ROOT}"
     FILES "${PROJECT_ROOT}/assets/icon.png" "${PROJECT_ROOT}/assets/icon-active.png" ${FACTION_ICONS} ${CONTROL_ICONS}
 )
+set_source_files_properties("${PROJECT_ROOT}/sdk/examples/status-page/Main.qml" PROPERTIES QT_RESOURCE_ALIAS "status/Main.qml")
+qt_add_resources(XiaoJiPreview preview_plugin_example PREFIX /plugin-examples
+    FILES "${PROJECT_ROOT}/sdk/examples/status-page/Main.qml")
+foreach(pet_file Main.qml Background.qml Pet.qml)
+    set_source_files_properties("${PROJECT_ROOT}/sdk/examples/desktop-pet/${pet_file}" PROPERTIES QT_RESOURCE_ALIAS "desktop-pet/${pet_file}")
+endforeach()
+qt_add_resources(XiaoJiPreview preview_pet_example PREFIX /plugin-examples
+    FILES "${PROJECT_ROOT}/sdk/examples/desktop-pet/Main.qml"
+          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Background.qml"
+          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Pet.qml")
 qt_add_shaders(XiaoJiPreview preview_shaders
     PREFIX /shaders BASE "${PROJECT_ROOT}/src/qml/shaders"
     FILES "${PROJECT_ROOT}/src/qml/shaders/glass-refract.frag"

@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QTimer>
 #include <QWindow>
+#include <memory>
 
 PreviewController::PreviewController(QObject* parent)
     : QObject(parent), keys_(false, dialog_, overviewDialog_), macros_(true, dialog_, overviewDialog_) {
@@ -17,7 +18,11 @@ PreviewController::PreviewController(QObject* parent)
         {"repeatSequenceHotkey", true}, {"repeatPauseKeys", true},
         {"macroHotkey", true}, {"macroTriggerMode", true}, {"macroLoopCount", true},
         {"macroCurrentStep", true}, {"macroPauseKeys", true}};
-    const auto workspaceChanged = [this]() { emit activityIconChanged(); emit overlayChanged(); };
+    const auto workspaceChanged = [this]() {
+        emit activityIconChanged(); emit overlayChanged();
+        pluginContext_.setRuntimeState({{"driver", QStringList{tr("小叽"), QStringLiteral("DD"), QStringLiteral("USB")}[static_cast<int>(driverMode_)]},
+            {"repeatRunning", keys_.model()->state().value("running")}, {"macroRunning", macros_.model()->state().value("running")}});
+    };
     connect(keys_.model(), &PageModel::stateChanged, this, workspaceChanged);
     connect(macros_.model(), &PageModel::stateChanged, this, workspaceChanged);
     connect(&keys_, &PreviewWorkspaceController::overlaySettingsRequested, this, [this]() { showOverlaySettings(false); });
@@ -31,6 +36,44 @@ PreviewController::PreviewController(QObject* parent)
     connect(&settingsPage_, &SettingsPageModel::closeActionChanged, &settingsPage_, &SettingsPageModel::setCloseAction);
     connect(&settingsPage_, &SettingsPageModel::gameGateEnabledChanged, &settingsPage_, &SettingsPageModel::setGameGateEnabled);
     connect(&settingsPage_, &SettingsPageModel::autoStartToggled, &settingsPage_, &SettingsPageModel::setAutoStartEnabled);
+    connect(&settingsPage_, &SettingsPageModel::automaticUpdateChecksToggled, &settingsPage_, &SettingsPageModel::setAutomaticUpdateChecks);
+    connect(&pluginCenter_, &PluginCenterModel::actionRequested, this, &PreviewController::handlePluginAction);
+    pluginCenter_.setPageContextProvider([this](const QString& id) -> QObject* {
+        const auto descriptor = pluginCenter_.page(id);
+        if (descriptor.isEmpty()) return nullptr;
+        return descriptor.value("pluginId").toString() == QStringLiteral("example.desktop-pet") ? &petContext_ : &pluginContext_;
+    });
+    connect(&petContext_, &PluginPageContext::navigationRequested, this, &PreviewController::navigate);
+    connect(this, &PreviewController::themeChanged, &petContext_, &PluginPageContext::refreshTheme);
+    connect(&pluginContext_, &PluginPageContext::navigationRequested, this, &PreviewController::navigate);
+    connect(&pluginContext_, &PluginPageContext::messageRequested, this, [this](const QString& title, const QString& message) {
+        if (!dialog_.visible()) dialog_.message(title, message);
+    });
+    connect(&pluginContext_, &PluginPageContext::confirmationRequested, this, [this](const QString& id, const QString& title, const QString& message) {
+        if (dialog_.visible()) { emit pluginContext_.confirmationFinished(id, false); return; }
+        const auto answered = std::make_shared<bool>(false);
+        auto* observer = new QObject(this);
+        connect(&dialog_, &PreviewDialogModel::visibleChanged, observer, [this, observer, answered, id] {
+            if (!dialog_.visible()) QTimer::singleShot(0, observer, [this, observer, answered, id] {
+                if (!*answered) emit pluginContext_.confirmationFinished(id, false);
+                observer->deleteLater();
+            });
+        });
+        dialog_.message(title, message, [this, answered, id] { *answered = true; emit pluginContext_.confirmationFinished(id, true); });
+    });
+    connect(this, &PreviewController::themeChanged, &pluginContext_, &PluginPageContext::refreshTheme);
+    connect(&driverPage_, &DriverPageModel::providerSelected, this, [this](const QString& id) {
+        if (id.startsWith(QStringLiteral("xiaoji.driver.dd/"))) emit driverPage_.driverModeChanged(DriverMode::Legacy);
+        else if (id.startsWith(QStringLiteral("xiaoji.driver.usb/"))) emit driverPage_.driverModeChanged(DriverMode::Usb);
+        else emit driverPage_.driverModeChanged(DriverMode::Xiaoji);
+        refreshPreviewPlugins();
+    });
+    connect(&driverPage_, &DriverPageModel::pluginCenterRequested, this, [this] { navigate(QStringLiteral("plugins")); });
+    connect(&driverPage_, &DriverPageModel::pluginManagementRequested, this, [this](const QString& operation) {
+        if (operation != QStringLiteral("uninstall")) return;
+        const QStringList ids{QStringLiteral("xiaoji.driver.xiaoji"), QStringLiteral("xiaoji.driver.dd"), QStringLiteral("xiaoji.driver.usb")};
+        handlePluginAction(QStringLiteral("uninstall-system"), ids[static_cast<int>(driverMode_)], {});
+    });
     connect(&settingsPage_, &SettingsPageModel::factionChanged, this, &PreviewController::selectFaction);
     connect(&settingsPage_, &SettingsPageModel::gameGateProcessesEditRequested, this, &PreviewController::showProcesses);
     connect(&driverPage_, &DriverPageModel::driverModeChanged, this, [this](DriverMode mode) {
@@ -117,6 +160,7 @@ void PreviewController::setDarkMode(bool dark) {
 void PreviewController::setDemoData(bool enabled) {
     if (demoData_ == enabled) return;
     demoData_ = enabled;
+    initializePreviewPlugins(enabled);
     keys_.reset(enabled);
     macros_.reset(enabled);
     std::map<std::string, std::int64_t> days;
@@ -148,13 +192,17 @@ void PreviewController::setDemoData(bool enabled) {
 
 void PreviewController::navigate(const QString& page) {
     if (currentPage_ == page) return;
+    if (page.startsWith(QStringLiteral("plugin:")) && !pluginNavigationExpanded_) {
+        pluginNavigationExpanded_ = true;
+        refreshPreviewPlugins();
+    }
     currentPage_ = page;
     emit currentPageChanged();
 }
 
 void PreviewController::selectPage(const QString& page) {
     if (onboarding_.state().value("active").toBool()) return;
-    if (QStringList{"keys", "macro", "usage", "driver", "settings", "about"}.contains(page)) navigate(page);
+    if (QStringList{"keys", "macro", "usage", "driver", "settings", "about", "plugins"}.contains(page) || !pluginCenter_.page(page).isEmpty()) navigate(page);
 }
 
 void PreviewController::selectFaction(const QString& faction) {
@@ -174,15 +222,28 @@ void PreviewController::refreshDriver() {
     const bool ready = driverMode_ == DriverMode::Xiaoji ? xiaojiInstalled_
         : driverMode_ == DriverMode::Legacy ? ddInstalled_ : demoData_;
     driverPage_.setDriverMode(driverMode_);
-    driverPage_.setDriverActions(xiaojiInstalled_, ddInstalled_, hidInstalled_);
-    driverPage_.setInstallAction(!ready && driverMode_ != DriverMode::Usb, tr("安装 %1").arg(name));
+    const auto providerId = QStringList{QStringLiteral("xiaoji.driver.xiaoji"), QStringLiteral("xiaoji.driver.dd"), QStringLiteral("xiaoji.driver.usb")}[static_cast<int>(driverMode_)];
+    bool available = false;
+    for (const auto& item : previewPlugins_) {
+        const auto row = item.toMap();
+        if (row.value("id").toString() == providerId && row.value("enabled").toBool()
+            && !row.value("blocked").toBool() && !row.value("newInstall").toBool()) available = true;
+    }
+    driverPage_.setDriverActions(available && driverMode_ == DriverMode::Xiaoji && xiaojiInstalled_,
+        available && driverMode_ == DriverMode::Legacy && ddInstalled_, hidInstalled_);
+    driverPage_.setPluginManagement(false, available && ready && driverMode_ != DriverMode::Usb);
+    driverPage_.setDiagnosticsActions(available, available);
+    driverPage_.setInstallAction(available && !ready && driverMode_ != DriverMode::Usb, tr("安装 %1").arg(name));
     driverPage_.setStatusSummary(ready ? tr("%1 · 已就绪（示例）").arg(name) : tr("%1 · 未就绪（示例）").arg(name));
-    QStringList lines{tr("配置驱动: %1").arg(name), QString(), tr("小叽驱动（默认）"),
-        tr("键盘/鼠标: %1").arg(xiaojiInstalled_ ? tr("已就绪") : tr("未安装")),
-        tr("本机签名安装: 可用（示例）"),
-        tr("输出范围: NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮"),
-        QString(), QStringLiteral("DD"), tr("服务/设备: %1").arg(ddInstalled_ ? tr("已就绪") : tr("未安装")),
-        QString(), QStringLiteral("USB"), tr("通信: %1").arg(demoData_ ? tr("已连接") : tr("未连接"))};
+    QStringList lines{tr("配置驱动: %1").arg(name)};
+    if (available && driverMode_ == DriverMode::Xiaoji) lines << QString() << tr("小叽驱动（默认）")
+        << tr("键盘/鼠标: %1").arg(xiaojiInstalled_ ? tr("已就绪") : tr("未安装"))
+        << tr("本机签名安装: 可用（示例）")
+        << tr("输出范围: NKRO 键盘、媒体/浏览器键、鼠标五键、相对移动及滚轮");
+    else if (available && driverMode_ == DriverMode::Legacy) lines << QString() << QStringLiteral("DD")
+        << tr("服务/设备: %1").arg(ddInstalled_ ? tr("已就绪") : tr("未安装"));
+    else if (available && driverMode_ == DriverMode::Usb) lines << QString() << QStringLiteral("USB")
+        << tr("通信: %1").arg(demoData_ ? tr("已连接") : tr("未连接"));
     if (hidInstalled_) lines << QString() << tr("旧 HID: 检测到安装残留，仅提供卸载入口");
     driverPage_.setDetailText(lines.join(QLatin1Char('\n')));
 }

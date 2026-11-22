@@ -16,6 +16,7 @@ class MacroPageModel;
 class DriverPageModel;
 class SettingsPageModel;
 class ShareImportBannerModel;
+class PluginCenterModel;
 
 class MainWindowView : public QObject {
     Q_OBJECT
@@ -58,6 +59,7 @@ public:
     SettingsPageModel* settingsPage() const { return settingsPage_; }
     AboutPageModel* aboutPage() const { return aboutPage_; }
     UsagePageModel* usagePage() const { return usagePage_; }
+    PluginCenterModel* pluginCenter() const { return pluginCenter_; }
     QSystemTrayIcon* trayIcon() const { return trayIcon_; }
 
 signals:
@@ -79,6 +81,7 @@ private:
     SettingsPageModel* settingsPage_ = nullptr;
     AboutPageModel* aboutPage_ = nullptr;
     UsagePageModel* usagePage_ = nullptr;
+    PluginCenterModel* pluginCenter_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     QMenu* trayMenu_ = nullptr;
     QIcon idleIcon_;

@@ -8,9 +8,13 @@
 #include "ui/models/SettingsPageModel.h"
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/UsagePageModel.h"
+#include "ui/models/PluginCenterModel.h"
+#include "ui/components/PluginPageContext.h"
+#include "ui/components/PluginRuntime.h"
 #include <QPointer>
 #include <QPointF>
 #include <QStringList>
+#include <memory>
 
 class QWindow;
 
@@ -30,6 +34,7 @@ class PreviewController final : public QObject {
 
 public:
     explicit PreviewController(QObject* parent = nullptr);
+    ~PreviewController() override;
     QVariantMap theme() const;
     QVariantList factions() const;
     bool demoData() const { return demoData_; }
@@ -49,6 +54,7 @@ public:
     SettingsPageModel* settingsPage() { return &settingsPage_; }
     AboutPageModel* aboutPage() { return &aboutPage_; }
     ShareImportBannerModel* shareBanner() { return &shareBanner_; }
+    PluginCenterModel* pluginCenter() { return &pluginCenter_; }
     PreviewOnboardingModel* onboarding() { return &onboarding_; }
     PreviewDialogModel* dialog() { return &dialog_; }
     PreviewDialogModel* overviewDialog() { return &overviewDialog_; }
@@ -81,6 +87,10 @@ private:
     void showOverlaySettings(bool macro);
     void showSoundSettings(bool macro);
     void showUpdateProgress();
+    void initializePreviewPlugins(bool enabled);
+    void refreshPreviewPlugins();
+    void syncPreviewPet();
+    void handlePluginAction(const QString& action, const QString& id, const QVariant& value);
     PreviewDialogModel dialog_;
     PreviewDialogModel overviewDialog_;
     PreviewWorkspaceController keys_;
@@ -91,6 +101,14 @@ private:
     AboutPageModel aboutPage_;
     ShareImportBannerModel shareBanner_;
     PreviewOnboardingModel onboarding_;
+    PluginCenterModel pluginCenter_;
+    PluginPageContext pluginContext_{QStringLiteral("example.status-page"), {QStringLiteral("ui.page"), QStringLiteral("engine.read"), QStringLiteral("settings.own")}};
+    PluginPageContext petContext_{QStringLiteral("example.desktop-pet"), {QStringLiteral("ui.page"), QStringLiteral("ui.window"),
+        QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own")}};
+    QVariantList previewPlugins_;
+    QVariantMap previewPetWindowState_;
+    std::unique_ptr<Plugins::PluginRuntime> petRuntime_;
+    bool pluginNavigationExpanded_ = true;
     QPointer<QWindow> window_;
     QString currentPage_ = QStringLiteral("keys");
     DriverMode driverMode_ = DriverMode::Xiaoji;

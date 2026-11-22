@@ -41,6 +41,11 @@ void SettingsCoordinator::bind(Context context) {
         if (context_.saveConfig) context_.saveConfig();
         if (context_.applyAutoStart) context_.applyAutoStart();
     });
+    connect(context_.page, &SettingsPageModel::automaticUpdateChecksToggled, this, [this](bool enabled) {
+        context_.config->automaticUpdateChecks = enabled;
+        context_.page->setAutomaticUpdateChecks(enabled);
+        if (context_.saveConfig) context_.saveConfig();
+    });
     connect(context_.page, &SettingsPageModel::gameGateProcessesEditRequested, this, [this]() {
         QStringList initial;
         for (const auto& name : context_.config->gameGateProcesses) {

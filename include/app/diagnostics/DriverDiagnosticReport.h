@@ -17,6 +17,9 @@ struct DriverRuntimeDiagnosticState {
 
 struct DriverDiagnosticInput {
     DriverMode mode = DriverMode::Xiaoji;
+    QString providerId;
+    QString providerName;
+    QString pluginDetails;
     bool driverReady = false;
     bool uninstalledByUser = false;
     bool guardsInspected = false;

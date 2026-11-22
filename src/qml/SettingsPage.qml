@@ -91,6 +91,14 @@ QuietScrollView {
                     QuietSwitch { checked: root.page.state.autoStartEnabled; onClicked: root.page.autoStartToggled(checked); Accessible.name: qsTr("开机自启") }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
+                QuietHeading { text: qsTr("软件与插件更新") }
+                RowLayout {
+                    Layout.fillWidth: true
+                    QuietLabel { text: qsTr("后台检查更新"); Layout.fillWidth: true }
+                    QuietSwitch { checked: root.page.state.automaticUpdateChecks; onClicked: root.page.automaticUpdateChecksToggled(checked); Accessible.name: qsTr("后台检查更新") }
+                }
+                QuietLabel { Layout.fillWidth: true; text: qsTr("有更新时提示，由你选择下载、安装和重启。"); color: Theme.muted }
+                Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("启动时") }
                 QuietRadio { text: qsTr("进入系统托盘"); ButtonGroup.group: startupGroup; checked: root.page.state.startupAction === 0; onClicked: root.page.selectStartupAction(0) }
                 QuietRadio { text: qsTr("显示主窗口"); ButtonGroup.group: startupGroup; checked: root.page.state.startupAction === 1; onClicked: root.page.selectStartupAction(1) }

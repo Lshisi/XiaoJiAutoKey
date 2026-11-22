@@ -499,6 +499,55 @@ AppConfig ConfigStore::Load() const {
         config.ddDriverUninstalledByUser = *uninstalled;
     if (const auto uninstalled = GetBoolField(*object, "xiaojiDriverUninstalledByUser"); uninstalled.has_value())
         config.xiaojiDriverUninstalledByUser = *uninstalled;
+    if (const auto driverId = GetStringField(*object, "activeDriverId")) {
+        if (driverId->size() <= 160) config.activeDriverId = *driverId;
+    } else {
+        config.activeDriverId = config.driverMode == DriverMode::Legacy ? "xiaoji.driver.dd/default"
+            : config.driverMode == DriverMode::Usb ? "xiaoji.driver.usb/default" : "xiaoji.driver.xiaoji/default";
+    }
+    if (const auto enabled = GetBoolField(*object, "automaticUpdateChecks")) config.automaticUpdateChecks = *enabled;
+    if (const auto expanded = GetBoolField(*object, "pluginNavigationExpanded")) config.pluginNavigationExpanded = *expanded;
+    if (const auto url = GetStringField(*object, "pluginRegistryUrl"); url && !url->empty() && url->size() <= 2048) config.pluginRegistryUrl = *url;
+    if (const auto fallback = GetStringField(*object, "pluginRegistryFallbackUrl"); fallback && fallback->size() <= 2048)
+        config.pluginRegistryFallbackUrl = *fallback;
+    else if (config.pluginRegistryUrl == XIAOJI_PLUGIN_CATALOG_FALLBACK_URL)
+        config.pluginRegistryFallbackUrl = XIAOJI_PLUGIN_CATALOG_URL;
+    else if (config.pluginRegistryUrl != XIAOJI_PLUGIN_CATALOG_URL)
+        config.pluginRegistryFallbackUrl.clear();
+    if (const auto key = GetStringField(*object, "pluginRegistryPublicKey"); key && !key->empty() && key->size() <= 256) config.pluginRegistryPublicKey = *key;
+    if (const auto entries = object->find("plugins"); entries != object->end()) {
+        if (const auto* rows = entries->second.AsObject(); rows && rows->size() <= 256) {
+            for (const auto& [id, entry] : *rows) {
+                const auto* row = entry.AsObject();
+                if (!row || id.size() > 96) continue;
+                PluginPreferences preference;
+                if (const auto enabled = GetBoolField(*row, "enabled")) preference.enabled = *enabled;
+                if (const auto removed = GetBoolField(*row, "removed")) preference.removed = *removed;
+                if (const auto version = GetStringField(*row, "activeVersion"); version && version->size() <= 40) preference.activeVersion = *version;
+                if (const auto version = GetStringField(*row, "pendingVersion"); version && version->size() <= 40) preference.pendingVersion = *version;
+                if (const auto version = GetStringField(*row, "rollbackVersion"); version && version->size() <= 40) preference.rollbackVersion = *version;
+                if (const auto version = GetStringField(*row, "trialVersion"); version && version->size() <= 40) preference.trialVersion = *version;
+                if (const auto verified = row->find("verifiedActivations"); verified != row->end()) {
+                    if (const auto* steps = verified->second.AsArray(); steps && steps->size() <= 32)
+                        for (const auto& step : *steps) if (const auto* name = step.AsString(); name && !name->empty() && name->size() <= 80)
+                            preference.verifiedActivations.push_back(*name);
+                }
+                if (const auto active = GetBoolField(*row, "activationInProgress")) preference.activationInProgress = *active;
+                if (const auto background = GetBoolField(*row, "backgroundEnabled")) preference.backgroundEnabled = *background;
+                if (const auto pending = GetBoolField(*row, "removalPendingRestart")) preference.removalPendingRestart = *pending;
+                if (const auto removalError = GetStringField(*row, "removalError"); removalError && removalError->size() <= 8192) preference.removalError = *removalError;
+                if (const auto settings = row->find("settings"); settings != row->end() && settings->second.IsObject()) {
+                    const auto json = jsonlite::Stringify(settings->second);
+                    if (json.size() <= 65536) preference.settingsJson = json;
+                }
+                if (const auto windows = row->find("windowState"); windows != row->end() && windows->second.IsObject()) {
+                    const auto json = jsonlite::Stringify(windows->second);
+                    if (json.size() <= 16384) preference.windowStateJson = json;
+                }
+                config.plugins.emplace(id, std::move(preference));
+            }
+        }
+    }
 
     if (const auto faction = GetStringField(*object, "faction"); faction.has_value() && !faction->empty())
         config.faction = *faction;
@@ -675,6 +724,29 @@ bool ConfigStore::Save(
     if (config.driverMode == DriverMode::Legacy) driverMode = "legacy";
     else if (config.driverMode == DriverMode::Usb) driverMode = "usb";
     root.emplace("driverMode", std::string(driverMode));
+    root.emplace("activeDriverId", config.activeDriverId);
+    root.emplace("automaticUpdateChecks", config.automaticUpdateChecks);
+    root.emplace("pluginNavigationExpanded", config.pluginNavigationExpanded);
+    root.emplace("pluginRegistryUrl", config.pluginRegistryUrl);
+    root.emplace("pluginRegistryFallbackUrl", config.pluginRegistryFallbackUrl);
+    root.emplace("pluginRegistryPublicKey", config.pluginRegistryPublicKey);
+    jsonlite::Object plugins;
+    for (const auto& [id, preference] : config.plugins) {
+        jsonlite::Value settings;
+        std::string settingsError;
+        if (!jsonlite::Parse(preference.settingsJson, settings, settingsError) || !settings.IsObject()) settings = jsonlite::Object{};
+        jsonlite::Value windowState;
+        if (!jsonlite::Parse(preference.windowStateJson, windowState, settingsError) || !windowState.IsObject()) windowState = jsonlite::Object{};
+        jsonlite::Array verified;
+        for (const auto& step : preference.verifiedActivations) verified.emplace_back(step);
+        plugins.emplace(id, jsonlite::Object{{"enabled", preference.enabled}, {"removed", preference.removed},
+            {"activeVersion", preference.activeVersion}, {"pendingVersion", preference.pendingVersion},
+            {"rollbackVersion", preference.rollbackVersion}, {"trialVersion", preference.trialVersion}, {"verifiedActivations", std::move(verified)},
+            {"activationInProgress", preference.activationInProgress}, {"backgroundEnabled", preference.backgroundEnabled},
+            {"removalPendingRestart", preference.removalPendingRestart}, {"removalError", preference.removalError},
+            {"settings", std::move(settings)}, {"windowState", std::move(windowState)}});
+    }
+    root.emplace("plugins", std::move(plugins));
     root.emplace("ddDriverUninstalledByUser", config.ddDriverUninstalledByUser);
     root.emplace("xiaojiDriverUninstalledByUser", config.xiaojiDriverUninstalledByUser);
 

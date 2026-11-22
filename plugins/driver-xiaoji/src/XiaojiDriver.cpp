@@ -68,6 +68,11 @@ std::wstring XiaojiDriver::KeySupportError(const KeyDescriptor& key) const {
     return {};
 }
 
+bool XiaojiDriver::SupportsPhysicalKeyRelay(const KeyDescriptor& key) const noexcept {
+    const auto mapped = XiaojiKeys::Resolve(key);
+    return mapped.IsValid() && mapped.keyboardUsage < xiaoji::kKeyboardUsageCount;
+}
+
 bool XiaojiDriver::SendTap(const KeyDescriptor& key, InputSource src) {
     if (!SendDown(key, src)) return false;
     std::this_thread::sleep_for(std::chrono::milliseconds(kInputPulseWidthMs));

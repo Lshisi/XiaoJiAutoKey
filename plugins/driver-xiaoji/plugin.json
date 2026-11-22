@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "xiaoji.driver.xiaoji",
+  "name": "小叽驱动",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.8",
+  "author": "小叽官方",
+  "description": "默认输入驱动，支持多键保持、扩展键、鼠标移动与滚轮。",
+  "platforms": ["windows-x64"],
+  "native": "xiaoji-plugin-xiaoji.dll",
+  "resources": ["driver"],
+  "permissions": ["driver.provide", "device.identify", "log.write"],
+  "drivers": [{ "id": "default", "name": "小叽（默认）", "deviceTokens": ["root\\xiaoji\\kbd0001", "root\\xiaoji\\mou0001"], "diagnostics": true, "selfCheck": true }],
+  "pages": []
+}

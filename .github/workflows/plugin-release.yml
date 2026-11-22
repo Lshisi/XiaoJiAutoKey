@@ -1,0 +1,75 @@
+name: Release official plugin
+
+on:
+  push:
+    tags:
+      - 'plugins/driver-dd/v*'
+      - 'plugins/driver-xiaoji/v*'
+      - 'plugins/driver-usb/v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'Lshisi/XiaoJiAutoKey' && !github.event.deleted
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve manifest and tag
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^plugins/(driver-dd|driver-xiaoji|driver-usb)/v(\d+\.\d+\.\d+)$') { throw 'Invalid official plugin tag.' }
+          $slug = $Matches[1]
+          $version = $Matches[2]
+          $driverKind = $slug.Substring('driver-'.Length)
+          $manifest = Get-Content -LiteralPath "plugins/$slug/plugin.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($manifest.id -ne "xiaoji.driver.$driverKind" -or $manifest.version -ne $version) { throw 'Tag and manifest must identify the same immutable version.' }
+          $targets = @{'driver-dd'='XiaoJiPluginDD'; 'driver-xiaoji'='XiaoJiPluginXiaoji'; 'driver-usb'='XiaoJiPluginUSB'}
+          "PLUGIN_SLUG=$slug" >> $env:GITHUB_ENV
+          "PLUGIN_TARGET=$($targets[$slug])" >> $env:GITHUB_ENV
+          "PLUGIN_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Build plugin without Qt
+        run: |
+          cmake -S "plugins/$env:PLUGIN_SLUG" -B build-plugin -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin configuration failed.' }
+          cmake --build build-plugin --config Release --target "$($env:PLUGIN_TARGET)Package"
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin build failed.' }
+      - name: Package immutable artifact
+        run: ./scripts/package-plugin.ps1 -SourceDirectory build-plugin/Release -PackageName $env:PLUGIN_TARGET
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Publish plugin release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:GITHUB_REF_NAME
+          gh release view "$tag" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "$tag" --verify-tag --title "$env:PLUGIN_TARGET v$env:PLUGIN_VERSION" --notes 'Official plugin package. Version review status is supplied separately by the signed plugin catalog.'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create plugin release.' }
+          }
+          $packageBase = '{0}-v{1}' -f $env:PLUGIN_TARGET, $env:PLUGIN_VERSION
+          $assets = @("dist/plugins/$packageBase.zip", "dist/plugins/$packageBase.zip.sha256")
+          gh release upload "$tag" @assets
+          if ($LASTEXITCODE -ne 0) { throw 'Upload failed. Existing version artifacts must never be overwritten.' }
+      - name: Publish identical plugin package to Gitee
+        env:
+          XIAOJI_GITEE_TOKEN: ${{ secrets.XIAOJI_GITEE_TOKEN }}
+        run: |
+          $packageBase = '{0}-v{1}' -f $env:PLUGIN_TARGET, $env:PLUGIN_VERSION
+          python registry/scripts/publish_gitee.py --tag "$env:GITHUB_REF_NAME" "dist/plugins/$packageBase.zip" "dist/plugins/$packageBase.zip.sha256"
+          if ($LASTEXITCODE -ne 0) { throw 'Gitee plugin mirror failed. Keep the GitHub artifact; retry with the same source files.' }

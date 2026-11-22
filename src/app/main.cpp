@@ -1,7 +1,7 @@
 #include "MainWindow.h"
 #include "ConfigStore.h"
-#include "DdDriver.h"
-#include "XiaojiDriver.h"
+#include "core/plugins/NativePluginDriver.h"
+#include "core/plugins/PluginCatalog.h"
 #include "services/AppPaths.h"
 #include "services/CodeIntegrityInspector.h"
 #include "services/DdRuntimeService.h"
@@ -14,12 +14,17 @@
 #include <QPlainTextEdit>
 #include <QTextEdit>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QFont>
 #include <QGuiApplication>
 #include <QObject>
 #include <QStringList>
 #include <QStyleFactory>
 #include <QTimer>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
 #include <QQuickStyle>
 #include <QQuickWindow>
 
@@ -98,15 +103,6 @@ void PreserveTimerResolution() {
         ProcessPowerThrottling,
         &state,
         static_cast<DWORD>(sizeof(state)));
-}
-
-const char* RuntimeKindText(DdDriver::RuntimeKind kind) {
-    switch (kind) {
-    case DdDriver::RuntimeKind::Legacy:
-        return "legacy";
-    default:
-        return "unknown";
-    }
 }
 
 const char* DriverModeText(DriverMode mode) {
@@ -199,41 +195,78 @@ int main(int argc, char *argv[]) {
         const std::string rawConfigText = ReadFileText(appPaths.configPath());
         ConfigStore store(appPaths.configPath());
         const AppConfig config = store.Load();
-        DdRuntimeService runtime(std::filesystem::path(appPaths.exeDir()), appPaths.logsDir());
-        DdDriver driver;
-        XiaojiDriver xiaojiDriver;
-        InputDriver* selected = config.driverMode == DriverMode::Xiaoji
-            ? static_cast<InputDriver*>(&xiaojiDriver) : &driver;
+        const QDir installation(QString::fromStdWString(appPaths.exeDir()));
+        const auto pluginRoot = [&](const QString& id) {
+            QString version;
+            const auto preference = config.plugins.find(id.toStdString());
+            if (preference != config.plugins.end() && Plugins::validVersion(QString::fromStdString(preference->second.activeVersion)))
+                version = QString::fromStdString(preference->second.activeVersion);
+            const auto bundled = installation.filePath(QStringLiteral("plugins/builtin/") + id);
+            if (!version.isEmpty()) {
+                const auto local = installation.filePath(QStringLiteral("plugins/installed/") + id + QLatin1Char('/') + version);
+                if (QFileInfo::exists(local + QStringLiteral("/plugin.json"))) return local;
+                if (QFileInfo::exists(QDir(bundled).filePath(version + QStringLiteral("/plugin.json")))) return QDir(bundled).filePath(version);
+            }
+            version.clear();
+            for (const auto& candidate : QDir(bundled).entryList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks))
+                if (Plugins::validVersion(candidate) && (version.isEmpty() || Plugins::compareVersions(candidate, version) > 0)) version = candidate;
+            return QDir(bundled).filePath(version);
+        };
+        DdRuntimeService runtime(std::filesystem::path(pluginRoot(QStringLiteral("xiaoji.driver.dd")).toStdWString()), appPaths.logsDir());
+        runtime.SetXiaojiDirectory(std::filesystem::path(pluginRoot(QStringLiteral("xiaoji.driver.xiaoji")).toStdWString()));
+        std::unique_ptr<Plugins::NativePluginDriver> selected;
+        QString pluginError;
         std::error_code error;
         std::filesystem::create_directories(appPaths.logsDir(), error);
         std::ostringstream reportText;
 
-        const auto statusBefore = runtime.Inspect(driver);
-        const bool uninstalledByUser = config.IsDriverUninstalledByUser(config.driverMode);
+        const auto statusBefore = runtime.Inspect(false, {});
+        const bool uninstalledByUser = config.activeDriverId == "xiaoji.driver.xiaoji/default" ? config.xiaojiDriverUninstalledByUser
+            : config.activeDriverId == "xiaoji.driver.dd/default" && config.ddDriverUninstalledByUser;
         bool loadAttempted = false;
         bool loadOk = false;
         bool loadedAsConfigured = false;
         std::string loadSkippedReason;
         if (uninstalledByUser) {
             loadSkippedReason = "The selected driver was explicitly uninstalled by the user.";
-        } else if (config.driverMode == DriverMode::Usb) {
+        } else if (config.activeDriverId == "xiaoji.driver.usb/default") {
             loadSkippedReason = "USB connection is not probed by this command.";
-        } else if (config.driverMode == DriverMode::Xiaoji) {
-            if (statusBefore.xiaojiKeyboardReady && statusBefore.xiaojiMouseReady) {
-                loadAttempted = true;
-                loadOk = xiaojiDriver.Connect();
-                loadedAsConfigured = loadOk;
-            } else loadSkippedReason = "Xiaoji keyboard/mouse not ready; diagnosis never installs drivers.";
         } else {
-            const bool installed = statusBefore.infKeyboardServiceInstalled && statusBefore.infMouseServiceInstalled &&
-                statusBefore.infKeyboardSysInstalled && statusBefore.infMouseSysInstalled;
-            if (statusBefore.legacyRuntimeExists && installed) {
-                loadAttempted = true;
-                loadOk = driver.LoadLegacyFromDirectory(appPaths.exeDir());
-                loadedAsConfigured = loadOk && driver.GetRuntimeKind() == DdDriver::RuntimeKind::Legacy;
-            } else {
-                loadSkippedReason = "DD runtime or installed driver is not ready; diagnosis does not install drivers.";
+            const auto id = QString::fromStdString(config.activeDriverId).section(QLatin1Char('/'), 0, 0);
+            const bool known = id == QStringLiteral("xiaoji.driver.xiaoji") || id == QStringLiteral("xiaoji.driver.dd");
+            const bool installed = id == QStringLiteral("xiaoji.driver.xiaoji")
+                ? statusBefore.xiaojiKeyboardReady && statusBefore.xiaojiMouseReady && statusBefore.xiaojiProfileReady
+                : statusBefore.legacyRuntimeExists && statusBefore.infKeyboardServiceInstalled && statusBefore.infMouseServiceInstalled;
+            Plugins::Manifest manifest;
+            const auto directory = known ? pluginRoot(id) : QString();
+            bool permitted = known && installed && Plugins::readManifest(directory + QStringLiteral("/plugin.json"), &manifest, &pluginError);
+            const auto preference = config.plugins.find(id.toStdString());
+            if (preference != config.plugins.end() && (!preference->second.enabled || preference->second.removed)) permitted = false;
+            if (permitted) {
+                const bool installedPackage = directory.startsWith(installation.filePath(QStringLiteral("plugins/installed/")));
+                const auto sourceKey = QByteArray::fromStdString(config.pluginRegistryUrl) + '\n' + QByteArray::fromStdString(config.pluginRegistryPublicKey);
+                const auto cacheName = QStringLiteral("plugin-cache/catalog-")
+                    + QString::fromLatin1(QCryptographicHash::hash(sourceKey, QCryptographicHash::Sha256).toHex()) + QStringLiteral(".json");
+                QFile catalogFile(installation.filePath(cacheName));
+                QFile infoFile(directory + QStringLiteral("/.installation.json"));
+                QJsonObject catalog;
+                const bool readable = catalogFile.open(QIODevice::ReadOnly) && catalogFile.size() <= 8 * 1024 * 1024;
+                const auto hash = infoFile.open(QIODevice::ReadOnly) && infoFile.size() <= 65536
+                    ? QJsonDocument::fromJson(infoFile.readAll()).object().value(QStringLiteral("sha256")).toString() : QString();
+                const bool validCatalog = readable && Plugins::decodeCatalog(catalogFile.readAll(),
+                    QByteArray::fromBase64(QByteArray::fromStdString(config.pluginRegistryPublicKey)), 0, &catalog, &pluginError);
+                permitted = manifest.id == id && (!validCatalog || Plugins::blockedReason(catalog, id, manifest.version, hash).isEmpty());
+                if (installedPackage) permitted = permitted && validCatalog && !hash.isEmpty()
+                    && Plugins::catalogPlugin(catalog, id).value(QStringLiteral("official")).toBool()
+                    && Plugins::catalogVersion(catalog, id, manifest.version).value(QStringLiteral("sha256")).toString() == hash;
             }
+            if (permitted) {
+                loadAttempted = true;
+                selected = Plugins::NativePluginDriver::create(manifest, QString::fromStdString(config.activeDriverId).section(QLatin1Char('/'), 1),
+                    installation.absolutePath(), installation.filePath(QStringLiteral("plugin-data/") + id), &pluginError);
+                loadOk = selected && selected->connect();
+                loadedAsConfigured = loadOk;
+            } else loadSkippedReason = "Plugin is unavailable, unverified or disabled; diagnosis never installs drivers or loads third-party providers.";
         }
 
         WriteText(reportText, "config_path", appPaths.configPath().string());
@@ -248,9 +281,10 @@ int main(int argc, char *argv[]) {
         WriteText(reportText, "load_skipped_reason", loadSkippedReason);
         WriteBool(reportText, "load_ok", loadOk);
         WriteBool(reportText, "loaded_as_configured", loadedAsConfigured);
-        WriteText(reportText, "loaded_runtime_kind", config.driverMode == DriverMode::Xiaoji ? "xiaoji" : RuntimeKindText(driver.GetRuntimeKind()));
-        WriteBool(reportText, "driver_ready", selected->IsReady());
-        WriteText(reportText, "driver_last_error", ToUtf8Line(selected->GetLastError()));
+        WriteText(reportText, "loaded_runtime_kind", selected ? "plugin" : "none");
+        WriteText(reportText, "driver_provider_id", config.activeDriverId);
+        WriteBool(reportText, "driver_ready", selected && selected->IsReady());
+        WriteText(reportText, "driver_last_error", selected ? ToUtf8Line(selected->GetLastError()) : pluginError.toStdString());
 
         const auto guards = CodeIntegrityInspector::Inspect(true);
         WriteBool(reportText, "guard_memory_integrity_running", guards.memoryIntegrityRunning);

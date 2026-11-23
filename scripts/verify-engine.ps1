@@ -60,6 +60,21 @@ function Quote-NativeArgument([string]$Value) {
     $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
     return '"' + $escaped + '"'
 }
+function Invoke-CMake([string[]]$NativeArguments, [string]$LogName) {
+    $argumentLine = ($NativeArguments | ForEach-Object { Quote-NativeArgument $_ }) -join ' '
+    $stdout = Join-Path $BuildDirectory "$LogName.stdout.log"
+    $stderr = Join-Path $BuildDirectory "$LogName.stderr.log"
+    $buildProcess = Start-Process -FilePath $CMakePath -ArgumentList $argumentLine -WorkingDirectory $repo `
+        -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $null = $buildProcess.Handle
+    $buildProcess.WaitForExit()
+    $buildProcess.Refresh()
+    $code = $buildProcess.ExitCode
+    $lines = @(Get-Content -LiteralPath $stdout -Encoding UTF8)
+    $lines += @(Get-Content -LiteralPath $stderr -Encoding UTF8)
+    $lines | Tee-Object -FilePath (Join-Path $BuildDirectory "$LogName.log") | Write-Host
+    if ($null -eq $code -or $code -ne 0) { throw "CMake $LogName failed: $code" }
+}
 
 $guardPaths = @((Join-Path $repo 'config.json'), (Join-Path $repo 'build-qt6\Release\config.json'),
     (Join-Path $DdRuntimeDirectory 'config.json'), $catalog)
@@ -67,18 +82,17 @@ $guardPaths += @(Get-ChildItem -LiteralPath $fixtures -File | ForEach-Object { $
 $before = Get-HashMap $guardPaths
 New-Item -ItemType Directory -Path $BuildDirectory -Force | Out-Null
 $originalPath = [Environment]::GetEnvironmentVariable('Path','Process')
+$originalPathExt = [Environment]::GetEnvironmentVariable('PATHEXT','Process')
 try {
     [Environment]::SetEnvironmentVariable('PATH',$null,'Process')
-    [Environment]::SetEnvironmentVariable('Path',"$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem",'Process')
-    & $CMakePath -S $source -B $BuildDirectory -G 'Visual Studio 17 2022' -A x64 "-DCMAKE_PREFIX_PATH=$QtPrefixPath" 2>&1 |
-        Tee-Object -FilePath (Join-Path $BuildDirectory 'configure.log')
-    if ($LASTEXITCODE) { throw "CMake configuration failed: $LASTEXITCODE" }
-    & $CMakePath --build $BuildDirectory --config Release --target engine-checks --parallel 8 2>&1 |
-        Tee-Object -FilePath (Join-Path $BuildDirectory 'build.log')
-    if ($LASTEXITCODE) { throw "Build failed: $LASTEXITCODE" }
+    [Environment]::SetEnvironmentVariable('Path',"$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$PSHOME",'Process')
+    [Environment]::SetEnvironmentVariable('PATHEXT',".COM;.EXE;.BAT;.CMD;$originalPathExt",'Process')
+    Invoke-CMake @('-S',$source,'-B',$BuildDirectory,'-G','Visual Studio 17 2022','-A','x64',"-DCMAKE_PREFIX_PATH=$QtPrefixPath") 'configure'
+    Invoke-CMake @('--build',$BuildDirectory,'--config','Release','--target','engine-checks','--parallel','8') 'build'
 } finally {
     [Environment]::SetEnvironmentVariable('PATH',$null,'Process')
     [Environment]::SetEnvironmentVariable('Path',$originalPath,'Process')
+    [Environment]::SetEnvironmentVariable('PATHEXT',$originalPathExt,'Process')
 }
 if ($BuildOnly) {
     Write-Host "Build completed. No verification executable was started: $BuildDirectory\Release\engine-checks.exe"
@@ -89,10 +103,15 @@ $exe = Join-Path $BuildDirectory 'Release\engine-checks.exe'
 $git = (Get-Command git.exe -ErrorAction SilentlyContinue).Source
 if (!$git -and (Test-Path -LiteralPath 'D:\software\Git\cmd\git.exe')) { $git = 'D:\software\Git\cmd\git.exe' }
 if (!$git) { throw 'Git is required to record source provenance.' }
-$commit = (& $git -C $repo rev-parse HEAD | Out-String).Trim()
-if ($LASTEXITCODE) { throw 'Cannot identify current commit.' }
-$statusBefore = (& $git -C $repo status --porcelain | Out-String)
-if ($LASTEXITCODE) { throw 'Cannot record working tree state.' }
+try {
+    [Environment]::SetEnvironmentVariable('PATHEXT',".COM;.EXE;.BAT;.CMD;$originalPathExt",'Process')
+    $commit = (& $git -C $repo rev-parse HEAD | Out-String).Trim()
+    if ($LASTEXITCODE) { throw 'Cannot identify current commit.' }
+    $statusBefore = (& $git -C $repo status --porcelain | Out-String)
+    if ($LASTEXITCODE) { throw 'Cannot record working tree state.' }
+} finally {
+    [Environment]::SetEnvironmentVariable('PATHEXT',$originalPathExt,'Process')
+}
 $run = Join-Path $OutputRoot ((Get-Date).ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Path $run | Out-Null
 Copy-Item -LiteralPath $catalog -Destination (Join-Path $run 'catalog.snapshot.json')
@@ -171,7 +190,17 @@ try {
     $manifest['runs']=$runs
     $manifest['userFilesAfter']=$after
     $manifest['guardedFilesUnchanged']=$unchanged
-    $manifest['trackedStatusAfter']=(& $git -C $repo status --porcelain | Out-String)
+    try {
+        [Environment]::SetEnvironmentVariable('PATHEXT',".COM;.EXE;.BAT;.CMD;$originalPathExt",'Process')
+        $manifest['trackedStatusAfter']=(& $git -C $repo status --porcelain | Out-String)
+        if ($LASTEXITCODE) { throw 'Cannot record final working tree state.' }
+    } catch {
+        $exitStatus=2
+        $manifest['finalStatusError']=$_.Exception.Message
+        Write-Warning "Cannot record final working tree state: $($_.Exception.Message)"
+    } finally {
+        [Environment]::SetEnvironmentVariable('PATHEXT',$originalPathExt,'Process')
+    }
     if (!$unchanged) { $exitStatus=2; Write-Warning 'Guarded files changed; they have NOT been restored or overwritten.' }
     $manifest['exitCode']=$exitStatus
     Write-Json (Join-Path $run 'manifest.json') $manifest

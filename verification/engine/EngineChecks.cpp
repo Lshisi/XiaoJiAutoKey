@@ -383,12 +383,17 @@ void ProbeCapture() {
     input[0].ki.wVk=input[1].ki.wVk=VK_F24;
     input[1].ki.dwFlags=KEYEVENTF_KEYUP;
     auto at=Mark();
-    Need(SendInput(2,input,sizeof(INPUT))==2,"Safety hook SendInput probe failed");
+    SetLastError(ERROR_SUCCESS);
+    const auto sent=SendInput(2,input,sizeof(INPUT));
+    const auto sendError=GetLastError();
+    Need(sent==2,"Safety hook SendInput probe failed: sent="+std::to_string(sent)
+        +", Win32="+std::to_string(sendError));
     Need(Until([&]{return Count(K(VK_F24),true,at)==1 && Count(K(VK_F24),false,at)==1;}),"Safety hook did not capture SendInput");
     for (auto key:{K(VK_F8),M(VK_RBUTTON),M(VK_MBUTTON)}) {
         at=Mark();
         Need(backend->SendDown(key),"Driver probe down failed");
-        Need(Until([&]{return Count(key,true,at)>0;}),"No actual driver event observed; refusing full injection suite");
+        Need(Until([&]{return Count(key,true,at)>0;}),"No actual driver event observed for "
+            +ToUtf8(KeyDescriptorToStorage(key))+"; refusing full injection suite");
         Need(!(GetAsyncKeyState(static_cast<int>(key.code))&0x8000),"Safety interception failed; key reached Windows key state");
         Need(backend->SendUp(key),"Driver probe release failed");
         Need(Until([&]{return Count(key,false,at)>0;}),"Driver release not captured");
@@ -464,6 +469,20 @@ void SaveReport() {
     if (!csv || !source) throw std::runtime_error("Cannot append captured events/ownership report");
     eventsWritten=captured.size(); samplesWritten=samples.size(); csvInitialized=true;
 }
+std::string InputDesktopBlockReason() {
+    const auto inputDesktop=OpenInputDesktop(0,FALSE,DESKTOP_READOBJECTS);
+    if (!inputDesktop) return "Windows input desktop is unavailable (Win32="+std::to_string(GetLastError())
+        +"); unlock Windows and leave the verification session on its interactive desktop";
+    wchar_t inputName[256]{},threadName[256]{};
+    DWORD required=0;
+    const bool namesRead=GetUserObjectInformationW(inputDesktop,UOI_NAME,inputName,sizeof(inputName),&required)
+        && GetUserObjectInformationW(GetThreadDesktop(GetCurrentThreadId()),UOI_NAME,threadName,sizeof(threadName),&required);
+    const auto error=GetLastError();
+    CloseDesktop(inputDesktop);
+    if (!namesRead) return "Cannot identify the interactive input desktop (Win32="+std::to_string(error)+")";
+    if (std::wstring(inputName)!=threadName) return "Windows input desktop differs from the verification session; unlock Windows before real-driver verification";
+    return {};
+}
 bool DdServicesRunning() {
     auto manager=OpenSCManagerW(nullptr,nullptr,SC_MANAGER_CONNECT);
     if (!manager) return false;
@@ -529,6 +548,7 @@ int main(int argc,char** argv) {
     try {
         if (!listOnly && driverName!="recording") {
             if (!IsUserAnAdmin()) blockedReason="Real-driver verification requires an administrator terminal; no elevation is attempted";
+            else if (const auto reason=InputDesktopBlockReason(); !reason.empty()) blockedReason=reason;
             else if (driverName=="dd" && !DdServicesRunning()) {
                 blockedReason="Existing DD keyboard/mouse services must already be running; installation is forbidden";
             } else {
@@ -579,6 +599,8 @@ int main(int argc,char** argv) {
             }
             selectedRouter.SetDriver(backend);
         }
+        Case("driver-connect",driverName=="recording"?"Recording output adapter is ready":"Production driver connection",
+            []{Need(backend->IsReady(),"Selected output adapter is not ready");},driverMetadata);
         if (!listOnly && blockedReason.empty()) {
             highResolutionTimer=timeBeginPeriod(1)==TIMERR_NOERROR;
             if (!highResolutionTimer) throw std::runtime_error("Cannot request 1ms timer resolution");
@@ -589,8 +611,6 @@ int main(int argc,char** argv) {
             }
             repeater.StartThread(); macros.StartThread();
         }
-        Case("driver-connect",driverName=="recording"?"Recording output adapter is ready":"Production driver connection",
-            []{Need(backend->IsReady(),"Selected output adapter is not ready");},driverMetadata);
         if (!args.isSet("catalog-only")) {
             config=ConfigStore(fixtures/"regressions.json").Load();
             if (config.profiles.size()!=35 || config.macros.size()!=6) throw std::runtime_error("Regression fixture missing or invalid");

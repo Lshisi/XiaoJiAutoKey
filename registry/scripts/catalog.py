@@ -119,6 +119,13 @@ def check_package(body: bytes, expected_id: str) -> dict:
                     page = relative_path(row.get("file", ""))
                     if page not in files or not page.lower().endswith(".qml"):
                         raise ValueError("页面入口不在包内")
+                    icon = row.get("icon", "puzzle")
+                    if not isinstance(icon, str) or not icon or len(icon) > 256:
+                        raise ValueError("页面图标声明无效")
+                    if icon not in {"puzzle", "keyboard", "repeat", "monitor", "settings", "info", "bar-chart", "music"}:
+                        icon = relative_path(icon)
+                        if icon not in files or not icon.lower().endswith((".svg", ".png")):
+                            raise ValueError("页面图标须为内置图标名或包内 SVG、PNG 文件")
                 else:
                     tokens = row.get("deviceTokens", [])
                     heartbeat = row.get("heartbeatMs", 0)

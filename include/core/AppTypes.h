@@ -226,7 +226,7 @@ struct AppConfig {
     DriverMode driverMode = DriverMode::Xiaoji;
     std::string activeDriverId = "xiaoji.driver.xiaoji/default";
     std::map<std::string, PluginPreferences> plugins;
-    bool pluginNavigationExpanded = true;
+    std::vector<std::string> sidebarPageOrder;
     bool automaticUpdateChecks = true;
     std::string pluginRegistryUrl = XIAOJI_PLUGIN_CATALOG_URL;
     std::string pluginRegistryFallbackUrl = XIAOJI_PLUGIN_CATALOG_FALLBACK_URL;

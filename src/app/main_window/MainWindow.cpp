@@ -15,6 +15,7 @@
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
 #include "ui/models/PluginCenterModel.h"
+#include "ui/models/SidebarModel.h"
 #include "ui/styles/DesignTokens.h"
 #include "core/plugins/DeviceDiscovery.h"
 
@@ -261,6 +262,14 @@ bool MainWindow::Initialize() {
         return false;
     }
     configCoordinator_.load();
+    QStringList sidebarOrder;
+    for (const auto& id : config_.sidebarPageOrder) sidebarOrder.append(QString::fromStdString(id));
+    view_.sidebar()->restorePageOrder(sidebarOrder);
+    connect(view_.sidebar(), &SidebarModel::pageOrderChanged, this, [this] {
+        config_.sidebarPageOrder.clear();
+        for (const auto& id : view_.sidebar()->pageOrder()) config_.sidebarPageOrder.push_back(id.toStdString());
+        configCoordinator_.save();
+    });
     initializePlugins();
     usageStatisticsCoordinator_.initialize(config_, *view_.usagePage());
     updateCoordinator_.restoreBadgeFromConfig();

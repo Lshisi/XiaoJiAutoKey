@@ -5,6 +5,7 @@ Item {
     required property string name
     required property color color
     required property int pixelSize
+    readonly property string imagePath: name.startsWith("plugin-pages/") ? name : "icons/" + name + ".svg"
     implicitWidth: pixelSize
     implicitHeight: pixelSize
     Accessible.ignored: true
@@ -12,7 +13,7 @@ Item {
         anchors.centerIn: parent
         width: icon.pixelSize
         height: icon.pixelSize
-        source: "image://app-icons/icons/" + icon.name + ".svg/" + icon.color.toString().substring(1)
+        source: "image://app-icons/" + icon.imagePath + "/" + icon.color.toString().substring(1)
         sourceSize: Qt.size(Math.ceil(width * Screen.devicePixelRatio), Math.ceil(height * Screen.devicePixelRatio))
         fillMode: Image.PreserveAspectFit
         smooth: true

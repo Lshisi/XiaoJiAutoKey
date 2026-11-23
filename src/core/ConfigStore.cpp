@@ -506,7 +506,13 @@ AppConfig ConfigStore::Load() const {
             : config.driverMode == DriverMode::Usb ? "xiaoji.driver.usb/default" : "xiaoji.driver.xiaoji/default";
     }
     if (const auto enabled = GetBoolField(*object, "automaticUpdateChecks")) config.automaticUpdateChecks = *enabled;
-    if (const auto expanded = GetBoolField(*object, "pluginNavigationExpanded")) config.pluginNavigationExpanded = *expanded;
+    if (const auto order = object->find("sidebarPageOrder"); order != object->end()) {
+        if (const auto* pages = order->second.AsArray()) {
+            for (const auto& page : *pages) {
+                if (const auto* id = page.AsString(); id && !id->empty()) config.sidebarPageOrder.push_back(*id);
+            }
+        }
+    }
     if (const auto url = GetStringField(*object, "pluginRegistryUrl"); url && !url->empty() && url->size() <= 2048) config.pluginRegistryUrl = *url;
     if (const auto fallback = GetStringField(*object, "pluginRegistryFallbackUrl"); fallback && fallback->size() <= 2048)
         config.pluginRegistryFallbackUrl = *fallback;
@@ -743,7 +749,9 @@ bool ConfigStore::Save(
     root.emplace("driverMode", std::string(driverMode));
     root.emplace("activeDriverId", config.activeDriverId);
     root.emplace("automaticUpdateChecks", config.automaticUpdateChecks);
-    root.emplace("pluginNavigationExpanded", config.pluginNavigationExpanded);
+    jsonlite::Array sidebarPageOrder;
+    for (const auto& id : config.sidebarPageOrder) sidebarPageOrder.emplace_back(id);
+    root.emplace("sidebarPageOrder", std::move(sidebarPageOrder));
     root.emplace("pluginRegistryUrl", config.pluginRegistryUrl);
     root.emplace("pluginRegistryFallbackUrl", config.pluginRegistryFallbackUrl);
     root.emplace("pluginRegistryPublicKey", config.pluginRegistryPublicKey);

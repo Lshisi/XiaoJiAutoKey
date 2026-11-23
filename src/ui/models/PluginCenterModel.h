@@ -7,8 +7,9 @@ class PluginCenterModel final : public PageModel {
     Q_OBJECT
 public:
     explicit PluginCenterModel(QObject* parent = nullptr);
-    void setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages, bool expanded);
+    void setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages);
     void setStatus(const QString& message, bool busy = false);
+    void setCatalogRefreshState(bool refreshing, const QString& error = {});
     void setBusy(bool busy) { setValue("busy", busy); }
     void setRegistryConfigured(bool configured) { setValue("registryConfigured", configured); }
     void setPageContextProvider(std::function<QObject*(const QString&)> provider) { contextProvider_ = std::move(provider); }

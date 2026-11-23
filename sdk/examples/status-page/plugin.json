@@ -10,5 +10,5 @@
   "platforms": ["windows-x64"],
   "permissions": ["ui.page", "engine.read", "settings.own"],
   "drivers": [],
-  "pages": [{"id": "main", "title": "运行面板", "file": "Main.qml", "icon": "puzzle"}]
+  "pages": [{"id": "main", "title": "运行面板", "file": "Main.qml", "icon": "icons/status.svg"}]
 }

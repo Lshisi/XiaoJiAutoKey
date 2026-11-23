@@ -3,16 +3,16 @@
 
 PluginCenterModel::PluginCenterModel(QObject* parent) : PageModel(parent) {
     state_ = {{"installed", QVariantList{}}, {"discover", QVariantList{}}, {"pages", QVariantList{}},
-        {"expanded", true}, {"busy", false}, {"updates", 0}, {"status", QString()}, {"registryConfigured", false}};
+        {"busy", false}, {"updates", 0}, {"status", QString()}, {"registryConfigured", false},
+        {"catalogRefreshing", false}, {"catalogError", QString()}};
 }
 
-void PluginCenterModel::setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages, bool expanded) {
+void PluginCenterModel::setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages) {
     int updates = 0;
     for (const auto& value : installed) if (value.toMap().value("updateAvailable").toBool()) ++updates;
     state_.insert("installed", installed);
     state_.insert("discover", discover);
     state_.insert("pages", pages);
-    state_.insert("expanded", expanded);
     state_.insert("updates", updates);
     emit stateChanged();
 }
@@ -21,6 +21,13 @@ void PluginCenterModel::setStatus(const QString& message, bool busy) {
     if (state_.value("status").toString() == message && state_.value("busy").toBool() == busy) return;
     state_.insert("status", message);
     state_.insert("busy", busy);
+    emit stateChanged();
+}
+
+void PluginCenterModel::setCatalogRefreshState(bool refreshing, const QString& error) {
+    if (state_.value("catalogRefreshing").toBool() == refreshing && state_.value("catalogError").toString() == error) return;
+    state_.insert("catalogRefreshing", refreshing);
+    state_.insert("catalogError", error);
     emit stateChanged();
 }
 

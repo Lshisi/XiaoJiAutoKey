@@ -6,6 +6,7 @@
 #include "dialogs/ConfigConfirmDialog.h"
 #include "ui/components/PluginPageContext.h"
 #include "ui/components/PluginRuntime.h"
+#include "ui/components/QmlIconProvider.h"
 #include "services/PluginNativeBackend.h"
 #include "ui/models/PluginCenterModel.h"
 #include "DiagLog.h"
@@ -95,6 +96,8 @@ PluginService::PluginService(AppConfig& config, QString hostDirectory, PluginCen
     network_.setTransferTimeout(30000);
     network_.setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
     connect(&model_, &PluginCenterModel::actionRequested, this, &PluginService::dispatch);
+    connect(&model_, &PluginCenterModel::stateChanged, this, &PluginService::refreshPendingCatalog, Qt::QueuedConnection);
+    connect(this, &PluginService::dialogStateChanged, this, &PluginService::refreshPendingCatalog, Qt::QueuedConnection);
     model_.setPageContextProvider([this](const QString& id) { return contextForPage(id); });
     refreshTimer_.setInterval(6 * 60 * 60 * 1000);
     connect(&refreshTimer_, &QTimer::timeout, this, [this] { if (config_.automaticUpdateChecks) refreshCatalog(); });
@@ -174,7 +177,7 @@ QString PluginService::catalogCachePath() const {
     return QDir(cacheDirectory_).filePath(QStringLiteral("catalog-") + identity + QStringLiteral(".json"));
 }
 
-bool PluginService::busy() const { return reply_ || worker_ || nativeDialogDepth_ > 0 || hostBusy_; }
+bool PluginService::busy() const { return reply_ || worker_ || nativeDialogDepth_ > 0 || hostBusy_ || catalogRefreshing_; }
 
 void PluginService::setHostBusy(bool busy) {
     if (hostBusy_ == busy) return;
@@ -735,7 +738,7 @@ void PluginService::updateModel() {
         if (record.enabled && record.error.isEmpty() && !suspendedRuntimes_.contains(id)
             && (!record.pending || !preference.activeVersion.empty()) && (record.manifest.native.isEmpty() || !preference.activeVersion.empty())) {
             for (const auto& page : record.manifest.pages) pages.append(QVariantMap{{"id", record.manifest.pageId(page.id)},
-                {"pluginId", id}, {"title", page.title}, {"icon", page.icon},
+                {"pluginId", id}, {"title", page.title}, {"icon", page.iconFile.isEmpty() ? page.icon : QmlIconProvider::pageIconName(page.iconFile)},
                 {"source", QUrl::fromLocalFile(containedFile(record.manifest.directory, page.file))}});
         }
     }
@@ -758,7 +761,7 @@ void PluginService::updateModel() {
     }
     std::stable_sort(installed.begin(), installed.end(), [](const QVariant& left, const QVariant& right) { return driverOrder(left) < driverOrder(right); });
     model_.setRegistryConfigured(!config_.pluginRegistryUrl.empty() && !config_.pluginRegistryPublicKey.empty());
-    model_.setSnapshot(installed, discover, pages, config_.pluginNavigationExpanded);
+    model_.setSnapshot(installed, discover, pages);
 }
 
 void PluginService::setRuntimeState(const QVariantMap& state) {
@@ -955,32 +958,54 @@ void PluginService::refreshBackgroundChecks() {
 }
 
 void PluginService::refreshCatalog(bool manual) {
-    if (config_.pluginRegistryUrl.empty() || config_.pluginRegistryPublicKey.empty()) {
-        if (manual) fail(tr("当前发行版尚未接通插件目录，可先通过“导入”安装本地插件。"));
+    if (shuttingDown_ || catalogRefreshing_) return;
+    if (busy()) {
+        if (manual) catalogRefreshPending_ = true;
         return;
     }
-    if (busy()) return;
+    catalogRefreshPending_ = false;
+    if (config_.pluginRegistryUrl.empty() || config_.pluginRegistryPublicKey.empty()) {
+        if (manual) finishCatalogRefresh(tr("当前发行版尚未接通插件目录，可先通过“导入”安装本地插件。"));
+        return;
+    }
     const auto key = QByteArray::fromBase64(QByteArray::fromStdString(config_.pluginRegistryPublicKey));
     const auto primary = QString::fromStdString(config_.pluginRegistryUrl);
     QStringList sources{primary};
     const auto fallback = QString::fromStdString(config_.pluginRegistryFallbackUrl);
     if (!fallback.isEmpty()) sources.append(fallback);
     sources.removeDuplicates();
+    catalogRefreshing_ = true;
+    model_.setCatalogRefreshState(true);
     tryCatalogSources(sources, key, primary);
 }
 
+void PluginService::refreshPendingCatalog() {
+    if (shuttingDown_ || !catalogRefreshPending_ || busy()) return;
+    refreshCatalog(true);
+}
+
+void PluginService::finishCatalogRefresh(const QString& error) {
+    catalogRefreshing_ = false;
+    model_.setCatalogRefreshState(false, error);
+    if (!error.isEmpty()) fail(error);
+}
+
 void PluginService::tryCatalogSources(QStringList sources, const QByteArray& key, const QString& primary, const QString& lastError) {
-    if (primary != QString::fromStdString(config_.pluginRegistryUrl)) return;
-    if (sources.isEmpty()) { fail(tr("目录来源均不可用，已保留本地有效目录：%1").arg(lastError)); return; }
+    if (primary != QString::fromStdString(config_.pluginRegistryUrl)) { finishCatalogRefresh(); return; }
+    if (sources.isEmpty()) {
+        finishCatalogRefresh(catalog_.isEmpty() ? tr("目录刷新失败，请重试：%1").arg(lastError)
+            : tr("目录刷新失败，当前显示上次获取的信息：%1").arg(lastError));
+        return;
+    }
     const auto source = sources.takeFirst();
     download(source, 8 * 1024 * 1024, [this, key, primary, sources](const QByteArray& bytes) {
-        if (primary != QString::fromStdString(config_.pluginRegistryUrl)) return;
+        if (primary != QString::fromStdString(config_.pluginRegistryUrl)) { finishCatalogRefresh(); return; }
         QJsonObject catalog;
         QString error;
         if (!decodeCatalog(bytes, key, catalog_.value(QStringLiteral("revision")).toVariant().toLongLong(), &catalog, &error)) {
             tryCatalogSources(sources, key, primary, error); return;
         }
-        if (!writeBytes(catalogCachePath(), bytes)) { fail(tr("无法保存插件目录缓存。")); return; }
+        if (!writeBytes(catalogCachePath(), bytes)) { finishCatalogRefresh(tr("无法保存插件目录缓存。")); return; }
         catalog_ = catalog;
         catalogEnvelope_ = bytes;
         for (const auto& [id, record] : records_) {
@@ -992,7 +1017,8 @@ void PluginService::tryCatalogSources(QStringList sources, const QByteArray& key
             }
         }
         reload();
-        model_.setStatus(tr("插件目录已更新。"));
+        finishCatalogRefresh();
+        model_.setStatus(tr("插件目录已更新。"), busy());
     }, [this, sources, key, primary](const QString& error) { tryCatalogSources(sources, key, primary, error); });
 }
 
@@ -1200,7 +1226,7 @@ void PluginService::completeRemoval(const QString& id) {
 
 void PluginService::dispatch(const QString& action, const QString& id, const QVariant& value) {
     if (action == QStringLiteral("dialog")) { pageDialogOpen_ = value.toBool(); emit dialogStateChanged(pageDialogOpen_ || nativeDialogDepth_ > 0); return; }
-    if (action == QStringLiteral("expanded")) { config_.pluginNavigationExpanded = value.toBool(); emit saveRequested(); updateModel(); return; }
+    if (action == QStringLiteral("refresh")) { refreshCatalog(true); return; }
     if (action != QStringLiteral("open") && busy()) { fail(tr("已有插件操作正在进行，请稍后重试。")); return; }
     if (action == QStringLiteral("enable")) { setEnabled(id, value.toBool()); return; }
     if (action == QStringLiteral("background")) { setBackgroundRunning(id, value.toBool()); return; }
@@ -1233,7 +1259,6 @@ void PluginService::dispatch(const QString& action, const QString& id, const QVa
         return;
     }
     if (action == QStringLiteral("restore-bundled")) { restoreBundled(id); return; }
-    if (action == QStringLiteral("refresh")) { refreshCatalog(true); return; }
     if (action == QStringLiteral("manage")) {
         const auto record = records_.find(id);
         if (record != records_.end() && !record->second.manifest.drivers.isEmpty())
@@ -1242,7 +1267,7 @@ void PluginService::dispatch(const QString& action, const QString& id, const QVa
     }
     if (action == QStringLiteral("open")) {
         for (const auto& item : model_.state().value("pages").toList()) if (item.toMap().value("pluginId").toString() == id) {
-            config_.pluginNavigationExpanded = true; updateModel(); emit saveRequested(); emit navigationRequested(item.toMap().value("id").toString()); return;
+            emit navigationRequested(item.toMap().value("id").toString()); return;
         }
         return;
     }

@@ -17,7 +17,7 @@ xiao-ji-auto-key/
 ├── scripts/                   构建、打包及维护脚本
 ├── preview/                   复用正式页面的界面预览承载
 ├── assets/                    图标、音频与离线说明
-├── third_party/               宿主使用的第三方依赖与来源说明
+├── third_party/               宿主共用的第三方依赖（miniz）
 ├── firmware/                  现有硬件固件资料
 └── docs/                      按需读取的需求、开发规范与操作说明
 ```
@@ -26,7 +26,7 @@ xiao-ji-auto-key/
 
 - 目录使用小写英文职责名。官方插件统一使用 `类型-名称`，当前为 `driver-xiaoji`、`driver-dd`、`driver-usb`；后续页面模块可使用 `page-名称`。
 - `sdk` 表示公开协议，`registry` 表示目录运营，两者独立于具体插件实现。目录不再使用 `XiaoJiPluginDD` 等独立工程名称。
-- 原有 C++ 分层沿用 `src/`、`include/` 及其内部职责目录；`third_party` 等已有工程约定保留。QML 组件和 C++ 类型文件继续遵循其现有类型命名规则。
+- 原有 C++ 分层沿用 `src/`、`include/` 及其内部职责目录；根目录 `third_party/` 只维护宿主共用依赖。驱动专有源码、运行库、安装组件和许可证集中在所属插件目录，不在根目录保留副本。QML 组件和 C++ 类型文件继续遵循其现有类型命名规则。
 - CMake 插件装配集中在 `cmake/Plugins.cmake`，发布工作流集中在仓库根 `.github/`。插件、SDK 和目录服务不嵌套各自的 `.git` 或发布工作流副本。
 
 ## 文档组织
@@ -48,6 +48,8 @@ xiao-ji-auto-key/
 运行时继续通过稳定 ID 定位：`plugins/builtin/<id>/<version>/`、`plugins/installed/<id>/<version>/`、`plugin-data/<id>/`。这些目录由插件管理器维护，不能用源码目录名替换其中的 ID。
 
 随应用部署的 `plugins/builtin/` 只包含小叽驱动；DD、USB 保留同仓库独立模块及发行目标，默认不构建、不预装，用户从插件中心按需下载到 `plugins/installed/`。源码同仓库不代表所有模块随应用分发。
+
+小叽驱动依赖维护在 `plugins/driver-xiaoji/third_party/xiaoji/`，安装组件构建脚本维护在该插件的 `scripts/`；DD 运行库与 INF 维护在 `plugins/driver-dd/driver/`。根目录 `third_party/` 当前仅保留 `miniz/`，供宿主的更新解压、插件安装和分享数据使用。
 
 ## 草稿清理
 

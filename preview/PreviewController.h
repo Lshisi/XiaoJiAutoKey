@@ -9,6 +9,7 @@
 #include "ui/models/ShareImportBannerModel.h"
 #include "ui/models/UsagePageModel.h"
 #include "ui/models/PluginCenterModel.h"
+#include "ui/models/SidebarModel.h"
 #include "ui/components/PluginPageContext.h"
 #include "ui/components/PluginRuntime.h"
 #include <QPointer>
@@ -55,6 +56,7 @@ public:
     AboutPageModel* aboutPage() { return &aboutPage_; }
     ShareImportBannerModel* shareBanner() { return &shareBanner_; }
     PluginCenterModel* pluginCenter() { return &pluginCenter_; }
+    SidebarModel* sidebar() { return &sidebar_; }
     PreviewOnboardingModel* onboarding() { return &onboarding_; }
     PreviewDialogModel* dialog() { return &dialog_; }
     PreviewDialogModel* overviewDialog() { return &overviewDialog_; }
@@ -102,13 +104,13 @@ private:
     ShareImportBannerModel shareBanner_;
     PreviewOnboardingModel onboarding_;
     PluginCenterModel pluginCenter_;
+    SidebarModel sidebar_;
     PluginPageContext pluginContext_{QStringLiteral("example.status-page"), {QStringLiteral("ui.page"), QStringLiteral("engine.read"), QStringLiteral("settings.own")}};
     PluginPageContext petContext_{QStringLiteral("example.desktop-pet"), {QStringLiteral("ui.page"), QStringLiteral("ui.window"),
         QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own")}};
     QVariantList previewPlugins_;
     QVariantMap previewPetWindowState_;
     std::unique_ptr<Plugins::PluginRuntime> petRuntime_;
-    bool pluginNavigationExpanded_ = true;
     QPointer<QWindow> window_;
     QString currentPage_ = QStringLiteral("keys");
     DriverMode driverMode_ = DriverMode::Xiaoji;

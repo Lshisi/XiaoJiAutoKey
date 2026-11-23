@@ -6,6 +6,7 @@ import XiaoJi.UI
 Item {
     id: root
     readonly property QtObject page: pluginCenterModel
+    readonly property bool busy: page.state.busy || page.state.catalogRefreshing
     property int tab: 2
     property var detail: null
     readonly property var rows: {
@@ -17,6 +18,7 @@ Item {
             && (publisher.currentIndex === 0 || (publisher.currentIndex === 1 ? row.official : !row.official))
             && (review.currentIndex === 0 || (review.currentIndex === 1 ? row.reviewed : !row.reviewed)))
     }
+    Component.onCompleted: root.page.dispatch("refresh")
     QuietCard {
         anchors.fill: parent
         anchors.leftMargin: Theme.pageMargin
@@ -30,8 +32,8 @@ Item {
                 Layout.fillWidth: true
                 spacing: 6
                 QuietHeading { text: qsTr("插件中心"); pageTitle: true; Layout.fillWidth: true }
-                ActionButton { text: qsTr("导入"); leadingIcon: "import"; enabled: !root.page.state.busy; onClicked: root.page.dispatch("import") }
-                IconButton { iconName: "refresh"; hint: qsTr("检查插件更新"); enabled: !root.page.state.busy; onClicked: root.page.dispatch("refresh") }
+                ActionButton { text: qsTr("导入"); leadingIcon: "import"; enabled: !root.busy; onClicked: root.page.dispatch("import") }
+                IconButton { iconName: "refresh"; hint: qsTr("刷新插件列表与更新信息"); enabled: !root.busy; onClicked: root.page.dispatch("refresh") }
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -70,7 +72,7 @@ Item {
                     width: list.width
                     record: modelData
                     discovery: root.tab === 1
-                    busy: root.page.state.busy
+                    busy: root.busy
                     onAction: (operation, pluginId, value) => {
                         if (operation === "details") root.detail = value
                         else root.page.dispatch(operation, pluginId, value)
@@ -81,7 +83,13 @@ Item {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     visible: list.count === 0
-                    text: root.tab === 1 && !root.page.state.registryConfigured ? qsTr("插件目录尚未就绪，暂时可通过“导入”安装插件。") : qsTr("没有符合条件的插件。")
+                    text: {
+                        if (root.tab !== 1) return qsTr("没有符合条件的插件。")
+                        if (root.page.state.catalogRefreshing) return qsTr("正在获取插件列表…")
+                        if (!root.page.state.registryConfigured) return qsTr("插件目录尚未就绪，暂时可通过“导入”安装插件。")
+                        if (root.page.state.catalogError.length) return qsTr("插件列表读取失败，请点击右上角重试。")
+                        return qsTr("没有符合条件的插件。")
+                    }
                     color: Theme.muted
                 }
             }
@@ -95,7 +103,8 @@ Item {
             record: {
                 if (!root.detail) return ({})
                 const installed = root.page.state.installed.find(row => row.id === root.detail.id)
-                return installed || root.detail
+                const discovered = root.page.state.discover.find(row => row.id === root.detail.id)
+                return installed || discovered || root.detail
             }
             page: root.page
             Component.onCompleted: open()

@@ -15,6 +15,7 @@
 #include "ui/models/AboutPageModel.h"
 #include "ui/models/UsagePageModel.h"
 #include "ui/models/PluginCenterModel.h"
+#include "ui/models/SidebarModel.h"
 #include "ui/models/DriverPageModel.h"
 #include "ui/models/KeyPageModel.h"
 #include "ui/models/MacroPageModel.h"
@@ -248,7 +249,9 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     aboutPage_ = new AboutPageModel(this);
     usagePage_ = new UsagePageModel(this);
     pluginCenter_ = new PluginCenterModel(this);
+    sidebar_ = new SidebarModel(this);
     connect(pluginCenter_, &PageModel::stateChanged, this, [this] {
+        sidebar_->setPluginPages(pluginCenter_->state().value("pages").toList());
         if (currentPage_.startsWith(QStringLiteral("plugin:")) && pluginCenter_->page(currentPage_).isEmpty())
             navigateTo(QStringLiteral("plugins"));
     });
@@ -277,6 +280,7 @@ bool MainWindowView::setup(QMainWindow* window, QObject* onboarding) {
     context->setContextProperty("aboutPageModel", aboutPage_);
     context->setContextProperty("usagePageModel", usagePage_);
     context->setContextProperty("pluginCenterModel", pluginCenter_);
+    context->setContextProperty("sidebarModel", sidebar_);
     context->setContextProperty("shareBannerModel", shareBanner_);
     updateFactionVisuals(window);
     quickWidget_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/XiaoJi/UI/Main.qml")));
@@ -325,8 +329,6 @@ void MainWindowView::initializeTray(QMainWindow* window) {
 
 void MainWindowView::navigateTo(const QString& pageId) {
     if (currentPage_ == pageId) return;
-    if (pageId.startsWith(QStringLiteral("plugin:")) && pluginCenter_)
-        pluginCenter_->dispatch(QStringLiteral("expanded"), {}, true);
     currentPage_ = pageId;
     emit currentPageChanged();
 }

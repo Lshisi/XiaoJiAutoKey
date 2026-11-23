@@ -52,7 +52,19 @@ function Copy-XiaojiPluginFiles([string]$SourceDirectory, [string]$DestinationDi
 
     Copy-PluginEntry 'plugin.json'
     if ($pluginManifest.native) { Copy-PluginEntry $pluginManifest.native }
-    foreach ($page in $pluginManifest.pages) { Copy-PluginEntry $page.file }
+    $pageIconNames = @('puzzle', 'keyboard', 'repeat', 'monitor', 'settings', 'info', 'bar-chart', 'music')
+    foreach ($page in $pluginManifest.pages) {
+        Copy-PluginEntry $page.file
+        if ($page.PSObject.Properties['icon']) {
+            if ($page.icon -isnot [string] -or -not $page.icon -or $page.icon.Length -gt 256) {
+                throw "Invalid page icon: $($page.id)"
+            }
+            if ($page.icon -cnotin $pageIconNames) {
+                if ($page.icon -notmatch '\.(svg|png)$') { throw "Page icons must be shared names or SVG/PNG package paths: $($page.id)" }
+                Copy-PluginEntry $page.icon
+            }
+        }
+    }
     if ($pluginManifest.background.file) { Copy-PluginEntry $pluginManifest.background.file }
     foreach ($window in $pluginManifest.windows) { Copy-PluginEntry $window.file }
     foreach ($resource in $pluginManifest.resources) { Copy-PluginEntry $resource }

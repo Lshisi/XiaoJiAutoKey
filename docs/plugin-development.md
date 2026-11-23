@@ -18,7 +18,7 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 | `name` / `author` / `description` | 用户可读、非空，长度上限分别为 80、120、2000 字符 |
 | `native` | 可选的 DLL 相对路径；声明驱动时必填 |
 | `drivers` | 最多 16 个提供方，每项有唯一的本插件内 `id` 和名称；完整 ID 为 `插件ID/提供方ID`；可选 `diagnostics`、`selfCheck` 布尔值声明诊断和自检入口，默认不显示 |
-| `pages` | 最多 8 个页面，每项有本插件内 `id`、标题、QML 相对路径和共用图标名；路由为 `plugin:插件ID/页面ID` |
+| `pages` | 最多 8 个页面，每项有本插件内 `id`、标题、QML 相对路径和可选 `icon`；图标为共用图标名或包内 SVG / PNG 路径，详见下方页面图标约定；路由为 `plugin:插件ID/页面ID` |
 | `background` | 后台 QML `file`、原生后台 `native: true`，或二者组合；首次安装不自动运行 |
 | `windows` / `commands` | 最多 8 个托管窗口、32 个插件内部命令，详见运行时文档 |
 | `resources` | 打包时额外收集的资源文件或目录，例如 `ui`、`driver`；QML 使用到的辅助组件和图片目录也应列入 |
@@ -65,6 +65,8 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 
 现有小叽、DD 的系统检测及安装/修复仍保留宿主兼容服务，卸载通过统一插件管理流程调用；它们的文件载荷已属于各自插件。第三方驱动不需要这些官方 ID 分支，使用公开输入、诊断文本和 `management` 接口。插件声明的包内管理工具优先于官方兼容处理，工具应只处理自己拥有的设备、服务及驱动包，不删除 Windows 自带或共用组件。
 
+小叽原生源码、驱动载荷与许可证只在 `plugins/driver-xiaoji/third_party/xiaoji/` 维护；插件、包内管理工具和宿主现有的小叽系统检测服务共用该插件定义的 `XiaoJiPluginNative` 静态库目标。安装组件构建脚本使用插件内的 `scripts/build-xiaoji-installer.ps1`。DD 运行库与 INF 只在 `plugins/driver-dd/driver/` 维护，根目录 `third_party/` 不再保留驱动副本。
+
 最小示例为 [native-driver](../sdk/examples/native-driver)。示例仅支持普通 Windows 键盘键，明确拒绝组合键和鼠标动作；正式提供方应实现自己的完整语义。官方后端在 `plugins/driver-dd/src/`、`plugins/driver-xiaoji/src/`、`plugins/driver-usb/src/`，其中 `NativeInput.hpp` 只用于 DLL 内部实现。目录与标识约定见 [项目目录](project-layout.md)。
 
 独立构建示例与打包：
@@ -80,6 +82,20 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 ## QML 页面
 
 参考 [status-page](../sdk/examples/status-page)，无需原生模块。根对象为可显示的 `Item` 或其派生组件，声明 `required property QtObject pluginApi`。可 `import XiaoJi.UI` 复用 `Theme`、`QuietCard`、`QuietLabel`、`ActionButton`、输入框及滚动条；首版 UI 模块仅承诺本版公开的组件和主题入口，不暴露宿主私有页面模型。
+
+插件页面与宿主页面同级显示在左侧导航，首次出现时追加到最下方，不再作为插件中心的子菜单。全部标签可拖动排序，宿主按稳定路由 ID 保存顺序；停用、卸载后保留该 ID 的位置，重新出现时恢复。交互和配置规则见 [左侧导航](ui-guidelines.md#左侧导航)。插件清单不控制宿主标签顺序。
+
+`pages[].icon` 只用于页面的左侧导航入口，需要插件声明 `pages` 和 `ui.page`；它不是插件包、驱动、后台或独立窗口的通用图标字段。同一插件的各页面可以分别指定图标。省略时使用 `puzzle`；内置图标名支持 `puzzle`、`keyboard`、`repeat`、`monitor`、`settings`、`info`、`bar-chart`、`music`，也可以填写相对于 `plugin.json` 所在目录的 SVG / PNG 文件路径：
+
+```json
+"pages": [
+  {"id": "main", "title": "运行面板", "file": "Main.qml", "icon": "icons/status.svg"}
+]
+```
+
+自带图标沿用宿主的导航尺寸、DPI 缩放、深浅色和选中颜色；宿主按透明度轮廓统一着色，不保留图片原色，建议使用单色 SVG 或透明背景 PNG。图标必须为插件版本目录内的实际文件，沿用包内路径与链接限制，不接受网络地址、绝对路径或目录外文件。显式填写的图标名、扩展名或文件路径无效时，宿主拒绝该清单并显示原因，不替换成拼图图标。
+
+`scripts/package-plugin.ps1` 自动收集 `pages[].icon` 引用的图标文件，无需再将同一文件写入 `resources`。使用 `xiaoji_add_plugin` 的原生插件应将图标所在目录传入 `RESOURCES`，确保构建输出包含图标，再从输出目录打包。状态面板和桌宠设置示例均附有独立 SVG；预览使用这些相同素材与正式图标提供器。
 
 | `pluginApi` 成员 | 内容 |
 | --- | --- |
@@ -106,6 +122,8 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 ## 安装与恢复
 
 应用目录下：`plugins/builtin/<id>/<version>/` 是预装载荷，`plugins/installed/<id>/<version>/` 是用户安装的独立版本，`plugin-data/<id>/` 为插件自有数据，`plugin-cache/` 为目录和暂存缓存。插件设置及版本选择记录在用户 `config.json`，不会随插件更新被覆盖。
+
+插件中心的发现列表和更新信息来自签名目录；进入页面自动异步刷新，已有数据先展示，网络结果返回后更新。刷新触发、请求合并和失败展示约定见 [联网与更新交互](release-process.md#联网与更新交互)。
 
 应用默认只部署 `xiaoji.driver.xiaoji`，内置视图仅包含小叽驱动；DD、USB 从插件中心按需下载，默认不安装，独立安装后可卸载。历史试用包遗留在 `plugins/builtin/` 的 DD、USB 不再作为有效预装来源自动加载；真实的 `plugins/installed/` 安装和用户设置继续保留。小叽可在详情中恢复随包版本，兼容性和有效策略仍然生效，涉及原生版本的恢复等待重启。
 

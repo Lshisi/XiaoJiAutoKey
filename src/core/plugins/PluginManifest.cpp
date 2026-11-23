@@ -158,14 +158,24 @@ bool parseManifest(const QJsonObject& object, const QString& directory, Manifest
         page.id = row.value(QStringLiteral("id")).toString();
         page.title = row.value(QStringLiteral("title")).toString().trimmed();
         page.file = row.value(QStringLiteral("file")).toString();
-        page.icon = row.value(QStringLiteral("icon")).toString(QStringLiteral("puzzle"));
-        static const QSet<QString> icons{QStringLiteral("puzzle"), QStringLiteral("keyboard"), QStringLiteral("repeat"),
-            QStringLiteral("monitor"), QStringLiteral("settings"), QStringLiteral("info"), QStringLiteral("bar-chart"), QStringLiteral("music")};
-        if (!icons.contains(page.icon)) page.icon = QStringLiteral("puzzle");
         if (!value.isObject() || !localId(page.id) || ids.contains(page.id) || page.title.isEmpty()
             || page.title.size() > 80 || !page.file.endsWith(QStringLiteral(".qml"), Qt::CaseInsensitive)
             || containedFile(directory, page.file).isEmpty())
             return fail(error, QStringLiteral("插件页面标识、名称或文件无效。"));
+        const auto icon = row.value(QStringLiteral("icon"));
+        if (!icon.isUndefined() && (!icon.isString() || icon.toString().isEmpty() || icon.toString().size() > 256))
+            return fail(error, QStringLiteral("插件页面图标声明无效：%1").arg(page.title));
+        page.icon = icon.toString(QStringLiteral("puzzle"));
+        static const QSet<QString> icons{QStringLiteral("puzzle"), QStringLiteral("keyboard"), QStringLiteral("repeat"),
+            QStringLiteral("monitor"), QStringLiteral("settings"), QStringLiteral("info"), QStringLiteral("bar-chart"), QStringLiteral("music")};
+        if (!icons.contains(page.icon)) {
+            if (!page.icon.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)
+                && !page.icon.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive))
+                return fail(error, QStringLiteral("插件页面图标须为内置图标名或包内 SVG、PNG 路径：%1").arg(page.title));
+            page.iconFile = containedFile(directory, page.icon);
+            if (page.iconFile.isEmpty())
+                return fail(error, QStringLiteral("插件页面图标文件缺失或路径无效：%1").arg(page.title));
+        }
         ids.insert(page.id);
         manifest.pages.push_back(page);
     }

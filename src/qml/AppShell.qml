@@ -32,14 +32,9 @@ Rectangle {
                     anchors.bottomMargin: 12
                     spacing: 2
                     FactionPicker { Layout.fillWidth: true; Layout.preferredHeight: 58; Layout.bottomMargin: 6; sidebar: true }
-                    QuietScrollView {
-                        id: navigationScroll
+                    SidebarNavigation {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        autoHideScrollBar: true
-                        contentWidth: availableWidth
-                        contentHeight: navigation.implicitHeight
-                        SidebarNavigation { id: navigation; width: navigationScroll.availableWidth }
                     }
                 }
             }

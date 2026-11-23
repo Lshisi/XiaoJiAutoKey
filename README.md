@@ -311,9 +311,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 │   ├── pico/               # 基于 Pico SDK + TinyUSB 的 USB 复合设备固件
 │   └── ch552/              # CH552 固件
 ├── third_party/
-│   ├── dd/                 # DD 驱动运行库（DD32.dll / DD64.dll）
-│   ├── xiaoji/             # 小叽驱动传输与管理源码、许可证及来源说明
-│   └── miniz/              # zip 解压库（更新功能使用）
+│   └── miniz/              # 宿主共用压缩库（更新、插件安装与分享数据）
 └── scripts/                # 构建、打包脚本与本地输入查看工具
 ```
 
@@ -330,9 +328,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps
 ## 开源协议
 
 - 本项目代码以 [GPL-3.0](./LICENSE) 协议开源
-- `third_party/xiaoji/`：派生自 [XiaojiDriver](https://github.com/ZyphrZero/XiaojiDriver) 与其上游 [HIDMaestro](https://github.com/hifihedgehog/HIDMaestro)，保留 [AGPL-3.0](third_party/xiaoji/LICENSE-AGPL-3.0) 与 [MIT 许可证及版权声明](third_party/xiaoji/LICENSE-HIDMaestro-MIT)；组合发布须提供相应源码并遵守许可证要求。
+- `plugins/driver-xiaoji/third_party/xiaoji/`：派生自 [XiaojiDriver](https://github.com/ZyphrZero/XiaojiDriver) 与其上游 [HIDMaestro](https://github.com/hifihedgehog/HIDMaestro)，保留 [AGPL-3.0](plugins/driver-xiaoji/third_party/xiaoji/LICENSE-AGPL-3.0) 与 [MIT 许可证及版权声明](plugins/driver-xiaoji/third_party/xiaoji/LICENSE-HIDMaestro-MIT)；组合发布须提供相应源码并遵守许可证要求。
 - `third_party/miniz/`：miniz，公有领域 / MIT
-- `third_party/dd/` 下的 DD 驱动运行库为第三方闭源组件，版权归其原作者所有，仅作为运行时依赖分发
+- `plugins/driver-dd/driver/` 下的 DD 驱动运行库为第三方闭源组件，版权归其原作者所有，仅作为运行时依赖分发
 
 ## 免责声明
 

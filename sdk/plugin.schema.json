@@ -74,7 +74,14 @@
           "id": {"$ref": "#/$defs/localId"},
           "title": {"type": "string", "minLength": 1, "maxLength": 80},
           "file": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.[qQ][mM][lL]$"}]},
-          "icon": {"type": "string", "description": "Shared framework icon; unsupported names fall back to puzzle."}
+          "icon": {
+            "default": "puzzle",
+            "description": "Page navigation icon only: a shared framework name or a contained SVG/PNG package path. File icons use their alpha channel and are tinted by the host theme.",
+            "oneOf": [
+              {"enum": ["puzzle", "keyboard", "repeat", "monitor", "settings", "info", "bar-chart", "music"]},
+              {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "\\.([sS][vV][gG]|[pP][nN][gG])$"}]}
+            ]
+          }
         }
       }
     },

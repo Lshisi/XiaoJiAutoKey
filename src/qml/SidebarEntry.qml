@@ -8,20 +8,20 @@ ActionButton {
     required property string pageId
     property string iconName: ""
     property bool selected: appView.currentPage === pageId
-    property bool nested: false
+    property bool dragging: false
     quiet: true
-    leftPadding: nested ? 10 : 8
+    leftPadding: 8
     rightPadding: 2
-    implicitHeight: Math.max(nested ? 32 : Theme.navItemHeight, contentItem.implicitHeight + topPadding + bottomPadding)
+    implicitHeight: Math.max(Theme.navItemHeight, contentItem.implicitHeight + topPadding + bottomPadding)
     onClicked: appView.selectPage(pageId)
     contentItem: RowLayout {
         spacing: 7
         QuietIcon {
             name: control.iconName
             color: control.selected ? Theme.accent : Theme.muted
-            pixelSize: control.nested ? 12 : Theme.navGlyphSize
-            Layout.preferredWidth: control.nested ? 12 : 20
-            Layout.preferredHeight: control.nested ? 12 : 20
+            pixelSize: Theme.navGlyphSize
+            Layout.preferredWidth: 20
+            Layout.preferredHeight: 20
         }
         QuietLabel {
             Layout.fillWidth: true
@@ -35,11 +35,11 @@ ActionButton {
     }
     background: Rectangle {
         radius: Theme.buttonRadius
-        color: control.selected || control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : "transparent"
+        color: control.selected || control.down || control.dragging ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : "transparent"
         border.width: control.visualFocus ? 2 : 0
         border.color: Theme.accent
         Rectangle {
-            visible: control.selected && !control.nested
+            visible: control.selected
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             width: 3
@@ -48,5 +48,6 @@ ActionButton {
             color: Theme.accent
         }
     }
-    hint: text
+    hint: qsTr("%1；拖动排序，或按 Alt+↑/↓ 调整位置").arg(text)
+    toolTipHovered: hovered && !dragging
 }

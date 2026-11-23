@@ -10,7 +10,7 @@
   "platforms": ["windows-x64"],
   "permissions": ["ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own"],
   "background": {"file": "Background.qml"},
-  "pages": [{"id": "settings", "title": "桌宠设置", "file": "Main.qml", "icon": "puzzle"}],
+  "pages": [{"id": "settings", "title": "桌宠设置", "file": "Main.qml", "icon": "icons/pet.svg"}],
   "windows": [{"id": "pet", "title": "桌宠", "file": "Pet.qml", "width": 220, "height": 200, "transparent": true, "frameless": true, "topmost": true}],
   "commands": [
     {"id": "snapshot", "title": "查询桌宠状态"},

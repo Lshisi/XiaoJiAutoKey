@@ -1,4 +1,5 @@
 #include "PreviewController.h"
+#include "ui/components/QmlIconProvider.h"
 #include <QUrl>
 #include <QTimer>
 
@@ -117,7 +118,9 @@ void PreviewController::refreshPreviewPlugins() {
         if (row.value("hasPage").toBool()) {
             const bool pet = row.value("id").toString() == QStringLiteral("example.desktop-pet");
             pages.append(QVariantMap{{"id", QStringLiteral("plugin:") + row.value("id").toString() + (pet ? QStringLiteral("/settings") : QStringLiteral("/main"))},
-                {"pluginId", row.value("id")}, {"title", pet ? tr("桌宠设置") : tr("运行面板")}, {"icon", "puzzle"},
+                {"pluginId", row.value("id")}, {"title", pet ? tr("桌宠设置") : tr("运行面板")},
+                {"icon", QmlIconProvider::pageIconName(pet ? QStringLiteral(":/plugin-examples/desktop-pet/icons/pet.svg")
+                    : QStringLiteral(":/plugin-examples/status/icons/status.svg"))},
                 {"source", QUrl(pet ? QStringLiteral("qrc:/plugin-examples/desktop-pet/Main.qml") : QStringLiteral("qrc:/plugin-examples/status/Main.qml"))}});
         }
         if (row.value("hasDriver").toBool()) providers.append(QVariantMap{{"id", row.value("id").toString() + QStringLiteral("/default")}, {"name", row.value("name")}});
@@ -142,7 +145,7 @@ void PreviewController::refreshPreviewPlugins() {
         item = row;
     }
     pluginCenter_.setRegistryConfigured(true);
-    pluginCenter_.setSnapshot(previewPlugins_, demoData_ ? discover : QVariantList{}, pages, pluginNavigationExpanded_);
+    pluginCenter_.setSnapshot(previewPlugins_, demoData_ ? discover : QVariantList{}, pages);
     driverPage_.setProviders(providers, ids[static_cast<int>(driverMode_)] + QStringLiteral("/default"));
     refreshDriver();
     pluginContext_.activate();
@@ -152,6 +155,17 @@ void PreviewController::refreshPreviewPlugins() {
 
 void PreviewController::handlePluginAction(const QString& action, const QString& id, const QVariant& value) {
     if (action == QStringLiteral("dialog")) return;
+    if (action == QStringLiteral("refresh")) {
+        if (pluginCenter_.state().value("catalogRefreshing").toBool()) return;
+        pluginCenter_.setCatalogRefreshState(true);
+        pluginCenter_.setStatus(tr("正在刷新插件列表…"), true);
+        QTimer::singleShot(350, this, [this] {
+            refreshPreviewPlugins();
+            pluginCenter_.setCatalogRefreshState(false);
+            pluginCenter_.setStatus(tr("插件列表已刷新（示例），未发起网络请求。"));
+        });
+        return;
+    }
     if (id == QStringLiteral("example.desktop-pet") && petRuntime_) {
         if (action == QStringLiteral("background")) {
             if (value.toBool()) petRuntime_->startBackground(); else petRuntime_->stopBackground();
@@ -165,8 +179,7 @@ void PreviewController::handlePluginAction(const QString& action, const QString&
         }
         if (action == QStringLiteral("command")) { petContext_.request(value.toString(), {}); return; }
     }
-    if (action == QStringLiteral("expanded")) pluginNavigationExpanded_ = value.toBool();
-    else if (action == QStringLiteral("enable") || action == QStringLiteral("update")) {
+    if (action == QStringLiteral("enable") || action == QStringLiteral("update")) {
         for (auto& item : previewPlugins_) {
             auto row = item.toMap();
             if (row.value("id").toString() != id) continue;
@@ -180,8 +193,6 @@ void PreviewController::handlePluginAction(const QString& action, const QString&
             item = row;
         }
     } else if (action == QStringLiteral("open")) {
-        pluginNavigationExpanded_ = true;
-        refreshPreviewPlugins();
         navigate(QStringLiteral("plugin:") + id + (id == QStringLiteral("example.desktop-pet") ? QStringLiteral("/settings") : QStringLiteral("/main")));
         return;
     } else if (action == QStringLiteral("remove")) {

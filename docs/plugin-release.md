@@ -16,7 +16,7 @@ SDK、三个官方插件和目录服务均在现有主仓库，GitHub 为 `Lshis
 
 已发布插件附件不可覆盖。若 GitHub 发布成功、Gitee 失败，用 [Retry Gitee plugin mirror](../.github/workflows/plugin-mirror.yml) 手动填写同一个 tag，直接下载 GitHub 已发布附件补镜像；不重新构建或重打包。相同内容可幂等补传，不同内容拒绝覆盖。
 
-也可以自行构建后使用 `scripts/package-plugin.ps1`。例如，显式构建 `XiaoJiPluginDDPackage` 后，从 `build-qt6/plugins/driver-dd/Release/` 打包，`-PackageName XiaoJiPluginDD`。主程序默认构建不再依赖 DD、USB；两者保留独立构建和发行目标。脚本只收集清单、原生模块、页面、后台 QML、窗口入口、声明的资源、管理工具和许可证，不重新编译或执行插件。
+也可以自行构建后使用 `scripts/package-plugin.ps1`。例如，显式构建 `XiaoJiPluginDDPackage` 后，从 `build-qt6/plugins/driver-dd/Release/` 打包，`-PackageName XiaoJiPluginDD`。主程序默认构建不再依赖 DD、USB；两者保留独立构建和发行目标。脚本只收集清单、原生模块、页面及其图标文件、后台 QML、窗口入口、声明的资源、管理工具和许可证，不重新编译或执行插件。页面图标由 `pages[].icon` 声明；收录时与宿主一致校验内置名称或包内 SVG / PNG 文件，具体规则见 [插件页面](plugin-development.md#qml-页面)。
 
 后台和独立窗口仍使用同一套发布与审核流程，不单独建发布平台。清单声明和 SDK 桌宠/原生后台示例见 [插件运行时](plugin-runtime.md)；纯 QML 版本之间一起替换页面、后台和窗口，新旧任一版本包含原生模块或进程仍保留已加载模块时整体等待重启。
 
@@ -101,4 +101,4 @@ Gitee 的公开搜索和 GitHub topic API 不同，不能假设 `topic:` 查询�
 
 ## 用户运行核对事项
 
-源码完成不代表可发布。用户自行构建与确认：旧配置迁移、三种官方输出与原有按键语义、新驱动和页面接入、折叠菜单、未审核安装、独立更新与回退、离线缓存、策略变更、深浅色及各 DPI、完整应用升级后配置与插件数据保留。开发过程中不编写测试类或自行运行验证。
+源码完成不代表可发布。用户自行构建与确认：旧配置迁移、三种官方输出与原有按键语义、新驱动和页面接入、同级导航与拖动排序保存、未审核安装、独立更新与回退、离线缓存、策略变更、深浅色及各 DPI、完整应用升级后配置与插件数据保留。开发过程中不编写测试类或自行运行验证。

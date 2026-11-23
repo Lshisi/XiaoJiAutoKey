@@ -25,6 +25,8 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     ${PROJECT_ROOT}/src/ui/models/PageModel.h
     ${PROJECT_ROOT}/src/ui/models/PluginCenterModel.h
     ${PROJECT_ROOT}/src/ui/models/PluginCenterModel.cpp
+    ${PROJECT_ROOT}/src/ui/models/SidebarModel.h
+    ${PROJECT_ROOT}/src/ui/models/SidebarModel.cpp
     ${PROJECT_ROOT}/src/ui/components/PluginPageContext.h
     ${PROJECT_ROOT}/src/ui/components/PluginPageContext.cpp
     ${PROJECT_ROOT}/src/ui/components/PluginPageHost.h
@@ -102,16 +104,20 @@ qt_add_resources(XiaoJiPreview preview_assets
     PREFIX "/" BASE "${PROJECT_ROOT}"
     FILES "${PROJECT_ROOT}/assets/icon.png" "${PROJECT_ROOT}/assets/icon-active.png" ${FACTION_ICONS} ${CONTROL_ICONS}
 )
-set_source_files_properties("${PROJECT_ROOT}/sdk/examples/status-page/Main.qml" PROPERTIES QT_RESOURCE_ALIAS "status/Main.qml")
+foreach(status_file Main.qml icons/status.svg)
+    set_source_files_properties("${PROJECT_ROOT}/sdk/examples/status-page/${status_file}" PROPERTIES QT_RESOURCE_ALIAS "status/${status_file}")
+endforeach()
 qt_add_resources(XiaoJiPreview preview_plugin_example PREFIX /plugin-examples
-    FILES "${PROJECT_ROOT}/sdk/examples/status-page/Main.qml")
-foreach(pet_file Main.qml Background.qml Pet.qml)
+    FILES "${PROJECT_ROOT}/sdk/examples/status-page/Main.qml"
+          "${PROJECT_ROOT}/sdk/examples/status-page/icons/status.svg")
+foreach(pet_file Main.qml Background.qml Pet.qml icons/pet.svg)
     set_source_files_properties("${PROJECT_ROOT}/sdk/examples/desktop-pet/${pet_file}" PROPERTIES QT_RESOURCE_ALIAS "desktop-pet/${pet_file}")
 endforeach()
 qt_add_resources(XiaoJiPreview preview_pet_example PREFIX /plugin-examples
     FILES "${PROJECT_ROOT}/sdk/examples/desktop-pet/Main.qml"
           "${PROJECT_ROOT}/sdk/examples/desktop-pet/Background.qml"
-          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Pet.qml")
+          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Pet.qml"
+          "${PROJECT_ROOT}/sdk/examples/desktop-pet/icons/pet.svg")
 qt_add_shaders(XiaoJiPreview preview_shaders
     PREFIX /shaders BASE "${PROJECT_ROOT}/src/qml/shaders"
     FILES "${PROJECT_ROOT}/src/qml/shaders/glass-refract.frag"

@@ -22,6 +22,7 @@ struct PageContribution {
     QString title;
     QString file;
     QString icon;
+    QString iconFile;
 };
 
 struct ManagementCommand {

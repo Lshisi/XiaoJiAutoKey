@@ -12,6 +12,8 @@ SDK 位于主仓库 `sdk/`，官方驱动位于 `plugins/driver-xiaoji/`、`plug
 
 插件包根目录必须有 `plugin.json`。`schemaVersion` 为 1，`id` 唯一，`version` 为正式语义版本，`apiVersion` 为 1，`minHostVersion` 声明最低宿主版本。`native` 是相对包目录的 DLL 路径，`drivers` 声明提供方，`pages` 声明页面；`background` 声明 QML / 原生后台，`windows` 声明托管窗口，`commands` 声明插件内部命令。
 
+仅页面入口支持 `pages[].icon`，可填写宿主共用图标名，或包内 SVG / PNG 相对路径，例如 `icons/status.svg`。宿主按透明度轮廓统一着色，打包脚本自动收集引用文件；声明和素材要求见 [QML 页面](../docs/plugin-development.md#qml-页面)。
+
 审核、官方身份、上下架和禁用策略来自平台目录，不能写进插件清单自行授予。审核绑定版本与包哈希，新版本默认为未审核。
 
 完整规范见 [plugin.schema.json](plugin.schema.json)、[开发文档](../docs/plugin-development.md)、[后台、窗口与通信](../docs/plugin-runtime.md) 和 [发布文档](../docs/plugin-release.md)。示例包括 `examples/status-page/`、`native-driver/`、`desktop-pet/` 和 `native-service/`。

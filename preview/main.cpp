@@ -23,6 +23,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty(QStringLiteral("usagePageModel"), controller.usagePage());
     engine.rootContext()->setContextProperty(QStringLiteral("driverPageModel"), controller.driverPage());
     engine.rootContext()->setContextProperty(QStringLiteral("pluginCenterModel"), controller.pluginCenter());
+    engine.rootContext()->setContextProperty(QStringLiteral("sidebarModel"), controller.sidebar());
     engine.rootContext()->setContextProperty(QStringLiteral("settingsPageModel"), controller.settingsPage());
     engine.rootContext()->setContextProperty(QStringLiteral("aboutPageModel"), controller.aboutPage());
     engine.rootContext()->setContextProperty(QStringLiteral("shareBannerModel"), controller.shareBanner());

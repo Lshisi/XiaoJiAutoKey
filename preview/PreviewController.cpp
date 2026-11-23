@@ -38,6 +38,9 @@ PreviewController::PreviewController(QObject* parent)
     connect(&settingsPage_, &SettingsPageModel::autoStartToggled, &settingsPage_, &SettingsPageModel::setAutoStartEnabled);
     connect(&settingsPage_, &SettingsPageModel::automaticUpdateChecksToggled, &settingsPage_, &SettingsPageModel::setAutomaticUpdateChecks);
     connect(&pluginCenter_, &PluginCenterModel::actionRequested, this, &PreviewController::handlePluginAction);
+    connect(&pluginCenter_, &PageModel::stateChanged, this, [this] {
+        sidebar_.setPluginPages(pluginCenter_.state().value("pages").toList());
+    });
     pluginCenter_.setPageContextProvider([this](const QString& id) -> QObject* {
         const auto descriptor = pluginCenter_.page(id);
         if (descriptor.isEmpty()) return nullptr;
@@ -192,10 +195,6 @@ void PreviewController::setDemoData(bool enabled) {
 
 void PreviewController::navigate(const QString& page) {
     if (currentPage_ == page) return;
-    if (page.startsWith(QStringLiteral("plugin:")) && !pluginNavigationExpanded_) {
-        pluginNavigationExpanded_ = true;
-        refreshPreviewPlugins();
-    }
     currentPage_ = page;
     emit currentPageChanged();
 }

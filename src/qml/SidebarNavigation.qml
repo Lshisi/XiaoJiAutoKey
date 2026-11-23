@@ -1,82 +1,145 @@
 import QtQuick
-import QtQuick.Layouts
+import QtQuick.Controls
 import XiaoJi.UI
 
-ColumnLayout {
+ListView {
     id: navigation
-    readonly property var pluginState: pluginCenterModel.state
-    readonly property bool inPluginPage: appView.currentPage.indexOf("plugin:") === 0
+    property Item draggedEntry: null
+    property real dragStartContentY: 0
+    property real dragPointerX: 0
+    property real dragPointerY: 0
+    property int dropIndex: -1
+    model: sidebarModel
     spacing: 2
-    Repeater {
-        model: [
-            { page: "keys", title: qsTr("按键连发"), icon: "keyboard" },
-            { page: "macro", title: qsTr("循环连发"), icon: "repeat" },
-            { page: "usage", title: qsTr("使用统计"), icon: "bar-chart" },
-            { page: "driver", title: qsTr("驱动管理"), icon: "monitor" }
-        ]
-        delegate: SidebarEntry {
-            required property var modelData
-            Layout.fillWidth: true
-            Layout.leftMargin: 6
-            Layout.rightMargin: 6
-            pageId: modelData.page
-            text: modelData.title
-            iconName: modelData.icon
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    interactive: !draggedEntry
+    onCountChanged: Qt.callLater(navigation.revealCurrentPage)
+    ScrollBar.vertical: QuietScrollBar { autoHide: true }
+
+    function revealCurrentPage() {
+        currentIndex = sidebarModel.indexOfPage(appView.currentPage)
+        if (currentIndex >= 0)
+            positionViewAtIndex(currentIndex, ListView.Contain)
+    }
+
+    function updateDropIndex() {
+        if (!draggedEntry || dragPointerX < 0 || dragPointerX > width
+                || dragPointerY < 0 || dragPointerY > height) {
+            dropIndex = -1
+            return
+        }
+        const rowSize = draggedEntry.height + spacing
+        const startY = draggedEntry.y - draggedEntry.index * rowSize
+        dropIndex = Math.max(0, Math.min(count - 1, Math.floor((contentY + dragPointerY - startY) / rowSize)))
+    }
+
+    function updateDragPosition(scenePosition) {
+        const position = mapFromItem(null, scenePosition.x, scenePosition.y)
+        dragPointerX = position.x
+        dragPointerY = position.y
+        updateDropIndex()
+    }
+
+    Connections {
+        target: appView
+        function onCurrentPageChanged() { Qt.callLater(navigation.revealCurrentPage) }
+    }
+
+    Connections {
+        target: sidebarModel
+        function onModelAboutToBeReset() {
+            navigation.draggedEntry = null
+            navigation.dropIndex = -1
         }
     }
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.leftMargin: 6
-        Layout.rightMargin: 6
-        spacing: 0
-        SidebarEntry {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            pageId: "plugins"
-            text: qsTr("插件中心")
-            iconName: "puzzle"
-            selected: appView.currentPage === "plugins" || (navigation.inPluginPage && !navigation.pluginState.expanded)
-        }
-        IconButton {
-            visible: navigation.pluginState.pages.length > 0
-            compact: true
-            iconName: "chevron-down"
-            rotation: navigation.pluginState.expanded ? 0 : -90
-            hint: navigation.pluginState.expanded ? qsTr("收起插件页面") : qsTr("展开插件页面")
-            onClicked: pluginCenterModel.dispatch("expanded", "", !navigation.pluginState.expanded)
+
+    Timer {
+        interval: 16
+        repeat: true
+        running: navigation.visible && navigation.draggedEntry !== null && Qt.application.state === Qt.ApplicationActive
+        onTriggered: {
+            if (navigation.dragPointerX < 0 || navigation.dragPointerX > navigation.width
+                    || navigation.dragPointerY < 0 || navigation.dragPointerY > navigation.height) return
+            const edge = Math.min(32, navigation.height / 4)
+            const step = navigation.dragPointerY < edge ? -6
+                : navigation.dragPointerY > navigation.height - edge ? 6 : 0
+            if (!step) return
+            navigation.contentY = Math.max(navigation.originY,
+                Math.min(navigation.originY + Math.max(0, navigation.contentHeight - navigation.height), navigation.contentY + step))
+            navigation.updateDropIndex()
         }
     }
-    ColumnLayout {
-        visible: navigation.pluginState.expanded && navigation.pluginState.pages.length > 0
-        Layout.fillWidth: true
-        Layout.leftMargin: 18
-        Layout.rightMargin: 6
-        spacing: 2
-        Repeater {
-            model: navigation.pluginState.pages
-            delegate: SidebarEntry {
-                required property var modelData
-                Layout.fillWidth: true
-                pageId: modelData.id
-                text: modelData.title
-                iconName: modelData.icon
-                nested: true
+
+    delegate: SidebarEntry {
+        id: entry
+        required property var model
+        required property int index
+        property real dragOffset: 0
+        x: 6
+        width: navigation.width - 12
+        pageId: model.pageId
+        text: model.title
+        iconName: model.icon
+        dragging: dragHandler.active
+        z: dragging ? 2 : 0
+        transform: Translate {
+            y: entry.dragging ? entry.dragOffset + navigation.contentY - navigation.dragStartContentY : 0
+        }
+        Keys.onPressed: event => {
+            if (!(event.modifiers & Qt.AltModifier)) return
+            const offset = event.key === Qt.Key_Up ? -1 : event.key === Qt.Key_Down ? 1 : 0
+            if (!offset) return
+            const targetIndex = Math.max(0, Math.min(navigation.count - 1, entry.index + offset))
+            sidebarModel.movePage(entry.pageId, targetIndex)
+            navigation.currentIndex = targetIndex
+            navigation.positionViewAtIndex(targetIndex, ListView.Contain)
+            event.accepted = true
+        }
+        Rectangle {
+            visible: navigation.draggedEntry !== null && navigation.draggedEntry !== entry
+                && navigation.dropIndex === entry.index
+            anchors.left: parent.left
+            anchors.right: parent.right
+            y: navigation.draggedEntry && entry.index > navigation.draggedEntry.index ? entry.height : -height
+            height: 2
+            radius: 1
+            color: Theme.accent
+        }
+        DragHandler {
+            id: dragHandler
+            target: null
+            xAxis.enabled: false
+            grabPermissions: PointerHandler.CanTakeOverFromAnything
+            onActiveTranslationChanged: {
+                if (!active) return
+                entry.dragOffset = activeTranslation.y
             }
-        }
-    }
-    Repeater {
-        model: [
-            { page: "settings", title: qsTr("全局设置"), icon: "settings" },
-            { page: "about", title: qsTr("关于软件"), icon: "info" }
-        ]
-        delegate: SidebarEntry {
-            required property var modelData
-            Layout.fillWidth: true
-            Layout.leftMargin: 6
-            Layout.rightMargin: 6
-            pageId: modelData.page
-            text: modelData.title
-            iconName: modelData.icon
+            onCentroidChanged: {
+                if (active) navigation.updateDragPosition(centroid.scenePosition)
+            }
+            onActiveChanged: {
+                if (active) {
+                    entry.forceActiveFocus()
+                    navigation.currentIndex = entry.index
+                    entry.dragOffset = 0
+                    navigation.dragStartContentY = navigation.contentY
+                    navigation.draggedEntry = entry
+                    navigation.updateDragPosition(centroid.scenePosition)
+                }
+            }
+            onGrabChanged: (transition, point) => {
+                if (navigation.draggedEntry !== entry
+                        || (transition !== PointerDevice.UngrabExclusive && transition !== PointerDevice.CancelGrabExclusive)) return
+                if (transition === PointerDevice.UngrabExclusive)
+                    navigation.updateDragPosition(point.scenePosition)
+                const targetIndex = navigation.dropIndex
+                navigation.draggedEntry = null
+                navigation.dropIndex = -1
+                entry.dragOffset = 0
+                if (transition === PointerDevice.UngrabExclusive)
+                    sidebarModel.movePage(entry.pageId, targetIndex)
+            }
         }
     }
 }

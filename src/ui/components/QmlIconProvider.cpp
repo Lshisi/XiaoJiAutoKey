@@ -1,6 +1,7 @@
 #include "QmlIconProvider.h"
 
 #include <QColor>
+#include <QImageReader>
 #include <QPainter>
 #include <QSvgRenderer>
 #include <QDebug>
@@ -67,6 +68,11 @@ QImage NativeWindowIcon(const QString& id) {
 
 QmlIconProvider::QmlIconProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
+QString QmlIconProvider::pageIconName(const QString& file) {
+    return QStringLiteral("plugin-pages/")
+        + QString::fromLatin1(file.toUtf8().toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+}
+
 QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize& requestedSize) {
     if (id.startsWith(QStringLiteral("windows/"))) {
         QImage image;
@@ -77,23 +83,62 @@ QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize
         return !image.isNull() && requestedSize.isValid()
             ? image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation) : image;
     }
-    const QString path = id.section('/', 0, -2);
+    QString path = id.section('/', 0, -2);
     const QColor color(QStringLiteral("#") + id.section('/', -1));
-    QSvgRenderer renderer(QStringLiteral(":/assets/%1").arg(path));
-    if (!renderer.isValid() || !color.isValid()) {
+    if (path.startsWith(QStringLiteral("plugin-pages/"))) {
+        const auto decoded = QByteArray::fromBase64Encoding(path.section('/', 1).toLatin1(),
+            QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
+        if (!decoded) {
+            qWarning() << "Invalid plugin page icon:" << id;
+            return {};
+        }
+        path = QString::fromUtf8(decoded.decoded);
+    } else {
+        path = QStringLiteral(":/assets/%1").arg(path);
+    }
+    if (!color.isValid()) {
         qWarning() << "Invalid QML icon:" << id;
         return {};
     }
-    const QSize intrinsicSize = renderer.defaultSize();
+    QSvgRenderer renderer;
+    QImageReader pngReader;
+    QSize intrinsicSize;
+    const bool png = path.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive);
+    if (png) {
+        pngReader.setFileName(path);
+        pngReader.setFormat(QByteArrayLiteral("png"));
+        intrinsicSize = pngReader.size();
+    } else if (path.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive) && renderer.load(path)) {
+        intrinsicSize = renderer.defaultSize();
+    }
+    if (!intrinsicSize.isValid() || intrinsicSize.isEmpty()) {
+        qWarning() << "Invalid QML icon file:" << path;
+        return {};
+    }
     if (size) *size = intrinsicSize;
     const QSize imageSize = requestedSize.isValid() ? requestedSize : intrinsicSize;
-    // Supersample small SVG strokes even on screens with a device pixel ratio of 1.
+    QImage raster;
+    if (png) {
+        pngReader.setScaledSize(intrinsicSize.scaled(imageSize * 2, Qt::KeepAspectRatio));
+        raster = pngReader.read();
+        if (raster.isNull()) {
+            qWarning() << "Invalid plugin page PNG:" << path << pngReader.errorString();
+            return {};
+        }
+    }
+    // Supersample small icon strokes even on screens with a device pixel ratio of 1.
     QImage image(imageSize * 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     {
         QPainter painter(&image);
         painter.setRenderHint(QPainter::Antialiasing);
-        renderer.render(&painter);
+        if (png) {
+            const QSize rasterSize = raster.size();
+            painter.drawImage(QPoint((image.width() - rasterSize.width()) / 2,
+                (image.height() - rasterSize.height()) / 2), raster);
+        } else {
+            renderer.render(&painter);
+        }
         painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
         painter.fillRect(image.rect(), color);
     }

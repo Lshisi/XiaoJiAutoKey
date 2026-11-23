@@ -23,6 +23,7 @@ set(MOC_HEADERS
     include/app/services/PluginNativeBackend.h
     include/core/plugins/NativePluginModule.h
     src/ui/models/PluginCenterModel.h
+    src/ui/models/SidebarModel.h
     src/ui/components/PluginPageContext.h
     src/ui/components/PluginPageHost.h
     src/ui/components/PluginRuntime.h
@@ -80,18 +81,6 @@ set(MOC_HEADERS
 
 set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
 
-add_library(XiaojiNative STATIC third_party/xiaoji/xiaoji_native.cpp)
-target_include_directories(XiaojiNative PUBLIC "${CMAKE_SOURCE_DIR}/third_party/xiaoji")
-target_link_libraries(XiaojiNative PUBLIC setupapi cfgmgr32 newdev advapi32 shell32 ole32)
-foreach(xiaoji_target XiaojiNative)
-    set_target_properties(${xiaoji_target} PROPERTIES AUTOMOC OFF AUTORCC OFF)
-    target_compile_definitions(${xiaoji_target} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-    if(MSVC)
-        target_compile_options(${xiaoji_target} PRIVATE /utf-8 /W4 /permissive-)
-        set_property(TARGET ${xiaoji_target} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    endif()
-endforeach()
-
 set(CORE_SOURCES
     src/core/plugins/PluginManifest.cpp
     src/core/plugins/NativePluginDriver.cpp
@@ -130,6 +119,7 @@ set(UI_COMPONENT_SOURCES
 
 set(UI_MODEL_SOURCES
     src/ui/models/PluginCenterModel.cpp
+    src/ui/models/SidebarModel.cpp
     src/ui/models/GameProcessData.cpp
     src/ui/models/KeyOverviewData.cpp
     src/ui/models/KeyPageModel.cpp
@@ -443,7 +433,7 @@ target_compile_definitions(XiaoJiAutoKey PRIVATE
 
 target_link_libraries(XiaoJiAutoKey PRIVATE
     XiaoJi::PluginSDK
-    XiaojiNative
+    XiaoJiPluginNative
     Qt6::Widgets
     Qt6::Network
     Qt6::Svg

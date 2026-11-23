@@ -97,6 +97,8 @@ private:
     void download(const QString& url, qsizetype maximum, std::function<void(const QByteArray&)> completed,
         std::function<void(const QString&)> failed = {});
     void tryCatalogSources(QStringList sources, const QByteArray& key, const QString& primary, const QString& lastError = {});
+    void refreshPendingCatalog();
+    void finishCatalogRefresh(const QString& error = {});
     void downloadPackage(QStringList sources, const QString& id, const QString& hash, const QString& lastError = {});
     void stage(const QByteArray& zip, const QString& source, const QString& expectedId = {}, const QString& expectedHash = {});
     void installStaged(const QString& directory, const QString& hash, const Manifest& manifest, const QString& source);
@@ -143,6 +145,8 @@ private:
     QString healthFailure_;
     bool recoveryMode_ = false;
     bool hostBusy_ = false;
+    bool catalogRefreshing_ = false;
+    bool catalogRefreshPending_ = false;
     bool deviceChangePending_ = false;
     std::function<bool()> configWriter_;
     std::function<DriverRemoval(const QString&)> driverRemovalProvider_;

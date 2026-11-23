@@ -10,6 +10,7 @@ Windows / C++ / Qt QML 项目。宿主提供框架和输入引擎，插件扩展
 - 界面沿用现有布局、主题、共用控件和资源；正式页面与预览共用实现，相关改动同步预览适配。
 - 处理 QML 源码前读取项目技能 [.agents/skills/qt-qml/SKILL.md](.agents/skills/qt-qml/SKILL.md)，以用户要求和本项目规则为优先。
 - 变更同步相关专题文档。源码完成、静态核对、编译通过和运行验证分别说明，未执行的动作不能标记为通过。
+- 修改按键引擎、宏、冲突规则或已有回归场景时，遵守[引擎自动化维护契约](docs/engine-verification.md#维护契约)，保留稳定场景 ID 和覆盖约定；执行验证须另有用户明确授权。
 
 ## 按需读取
 
@@ -30,6 +31,7 @@ Windows / C++ / Qt QML 项目。宿主提供框架和输入引擎，插件扩展
 | 插件常驻后台、独立窗口、页面与后台通信 | [插件运行时](docs/plugin-runtime.md) |
 | 插件发版、收录、审核、签名及策略 | [插件发布](docs/plugin-release.md) |
 | 按键模式、并发、组合键与冲突 | [按键规则](docs/key-mode-rules.md) |
+| 引擎自动化维护契约、场景覆盖与显式验证 | [引擎自动化回归](docs/engine-verification.md) |
 | 提示音配置、文件与事件 | [提示音](docs/sound-cues.md) |
 | 本地输入查看工具 | [输入查看](docs/input-viewer.md) |
 

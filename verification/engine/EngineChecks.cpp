@@ -5,13 +5,13 @@
 #include <QDateTime>
 #include <QStringList>
 #include <QSaveFile>
+#include <QCryptographicHash>
 #include <set>
 #include "ConfigStore.h"
-#include "DdDriver.h"
 #include "InputDriverRouter.h"
 #include "MacroEngine.h"
 #include "RepeaterEngine.h"
-#include "XiaojiDriver.h"
+#include "core/plugins/NativePluginDriver.h"
 #include "coordinators/EngineHookCoordinator.h"
 #include "dialogs/AppMessageDialog.h"
 #include "input/GlobalInputHook.h"
@@ -519,8 +519,8 @@ int main(int argc,char** argv) {
         }
     }
     RecordingDriver recorded;
-    std::unique_ptr<DdDriver> dd;
-    std::unique_ptr<XiaojiDriver> xiaoji;
+    std::unique_ptr<Plugins::NativePluginDriver> plugin;
+    QJsonObject driverMetadata{{"group","infrastructure"}};
     backend=&recorded;
     InputDriverRouter selectedRouter; selectedRouter.SetDriver(backend); router=&selectedRouter;
     RepeaterEngine repeater(selectedRouter); MacroEngine macros(selectedRouter); repeat=&repeater; macro=&macros;
@@ -529,15 +529,53 @@ int main(int argc,char** argv) {
     try {
         if (!listOnly && driverName!="recording") {
             if (!IsUserAnAdmin()) blockedReason="Real-driver verification requires an administrator terminal; no elevation is attempted";
-            else if (driverName=="dd") {
-                if (!DdServicesRunning()) blockedReason="Existing DD keyboard/mouse services must already be running; installation is forbidden";
-                else {
-                    dd=std::make_unique<DdDriver>(); backend=dd.get();
-                    if (!dd->LoadLegacyFromDirectory(runtimeDir.wstring())) blockedReason=ToUtf8(dd->GetLastError());
-                }
+            else if (driverName=="dd" && !DdServicesRunning()) {
+                blockedReason="Existing DD keyboard/mouse services must already be running; installation is forbidden";
             } else {
-                xiaoji=std::make_unique<XiaojiDriver>(); backend=xiaoji.get();
-                if (!xiaoji->Connect()) blockedReason=ToUtf8(xiaoji->GetLastError());
+                Plugins::Manifest manifest;
+                QString error;
+                const auto manifestFile=QString::fromUtf8(driverName=="dd"
+                    ? XIAOJI_VERIFICATION_DD_MANIFEST : XIAOJI_VERIFICATION_XIAOJI_MANIFEST);
+                if (!Plugins::readManifest(manifestFile,&manifest,&error)) {
+                    blockedReason=error.toStdString();
+                } else {
+                    const path::path source(manifest.directory.toStdWString());
+                    const auto staged=outputDir/"plugin"/manifest.id.toStdString();
+                    path::create_directories(staged/"driver");
+                    const path::path native(manifest.native.toStdWString());
+                    path::copy_file(source/native,staged/native);
+                    if (driverName=="dd") {
+                        bool copied=false;
+                        for (auto name:{L"DD64.dll",L"DD32.dll"}) {
+                            auto library=runtimeDir/L"driver"/name;
+                            if (!path::is_regular_file(library)) library=runtimeDir/name;
+                            if (!path::is_regular_file(library)) continue;
+                            path::copy_file(library,staged/"driver"/name); copied=true;
+                        }
+                        if (!copied) blockedReason="No DD runtime DLL found in the selected runtime directory";
+                    } else {
+                        path::copy(source/"driver",staged/"driver",path::copy_options::recursive);
+                    }
+                    path::copy_file(path::path(manifestFile.toStdWString()),staged/"plugin.json");
+                    driverMetadata["pluginId"]=manifest.id;
+                    driverMetadata["pluginVersion"]=manifest.version;
+                    QFile binary(QString::fromStdWString((staged/native).wstring()));
+                    if (!binary.open(QIODevice::ReadOnly)) throw std::runtime_error("Cannot read staged plugin binary");
+                    driverMetadata["pluginSHA256"]=QString::fromLatin1(
+                        QCryptographicHash::hash(binary.readAll(),QCryptographicHash::Sha256).toHex());
+                    binary.close();
+                    manifest.directory=QString::fromStdWString(staged.wstring());
+                    if (blockedReason.empty()) {
+                        plugin=Plugins::NativePluginDriver::create(manifest,QStringLiteral("default"),
+                            QCoreApplication::applicationDirPath(),QString::fromStdWString((staged/"data").wstring()),&error);
+                        if (!plugin) blockedReason=error.isEmpty()?"Cannot create production driver plugin":error.toStdString();
+                        else if (!plugin->connect()) {
+                            blockedReason=ToUtf8(plugin->GetLastError());
+                            if (blockedReason.empty()) blockedReason="Production driver plugin connection failed";
+                        }
+                        if (blockedReason.empty()) backend=plugin.get();
+                    }
+                }
             }
             selectedRouter.SetDriver(backend);
         }
@@ -552,7 +590,7 @@ int main(int argc,char** argv) {
             repeater.StartThread(); macros.StartThread();
         }
         Case("driver-connect",driverName=="recording"?"Recording output adapter is ready":"Production driver connection",
-            []{Need(backend->IsReady(),"Selected output adapter is not ready");},{{"group","infrastructure"}});
+            []{Need(backend->IsReady(),"Selected output adapter is not ready");},driverMetadata);
         if (!args.isSet("catalog-only")) {
             config=ConfigStore(fixtures/"regressions.json").Load();
             if (config.profiles.size()!=35 || config.macros.size()!=6) throw std::runtime_error("Regression fixture missing or invalid");

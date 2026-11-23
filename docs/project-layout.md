@@ -11,7 +11,8 @@ xiao-ji-auto-key/
 ├── plugins/
 │   ├── driver-xiaoji/          小叽驱动插件、管理及签名组件
 │   ├── driver-dd/              DD 驱动插件、运行库与 INF
-│   └── driver-usb/             USB 驱动插件与固件资料
+│   ├── driver-usb/             USB 驱动插件与固件资料
+│   └── pet-xiaoji/             小叽桌宠插件预留目录、设计图与待办
 ├── registry/                  双平台自动发现、审核、上下架、禁用、签名及镜像发布
 ├── cmake/                     工程共用的 CMake 模块
 ├── scripts/                   构建、打包及维护脚本
@@ -21,6 +22,8 @@ xiao-ji-auto-key/
 ├── firmware/                  现有硬件固件资料
 └── docs/                      按需读取的需求、开发规范与操作说明
 ```
+
+桌宠插件目前只在 `plugins/pet-xiaoji/` 保存[设计与待办](../plugins/pet-xiaoji/TODO.md)，尚未实现或接入构建；后续独立分发，默认应用包不带桌宠。
 
 ## 源码命名
 

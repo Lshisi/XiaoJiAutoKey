@@ -299,67 +299,55 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     waiter_.Wake();
     const auto encoded = EncodeKey(key);
+    const auto released = [&key](const KeyDescriptor& binding) {
+        return KeyReleasedByEvent(binding, key);
+    };
+
+    if (sequenceSwitchKey_.has_value() && released(*sequenceSwitchKey_)) {
+        sequenceSwitchDown_ = false;
+    }
 
     if (IsKeyboardModifierKey(key)) {
         if (pauseModifierGate_.UsesHookModifierState(key)) {
             DiagLog::Write("pause modifier physical up code=" + std::to_string(key.code));
         }
-        const auto modifierMask = ModifierMaskFromKey(key);
-        const auto usesModifier = [modifierMask](const KeyDescriptor& item) {
-            return (item.modifiers & modifierMask) != 0;
-        };
-        const auto released = [&key, &usesModifier](const KeyDescriptor& item) {
-            return SamePrimaryKey(item, key) || usesModifier(item);
-        };
         std::erase_if(physicalDown_, released);
         std::erase_if(pauseKeysDown_, released);
         std::erase_if(holdPhysicalDown_, released);
         std::erase_if(independentDown_, released);
-        if (sequenceSwitchKey_.has_value() && usesModifier(*sequenceSwitchKey_)) {
-            sequenceSwitchDown_ = false;
-        }
         RefreshPhysicalHeldOutputLocked(key);
         SyncOutputsLocked();
         return;
     }
 
-    if (sequenceSwitchKey_.has_value() && SamePrimaryKey(*sequenceSwitchKey_, key)) {
-        sequenceSwitchDown_ = false;
-        return;
-    }
-
     // 暂停键追踪
-    std::erase_if(pauseKeysDown_, [&key](const KeyDescriptor& item) {
-        return SamePrimaryKey(item, key);
-    });
+    std::erase_if(pauseKeysDown_, released);
 
-    if (FindIndependentBinding(key)) {
+    // A release clears the original stroke even if its modifier snapshot changed.
+    if (std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& task) {
+            return task.config.enabled && task.config.mode == RepeatMode::Independent
+                && SamePrimaryKey(task.config.key, key);
+        })) {
         auto independentIgnoreIt = independentUpIgnoreCount_.find(encoded);
         if (independentIgnoreIt != independentUpIgnoreCount_.end() && independentIgnoreIt->second > 0) {
             --independentIgnoreIt->second;
             return;
         }
-        std::erase_if(independentDown_, [&key](const KeyDescriptor& item) {
-            return SamePrimaryKey(item, key);
-        });
-        std::erase_if(physicalDown_, [&key](const KeyDescriptor& item) {
-            return SamePrimaryKey(item, key);
-        });
-        SyncOutputsLocked();
-        return;
+        std::erase_if(independentDown_, released);
     }
 
     // ⭐ Hold模式key的独立追踪：用独立的KEYUP计数器过滤SendTap的KEYUP
-    if (IsHoldBinding(key)) {
+    if (std::any_of(tasks_.begin(), tasks_.end(), [&](const TaskRuntime& task) {
+            return task.config.enabled && task.config.mode == RepeatMode::Hold
+                && SamePrimaryKey(task.config.key, key);
+        })) {
         auto it = holdUpIgnoreCount_.find(encoded);
         if (it != holdUpIgnoreCount_.end() && it->second > 0) {
             --it->second;
             // SendTap产生的KEYUP，不移除
         } else {
             // 真实物理松开
-            std::erase_if(holdPhysicalDown_, [&key](const KeyDescriptor& item) {
-                return SamePrimaryKey(item, key);
-            });
+            std::erase_if(holdPhysicalDown_, released);
         }
     }
 
@@ -369,9 +357,7 @@ void RepeaterEngine::OnPhysicalUp(const KeyDescriptor& key) {
         --it->second;
         return;
     }
-    std::erase_if(physicalDown_, [&key](const KeyDescriptor& item) {
-        return SamePrimaryKey(item, key);
-    });
+    std::erase_if(physicalDown_, released);
     RefreshPhysicalHeldOutputLocked(key);
     SyncOutputsLocked();
 }
@@ -555,18 +541,24 @@ bool RepeaterEngine::HasSharedLongPressModifierLocked() const {
     });
 }
 
+bool RepeaterEngine::IsTaskSelectedLocked(const TaskRuntime& task) const {
+    if (!toolRunning_ || !task.config.enabled || !task.config.key.IsValid()) return false;
+    switch (task.config.mode) {
+    case RepeatMode::Hold:
+        return holdPhysicalDown_.count(task.config.key) > 0;
+    case RepeatMode::Independent:
+        return independentActiveKey_ && *independentActiveKey_ == task.config.key;
+    case RepeatMode::Sequence:
+        return sequenceActiveTaskId_ && *sequenceActiveTaskId_ == task.config.id;
+    default:
+        return true;
+    }
+}
+
 bool RepeaterEngine::IsTaskActiveLocked(const TaskRuntime& task,
     std::chrono::steady_clock::time_point now) const {
-    if (!toolRunning_ || suspended_.load() || !task.config.enabled || !task.config.key.IsValid()) return false;
-    if (task.config.mode == RepeatMode::Hold) {
-        if (holdPhysicalDown_.count(task.config.key) == 0) return false;
-    } else {
-        if (IsPausedByInputLocked()) return false;
-        if (task.config.mode == RepeatMode::Independent
-            && (!independentActiveKey_ || *independentActiveKey_ != task.config.key)) return false;
-        if (task.config.mode == RepeatMode::Sequence
-            && (!sequenceActiveTaskId_ || *sequenceActiveTaskId_ != task.config.id)) return false;
-    }
+    if (!IsTaskSelectedLocked(task) || suspended_.load()) return false;
+    if (task.config.mode != RepeatMode::Hold && IsPausedByInputLocked()) return false;
     return (task.config.mode != RepeatMode::LongPress && task.config.key.modifiers == 0
             && !HasSharedLongPressModifierLocked())
         || (!longPressForegroundInvalidated_.load() && longPressForegroundAllowed_ && now >= longPressResumeTime_);
@@ -722,15 +714,17 @@ bool RepeaterEngine::SyncEngineOutputsLocked() {
     for (const auto& task : tasks_) {
         const auto phase = task.martialAssist.phase;
         const bool closing = phase == AssistPhase::Closing;
-        if (closing || (phase == AssistPhase::GameRepeat && toolRunning_)) {
+
+        // Pausing releases output without changing the source's activation order.
+        const bool ownsAssist = !IsMartialAssistEnabledLocked(task)
+            || (phase != AssistPhase::ManualControl && phase != AssistPhase::CloseFailed);
+        if (closing || (IsTaskSelectedLocked(task) && ownsAssist)) {
             const auto encoded = EncodeKey(task.config.key);
             if (activeEncoded.insert(encoded).second) activeKeys.push_back(task.config.key);
-            continue;
         }
+        if (closing || (phase == AssistPhase::GameRepeat && toolRunning_)) continue;
         if (assistClosing || !IsTaskActiveLocked(task, now)) continue;
         if (IsMartialAssistEnabledLocked(task) && phase != AssistPhase::Holding) continue;
-        const auto encoded = EncodeKey(task.config.key);
-        if (activeEncoded.insert(encoded).second) activeKeys.push_back(task.config.key);
 
         const bool longPress = task.config.mode == RepeatMode::LongPress;
         const bool assistOutput = phase == AssistPhase::Holding;
@@ -880,7 +874,7 @@ void RepeaterEngine::RefreshPhysicalHeldOutputLocked(const KeyDescriptor& key) {
         }
     }
     for (std::size_t index = outputs_.size(); index > 0; --index) {
-        const auto& output = outputs_[index - 1];
+        const auto output = outputs_[index - 1];
         const bool affectedPrimary = modifier != 0 && std::any_of(tasks_.begin(), tasks_.end(), [&](const auto& task) {
             return (task.config.key.modifiers & modifier) != 0 && SamePrimaryKey(task.config.key, output.key);
         });

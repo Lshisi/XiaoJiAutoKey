@@ -319,15 +319,12 @@ LRESULT CALLBACK GlobalInputHook::KeyboardHookProc(int code, WPARAM wParam, LPAR
     if (hookOwnsModifier) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool isControlHotkey = controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, event);
-    if (!pressed && modifierEvent && controlHotkey.has_value()
-        && (controlHotkey->modifiers & ModifierMaskFromKey(key)) != 0) {
+    if (released && controlHotkey.has_value() && KeyReleasedByEvent(*controlHotkey, event)) {
         hook->controlHotkeyPressed_ = false;
     }
-    if (isControlHotkey) {
-        if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
+    if (pressed && isControlHotkey) {
+        if (!hook->controlHotkeyPressed_.exchange(true)) {
             postControlHotkeyEvent(hook);
-        } else if (released) {
-            hook->controlHotkeyPressed_ = false;
         }
     } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, event, pressed] {
@@ -458,11 +455,12 @@ LRESULT CALLBACK GlobalInputHook::MouseHookProc(int code, WPARAM wParam, LPARAM 
     if (hook->dialogOpen_.load()) return CallNextHookEx(nullptr, code, wParam, lParam);
 
     const bool isControlHotkey = controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, event);
-    if (isControlHotkey) {
-        if (pressed && !hook->controlHotkeyPressed_.exchange(true)) {
+    if (!pressed && controlHotkey.has_value() && KeyReleasedByEvent(*controlHotkey, event)) {
+        hook->controlHotkeyPressed_ = false;
+    }
+    if (pressed && isControlHotkey) {
+        if (!hook->controlHotkeyPressed_.exchange(true)) {
             postControlHotkeyEvent(hook);
-        } else if (!pressed) {
-            hook->controlHotkeyPressed_ = false;
         }
     } else if (repeatRunning) {
         QMetaObject::invokeMethod(hook, [hook, event, pressed] {

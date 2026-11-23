@@ -522,6 +522,23 @@ AppConfig ConfigStore::Load() const {
                 if (const auto volume = GetIntField(*option, "volume")) target.volume = std::clamp(*volume, 0, 100);
             }
         }
+    } else {
+        // Convert the pre-event sound settings once; saves use only "sounds".
+        const auto repeatVolume = GetIntField(*object, "soundVolume");
+        const auto macroVolume = GetIntField(*object, "macroSoundVolume");
+        for (const auto& definition : SoundEventDefinitions()) {
+            const auto volume = definition.group == SoundGroup::Repeat ? repeatVolume : macroVolume;
+            if (volume) config.sounds[SoundEventIndex(definition.event)].volume = std::clamp(*volume, 0, 100);
+        }
+        const auto loadPath = [&](SoundEvent event, const char* field) {
+            if (const auto path = GetStringField(*object, field)) {
+                config.sounds[SoundEventIndex(event)].customPath = ToWide(*path);
+            }
+        };
+        loadPath(SoundEvent::RepeatOn, "customSoundOn");
+        loadPath(SoundEvent::RepeatOff, "customSoundOff");
+        loadPath(SoundEvent::MacroOn, "macroSoundOn");
+        loadPath(SoundEvent::MacroOff, "macroSoundOff");
     }
 
     config.activeProfileId = GetUInt64Field(*object, "activeProfileId").value_or(0);

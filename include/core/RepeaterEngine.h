@@ -106,6 +106,7 @@ private:
     void AdvanceSequenceSelectionLocked();
     void RememberSequenceSelectionLocked();
     void ClearRememberedSequenceSelectionLocked();
+    [[nodiscard]] bool IsTaskSelectedLocked(const TaskRuntime& task) const;
     [[nodiscard]] bool IsTaskActiveLocked(const TaskRuntime& task,
         std::chrono::steady_clock::time_point now) const;
     [[nodiscard]] bool IsMartialAssistEnabledLocked(const TaskRuntime& task) const;

@@ -348,8 +348,11 @@ bool InputDriverRouter::ConsumeIsolatedModifier(const KeyDescriptor& key, bool p
 }
 
 bool InputDriverRouter::SendDown(const KeyDescriptor& key, InputSource src) {
+    if (!key.IsValid()) return false;
     std::lock_guard lock(mutex_);
-    const bool sent = SendComboDownLocked(key, src);
+    // Pulsed engine output must send a physically held primary modifier too.
+    const bool sent = IsArbitratedSource(src) && key.modifiers == 0
+        ? SendDownLocked(key, src) : SendComboDownLocked(key, src);
     PublishHeldKeysLocked();
     return sent;
 }

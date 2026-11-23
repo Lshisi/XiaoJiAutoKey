@@ -1,10 +1,12 @@
 #include "core/plugins/PluginCatalog.h"
 #include "core/plugins/PluginManifest.h"
+#include "core/plugins/PluginIntegrity.h"
 
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSet>
+#include <QRegularExpression>
 #include <QUrl>
 #include <Windows.h>
 #include <bcrypt.h>
@@ -39,6 +41,19 @@ bool safeDownload(const QString& address) {
     return url.isValid() && url.scheme() == QStringLiteral("https") && !url.host().isEmpty()
         && url.userInfo().isEmpty() && url.fragment().isEmpty() && (url.port(-1) == -1 || url.port() == 443);
 }
+bool validPublisher(const QJsonObject& plugin) {
+    const auto address = plugin.value(QStringLiteral("repository")).toString();
+    const QUrl url(address);
+    if (!safeDownload(address) || !url.query().isEmpty()
+        || (url.host() != QStringLiteral("github.com") && url.host() != QStringLiteral("gitee.com"))) return false;
+    const auto parts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    static const QRegularExpression name(QStringLiteral("^[A-Za-z0-9_.-]+$"));
+    if (parts.size() != 2) return false;
+    for (const auto& part : parts)
+        if (part == QStringLiteral(".") || part == QStringLiteral("..") || !name.match(part).hasMatch()) return false;
+    const auto expected = url.host().section(QLatin1Char('.'), 0, 0) + QLatin1Char(':') + parts[0].toLower();
+    return plugin.value(QStringLiteral("publisher")).toString() == expected;
+}
 }
 
 bool decodeCatalog(const QByteArray& envelope, const QByteArray& publicKey, qint64 minimumRevision,
@@ -71,7 +86,7 @@ bool decodeCatalog(const QByteArray& envelope, const QByteArray& publicKey, qint
         if (!value.isObject() || !validPluginId(id) || ids.contains(id) || plugin.value(QStringLiteral("name")).toString().isEmpty()
             || plugin.value(QStringLiteral("name")).toString().size() > 80 || plugin.value(QStringLiteral("author")).toString().isEmpty()
             || plugin.value(QStringLiteral("author")).toString().size() > 120 || plugin.value(QStringLiteral("description")).toString().size() > 2000
-            || !plugin.value(QStringLiteral("official")).isBool() || !plugin.value(QStringLiteral("listed")).isBool()
+            || !plugin.value(QStringLiteral("official")).isBool() || !plugin.value(QStringLiteral("listed")).isBool() || !validPublisher(plugin)
             || !plugin.value(QStringLiteral("versions")).isArray() || plugin.value(QStringLiteral("versions")).toArray().size() > 128)
             return fail(error, QStringLiteral("目录中存在无效或重复的插件。"));
         ids.insert(id);
@@ -81,8 +96,9 @@ bool decodeCatalog(const QByteArray& envelope, const QByteArray& publicKey, qint
             const auto number = version.value(QStringLiteral("version")).toString();
             const auto hash = version.value(QStringLiteral("sha256")).toString();
             const auto maximum = version.value(QStringLiteral("maxHostVersion")).toString();
-            if (!versionValue.isObject() || !validVersion(number) || versions.contains(number) || hash.size() != 64
-                || QByteArray::fromHex(hash.toLatin1()).size() != 32 || !safeDownload(version.value(QStringLiteral("url")).toString())
+            const auto contents = version.value(QStringLiteral("contentsSha256"));
+            if (!versionValue.isObject() || !validVersion(number) || versions.contains(number) || !validSha256(hash)
+                || (!contents.isUndefined() && (!contents.isString() || !validSha256(contents.toString()))) || !safeDownload(version.value(QStringLiteral("url")).toString())
                 || !validVersion(version.value(QStringLiteral("minHostVersion")).toString()) || (!maximum.isEmpty() && !validVersion(maximum)))
                 return fail(error, QStringLiteral("目录中存在无效的插件版本或下载来源。"));
             const auto mirrors = version.value(QStringLiteral("mirrors"));

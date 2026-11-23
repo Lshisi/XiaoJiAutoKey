@@ -31,6 +31,8 @@
 
 启用插件与运行后台是两个状态：可以只打开设置页。后台启动失败时保留页面和错误，取消自动恢复，避免启动时反复加载失败后台。恢复模式在加载前停用第三方插件。
 
+独立安装版本在启动扫描及创建页面、后台、窗口、首次载入原生模块和运行包内管理工具前校验文件内容。已认证版本以签名目录的内容摘要为依据，本地开发包的内容基线不授予发布者认证；规则见[插件开发](plugin-development.md#包目录与清单)。完整性失败会使旧 API 失效，停止框架调用并保留插件设置，等待用户修复；预览的资源示例没有磁盘插件校验基线。
+
 | `pluginApi.runtime` 字段 | 内容 |
 | --- | --- |
 | `status` | `stopped`、`starting`、`running`、`stopping`、`error` |
@@ -43,7 +45,7 @@
 
 后台 QML 创建后依次发送 `lifecycleEvent("starting", reason)` 和 `lifecycleEvent("started", reason)`；后台可在 `started` 中显示窗口。停止时先发送 `stopping`，取消对应请求、关闭窗口、销毁后台 QML，原生后台结束后进入 `stopped`。后台销毁后，`stopped` 事件由仍在的设置页等接收。
 
-常见原因是 `user`、`restore`、`disabled`、`blocked`、`updated`、`removed`、`management`、`exit`。停用、禁用、替换和退出关闭整个运行实例并使旧 API 失效；系统驱动管理工具运行前暂停实例，结束后按原选择恢复。
+常见原因是 `user`、`restore`、`disabled`、`blocked`、`integrity`、`repair`、`updated`、`removed`、`management`、`exit`。停用、禁用、完整性失败、替换和退出关闭整个运行实例并使旧 API 失效；系统驱动管理工具运行前暂停实例，结束后按原选择恢复。
 
 QML 后台在 GUI 线程运行，适合状态、短任务和普通定时器，不得阻塞事件循环。高精度调度、连发、循环和输入仲裁仍由框架负责；后台启动不代表授权自动启动按键引擎，原有启动确认继续生效。
 

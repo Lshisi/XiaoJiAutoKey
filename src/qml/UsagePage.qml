@@ -23,7 +23,7 @@ Item {
                 spacing: 10
                 RowLayout {
                     Layout.fillWidth: true
-                    QuietHeading { Layout.fillWidth: true; text: qsTr("使用统计"); pageTitle: true }
+                    QuietHeading { Layout.fillWidth: true; text: qsTr("使用统计"); pageTitle: true; Layout.alignment: Qt.AlignTop }
                     QuietLabel { visible: root.page.state.running; text: qsTr("正在累计"); color: Theme.accent }
                 }
                 RowLayout {

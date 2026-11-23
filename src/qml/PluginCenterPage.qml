@@ -10,13 +10,13 @@ Item {
     property int tab: 2
     property var detail: null
     readonly property var rows: {
-        const input = tab === 1 ? page.state.discover : page.state.installed
+        const input = tab === 0 ? page.state.builtin : tab === 1 ? page.state.discover : page.state.installed
         const query = search.text.trim().toLowerCase()
         return input.filter(row => (tab !== 0 || row.builtin)
-            && (!query.length || (row.name + " " + row.author + " " + row.id).toLowerCase().indexOf(query) >= 0)
+            && (!query.length || (row.name + " " + row.author + " " + (row.publisher || "") + " " + row.id).toLowerCase().indexOf(query) >= 0)
             && (kind.currentIndex === 0 || (kind.currentIndex === 1 ? row.hasDriver : kind.currentIndex === 2 ? row.hasPage : kind.currentIndex === 3 ? row.hasBackground : row.hasWindow))
-            && (publisher.currentIndex === 0 || (publisher.currentIndex === 1 ? row.official : !row.official))
-            && (review.currentIndex === 0 || (review.currentIndex === 1 ? row.reviewed : !row.reviewed)))
+            && (publisher.currentIndex === 0 || (publisher.currentIndex === 1 ? row.official : publisher.currentIndex === 2 ? row.publisherVerified && !row.official : !row.publisherVerified && !row.bundled))
+            && (review.currentIndex === 0 || (review.currentIndex === 1 ? row.reviewed : review.currentIndex === 2 ? !row.reviewed && !row.bundled : row.bundled)))
     }
     Component.onCompleted: root.page.dispatch("refresh")
     QuietCard {
@@ -31,7 +31,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 6
-                QuietHeading { text: qsTr("插件中心"); pageTitle: true; Layout.fillWidth: true }
+                QuietHeading { text: qsTr("插件中心"); pageTitle: true; Layout.fillWidth: true; Layout.alignment: Qt.AlignTop }
                 ActionButton { text: qsTr("导入"); leadingIcon: "import"; enabled: !root.busy; onClicked: root.page.dispatch("import") }
                 IconButton { iconName: "refresh"; hint: qsTr("刷新插件列表与更新信息"); enabled: !root.busy; onClicked: root.page.dispatch("refresh") }
             }
@@ -55,10 +55,10 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-                QuietTextField { id: search; Layout.fillWidth: true; Layout.minimumWidth: 80; placeholderText: qsTr("搜索名称或作者"); Accessible.name: qsTr("搜索插件") }
-                QuietCombo { id: publisher; Layout.preferredWidth: 88; model: [qsTr("全部来源"), qsTr("官方"), qsTr("社区")]; Accessible.name: qsTr("插件发布者") }
+                QuietTextField { id: search; Layout.fillWidth: true; Layout.minimumWidth: 80; placeholderText: qsTr("搜索名称、发布者或作者"); Accessible.name: qsTr("搜索插件") }
+                QuietCombo { id: publisher; Layout.preferredWidth: 100; model: [qsTr("全部发布者"), qsTr("官方"), qsTr("社区"), qsTr("未验证")]; Accessible.name: qsTr("插件发布者") }
                 QuietCombo { id: kind; Layout.preferredWidth: 88; model: [qsTr("全部类型"), qsTr("驱动"), qsTr("页面"), qsTr("后台"), qsTr("窗口")]; Accessible.name: qsTr("插件类型") }
-                QuietCombo { id: review; Layout.preferredWidth: 88; model: [qsTr("全部审核"), qsTr("已审核"), qsTr("未审核")]; Accessible.name: qsTr("审核状态") }
+                QuietCombo { id: review; Layout.preferredWidth: 100; model: [qsTr("全部审核"), qsTr("已审核"), qsTr("未审核"), qsTr("随程序提供")]; Accessible.name: qsTr("审核状态") }
             }
             ListView {
                 id: list
@@ -66,7 +66,7 @@ Item {
                 Layout.fillHeight: true
                 clip: true
                 model: root.rows
-                ScrollBar.vertical: QuietScrollBar {}
+                ScrollBar.vertical: QuietScrollBar { policy: ScrollBar.AlwaysOff }
                 delegate: PluginRow {
                     required property var modelData
                     width: list.width
@@ -82,18 +82,12 @@ Item {
                     anchors.centerIn: parent
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    visible: list.count === 0
-                    text: {
-                        if (root.tab !== 1) return qsTr("没有符合条件的插件。")
-                        if (root.page.state.catalogRefreshing) return qsTr("正在获取插件列表…")
-                        if (!root.page.state.registryConfigured) return qsTr("插件目录尚未就绪，暂时可通过“导入”安装插件。")
-                        if (root.page.state.catalogError.length) return qsTr("插件列表读取失败，请点击右上角重试。")
-                        return qsTr("没有符合条件的插件。")
-                    }
+                    visible: list.count === 0 && root.tab !== 1
+                    text: qsTr("没有符合条件的插件。")
                     color: Theme.muted
                 }
             }
-            QuietLabel { Layout.fillWidth: true; text: root.page.state.status || qsTr("未审核插件也可由你选择安装，更新不会强制应用。"); color: Theme.muted; maximumLineCount: 3; elide: Text.ElideRight }
+            QuietLabel { visible: text.length > 0; Layout.fillWidth: true; text: root.page.state.status; color: Theme.muted; maximumLineCount: 3; elide: Text.ElideRight }
         }
     }
     Loader {
@@ -103,8 +97,9 @@ Item {
             record: {
                 if (!root.detail) return ({})
                 const installed = root.page.state.installed.find(row => row.id === root.detail.id)
+                const builtin = root.page.state.builtin.find(row => row.id === root.detail.id)
                 const discovered = root.page.state.discover.find(row => row.id === root.detail.id)
-                return installed || discovered || root.detail
+                return installed || builtin || discovered || root.detail
             }
             page: root.page
             Component.onCompleted: open()

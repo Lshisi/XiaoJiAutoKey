@@ -1,6 +1,7 @@
 #include "services/PluginService.h"
 #include "core/plugins/PluginArchive.h"
 #include "core/plugins/PluginCatalog.h"
+#include "core/plugins/PluginIntegrity.h"
 #include "core/plugins/NativePluginModule.h"
 #include "dialogs/AppMessageDialog.h"
 #include "dialogs/ConfigConfirmDialog.h"
@@ -12,6 +13,7 @@
 #include "DiagLog.h"
 
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -28,6 +30,7 @@
 #include <QProcess>
 #include <QThread>
 #include <QUrl>
+#include <QUuid>
 #include <algorithm>
 #include <exception>
 #include <utility>
@@ -35,9 +38,10 @@
 
 namespace Plugins {
 namespace {
+const QStringList kBuiltinPluginIds{QStringLiteral("xiaoji.driver.xiaoji"), QStringLiteral("xiaoji.driver.dd")};
 QString preferenceId(const QString& provider) { return provider.section(QLatin1Char('/'), 0, 0); }
 bool supportedBuiltin(const QString& id) {
-    return id == QStringLiteral("xiaoji.driver.xiaoji");
+    return kBuiltinPluginIds.contains(id);
 }
 QString driverActivation(const QString& provider) { return QStringLiteral("driver/") + provider.section(QLatin1Char('/'), 1); }
 bool activationVerified(const PluginPreferences& preference, const QString& operation) {
@@ -143,13 +147,17 @@ void PluginService::initialize() {
         preference.verifiedActivations.clear();
         model_.setStatus(tr("上次插件激活未完成，已恢复旧版本或停用异常插件。"));
     }
-    config_.plugins["xiaoji.driver.xiaoji"].enabled = true;
-    config_.plugins["xiaoji.driver.xiaoji"].removed = false;
     if (recoveryMode_) {
-        auto& preference = config_.plugins["xiaoji.driver.xiaoji"];
-        preference.enabled = true;
-        preference.pendingVersion.clear(); preference.trialVersion.clear(); preference.verifiedActivations.clear();
-        preference.activationInProgress = false;
+        auto& defaultBuiltin = config_.plugins["xiaoji.driver.xiaoji"];
+        defaultBuiltin.enabled = true;
+        defaultBuiltin.removed = false;
+        defaultBuiltin.removalPendingRestart = false;
+        defaultBuiltin.removalError.clear();
+        for (const auto& id : kBuiltinPluginIds) {
+            auto& preference = config_.plugins[id.toStdString()];
+            preference.pendingVersion.clear(); preference.trialVersion.clear(); preference.verifiedActivations.clear();
+            preference.activationInProgress = false;
+        }
         config_.activeDriverId = "xiaoji.driver.xiaoji/default";
         config_.driverMode = DriverMode::Xiaoji;
     }
@@ -168,7 +176,7 @@ void PluginService::loadCatalogCache() {
     const auto bytes = file.readAll();
     QString error;
     if (decodeCatalog(bytes, key, 0, &catalog_, &error)) catalogEnvelope_ = bytes;
-    else model_.setStatus(error);
+    else DiagLog::Write("plugin catalog cache: " + error.toStdString());
 }
 
 QString PluginService::catalogCachePath() const {
@@ -186,9 +194,6 @@ void PluginService::setHostBusy(bool busy) {
 }
 
 void PluginService::reload(bool startup) {
-    auto& builtinPreference = config_.plugins["xiaoji.driver.xiaoji"];
-    builtinPreference.enabled = true;
-    builtinPreference.removed = false;
     QSet<QString> previouslyAvailable;
     for (const auto& [id, record] : records_)
         if (record.enabled && record.error.isEmpty()) previouslyAvailable.insert(id);
@@ -201,7 +206,7 @@ void PluginService::reload(bool startup) {
             if (!validPluginId(id) || (kind == QStringLiteral("builtin") && !supportedBuiltin(id))) continue;
             if (recoveryMode_ && kind == QStringLiteral("installed") && supportedBuiltin(id)) continue;
             auto& preference = config_.plugins[id.toStdString()];
-            if (!supportedBuiltin(id) && preference.removalPendingRestart) preference.enabled = false;
+            if (preference.removalPendingRestart) preference.enabled = false;
             if (recoveryMode_ && !supportedBuiltin(id)) preference.enabled = false;
             if (preference.removed && kind != QStringLiteral("builtin")) {
                 if (startup && kind == QStringLiteral("installed")) {
@@ -240,11 +245,38 @@ void PluginService::reload(bool startup) {
                 }
                 const auto info = readObject(QDir(record.manifest.directory).filePath(QStringLiteral(".installation.json")));
                 record.hash = info.value(QStringLiteral("sha256")).toString();
-                record.origin = info.value(QStringLiteral("origin")).toString(QStringLiteral("local"));
+                record.origin = info.value(QStringLiteral("origin")).toString() == QStringLiteral("catalog")
+                    ? QStringLiteral("catalog") : QStringLiteral("local");
                 record.source = info.value(QStringLiteral("source")).toString(record.manifest.directory);
+                if (record.origin == QStringLiteral("catalog") && QUrl(record.source).scheme() != QStringLiteral("https"))
+                    record.origin = QStringLiteral("local");
                 if (kind == QStringLiteral("builtin")) record.origin = QStringLiteral("bundled");
+                if (kind == QStringLiteral("installed") && record.invalid) record.integrityError = true;
                 record.manifest.builtin = supportedBuiltin(id);
-                record.enabled = preference.enabled;
+                record.enabled = preference.enabled && !preference.removed;
+                if (record.error.isEmpty() && kind == QStringLiteral("installed")) {
+                    const auto plugin = catalogPlugin(catalog_, id);
+                    const auto exact = catalogVersion(catalog_, id, record.manifest.version);
+                    const bool matchesCatalog = validSha256(record.hash)
+                        && exact.value(QStringLiteral("sha256")).toString().compare(record.hash, Qt::CaseInsensitive) == 0;
+                    if (matchesCatalog) {
+                        record.manifest.contentsSha256 = exact.value(QStringLiteral("contentsSha256")).toString();
+                        if (!validSha256(record.manifest.contentsSha256))
+                            record.error = tr("此版本缺少可信文件校验信息，请刷新插件目录后重试。");
+                        else if ((!info.value(QStringLiteral("publisher")).toString().isEmpty()
+                                && info.value(QStringLiteral("publisher")).toString() != plugin.value(QStringLiteral("publisher")).toString())
+                            || (!info.value(QStringLiteral("repository")).toString().isEmpty()
+                                && info.value(QStringLiteral("repository")).toString().compare(plugin.value(QStringLiteral("repository")).toString(), Qt::CaseInsensitive) != 0))
+                            record.error = tr("插件发布来源已变化，请重新安装并确认新来源。");
+                        else record.contentVerified = verifyManifestContents(record.manifest, &record.error);
+                    } else if (record.origin == QStringLiteral("catalog") || id.startsWith(QStringLiteral("xiaoji."))) {
+                        record.error = tr("无法验证此版本的发布来源，请刷新目录或重新安装。");
+                    } else {
+                        record.manifest.contentsSha256 = info.value(QStringLiteral("contentsSha256")).toString();
+                        (void)verifyManifestContents(record.manifest, &record.error);
+                    }
+                    if (!record.error.isEmpty()) { record.integrityError = true; record.invalid = true; }
+                }
                 if (record.error.isEmpty()) record.error = blockedReason(catalog_, id, record.manifest.version, record.hash);
                 if (record.error.isEmpty() && kind == QStringLiteral("installed") && id.startsWith(QStringLiteral("xiaoji."))) {
                     const auto metadata = catalogVersion(catalog_, id, record.manifest.version);
@@ -266,7 +298,7 @@ void PluginService::reload(bool startup) {
                 record.manifest.builtin = supportedBuiltin(id);
                 record.origin = kind == QStringLiteral("builtin") ? QStringLiteral("bundled") : QStringLiteral("local");
                 record.source = record.manifest.directory;
-                record.enabled = preference.enabled;
+                record.enabled = preference.enabled && !preference.removed;
                 record.invalid = true;
                 record.error = tr("插件目录中没有有效的版本文件夹，请重新安装或卸载此插件。");
                 candidates[id].push_back(record);
@@ -319,13 +351,27 @@ void PluginService::reload(bool startup) {
                 preference.enabled = supportedBuiltin(id);
             }
         }
-        if (startup && !chosen->invalid && (preference.activeVersion.empty() || (recoveryMode_ && chosen->origin == QStringLiteral("bundled"))))
+        if (startup && !preference.removed && !chosen->invalid && (preference.activeVersion.empty() || (recoveryMode_ && chosen->origin == QStringLiteral("bundled"))))
             preference.activeVersion = chosen->manifest.version.toStdString();
         if (preference.trialVersion == chosen->manifest.version.toStdString() && activationSteps(chosen->manifest).isEmpty()) {
             preference.trialVersion.clear(); preference.verifiedActivations.clear(); preference.activationInProgress = false;
         }
         chosen->pending = !preference.pendingVersion.empty();
         records_.emplace(id, *chosen);
+    }
+    if (startup && !hasAvailableBuiltin()) {
+        for (const auto& id : kBuiltinPluginIds) {
+            const auto found = records_.find(id);
+            if (found == records_.end() || found->second.invalid || !found->second.error.isEmpty()
+                || found->second.manifest.drivers.isEmpty()) continue;
+            auto& preference = config_.plugins[id.toStdString()];
+            if (preference.removed || preference.removalPendingRestart || (found->second.pending && preference.activeVersion.empty())) continue;
+            preference.enabled = true;
+            preference.removed = false;
+            if (preference.activeVersion.empty()) preference.activeVersion = found->second.manifest.version.toStdString();
+            found->second.enabled = true;
+            if (hasAvailableBuiltin()) break;
+        }
     }
     for (const auto& id : previouslyAvailable) {
         const auto current = records_.find(id);
@@ -449,6 +495,7 @@ NativePluginDriver* PluginService::openDriver(const QString& providerId, QString
 bool PluginService::prepareActivation(const QString& id, const QString& operation, QString* error) {
     const auto record = records_.find(id);
     if (shuttingDown_ || record == records_.end() || !record->second.enabled || !record->second.error.isEmpty()) return false;
+    if (!NativeModule::isLoaded(id) && !verifyRecordContents(id, error)) return false;
     auto& preference = config_.plugins[id.toStdString()];
     if (preference.trialVersion != record->second.manifest.version.toStdString() || activationVerified(preference, operation)) return true;
     auto& attempt = activationAttempts_[id];
@@ -611,6 +658,10 @@ void PluginService::stopPlugin(const QString& id, const QString& reason) {
 void PluginService::executeManagement(const QString& providerId, const QString& operation, bool removeAfter) {
     const DialogGuard guard(*this);
     const auto id = preferenceId(providerId);
+    if (removeAfter) {
+        const auto reason = disableBlockedReason(id);
+        if (!reason.isEmpty()) { fail(reason); return; }
+    }
     const auto found = records_.find(id);
     if (found == records_.end() || !found->second.error.isEmpty()) { fail(tr("插件管理工具不可用，请重新安装该插件后重试。")); return; }
     const auto manifest = found->second.manifest;
@@ -631,8 +682,9 @@ void PluginService::executeManagement(const QString& providerId, const QString& 
     }
     const auto result = std::make_shared<ManagementResult>();
     const auto directory = manifest.directory;
-    auto* thread = QThread::create([program, directory, command, removal = std::move(removal), result] {
+    auto* thread = QThread::create([program, directory, command, manifest, removal = std::move(removal), result] {
         try {
+            if (!verifyManifestContents(manifest, &result->message)) return;
             if (removal) { *result = removal(); return; }
             QProcess process;
             process.setProgram(program);
@@ -684,12 +736,13 @@ void PluginService::executeManagement(const QString& providerId, const QString& 
 }
 
 void PluginService::updateModel() {
-    QVariantList installed, discover, pages;
+    QVariantList installed, discover, pages, builtin;
     for (const auto& [id, record] : records_) {
         auto row = record.manifest.presentation();
         const auto metadata = catalogPlugin(catalog_, id);
         const auto exact = catalogVersion(catalog_, id, record.manifest.version);
-        const bool verifiedPackage = !record.hash.isEmpty() && exact.value(QStringLiteral("sha256")).toString().compare(record.hash, Qt::CaseInsensitive) == 0;
+        const bool verifiedPackage = record.contentVerified && !record.integrityError;
+        const bool bundledPackage = record.origin == QStringLiteral("bundled") && !record.invalid;
         const auto latest = catalogVersion(catalog_, id);
         row.insert("enabled", record.enabled);
         row.insert("pending", record.pending);
@@ -697,31 +750,43 @@ void PluginService::updateModel() {
         row.insert("blocked", !record.error.isEmpty());
         row.insert("invalid", record.invalid);
         const auto& preference = config_.plugins.at(id.toStdString());
+        row.insert("installed", !preference.removed);
         row.insert("removalPendingRestart", preference.removalPendingRestart);
         row.insert("removalError", QString::fromStdString(preference.removalError));
         row.insert("canEnable", !preference.removalPendingRestart);
-        const auto disableReason = disableBlockedReason(id);
-        row.insert("canDisable", disableReason.isEmpty());
+        const auto disableReason = preference.removed ? QString() : disableBlockedReason(id);
+        row.insert("canDisable", !preference.removed && disableReason.isEmpty());
         row.insert("disableReason", disableReason);
-        row.insert("canRemove", !record.manifest.builtin && disableReason.isEmpty());
+        row.insert("canRemove", !preference.removed && disableReason.isEmpty());
         const auto providerId = record.manifest.drivers.isEmpty() ? id : record.manifest.providerId(record.manifest.drivers.front().id);
         row.insert("hasManagement", hasManagement(providerId, QStringLiteral("repair")));
         row.insert("hasSystemDriverUninstall", hasManagement(providerId, QStringLiteral("uninstall")));
         const auto bundled = bundledManifests_.find(id);
         const bool hasBundled = bundled != bundledManifests_.end();
         row.insert("bundledVersion", hasBundled ? bundled->second.version : QString());
-        row.insert("canRestoreBundled", hasBundled && !record.pending
-            && (record.origin != QStringLiteral("bundled") || record.manifest.version != bundled->second.version));
-        row.insert("official", record.manifest.builtin || (verifiedPackage && metadata.value(QStringLiteral("official")).toBool()));
+        row.insert("canRestoreBundled", hasBundled && !record.pending && !preference.removalPendingRestart
+            && (preference.removed || record.origin != QStringLiteral("bundled") || record.manifest.version != bundled->second.version));
+        row.insert("bundled", bundledPackage);
+        row.insert("official", bundledPackage || (verifiedPackage && metadata.value(QStringLiteral("official")).toBool()));
         row.insert("reviewed", verifiedPackage && exact.value(QStringLiteral("reviewed")).toBool());
-        row.insert("source", record.manifest.builtin ? tr("内置") : record.origin == QStringLiteral("bundled") ? tr("官方")
-            : record.origin == QStringLiteral("catalog") ? (metadata.value(QStringLiteral("official")).toBool() ? tr("官方") : tr("社区")) : tr("本地"));
-        row.insert("repository", verifiedPackage || record.manifest.builtin ? metadata.value(QStringLiteral("repository")).toString() : QString());
+        row.insert("publisherVerified", verifiedPackage);
+        row.insert("publisher", verifiedPackage ? metadata.value(QStringLiteral("publisher")).toString() : QString());
+        row.insert("source", bundledPackage ? tr("随程序提供") : record.origin == QStringLiteral("catalog") ? tr("插件中心") : tr("本地导入"));
+        row.insert("repository", verifiedPackage ? metadata.value(QStringLiteral("repository")).toString() : QString());
+        row.insert("integrityError", record.integrityError);
+        row.insert("repairRequiresRestart", record.integrityError && NativeModule::isLoadedDirectory(record.manifest.directory));
+        row.insert("canRepair", record.origin != QStringLiteral("bundled") && metadata.value(QStringLiteral("listed")).toBool()
+            && validSha256(exact.value(QStringLiteral("contentsSha256")).toString())
+            && compareVersions(QString::fromLatin1(APP_VERSION), exact.value(QStringLiteral("minHostVersion")).toString()) >= 0
+            && (exact.value(QStringLiteral("maxHostVersion")).toString().isEmpty()
+                || compareVersions(QString::fromLatin1(APP_VERSION), exact.value(QStringLiteral("maxHostVersion")).toString()) <= 0)
+            && blockedReason(catalog_, id, record.manifest.version, exact.value(QStringLiteral("sha256")).toString()).isEmpty());
         row.insert("installationSource", record.source);
         row.insert("latestVersion", latest.value(QStringLiteral("version")).toString());
         row.insert("latestReviewed", latest.value(QStringLiteral("reviewed")).toBool());
         row.insert("notes", latest.value(QStringLiteral("notes")).toString());
-        row.insert("updateAvailable", !record.pending && !preference.removalPendingRestart && metadata.value(QStringLiteral("listed")).toBool()
+        row.insert("updateAvailable", !preference.removed && !record.pending && !preference.removalPendingRestart && metadata.value(QStringLiteral("listed")).toBool()
+            && validSha256(latest.value(QStringLiteral("contentsSha256")).toString())
             && !latest.isEmpty() && compareVersions(latest.value(QStringLiteral("version")).toString(), record.manifest.version) > 0);
         row.insert("currentDriver", QString::fromStdString(config_.activeDriverId).startsWith(id + QLatin1Char('/')));
         row.insert("backgroundEnabled", config_.plugins.at(id.toStdString()).backgroundEnabled);
@@ -734,7 +799,8 @@ void PluginService::updateModel() {
             row.insert("windows", state.value("windows"));
             row.insert("commands", state.value("commands"));
         }
-        installed.append(row);
+        if (record.manifest.builtin) builtin.append(row);
+        if (!preference.removed) installed.append(row);
         if (record.enabled && record.error.isEmpty() && !suspendedRuntimes_.contains(id)
             && (!record.pending || !preference.activeVersion.empty()) && (record.manifest.native.isEmpty() || !preference.activeVersion.empty())) {
             for (const auto& page : record.manifest.pages) pages.append(QVariantMap{{"id", record.manifest.pageId(page.id)},
@@ -747,21 +813,27 @@ void PluginService::updateModel() {
         if (!record.value(QStringLiteral("listed")).toBool()) continue;
         const auto id = record.value(QStringLiteral("id")).toString();
         const auto latest = catalogVersion(catalog_, id);
+        if (latest.isEmpty() || !validSha256(latest.value(QStringLiteral("contentsSha256")).toString())) continue;
         auto row = record.toVariantMap();
         row.insert("version", latest.value(QStringLiteral("version")).toString());
         row.insert("reviewed", latest.value(QStringLiteral("reviewed")).toBool());
-        row.insert("installed", records_.contains(id));
-        row.insert("compatible", !latest.isEmpty());
+        row.insert("publisherVerified", true);
+        row.insert("bundled", false);
+        const auto preference = config_.plugins.find(id.toStdString());
+        row.insert("installed", records_.contains(id) && preference != config_.plugins.end() && !preference->second.removed);
+        row.insert("compatible", !latest.isEmpty() && validSha256(latest.value(QStringLiteral("contentsSha256")).toString()));
         row.insert("minHostVersion", latest.value(QStringLiteral("minHostVersion")).toString());
         row.insert("maxHostVersion", latest.value(QStringLiteral("maxHostVersion")).toString());
         row.insert("notes", latest.value(QStringLiteral("notes")).toString());
-        row.insert("source", record.value(QStringLiteral("official")).toBool() ? tr("官方") : tr("社区"));
-        row.insert("error", latest.isEmpty() ? tr("暂无兼容且可安装的版本") : QString());
+        row.insert("source", tr("插件中心"));
+        row.insert("error", latest.isEmpty() ? tr("暂无兼容且可安装的版本")
+            : !validSha256(latest.value(QStringLiteral("contentsSha256")).toString()) ? tr("此版本缺少可信文件校验信息，请刷新插件目录。") : QString());
         discover.append(row);
     }
     std::stable_sort(installed.begin(), installed.end(), [](const QVariant& left, const QVariant& right) { return driverOrder(left) < driverOrder(right); });
+    std::stable_sort(builtin.begin(), builtin.end(), [](const QVariant& left, const QVariant& right) { return driverOrder(left) < driverOrder(right); });
     model_.setRegistryConfigured(!config_.pluginRegistryUrl.empty() && !config_.pluginRegistryPublicKey.empty());
-    model_.setSnapshot(installed, discover, pages);
+    model_.setSnapshot(installed, discover, pages, builtin);
 }
 
 void PluginService::setRuntimeState(const QVariantMap& state) {
@@ -770,6 +842,29 @@ void PluginService::setRuntimeState(const QVariantMap& state) {
     for (auto& [id, context] : contexts_) context->setRuntimeState(state);
 }
 void PluginService::refreshTheme() { for (auto& [id, context] : contexts_) context->refreshTheme(); }
+
+bool PluginService::verifyRecordContents(const QString& id, QString* error) {
+    const auto found = records_.find(id);
+    if (found == records_.end() || !found->second.error.isEmpty()) {
+        if (error) *error = found == records_.end() ? tr("插件不可用。") : found->second.error;
+        return false;
+    }
+    QString failure;
+    if (verifyManifestContents(found->second.manifest, &failure)) return true;
+    auto& record = found->second;
+    record.error = failure;
+    record.invalid = true;
+    record.integrityError = true;
+    record.contentVerified = false;
+    if (error) *error = failure;
+    QTimer::singleShot(0, this, [this, id] {
+        const auto current = records_.find(id);
+        if (current == records_.end() || !current->second.integrityError) return;
+        stopPlugin(id, QStringLiteral("integrity"));
+        updateModel(); emit inventoryChanged();
+    });
+    return false;
+}
 
 PluginPageContext* PluginService::contextForPage(const QString& id) {
     const auto descriptor = model_.page(id);
@@ -782,7 +877,9 @@ PluginPageContext* PluginService::contextForPlugin(const QString& pluginId) {
     if (shuttingDown_ || suspendedRuntimes_.contains(pluginId) || found == records_.end() || !found->second.enabled || !found->second.error.isEmpty()) return nullptr;
     const auto existing = contexts_.find(pluginId);
     if (existing != contexts_.end()) return existing->second;
+    if (!verifyRecordContents(pluginId, nullptr)) return nullptr;
     auto* context = new PluginPageContext(pluginId, found->second.manifest.permissions, this);
+    context->setContentsVerifier([this, pluginId](QString* error) { return verifyRecordContents(pluginId, error); });
     context->setProperty("pluginVersion", found->second.manifest.version);
     context->setProperty("pluginDirectory", found->second.manifest.directory);
     context->setRuntimeState(runtimeState_);
@@ -925,7 +1022,7 @@ void PluginService::download(const QString& url, qsizetype maximum, std::functio
     request.setRawHeader("User-Agent", "XiaoJiAutoKey/" APP_VERSION);
     auto* reply = network_.get(request);
     reply_ = reply;
-    model_.setStatus(tr("正在读取插件信息…"), true);
+    model_.setStatus(catalogRefreshing_ ? tr("正在获取插件列表…") : tr("正在下载插件…"), true);
     connect(reply, &QIODevice::readyRead, this, [this, reply, maximum] {
         const auto bytes = reply->readAll();
         if (bytes.size() > maximum - transfer_.size()) { reply->setProperty("sizeExceeded", true); reply->abort(); return; }
@@ -943,8 +1040,11 @@ void PluginService::download(const QString& url, qsizetype maximum, std::functio
         reply->deleteLater();
         if (shuttingDown_) return;
         if (!ok) {
-            const auto reason = tr("插件联网失败，已保留本地数据：%1").arg(message);
-            if (failed) failed(reason); else fail(reason);
+            if (failed) failed(message);
+            else {
+                DiagLog::Write("plugin download: " + message.toStdString());
+                fail(tr("插件下载失败，请稍后重试。"));
+            }
             return;
         }
         model_.setStatus({}, false);
@@ -987,14 +1087,14 @@ void PluginService::refreshPendingCatalog() {
 void PluginService::finishCatalogRefresh(const QString& error) {
     catalogRefreshing_ = false;
     model_.setCatalogRefreshState(false, error);
-    if (!error.isEmpty()) fail(error);
+    if (!error.isEmpty()) DiagLog::Write("plugin catalog: " + error.toStdString());
+    model_.setStatus({}, busy());
 }
 
 void PluginService::tryCatalogSources(QStringList sources, const QByteArray& key, const QString& primary, const QString& lastError) {
     if (primary != QString::fromStdString(config_.pluginRegistryUrl)) { finishCatalogRefresh(); return; }
     if (sources.isEmpty()) {
-        finishCatalogRefresh(catalog_.isEmpty() ? tr("目录刷新失败，请重试：%1").arg(lastError)
-            : tr("目录刷新失败，当前显示上次获取的信息：%1").arg(lastError));
+        finishCatalogRefresh(lastError);
         return;
     }
     const auto source = sources.takeFirst();
@@ -1018,25 +1118,28 @@ void PluginService::tryCatalogSources(QStringList sources, const QByteArray& key
         }
         reload();
         finishCatalogRefresh();
-        model_.setStatus(tr("插件目录已更新。"), busy());
     }, [this, sources, key, primary](const QString& error) { tryCatalogSources(sources, key, primary, error); });
 }
 
-void PluginService::downloadPackage(QStringList sources, const QString& id, const QString& hash, const QString& lastError) {
-    if (sources.isEmpty()) { fail(tr("插件下载来源均不可用，未更改安装状态：%1").arg(lastError)); return; }
+void PluginService::downloadPackage(QStringList sources, const QString& id, const QString& hash, bool repair, const QString& lastError) {
+    if (sources.isEmpty()) {
+        DiagLog::Write("plugin download: " + lastError.toStdString());
+        fail(tr("插件下载失败，请稍后重试。"));
+        return;
+    }
     const auto source = sources.takeFirst();
-    download(source, 64 * 1024 * 1024, [this, sources, source, id, hash](const QByteArray& bytes) {
+    download(source, 64 * 1024 * 1024, [this, sources, source, id, hash, repair](const QByteArray& bytes) {
         const auto actual = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
         if (actual.compare(hash, Qt::CaseInsensitive) != 0) {
-            downloadPackage(sources, id, hash, tr("来源内容与签名目录中的包哈希不一致。")); return;
+            downloadPackage(sources, id, hash, repair, tr("来源内容与签名目录中的包哈希不一致。")); return;
         }
-        stage(bytes, source, id, hash);
-    }, [this, sources, id, hash](const QString& error) {
-        downloadPackage(sources, id, hash, error);
+        stage(bytes, source, id, hash, repair);
+    }, [this, sources, id, hash, repair](const QString& error) {
+        downloadPackage(sources, id, hash, repair, error);
     });
 }
 
-void PluginService::stage(const QByteArray& zip, const QString& source, const QString& expectedId, const QString& expectedHash) {
+void PluginService::stage(const QByteArray& zip, const QString& source, const QString& expectedId, const QString& expectedHash, bool repair) {
     if (worker_ || reply_) { fail(tr("已有插件操作正在进行。")); return; }
     struct Result { StagedPackage package; QString error; bool ok = false; };
     const auto result = std::make_shared<Result>();
@@ -1049,7 +1152,7 @@ void PluginService::stage(const QByteArray& zip, const QString& source, const QS
     worker_ = thread;
     model_.setStatus(tr("正在校验插件包…"), true);
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    connect(thread, &QThread::finished, this, [this, result, source, expectedId, expectedHash] {
+    connect(thread, &QThread::finished, this, [this, result, source, expectedId, expectedHash, repair] {
         worker_ = nullptr;
         if (!result->ok) { fail(result->error); return; }
         const auto& package = result->package;
@@ -1058,7 +1161,13 @@ void PluginService::stage(const QByteArray& zip, const QString& source, const QS
             QDir(package.directory).removeRecursively(); fail(tr("插件包的身份或内容与目录不一致。")); return;
         }
         const auto metadata = catalogVersion(catalog_, package.manifest.id, package.manifest.version);
-        const bool verified = metadata.value(QStringLiteral("sha256")).toString().compare(package.sha256, Qt::CaseInsensitive) == 0;
+        const bool matchesCatalog = metadata.value(QStringLiteral("sha256")).toString().compare(package.sha256, Qt::CaseInsensitive) == 0;
+        const bool verified = matchesCatalog && validSha256(metadata.value(QStringLiteral("contentsSha256")).toString())
+            && metadata.value(QStringLiteral("contentsSha256")).toString().compare(package.contentsSha256, Qt::CaseInsensitive) == 0;
+        if ((matchesCatalog || !expectedId.isEmpty()) && !verified) {
+            QDir(package.directory).removeRecursively();
+            fail(tr("插件目录缺少有效的内容校验信息或与包内容不一致，请刷新目录后重试。")); return;
+        }
         const auto listed = catalogPlugin(catalog_, package.manifest.id);
         const auto reason = blockedReason(catalog_, package.manifest.id, package.manifest.version, package.sha256);
         if (!reason.isEmpty() || (!listed.isEmpty() && !listed.value(QStringLiteral("listed")).toBool())
@@ -1068,41 +1177,104 @@ void PluginService::stage(const QByteArray& zip, const QString& source, const QS
         }
         model_.setStatus({}, false);
         const bool reviewed = verified && metadata.value(QStringLiteral("reviewed")).toBool();
-        QString details = tr("%1\n版本：%2\n作者：%3\n来源：%4\n审核：%5\n使用能力：%6")
-            .arg(package.manifest.name, package.manifest.version, package.manifest.author, source,
-                reviewed ? tr("该版本审核通过") : tr("未审核"), package.manifest.permissions.join(QStringLiteral("、")));
+        const auto publisher = verified ? listed.value(QStringLiteral("publisher")).toString() : tr("发布者未验证");
+        QString details = tr("%1\n版本：%2\n发布者：%3\n作者自述：%4\n安装来源：%5\n审核：%6")
+            .arg(package.manifest.name, package.manifest.version, publisher, package.manifest.author, source,
+                reviewed ? tr("该版本审核通过") : tr("未审核"));
         if (verified && !listed.value(QStringLiteral("repository")).toString().isEmpty())
-            details += tr("\n来源仓库：%1").arg(listed.value(QStringLiteral("repository")).toString());
-        details += QStringLiteral("\n\n") + (package.manifest.native.isEmpty() ? tr("插件页面将在本机运行。")
-            : tr("原生插件以小叽进程的权限运行；能力声明不构成安全沙箱。"));
-        if (confirm(tr("安装插件"), details, tr("安装")))
-            installStaged(package.directory, package.sha256, package.manifest, source);
+            details += tr("\n发布仓库：%1").arg(listed.value(QStringLiteral("repository")).toString());
+        const auto previous = records_.find(package.manifest.id);
+        bool sourceChanged = false;
+        if (previous != records_.end()) {
+            const auto& old = previous->second;
+            const auto oldMetadata = catalogPlugin(catalog_, old.manifest.id);
+            const auto oldInfo = readObject(QDir(old.manifest.directory).filePath(QStringLiteral(".installation.json")));
+            const auto oldPublisher = old.contentVerified ? oldMetadata.value(QStringLiteral("publisher")).toString()
+                : oldInfo.value(QStringLiteral("publisher")).toString();
+            const auto oldRepository = old.contentVerified ? oldMetadata.value(QStringLiteral("repository")).toString()
+                : oldInfo.value(QStringLiteral("repository")).toString();
+            sourceChanged = old.origin == QStringLiteral("bundled") ? !verified
+                : oldPublisher != (verified ? listed.value(QStringLiteral("publisher")).toString() : QString())
+                    || oldRepository.compare(verified ? listed.value(QStringLiteral("repository")).toString() : QString(), Qt::CaseInsensitive) != 0;
+            if (!verified && oldPublisher.isEmpty()) sourceChanged = old.source != source;
+            if (sourceChanged) details += tr("\n\n将更换此插件的发布来源。\n原发布者：%1\n新发布者：%2\n原来源：%3\n新来源：%4\n相同插件 ID 不代表相同发布者，原有插件设置将保留。")
+                .arg(oldPublisher.isEmpty() ? old.origin == QStringLiteral("bundled") ? tr("随程序提供") : tr("发布者未验证") : oldPublisher,
+                    publisher, oldRepository.isEmpty() ? old.source : oldRepository,
+                    verified ? listed.value(QStringLiteral("repository")).toString() : source);
+        }
+        details += tr("\n\n作者自述不作为身份认证。插件将在你的电脑上运行，请确认你信任上述发布来源。");
+        if (confirm(sourceChanged ? tr("更换插件发布来源") : repair ? tr("重新安装插件") : tr("安装插件"), details,
+                sourceChanged ? tr("更换来源并安装") : repair ? tr("重新安装") : tr("安装")))
+            installStaged(package.directory, package.sha256, package.manifest, source, !expectedId.isEmpty(), repair);
         else QDir(package.directory).removeRecursively();
     });
     thread->start();
 }
 
-void PluginService::installStaged(const QString& directory, const QString& hash, const Manifest& manifest, const QString& source) {
+void PluginService::installStaged(const QString& directory, const QString& hash, const Manifest& manifest, const QString& source, bool fromCatalog, bool repair) {
     const auto preferenceFound = config_.plugins.find(manifest.id.toStdString());
     if (preferenceFound != config_.plugins.end() && preferenceFound->second.removalPendingRestart) {
         QDir(directory).removeRecursively(); fail(tr("此插件的系统驱动卸载尚未完成，请先重启电脑并继续卸载。")); return;
     }
     const auto metadata = catalogVersion(catalog_, manifest.id, manifest.version);
-    const bool catalogPackage = metadata.value(QStringLiteral("sha256")).toString().compare(hash, Qt::CaseInsensitive) == 0;
-    const auto parent = QDir(hostDirectory_).filePath(QStringLiteral("plugins/installed/") + manifest.id);
+    const bool catalogPackage = metadata.value(QStringLiteral("sha256")).toString().compare(hash, Qt::CaseInsensitive) == 0
+        && metadata.value(QStringLiteral("contentsSha256")).toString().compare(manifest.contentsSha256, Qt::CaseInsensitive) == 0;
+    const auto plugin = catalogPlugin(catalog_, manifest.id);
+    if ((fromCatalog && !catalogPackage) || (manifest.id.startsWith(QStringLiteral("xiaoji."))
+            && (!catalogPackage || !plugin.value(QStringLiteral("official")).toBool()))) {
+        QDir(directory).removeRecursively(); fail(tr("插件发布身份已变化，请刷新目录并重新安装。")); return;
+    }
+    QString integrityError;
+    if (!verifyManifestContents(manifest, &integrityError)) {
+        QDir(directory).removeRecursively(); fail(integrityError); return;
+    }
+    const auto parent = containedFile(hostDirectory_, QStringLiteral("plugins/installed/") + manifest.id, false);
+    if (parent.isEmpty() || QFileInfo(parent).isSymLink() || QFileInfo(parent).isJunction()) {
+        QDir(directory).removeRecursively(); fail(tr("插件安装目录无效或包含链接。")); return;
+    }
     const auto target = QDir(parent).filePath(manifest.version);
     if (!QDir().mkpath(parent)) { QDir(directory).removeRecursively(); fail(tr("无法创建插件安装目录。")); return; }
+    const QJsonObject info{{QStringLiteral("sha256"), hash}, {QStringLiteral("contentsSha256"), manifest.contentsSha256},
+        {QStringLiteral("origin"), fromCatalog ? QStringLiteral("catalog") : QStringLiteral("local")}, {QStringLiteral("source"), source},
+        {QStringLiteral("publisher"), catalogPackage ? plugin.value(QStringLiteral("publisher")).toString() : QString()},
+        {QStringLiteral("repository"), catalogPackage ? plugin.value(QStringLiteral("repository")).toString() : QString()}};
+    if (!writeBytes(QDir(directory).filePath(QStringLiteral(".installation.json")), QJsonDocument(info).toJson())) {
+        QDir(directory).removeRecursively(); fail(tr("无法保存插件安装记录。")); return;
+    }
     if (QFileInfo::exists(target)) {
+        const QFileInfo targetInfo(target);
+        if (targetInfo.isSymLink() || targetInfo.isJunction()) {
+            QDir(directory).removeRecursively(); fail(tr("现有插件版本目录包含链接，不能替换。")); return;
+        }
         const auto current = readObject(QDir(target).filePath(QStringLiteral(".installation.json")));
-        QDir(directory).removeRecursively();
-        if (current.value(QStringLiteral("sha256")).toString().compare(hash, Qt::CaseInsensitive) != 0) {
-            fail(tr("同一插件版本已经存在不同内容，不能覆盖。")); return;
+        if (current.value(QStringLiteral("sha256")).toString().compare(hash, Qt::CaseInsensitive) != 0 && !(repair && catalogPackage)) {
+            QDir(directory).removeRecursively(); fail(tr("同一插件版本已经存在不同内容，不能覆盖。")); return;
+        }
+        auto installedManifest = manifest;
+        installedManifest.directory = target;
+        if (verifyManifestContents(installedManifest, nullptr)) {
+            QDir(directory).removeRecursively();
+            if (!writeBytes(QDir(target).filePath(QStringLiteral(".installation.json")), QJsonDocument(info).toJson())) {
+                fail(tr("无法更新插件安装记录。")); return;
+            }
+        } else {
+            if (NativeModule::isLoadedDirectory(target)) {
+                QDir(directory).removeRecursively(); fail(tr("此版本的原生模块仍在使用，请重启小叽后再重新安装。")); return;
+            }
+            stopPlugin(manifest.id, QStringLiteral("repair"));
+            const auto backup = QDir(parent).filePath(QStringLiteral(".replaced-") + QUuid::createUuid().toString(QUuid::WithoutBraces));
+            if (!QDir().rename(target, backup)) {
+                QDir(directory).removeRecursively(); reload(); fail(tr("无法保留现有插件文件，未执行替换。")); return;
+            }
+            if (!QDir().rename(directory, target)) {
+                const bool restored = QDir().rename(backup, target);
+                QDir(directory).removeRecursively(); reload();
+                fail(restored ? tr("无法替换插件，已恢复原有文件。") : tr("无法替换插件，原有文件保留在插件备份目录中。")); return;
+            }
+            if (!QDir(backup).removeRecursively()) DiagLog::Write("plugin repair: old files kept at " + backup.toStdString());
         }
     } else {
-        const QJsonObject info{{QStringLiteral("sha256"), hash}, {QStringLiteral("origin"), catalogPackage ? QStringLiteral("catalog") : QStringLiteral("local")},
-            {QStringLiteral("source"), source}};
-        if (!writeBytes(QDir(directory).filePath(QStringLiteral(".installation.json")), QJsonDocument(info).toJson())
-            || !QDir().rename(directory, target)) { QDir(directory).removeRecursively(); fail(tr("无法原子安装插件文件。")); return; }
+        if (!QDir().rename(directory, target)) { QDir(directory).removeRecursively(); fail(tr("无法原子安装插件文件。")); return; }
     }
     const auto previous = records_.find(manifest.id);
     const bool requiresRestart = !manifest.native.isEmpty()
@@ -1117,11 +1289,23 @@ void PluginService::installStaged(const QString& directory, const QString& hash,
     }
     emit saveRequested();
     reload();
-    model_.setStatus(requiresRestart ? tr("插件已准备好，涉及原生版本切换，重启后整体应用。") : tr("插件已安装；后台功能需主动启动。"));
+    model_.setStatus(requiresRestart ? tr("插件已安装，重启小叽后生效。") : tr("插件已安装；后台功能需主动启动。"));
 }
 
 QString PluginService::disableBlockedReason(const QString& id) const {
-    return supportedBuiltin(id) ? tr("小叽驱动是内置基础插件，始终启用，不能停用或卸载插件。") : QString();
+    return supportedBuiltin(id) && !hasAvailableBuiltin(id)
+        ? tr("至少保留一个可用的内置驱动，请先安装并启用另一种内置驱动。") : QString();
+}
+
+bool PluginService::hasAvailableBuiltin(const QString& excluded) const {
+    for (const auto& [id, record] : records_) {
+        if (id == excluded || !supportedBuiltin(id)) continue;
+        const auto preference = config_.plugins.find(id.toStdString());
+        if (preference == config_.plugins.end() || preference->second.removed || preference->second.removalPendingRestart) continue;
+        for (const auto& driver : record.manifest.drivers)
+            if (available(record.manifest.providerId(driver.id))) return true;
+    }
+    return false;
 }
 
 bool PluginService::bundledManifest(const QString& id, Manifest* manifest) const {
@@ -1149,13 +1333,20 @@ bool PluginService::bundledManifest(const QString& id, Manifest* manifest) const
 void PluginService::restoreBundled(const QString& id) {
     const auto current = records_.find(id);
     Manifest bundled;
-    if (current == records_.end() || !bundledManifest(id, &bundled)) { fail(tr("没有兼容且允许使用的随包小叽驱动，请重新获取应用发布包。")); return; }
+    if (current == records_.end() || !bundledManifest(id, &bundled)) { fail(tr("没有可恢复的内置驱动，请重新获取应用发布包。")); return; }
+    auto& preference = config_.plugins[id.toStdString()];
+    if (preference.removalPendingRestart) { fail(tr("请先重启电脑并继续完成卸载，再安装此驱动。")); return; }
     if (current->second.pending) { fail(tr("请先重启应用以完成已经准备的版本切换。")); return; }
-    if (!confirm(tr("恢复随包版本"), tr("将小叽驱动恢复为随应用提供的 v%1，保留插件设置和当前启用选择，重启后生效。当前运行不立即切换。").arg(bundled.version), tr("恢复"))) return;
-    config_.plugins[id.toStdString()].pendingVersion = bundled.version.toStdString();
+    const bool reinstall = preference.removed;
+    if (!confirm(reinstall ? tr("安装内置驱动") : tr("恢复随包版本"),
+        tr("将安装随小叽提供的 %1 v%2，原来的设置会留下，重启小叽后生效。").arg(bundled.name, bundled.version), reinstall ? tr("安装") : tr("恢复"))) return;
+    if (reinstall) preference.enabled = true;
+    preference.removed = false;
+    preference.removalError.clear();
+    preference.pendingVersion = bundled.version.toStdString();
     emit saveRequested();
     reload();
-    model_.setStatus(tr("已准备恢复随包小叽驱动 v%1，重启后生效。").arg(bundled.version));
+    model_.setStatus(tr("已准备恢复 %1 v%2，重启小叽后生效。").arg(bundled.name, bundled.version));
 }
 
 void PluginService::setEnabled(const QString& id, bool enabled, bool ask) {
@@ -1201,6 +1392,8 @@ void PluginService::remove(const QString& id) {
         if (!ConfigConfirmDialog::confirmWithOption(window_, tr("卸载插件"), message, tr("卸载"),
             hasUninstall ? tr("同时卸载此插件使用的系统驱动") : QString(), &removeSystemDriver)) return;
     }
+    const auto currentReason = disableBlockedReason(id);
+    if (!currentReason.isEmpty()) { fail(currentReason); return; }
     if (removeSystemDriver && hasUninstall) { executeManagement(providerId, QStringLiteral("uninstall"), true); return; }
     setEnabled(id, false, false);
     if (config_.plugins[id.toStdString()].enabled) return;
@@ -1208,7 +1401,13 @@ void PluginService::remove(const QString& id) {
 }
 
 void PluginService::completeRemoval(const QString& id) {
-    if (supportedBuiltin(id)) { fail(disableBlockedReason(id)); return; }
+    const auto reason = disableBlockedReason(id);
+    if (!reason.isEmpty()) {
+        config_.plugins[id.toStdString()].enabled = true;
+        reload();
+        fail(reason);
+        return;
+    }
     auto& preference = config_.plugins[id.toStdString()];
     const auto previous = preference;
     preference.removed = true;
@@ -1228,6 +1427,12 @@ void PluginService::dispatch(const QString& action, const QString& id, const QVa
     if (action == QStringLiteral("dialog")) { pageDialogOpen_ = value.toBool(); emit dialogStateChanged(pageDialogOpen_ || nativeDialogDepth_ > 0); return; }
     if (action == QStringLiteral("refresh")) { refreshCatalog(true); return; }
     if (action != QStringLiteral("open") && busy()) { fail(tr("已有插件操作正在进行，请稍后重试。")); return; }
+    if (action == QStringLiteral("repository")) {
+        const auto plugin = catalogPlugin(catalog_, id);
+        const auto repository = plugin.value(QStringLiteral("repository")).toString();
+        if (!repository.isEmpty()) QDesktopServices::openUrl(QUrl(repository));
+        return;
+    }
     if (action == QStringLiteral("enable")) { setEnabled(id, value.toBool()); return; }
     if (action == QStringLiteral("background")) { setBackgroundRunning(id, value.toBool()); return; }
     if (action == QStringLiteral("window") || action == QStringLiteral("window-close") || action == QStringLiteral("window-interactive")) {
@@ -1280,20 +1485,29 @@ void PluginService::dispatch(const QString& action, const QString& id, const QVa
         if (!file.open(QIODevice::ReadOnly) || file.size() > 64 * 1024 * 1024) { fail(tr("无法读取插件包或文件超过大小限制。")); return; }
         stage(file.readAll(), QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath())); return;
     }
-    if (action == QStringLiteral("install") || action == QStringLiteral("update")) {
+    if (action == QStringLiteral("install") || action == QStringLiteral("update") || action == QStringLiteral("repair-plugin")) {
+        const bool repair = action == QStringLiteral("repair-plugin");
         const auto plugin = catalogPlugin(catalog_, id);
-        const auto version = catalogVersion(catalog_, id);
+        const auto installed = records_.find(id);
+        if (repair && installed == records_.end()) return;
+        const auto version = catalogVersion(catalog_, id, repair ? installed->second.manifest.version : QString());
         if (!plugin.value(QStringLiteral("listed")).toBool() || version.isEmpty()) { fail(tr("没有兼容且允许安装的版本。")); return; }
+        if (!validSha256(version.value(QStringLiteral("contentsSha256")).toString())) {
+            fail(tr("此版本缺少可信文件校验信息，请刷新插件目录后重试。")); return;
+        }
         const auto number = version.value(QStringLiteral("version")).toString();
-        if (!confirm(tr("下载插件"), tr("%1 v%2\n作者：%3\n审核：%4\n来源仓库：%5\n下载地址：%6\n\n下载后将再次校验包内容并由你确认安装。")
-            .arg(plugin.value(QStringLiteral("name")).toString(), number, plugin.value(QStringLiteral("author")).toString(),
+        const auto reason = blockedReason(catalog_, id, number, version.value(QStringLiteral("sha256")).toString());
+        if (!reason.isEmpty()) { fail(reason); return; }
+        if (!confirm(repair ? tr("重新下载插件") : tr("下载插件"), tr("%1 v%2\n发布者：%3\n作者自述：%4\n审核：%5\n发布仓库：%6\n下载地址：%7\n\n下载完成后，你可以确认是否安装。")
+            .arg(plugin.value(QStringLiteral("name")).toString(), number, plugin.value(QStringLiteral("publisher")).toString(),
+                plugin.value(QStringLiteral("author")).toString(),
                 version.value(QStringLiteral("reviewed")).toBool() ? tr("此版本审核通过") : tr("未审核，可由你选择安装"),
                 plugin.value(QStringLiteral("repository")).toString(), version.value(QStringLiteral("url")).toString()), tr("下载"))) return;
         const auto hash = version.value(QStringLiteral("sha256")).toString();
         QStringList sources{version.value(QStringLiteral("url")).toString()};
         for (const auto mirror : version.value(QStringLiteral("mirrors")).toArray()) sources.append(mirror.toString());
         sources.removeDuplicates();
-        downloadPackage(sources, id, hash);
+        downloadPackage(sources, id, hash, repair);
     }
 }
 

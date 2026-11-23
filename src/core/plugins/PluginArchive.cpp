@@ -1,4 +1,5 @@
 #include "core/plugins/PluginArchive.h"
+#include "core/plugins/PluginIntegrity.h"
 #include "miniz.h"
 #include <QCryptographicHash>
 #include <QDir>
@@ -50,6 +51,7 @@ bool stagePackage(const QByteArray& data, const QString& cacheDirectory, StagedP
                 return fail(QStringLiteral("插件包包含非法文件名。"));
         if (stat.m_is_directory) continue;
         const auto folded = name.toCaseFolded();
+        if (folded == QStringLiteral(".installation.json")) return fail(QStringLiteral("插件包不能包含宿主安装记录。"));
         if (names.contains(folded)) return fail(QStringLiteral("插件包包含重复路径。"));
         names.insert(folded);
         total += stat.m_uncomp_size;
@@ -77,9 +79,13 @@ bool stagePackage(const QByteArray& data, const QString& cacheDirectory, StagedP
     Manifest manifest;
     QString message;
     if (!readManifest(QDir(staging).filePath(QStringLiteral("plugin.json")), &manifest, &message)) return fail(message);
+    const auto contentsHash = packageContentsHash(staging, &message);
+    if (contentsHash.isEmpty()) return fail(message);
+    manifest.contentsSha256 = contentsHash;
     package->manifest = std::move(manifest);
     package->directory = staging;
     package->sha256 = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+    package->contentsSha256 = contentsHash;
     if (error) error->clear();
     return true;
 }

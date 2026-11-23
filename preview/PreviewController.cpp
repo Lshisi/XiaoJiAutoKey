@@ -44,6 +44,7 @@ PreviewController::PreviewController(QObject* parent)
     pluginCenter_.setPageContextProvider([this](const QString& id) -> QObject* {
         const auto descriptor = pluginCenter_.page(id);
         if (descriptor.isEmpty()) return nullptr;
+        if (descriptor.value("pluginId").toString() == QStringLiteral("xiaoji.page.calendar")) return &calendarContext_;
         return descriptor.value("pluginId").toString() == QStringLiteral("example.desktop-pet") ? &petContext_ : &pluginContext_;
     });
     connect(&petContext_, &PluginPageContext::navigationRequested, this, &PreviewController::navigate);
@@ -65,6 +66,7 @@ PreviewController::PreviewController(QObject* parent)
         dialog_.message(title, message, [this, answered, id] { *answered = true; emit pluginContext_.confirmationFinished(id, true); });
     });
     connect(this, &PreviewController::themeChanged, &pluginContext_, &PluginPageContext::refreshTheme);
+    connect(this, &PreviewController::themeChanged, &calendarContext_, &PluginPageContext::refreshTheme);
     connect(&driverPage_, &DriverPageModel::providerSelected, this, [this](const QString& id) {
         if (id.startsWith(QStringLiteral("xiaoji.driver.dd/"))) emit driverPage_.driverModeChanged(DriverMode::Legacy);
         else if (id.startsWith(QStringLiteral("xiaoji.driver.usb/"))) emit driverPage_.driverModeChanged(DriverMode::Usb);

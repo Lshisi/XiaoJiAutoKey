@@ -1,6 +1,6 @@
 # 插件发布与目录运营
 
-SDK、三个官方插件和目录服务均在现有主仓库，GitHub 为 `Lshisi/XiaoJiAutoKey`，Gitee 为 `fourteen-fourteen/xiao-ji-auto-key`，无需额外创建仓库。官方插件独立发行，平台配置与目录初始化见下方操作约定。
+SDK、官方插件和目录服务均在现有主仓库，GitHub 为 `Lshisi/XiaoJiAutoKey`，Gitee 为 `fourteen-fourteen/xiao-ji-auto-key`，无需额外创建仓库。官方插件独立发行，平台配置与目录初始化见下方操作约定。
 
 ## 官方插件独立发行
 
@@ -9,20 +9,21 @@ SDK、三个官方插件和目录服务均在现有主仓库，GitHub 为 `Lshis
 | `plugins/driver-dd` | `XiaoJiPluginDDPackage` | `plugins/driver-dd/vx.y.z` | `XiaoJiPluginDD-vx.y.z.zip` |
 | `plugins/driver-xiaoji` | `XiaoJiPluginXiaojiPackage` | `plugins/driver-xiaoji/vx.y.z` | `XiaoJiPluginXiaoji-vx.y.z.zip` |
 | `plugins/driver-usb` | `XiaoJiPluginUSBPackage` | `plugins/driver-usb/vx.y.z` | `XiaoJiPluginUSB-vx.y.z.zip` |
+| `plugins/page-calendar` | 纯 QML，直接打包源码目录 | `plugins/page-calendar/vx.y.z` | `XiaoJiPluginCalendar-vx.y.z.zip` |
 
-修改对应清单 `version` 和代码，提交源文件后再发布对应 tag。协议、宿主和固件版本分开管理。已发布的同一 ID + 版本不能替换包内容，重做包应使用新版本。官方入口的版本宏由清单生成。
+修改对应清单 `version` 和代码，提交源文件后再发布对应 tag。协议、宿主和固件版本分开管理。已发布的同一 ID + 版本不能替换包内容，重做包应使用新版本。原生官方入口的版本宏由清单生成。
 
-[plugin-release.yml](../.github/workflows/plugin-release.yml) 在推送上述 tag 后独立构建和打包，无需 Qt，不执行驱动、安装助手或输入操作，向 GitHub Release 上传 zip 及 `.sha256`；配置 Gitee 发布凭据后，将同一份文件上传到 Gitee Release。两端不分别重建 ZIP，确保包哈希一致。先同步源提交到两端，再推插件 tag。
+[plugin-release.yml](../.github/workflows/plugin-release.yml) 在推送上述 tag 后独立构建和打包，无需 Qt；活动日历跳过编译，直接收集源码、声明资源和许可证。不执行驱动、安装助手或输入操作，向 GitHub Release 上传 zip 及 `.sha256`；配置 Gitee 发布凭据后，将同一份文件上传到 Gitee Release。两端不分别重建 ZIP，确保包哈希一致。先同步源提交到两端，再推插件 tag。
 
 已发布插件附件不可覆盖。若 GitHub 发布成功、Gitee 失败，用 [Retry Gitee plugin mirror](../.github/workflows/plugin-mirror.yml) 手动填写同一个 tag，直接下载 GitHub 已发布附件补镜像；不重新构建或重打包。相同内容可幂等补传，不同内容拒绝覆盖。
 
-也可以自行构建后使用 `scripts/package-plugin.ps1`。例如，显式构建 `XiaoJiPluginDDPackage` 后，从 `build-qt6/plugins/driver-dd/Release/` 打包，`-PackageName XiaoJiPluginDD`。主程序默认构建不再依赖 DD、USB；两者保留独立构建和发行目标。脚本只收集清单、原生模块、页面及其图标文件、后台 QML、窗口入口、声明的资源、管理工具和许可证，不重新编译或执行插件。页面图标由 `pages[].icon` 声明；收录时与宿主一致校验内置名称或包内 SVG / PNG 文件，具体规则见 [插件页面](plugin-development.md#qml-页面)。
+也可以自行构建后使用 `scripts/package-plugin.ps1`。例如，显式构建 `XiaoJiPluginDDPackage` 后，从 `build-qt6/plugins/driver-dd/Release/` 打包，`-PackageName XiaoJiPluginDD`。主程序默认构建依赖小叽与 DD 两种内置驱动，USB 保留按需独立构建和发行目标；内置驱动仍可独立发布版本。脚本只收集清单、原生模块、页面及其图标文件、后台 QML、窗口入口、声明的资源、管理工具和许可证，不重新编译或执行插件。页面图标由 `pages[].icon` 声明；收录时与宿主一致校验内置名称或包内 SVG / PNG 文件，具体规则见 [插件页面](plugin-development.md#qml-页面)。
 
 后台和独立窗口仍使用同一套发布与审核流程，不单独建发布平台。清单声明和 SDK 桌宠/原生后台示例见 [插件运行时](plugin-runtime.md)；纯 QML 版本之间一起替换页面、后台和窗口，新旧任一版本包含原生模块或进程仍保留已加载模块时整体等待重启。
 
-完整应用仍由 `scripts/package-release.ps1` 构建和打包，只携带小叽驱动的清单版本。DD、USB 默认不安装，通过插件中心按需下载；独立包仍可经“导入”安装，官方身份须匹配可信目录。用户安装版本、`plugin-data`、缓存及 `config.json` 不进入发布包。框架更新只接受 `vx.y.z` 和 `XiaoJiAutoKey.zip` / `XiaoJiAutoKey-vx.y.z.zip`，与插件 tag 及附件分开。
+完整应用仍由 `scripts/package-release.ps1` 构建和打包，携带小叽和 DD 两种内置驱动的清单版本。USB、活动日历默认不安装，通过插件中心按需下载；独立包仍可经“导入”安装，官方身份须匹配可信目录。用户安装版本、`plugin-data`、缓存及 `config.json` 不进入发布包。框架更新只接受 `vx.y.z` 和 `XiaoJiAutoKey.zip` / `XiaoJiAutoKey-vx.y.z.zip`，与插件 tag 及附件分开。
 
-驱动 DLL、INF/SYS/CAT、安装工具及许可证属于对应插件，小叽以完整内置插件随应用发布。小叽插件固定启用、不能删除，其他插件允许停用及卸载。驱动页的诊断/自检入口由清单声明，专有说明通过原生诊断文本提供；系统驱动卸载可与插件移除联动，失败及待电脑重启时保留文件和工具。管理工具的退出码、权限及继续卸载约定见 [插件开发](plugin-development.md#安装与恢复)。
+驱动 DLL、INF/SYS/CAT、安装工具及许可证属于对应插件，小叽和 DD 以完整内置插件随应用发布。用户须保留至少一种可用的内置驱动，其余可停用及卸载，正常启动不会自动装回；内置标签保留离线安装入口。其他插件允许停用及卸载。驱动页的诊断/自检入口由清单声明，专有说明通过原生诊断文本提供；系统驱动卸载可与插件移除联动，也可独立执行，失败及待电脑重启时保留文件和工具。管理工具的退出码、权限及继续卸载约定见 [插件开发](plugin-development.md#安装与恢复)。
 
 ## 社区发布与收录
 
@@ -53,7 +54,7 @@ Gitee 的公开搜索和 GitHub topic API 不同，不能假设 `topic:` 查询�
 }
 ```
 
-单插件仓库也可使用此声明以限定 tag 或附件前缀。`tagPrefix`、`assetPrefix` 可选；不指定时从公开 Release ZIP 中匹配清单 ID。声明不含本机路径和密钥，也不会执行开发者的构建脚本。主仓库的 [xiaoji-plugins.json](../xiaoji-plugins.json) 声明三个官方模块。
+单插件仓库也可使用此声明以限定 tag 或附件前缀。`tagPrefix`、`assetPrefix` 可选；不指定时从公开 Release ZIP 中匹配清单 ID。声明不含本机路径和密钥，也不会执行开发者的构建脚本。主仓库的 [xiaoji-plugins.json](../xiaoji-plugins.json) 声明三个驱动和活动日历四个官方模块。
 
 搜索有索引延迟和 API 配额，发布后不保证即时出现。搜索故障或达到分页上限时保留此前有效结果；完整搜索确认撤去标记后，自动来源退出公开展示，已有安装和策略记录保留。单仓库读取最近 30 个 Release，每插件最多保留 128 个版本；本版 GitHub 最多搜索 500 个仓库，Gitee 最多 250 个，达到上限会在 `collection-errors.json` 说明。
 
@@ -83,6 +84,14 @@ Gitee 的公开搜索和 GitHub topic API 不同，不能假设 `topic:` 查询�
 
 签名封装为 `format: 1`、`algorithm: ecdsa-p256-sha256`、Base64 `payload` 和 Base64 `signature`；签名为固定 32 字节 r 与 32 字节 s 拼接。客户端按目录来源及公钥分别缓存，拒绝同一缓存内的修订号倒退；网络失败保留本地有效策略。
 
+## 目录内容摘要与升级
+
+版本元数据增加 `contentsSha256`，与 ZIP 的 `sha256` 一并放入签名 payload。目录服务从实际发行包计算该值；`publisher` 由仓库平台和所有者生成，客户端同时检查其与 `repository` 的平台、账号一致。插件清单中的作者、官方、审核或摘要字段不参与认证。
+
+内容摘要格式为 SHA-256：先输入 UTF-8 字节 `XiaoJiPluginContents\0v1\0`，再按相对路径的 UTF-8 字节升序排列所有普通文件。每项依次输入 4 字节大端路径字节长度、路径 UTF-8 字节、8 字节大端文件长度和 32 字节原始文件 SHA-256。路径统一使用 `/` 并保留大小写；空目录不计入摘要。根 `.installation.json` 由宿主单独维护，不参与内容摘要，发行 ZIP 禁止包含它。客户端读取版本目录真实文件按相同规则计算，额外文件同样参与，因此不能只改本地安装记录来保留认证。
+
+部署这次变更后，需要由维护者重新发布一次签名目录，再分发新客户端。收录任务会为相同 ZIP 补充摘要，并从历史版本原地址或同哈希镜像回填旧版摘要，不改变既有 ID、版本、ZIP 哈希或审核绑定，不要求重打插件 ZIP。旧附件不能读取或与历史哈希不一致时保留历史并记录错误，不编造摘要。新客户端可读取缺少摘要的旧签名目录以保留策略，但这类独立版本不授予认证、不加载、不提供新安装，界面提示刷新；摘要补齐后重新核对已有文件，不要求用户删除配置或插件数据。
+
 ## 审核、上下架和禁用
 
 维护者可编辑 `registry/reviews.json`、`registry/policy.json`，也可自行执行 `registry/scripts/moderate.py` 修改本地记录，提交后由目录任务签名发布。没有专用网页管理后台。
@@ -97,7 +106,7 @@ Gitee 的公开搜索和 GitHub topic API 不同，不能假设 `topic:` 查询�
 | 限定包禁用 | 禁用命令附加 `--sha256 <哈希>` | 仅匹配下载 zip；对随应用重建的预装副本应使用 ID + 版本规则 |
 | 撤销禁用 | `unblock`，ID、版本和可选哈希与原规则一致 | 新修订移除该策略，用户按本机选择恢复 |
 
-新版本不会继承旧版审核。未审核插件仍可公开安装；目录签名只证明元数据来源。离线客户端不能实时获知新策略，已缓存的禁用继续生效；删除目录条目不能代替发布禁用规则。
+新版本不会继承旧版审核。未审核插件仍可公开安装；目录签名证明元数据及内容摘要的来源，不认证作者自述，也不保证插件无恶意行为。已安装列表的官方和审核标记还要求当前文件与可信内容摘要一致。离线客户端不能实时获知新策略，已缓存的禁用继续生效；删除目录条目不能代替发布禁用规则。
 
 ## 用户运行核对事项
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(XiaoJiAutoKey VERSION 1.1.8 LANGUAGES C CXX)
+project(XiaoJiAutoKey VERSION 1.1.9 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -83,6 +83,7 @@ set(AUTOKEY_USAGE_GUIDE "${CMAKE_SOURCE_DIR}/assets/使用说明.mhtml")
 
 set(CORE_SOURCES
     src/core/plugins/PluginManifest.cpp
+    src/core/plugins/PluginIntegrity.cpp
     src/core/plugins/NativePluginDriver.cpp
     src/core/plugins/NativePluginModule.cpp
     src/core/plugins/PluginCatalog.cpp

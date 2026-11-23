@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/plugins/PluginManifest.h"
+#include "PluginPageContext.h"
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQmlError>
@@ -16,6 +17,7 @@ inline QUrl qmlSource(const Manifest& manifest, const QString& file) {
 
 inline QObject* createQml(QQmlEngine* engine, const QUrl& source, const QVariantMap& properties, QString* error) {
     if (source.isEmpty()) { *error = QObject::tr("插件 QML 入口缺失。"); return nullptr; }
+    if (auto* context = properties.value(QStringLiteral("pluginApi")).value<PluginPageContext*>(); context && !context->verifyFiles(error)) return nullptr;
     QQmlComponent component(engine, source, QQmlComponent::PreferSynchronous);
     auto* object = component.createWithInitialProperties(properties);
     if (!object) {

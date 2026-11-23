@@ -19,6 +19,11 @@ PluginPageContext::PluginPageContext(QString id, QStringList permissions, QObjec
 
 QVariantMap PluginPageContext::theme() const { return Fluent::qmlTheme(); }
 
+bool PluginPageContext::verifyFiles(QString* error) const {
+    if (!active_) { if (error) *error = tr("插件已停用，无法加载文件。"); return false; }
+    return !contentsVerifier_ || contentsVerifier_(error);
+}
+
 void PluginPageContext::setRuntimeState(const QVariantMap& state) {
     if ((!permissions_.contains(QStringLiteral("engine.read")) && !permissions_.contains(QStringLiteral("engine.control"))) || state_ == state) return;
     state_ = state;

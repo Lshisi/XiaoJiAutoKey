@@ -44,11 +44,12 @@ jobs:
             gh release download catalog --dir dist/mirror --pattern catalog.json --pattern public-key.txt --pattern collection-errors.json
             python registry/scripts/publish_gitee.py --tag catalog --replace-catalog dist/mirror/catalog.json dist/mirror/public-key.txt dist/mirror/collection-errors.json
           else
-            [[ "$MIRROR_TAG" =~ ^plugins/driver-(dd|xiaoji|usb)/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error::Invalid plugin tag'; exit 1; }
+            [[ "$MIRROR_TAG" =~ ^plugins/(driver-(dd|xiaoji|usb)|page-calendar)/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error::Invalid plugin tag'; exit 1; }
             case "$MIRROR_TAG" in
               plugins/driver-dd/*) prefix=XiaoJiPluginDD ;;
               plugins/driver-xiaoji/*) prefix=XiaoJiPluginXiaoji ;;
               plugins/driver-usb/*) prefix=XiaoJiPluginUSB ;;
+              plugins/page-calendar/*) prefix=XiaoJiPluginCalendar ;;
             esac
             version="${MIRROR_TAG##*/v}"
             package="$prefix-v$version.zip"

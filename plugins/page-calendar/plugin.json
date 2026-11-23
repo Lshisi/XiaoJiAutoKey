@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xiaoji.page.calendar",
+  "name": "活动日历",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.9",
+  "author": "小叽官方",
+  "description": "查看剑网3每日大战、战场、门派活动和本周活动安排，支持切换日期。",
+  "platforms": ["windows-x64"],
+  "permissions": ["ui.page"],
+  "pages": [{"id": "main", "title": "活动日历", "file": "Main.qml", "icon": "icons/calendar.svg"}],
+  "resources": ["ui"]
+}

@@ -106,6 +106,7 @@ private:
     PluginCenterModel pluginCenter_;
     SidebarModel sidebar_;
     PluginPageContext pluginContext_{QStringLiteral("example.status-page"), {QStringLiteral("ui.page"), QStringLiteral("engine.read"), QStringLiteral("settings.own")}};
+    PluginPageContext calendarContext_{QStringLiteral("xiaoji.page.calendar"), {QStringLiteral("ui.page")}};
     PluginPageContext petContext_{QStringLiteral("example.desktop-pet"), {QStringLiteral("ui.page"), QStringLiteral("ui.window"),
         QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own")}};
     QVariantList previewPlugins_;

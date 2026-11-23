@@ -1,4 +1,5 @@
 #include "PluginPageHost.h"
+#include "PluginPageContext.h"
 #include "QmlIconProvider.h"
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -44,6 +45,9 @@ void PluginPageHost::reload() {
     if (!api_ || source_.isEmpty()) { emit errorChanged(); return; }
     if (!source_.isLocalFile() && source_.scheme() != QStringLiteral("qrc")) {
         error_ = tr("插件页面必须来自已安装的本地文件。"); emit errorChanged(); return;
+    }
+    if (auto* context = qobject_cast<PluginPageContext*>(api_.data()); context && !context->verifyFiles(&error_)) {
+        emit errorChanged(); return;
     }
     engine_ = new QQmlEngine(this);
     engine_->addImageProvider(QStringLiteral("app-icons"), new QmlIconProvider);

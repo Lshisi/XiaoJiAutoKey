@@ -30,6 +30,7 @@ Popup {
     }
     contentItem: QuietScrollView {
         id: scroll
+        showScrollBar: false
         contentWidth: availableWidth
         contentHeight: content.implicitHeight
         ColumnLayout {
@@ -44,11 +45,11 @@ Popup {
             QuietLabel { text: popup.record.description; Layout.fillWidth: true; color: Theme.muted }
             QuietLabel { text: qsTr("版本：%1").arg(popup.record.version || "—"); Layout.fillWidth: true }
             QuietLabel { text: qsTr("兼容小叽：%1 起%2").arg(popup.record.minHostVersion || "—").arg(popup.record.maxHostVersion ? qsTr("，至 %1").arg(popup.record.maxHostVersion) : ""); Layout.fillWidth: true }
-            QuietLabel { text: qsTr("作者：%1").arg(popup.record.author); Layout.fillWidth: true }
-            QuietLabel { text: popup.record.reviewed ? qsTr("审核：此版本审核通过") : qsTr("审核：未审核"); Layout.fillWidth: true }
-            QuietLabel { text: qsTr("来源：%1").arg(popup.record.repository || popup.record.source); Layout.fillWidth: true }
-            QuietLabel { visible: !!popup.record.installationSource; text: qsTr("安装来源：%1").arg(popup.record.installationSource || ""); Layout.fillWidth: true; color: Theme.muted }
-            QuietLabel { text: qsTr("使用能力：%1").arg((popup.record.permissions || []).join("、")); Layout.fillWidth: true; color: Theme.muted }
+            QuietLabel { text: qsTr("发布者：%1").arg(popup.record.publisherVerified ? popup.record.publisher : popup.record.bundled ? qsTr("小叽按键随附") : qsTr("发布者未验证")); Layout.fillWidth: true }
+            QuietLabel { text: qsTr("作者自述：%1").arg(popup.record.author || "—"); Layout.fillWidth: true; color: Theme.muted }
+            QuietLabel { text: popup.record.bundled ? qsTr("审核：随程序提供，不适用独立包审核") : popup.record.reviewed ? qsTr("审核：此版本审核通过") : qsTr("审核：未审核"); Layout.fillWidth: true }
+            QuietLabel { text: qsTr("安装来源：%1").arg(popup.record.source || "—"); Layout.fillWidth: true }
+            QuietLabel { visible: !!popup.record.repository; text: qsTr("发布仓库：%1").arg(popup.record.repository || ""); Layout.fillWidth: true; color: Theme.muted }
             QuietLabel { visible: !!popup.record.error && popup.record.error.length > 0; text: popup.record.error || ""; color: Theme.danger; Layout.fillWidth: true }
             QuietLabel { visible: !!popup.record.disableReason; text: popup.record.disableReason || ""; color: Theme.muted; Layout.fillWidth: true }
             QuietLabel { visible: !!popup.record.removalError; text: popup.record.removalError || ""; color: Theme.warning; Layout.fillWidth: true }
@@ -71,7 +72,9 @@ Popup {
             Flow {
                 Layout.fillWidth: true
                 spacing: 8
-                ActionButton { visible: popup.record.pending === true; text: qsTr("重启应用"); enabled: !popup.page.state.busy; onClicked: popup.perform("restart") }
+                ActionButton { visible: !!popup.record.repository; text: qsTr("查看发布仓库"); hint: popup.record.repository || ""; onClicked: popup.perform("repository") }
+                ActionButton { visible: popup.record.pending === true || (popup.record.integrityError === true && popup.record.repairRequiresRestart === true); text: qsTr("重启应用"); enabled: !popup.page.state.busy; onClicked: popup.perform("restart") }
+                ActionButton { visible: popup.record.integrityError === true && popup.record.canRepair === true; text: qsTr("重新安装此版本"); enabled: !popup.page.state.busy && !popup.record.repairRequiresRestart; hint: popup.record.repairRequiresRestart ? qsTr("此版本的原生模块仍在使用，请先重启应用。") : qsTr("重新下载原版插件并保留现有设置。"); onClicked: popup.perform("repair-plugin") }
                 ActionButton { visible: popup.record.hasPage === true && popup.record.enabled === true; text: qsTr("打开页面"); onClicked: popup.perform("open") }
                 ActionButton {
                     visible: popup.record.hasBackground === true && popup.record.enabled === true && popup.record.runtimeStatus !== undefined && !popup.record.blocked
@@ -80,10 +83,10 @@ Popup {
                     onClicked: popup.perform("background", !popup.record.backgroundRunning)
                 }
                 ActionButton { visible: popup.record.updateAvailable === true; text: qsTr("下载更新"); enabled: !popup.page.state.busy; onClicked: popup.perform("update") }
-                ActionButton { visible: popup.record.builtin === true; text: qsTr("恢复随包版本"); enabled: !popup.page.state.busy && popup.record.canRestoreBundled === true; onClicked: popup.perform("restore-bundled") }
+                ActionButton { visible: popup.record.builtin === true; text: popup.record.installed === false ? qsTr("安装内置驱动") : qsTr("恢复随包版本"); enabled: !popup.page.state.busy && popup.record.canRestoreBundled === true; onClicked: popup.perform("restore-bundled") }
                 ActionButton { visible: popup.record.hasManagement === true && popup.record.enabled === true; text: qsTr("安装 / 修复系统驱动"); enabled: !popup.page.state.busy; onClicked: popup.perform("manage") }
                 ActionButton { visible: popup.record.hasSystemDriverUninstall === true && popup.record.enabled === true; text: qsTr("卸载系统驱动"); enabled: !popup.page.state.busy; onClicked: popup.perform("uninstall-system") }
-                ActionButton { visible: popup.record.enabled !== undefined && !popup.record.builtin; text: popup.record.removalPendingRestart ? qsTr("继续卸载") : popup.record.removalError ? qsTr("重试卸载") : qsTr("卸载插件"); enabled: !popup.page.state.busy && popup.record.canRemove !== false; onClicked: popup.perform("remove") }
+                ActionButton { visible: popup.record.enabled !== undefined && popup.record.installed !== false; text: popup.record.removalPendingRestart ? qsTr("继续卸载") : popup.record.removalError ? qsTr("重试卸载") : qsTr("卸载插件"); enabled: !popup.page.state.busy && popup.record.canRemove !== false; onClicked: popup.perform("remove") }
             }
             Repeater {
                 model: popup.record.enabled === true && !popup.record.blocked ? (popup.record.windows || []) : []

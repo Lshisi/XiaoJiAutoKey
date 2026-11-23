@@ -1,6 +1,6 @@
 # 项目目录与命名
 
-官方插件集中在主仓库 `plugins/`，按能力划分模块，沿用 Magpie 将插件作为仓库内独立模块维护的组织方式。小叽的模块仍使用 Qt/CMake 构建，源码目录、插件身份和构建目标分别命名。
+官方插件集中在主仓库 `plugins/`，按能力划分模块，沿用 Magpie 将插件作为仓库内独立模块维护的组织方式。宿主使用 Qt/CMake 构建，插件可以是原生模块或无需编译的纯 QML 页面；源码目录、插件身份和构建目标分别命名。
 
 ```text
 xiao-ji-auto-key/
@@ -12,6 +12,7 @@ xiao-ji-auto-key/
 │   ├── driver-xiaoji/          小叽驱动插件、管理及签名组件
 │   ├── driver-dd/              DD 驱动插件、运行库与 INF
 │   ├── driver-usb/             USB 驱动插件与固件资料
+│   ├── page-calendar/          活动日历页面插件，独立分发
 │   └── pet-xiaoji/             小叽桌宠插件预留目录、设计图与待办
 ├── registry/                  双平台自动发现、审核、上下架、禁用、签名及镜像发布
 ├── cmake/                     工程共用的 CMake 模块
@@ -27,7 +28,7 @@ xiao-ji-auto-key/
 
 ## 源码命名
 
-- 目录使用小写英文职责名。官方插件统一使用 `类型-名称`，当前为 `driver-xiaoji`、`driver-dd`、`driver-usb`；后续页面模块可使用 `page-名称`。
+- 目录使用小写英文职责名。官方插件统一使用 `类型-名称`，驱动为 `driver-xiaoji`、`driver-dd`、`driver-usb`，活动日历为 `page-calendar`；其他页面模块沿用 `page-名称`。
 - `sdk` 表示公开协议，`registry` 表示目录运营，两者独立于具体插件实现。目录不再使用 `XiaoJiPluginDD` 等独立工程名称。
 - 原有 C++ 分层沿用 `src/`、`include/` 及其内部职责目录；根目录 `third_party/` 只维护宿主共用依赖。驱动专有源码、运行库、安装组件和许可证集中在所属插件目录，不在根目录保留副本。QML 组件和 C++ 类型文件继续遵循其现有类型命名规则。
 - CMake 插件装配集中在 `cmake/Plugins.cmake`，发布工作流集中在仓库根 `.github/`。插件、SDK 和目录服务不嵌套各自的 `.git` 或发布工作流副本。
@@ -45,12 +46,13 @@ xiao-ji-auto-key/
 | `plugins/driver-xiaoji/` | `xiaoji.driver.xiaoji` | `XiaoJiPluginXiaojiPackage` | `xiaoji-plugin-xiaoji.dll` |
 | `plugins/driver-dd/` | `xiaoji.driver.dd` | `XiaoJiPluginDDPackage` | `xiaoji-plugin-dd.dll` |
 | `plugins/driver-usb/` | `xiaoji.driver.usb` | `XiaoJiPluginUSBPackage` | `xiaoji-plugin-usb.dll` |
+| `plugins/page-calendar/` | `xiaoji.page.calendar` | 无需编译，源码直接打包 | — |
 
 源码文件夹改名不改变插件 ID、提供方 ID、DLL、zip 附件名或用户配置字段。独立发行 tag 与源码模块一致，例如 `plugins/driver-dd/v1.0.0`；发布与收录配置必须同时修改，规则见 [插件发布](plugin-release.md)。
 
 运行时继续通过稳定 ID 定位：`plugins/builtin/<id>/<version>/`、`plugins/installed/<id>/<version>/`、`plugin-data/<id>/`。这些目录由插件管理器维护，不能用源码目录名替换其中的 ID。
 
-随应用部署的 `plugins/builtin/` 只包含小叽驱动；DD、USB 保留同仓库独立模块及发行目标，默认不构建、不预装，用户从插件中心按需下载到 `plugins/installed/`。源码同仓库不代表所有模块随应用分发。
+随应用部署的 `plugins/builtin/` 包含小叽驱动和 DD 驱动，两者默认随主程序构建并预装，同时保留独立版本发行入口。USB 和[活动日历](../plugins/page-calendar/README.md)保留同仓库独立模块及发行入口，默认不构建、不预装，用户从插件中心按需下载到 `plugins/installed/`。源码同仓库不代表所有模块随应用分发。
 
 小叽驱动依赖维护在 `plugins/driver-xiaoji/third_party/xiaoji/`，安装组件构建脚本维护在该插件的 `scripts/`；DD 运行库与 INF 维护在 `plugins/driver-dd/driver/`。根目录 `third_party/` 当前仅保留 `miniz/`，供宿主的更新解压、插件安装和分享数据使用。
 

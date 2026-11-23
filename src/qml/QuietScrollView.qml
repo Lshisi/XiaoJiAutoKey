@@ -6,6 +6,7 @@ import XiaoJi.UI
 T.ScrollView {
     id: control
     property bool autoHideScrollBar: false
+    property bool showScrollBar: true
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
                             contentWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
@@ -15,6 +16,7 @@ T.ScrollView {
     T.ScrollBar.vertical: QuietScrollBar {
         parent: control
         autoHide: control.autoHideScrollBar
+        policy: control.showScrollBar ? T.ScrollBar.AsNeeded : T.ScrollBar.AlwaysOff
         x: control.mirrored ? 0 : control.width - width
         y: control.topPadding
         height: control.availableHeight

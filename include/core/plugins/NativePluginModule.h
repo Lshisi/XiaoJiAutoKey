@@ -15,6 +15,7 @@ public:
     static std::shared_ptr<NativeModule> acquire(const Manifest& manifest, const QString& hostDirectory,
         const QString& dataDirectory, QString* error);
     static bool isLoaded(const QString& pluginId);
+    static bool isLoadedDirectory(const QString& directory);
     ~NativeModule() override;
     XjResult create(const QString& provider, XjDriverApi* output);
     XjResult startBackground();

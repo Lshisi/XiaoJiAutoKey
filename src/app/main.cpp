@@ -2,6 +2,7 @@
 #include "ConfigStore.h"
 #include "core/plugins/NativePluginDriver.h"
 #include "core/plugins/PluginCatalog.h"
+#include "core/plugins/PluginIntegrity.h"
 #include "services/AppPaths.h"
 #include "services/CodeIntegrityInspector.h"
 #include "services/DdRuntimeService.h"
@@ -256,9 +257,14 @@ int main(int argc, char *argv[]) {
                 const bool validCatalog = readable && Plugins::decodeCatalog(catalogFile.readAll(),
                     QByteArray::fromBase64(QByteArray::fromStdString(config.pluginRegistryPublicKey)), 0, &catalog, &pluginError);
                 permitted = manifest.id == id && (!validCatalog || Plugins::blockedReason(catalog, id, manifest.version, hash).isEmpty());
-                if (installedPackage) permitted = permitted && validCatalog && !hash.isEmpty()
-                    && Plugins::catalogPlugin(catalog, id).value(QStringLiteral("official")).toBool()
-                    && Plugins::catalogVersion(catalog, id, manifest.version).value(QStringLiteral("sha256")).toString() == hash;
+                if (installedPackage) {
+                    const auto exact = Plugins::catalogVersion(catalog, id, manifest.version);
+                    manifest.contentsSha256 = exact.value(QStringLiteral("contentsSha256")).toString();
+                    permitted = permitted && validCatalog && Plugins::validSha256(hash)
+                        && Plugins::catalogPlugin(catalog, id).value(QStringLiteral("official")).toBool()
+                        && exact.value(QStringLiteral("sha256")).toString().compare(hash, Qt::CaseInsensitive) == 0
+                        && Plugins::validSha256(manifest.contentsSha256) && Plugins::verifyManifestContents(manifest, &pluginError);
+                }
             }
             if (permitted) {
                 loadAttempted = true;

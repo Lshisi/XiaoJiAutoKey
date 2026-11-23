@@ -58,6 +58,7 @@ struct Manifest {
     QString maxHostVersion;
     QString native;
     QString directory;
+    QString contentsSha256; // Assigned by the host, never read from plugin.json.
     QStringList platforms;
     QStringList permissions;
     QStringList resources;

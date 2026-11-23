@@ -36,6 +36,7 @@ qt_add_executable(XiaoJiPreview MACOSX_BUNDLE WIN32
     ${PROJECT_ROOT}/src/ui/components/PluginWindows.h
     ${PROJECT_ROOT}/src/ui/components/PluginWindows.cpp
     ${PROJECT_ROOT}/src/core/plugins/PluginManifest.cpp
+    ${PROJECT_ROOT}/src/core/plugins/PluginIntegrity.cpp
     ${PROJECT_ROOT}/src/ui/models/GameProcessData.h
     ${PROJECT_ROOT}/src/ui/models/GameProcessData.cpp
     ${PROJECT_ROOT}/src/ui/models/KeyOverviewData.h
@@ -118,6 +119,16 @@ qt_add_resources(XiaoJiPreview preview_pet_example PREFIX /plugin-examples
           "${PROJECT_ROOT}/sdk/examples/desktop-pet/Background.qml"
           "${PROJECT_ROOT}/sdk/examples/desktop-pet/Pet.qml"
           "${PROJECT_ROOT}/sdk/examples/desktop-pet/icons/pet.svg")
+set(CALENDAR_PLUGIN_FILES Main.qml ui/ActivityGroup.qml ui/CalendarModel.qml ui/CalendarData.js
+    ui/CalendarRequest.qml ui/MonthNavigator.qml icons/calendar.svg)
+set(CALENDAR_PREVIEW_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/CalendarPreview.qml")
+set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/CalendarPreview.qml" PROPERTIES QT_RESOURCE_ALIAS "CalendarPreview.qml")
+foreach(calendar_file IN LISTS CALENDAR_PLUGIN_FILES)
+    set(calendar_path "${PROJECT_ROOT}/plugins/page-calendar/${calendar_file}")
+    set_source_files_properties("${calendar_path}" PROPERTIES QT_RESOURCE_ALIAS "calendar/${calendar_file}")
+    list(APPEND CALENDAR_PREVIEW_RESOURCES "${calendar_path}")
+endforeach()
+qt_add_resources(XiaoJiPreview preview_calendar PREFIX /plugin-examples FILES ${CALENDAR_PREVIEW_RESOURCES})
 qt_add_shaders(XiaoJiPreview preview_shaders
     PREFIX /shaders BASE "${PROJECT_ROOT}/src/qml/shaders"
     FILES "${PROJECT_ROOT}/src/qml/shaders/glass-refract.frag"

@@ -29,7 +29,7 @@ QuietScrollView {
                 spacing: 10
                 RowLayout {
                     Layout.fillWidth: true
-                    QuietHeading { text: qsTr("驱动管理"); pageTitle: true; Layout.fillWidth: true }
+                    QuietHeading { text: qsTr("驱动管理"); pageTitle: true; Layout.fillWidth: true; Layout.alignment: Qt.AlignTop }
                     ActionButton { text: qsTr("管理驱动插件"); onClicked: root.page.openPluginCenter() }
                 }
                 QuietLabel { Layout.fillWidth: true; text: qsTr("从已启用的驱动插件中选择，状态和管理操作随当前插件显示。"); color: Theme.muted }
@@ -70,8 +70,8 @@ QuietScrollView {
                     Layout.fillWidth: true
                     spacing: 8
                     visible: root.page.state.hidInstalled || root.page.state.systemDriverUninstall
-                    ActionButton { visible: root.page.state.systemDriverUninstall; text: qsTr("卸载所选系统驱动"); enabled: !root.busy; onClicked: root.page.managePlugin("uninstall") }
-                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("清理旧 HID 残留"); enabled: !root.busy; onClicked: root.page.uninstallRetiredHid() }
+                    ActionButton { visible: root.page.state.systemDriverUninstall; text: qsTr("卸载当前驱动"); enabled: !root.busy; onClicked: root.page.managePlugin("uninstall") }
+                    ActionButton { visible: root.page.state.hidInstalled; text: qsTr("卸载HID"); enabled: !root.busy; onClicked: root.page.uninstallRetiredHid() }
                 }
                 RowLayout {
                     Layout.fillWidth: true

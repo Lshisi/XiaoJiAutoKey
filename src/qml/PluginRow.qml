@@ -27,15 +27,16 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 QuietLabel { text: root.record.name; font.weight: Theme.headingWeight; Layout.maximumWidth: Math.max(0, parent.width - identity.implicitWidth - (currentLabel.visible ? currentLabel.implicitWidth + 5 : 0) - 10); Layout.minimumWidth: 0; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                QuietLabel { id: identity; text: root.record.builtin ? qsTr("内置") : root.record.official ? qsTr("官方") : root.record.source; color: Theme.muted }
+                QuietLabel { id: identity; text: root.record.bundled ? qsTr("内置") : root.record.official ? qsTr("官方发布") : root.record.publisherVerified ? qsTr("社区发布") : qsTr("未验证"); color: Theme.muted }
                 QuietLabel { id: currentLabel; visible: root.record.currentDriver === true; text: qsTr("当前使用"); color: Theme.accent }
                 Item { Layout.fillWidth: true }
             }
             QuietLabel { Layout.fillWidth: true; text: root.record.description; color: Theme.muted; maximumLineCount: 2; elide: Text.ElideRight }
             QuietLabel {
                 Layout.fillWidth: true
-                text: qsTr("v%1 · %2 · %3").arg(root.record.version || "—").arg(root.record.author)
-                    .arg(root.record.reviewed ? qsTr("此版本已审核") : root.record.builtin ? qsTr("随程序提供") : qsTr("未审核"))
+                text: qsTr("v%1 · %2 · %3").arg(root.record.version || "—")
+                    .arg(root.record.publisherVerified ? root.record.publisher : root.record.bundled ? qsTr("小叽按键") : qsTr("发布者未验证"))
+                    .arg(root.record.reviewed ? qsTr("此版本已审核") : root.record.bundled ? qsTr("随程序提供") : qsTr("未审核"))
                 color: Theme.muted
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
@@ -60,17 +61,17 @@ Item {
             ActionButton { visible: root.record.updateAvailable === true; text: qsTr("更新"); enabled: !root.busy; quiet: true; accented: true; onClicked: root.action("update", root.record.id, null) }
             ActionButton { text: qsTr("详情"); quiet: true; onClicked: root.action("details", root.record.id, root.record) }
             QuietSwitch {
-                visible: !root.discovery
+                visible: !root.discovery && root.record.installed !== false
                 checked: root.record.enabled === true
                 enabled: !root.busy && (!root.record.blocked || checked) && (checked ? root.record.canDisable !== false : root.record.canEnable !== false)
                 onClicked: root.action("enable", root.record.id, checked)
                 Accessible.name: checked ? qsTr("停用 %1").arg(root.record.name) : qsTr("启用 %1").arg(root.record.name)
             }
             ActionButton {
-                visible: root.discovery
+                visible: root.discovery || root.record.installed === false
                 text: root.record.installed ? qsTr("已安装") : qsTr("安装")
-                enabled: !root.busy && root.record.compatible === true && !root.record.installed
-                onClicked: root.action("install", root.record.id, null)
+                enabled: !root.busy && !root.record.installed && (root.record.builtin ? root.record.canRestoreBundled === true : root.record.compatible === true)
+                onClicked: root.action(root.record.builtin ? "restore-bundled" : "install", root.record.id, null)
             }
         }
     }

@@ -1,6 +1,8 @@
 #include "core/plugins/NativePluginModule.h"
+#include "core/plugins/PluginIntegrity.h"
 #include "DiagLog.h"
 #include <QDir>
+#include <QFileInfo>
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,6 +17,7 @@ struct ModuleCache {
     std::mutex loadedMutex;
     std::map<QString, std::shared_ptr<NativeModule>> modules;
     QSet<QString> pluginIds;
+    QSet<QString> directories;
 };
 ModuleCache& moduleCache() { static ModuleCache cache; return cache; }
 QString boundedText(const char* text, size_t maximum) {
@@ -51,7 +54,10 @@ std::shared_ptr<NativeModule> NativeModule::acquire(const Manifest& manifest, co
     if (auto* application = QCoreApplication::instance()) module->moveToThread(application->thread());
     if (!module->open(manifest, hostDirectory, dataDirectory, error)) return {};
     cache.modules.emplace(key, module);
-    { std::lock_guard loadedLock(cache.loadedMutex); cache.pluginIds.insert(manifest.id); }
+    { std::lock_guard loadedLock(cache.loadedMutex);
+        cache.pluginIds.insert(manifest.id);
+        cache.directories.insert(QFileInfo(manifest.directory).canonicalFilePath().toCaseFolded());
+    }
     return module;
 }
 
@@ -61,7 +67,14 @@ bool NativeModule::isLoaded(const QString& pluginId) {
     return cache.pluginIds.contains(pluginId);
 }
 
+bool NativeModule::isLoadedDirectory(const QString& directory) {
+    auto& cache = moduleCache();
+    std::lock_guard lock(cache.loadedMutex);
+    return cache.directories.contains(QFileInfo(directory).canonicalFilePath().toCaseFolded());
+}
+
 bool NativeModule::open(const Manifest& manifest, const QString& hostDirectory, const QString& dataDirectory, QString* error) {
+    if (!verifyManifestContents(manifest, error)) return false;
     id_ = manifest.id.toUtf8();
     directory_ = manifest.directory.toUtf8();
     hostDirectory_ = hostDirectory.toUtf8();

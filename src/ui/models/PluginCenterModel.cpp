@@ -2,17 +2,18 @@
 #include <QQmlEngine>
 
 PluginCenterModel::PluginCenterModel(QObject* parent) : PageModel(parent) {
-    state_ = {{"installed", QVariantList{}}, {"discover", QVariantList{}}, {"pages", QVariantList{}},
+    state_ = {{"installed", QVariantList{}}, {"discover", QVariantList{}}, {"pages", QVariantList{}}, {"builtin", QVariantList{}},
         {"busy", false}, {"updates", 0}, {"status", QString()}, {"registryConfigured", false},
         {"catalogRefreshing", false}, {"catalogError", QString()}};
 }
 
-void PluginCenterModel::setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages) {
+void PluginCenterModel::setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages, const QVariantList& builtin) {
     int updates = 0;
     for (const auto& value : installed) if (value.toMap().value("updateAvailable").toBool()) ++updates;
     state_.insert("installed", installed);
     state_.insert("discover", discover);
     state_.insert("pages", pages);
+    state_.insert("builtin", builtin);
     state_.insert("updates", updates);
     emit stateChanged();
 }

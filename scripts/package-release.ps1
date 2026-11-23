@@ -149,7 +149,7 @@ Get-ChildItem -LiteralPath $audioSrcDir -Filter "*.wav" -File | ForEach-Object {
 }
 
 # Package only the declared current bundled versions, never user installations or caches.
-foreach ($pluginName in @('driver-xiaoji')) {
+foreach ($pluginName in @('driver-xiaoji', 'driver-dd')) {
     $sourceManifest = Read-XiaojiPluginManifest (Join-Path $repoRoot "plugins\$pluginName")
     $pluginRelative = 'plugins\builtin\' + $sourceManifest.id + '\' + $sourceManifest.version
     $pluginOutput = Join-Path (Split-Path -Parent $exePath) $pluginRelative

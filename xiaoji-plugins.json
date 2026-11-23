@@ -3,6 +3,7 @@
   "plugins": [
     {"id": "xiaoji.driver.xiaoji", "tagPrefix": "plugins/driver-xiaoji/v", "assetPrefix": "XiaoJiPluginXiaoji-"},
     {"id": "xiaoji.driver.dd", "tagPrefix": "plugins/driver-dd/v", "assetPrefix": "XiaoJiPluginDD-"},
-    {"id": "xiaoji.driver.usb", "tagPrefix": "plugins/driver-usb/v", "assetPrefix": "XiaoJiPluginUSB-"}
+    {"id": "xiaoji.driver.usb", "tagPrefix": "plugins/driver-usb/v", "assetPrefix": "XiaoJiPluginUSB-"},
+    {"id": "xiaoji.page.calendar", "tagPrefix": "plugins/page-calendar/v", "assetPrefix": "XiaoJiPluginCalendar-"}
   ]
 }

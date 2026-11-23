@@ -4,6 +4,8 @@
 #include <QStringList>
 #include <QVariantMap>
 #include <QElapsedTimer>
+#include <functional>
+#include <utility>
 
 class PluginPageContext final : public QObject {
     Q_OBJECT
@@ -23,6 +25,8 @@ public:
     void setSettings(const QVariantMap& settings);
     void setRuntime(const QVariantMap& runtime);
     void refreshTheme() { emit themeChanged(); }
+    void setContentsVerifier(std::function<bool(QString*)> verifier) { contentsVerifier_ = std::move(verifier); }
+    bool verifyFiles(QString* error) const;
     void deactivate();
     void activate() { active_ = true; }
     Q_INVOKABLE bool saveSetting(const QString& key, const QVariant& value);
@@ -71,4 +75,5 @@ private:
     bool active_ = true;
     QElapsedTimer messageClock_;
     int messageCount_ = 0;
+    std::function<bool(QString*)> contentsVerifier_;
 };

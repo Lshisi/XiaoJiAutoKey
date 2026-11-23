@@ -94,6 +94,11 @@ bool parseManifest(const QJsonObject& object, const QString& directory, Manifest
         || manifest.name.isEmpty() || manifest.name.size() > 80 || manifest.author.isEmpty() || manifest.author.size() > 120
         || manifest.description.isEmpty() || manifest.description.size() > 2000 || !validVersion(manifest.minHostVersion))
         return fail(error, QStringLiteral("插件标识、名称或版本格式无效。"));
+    for (const auto& text : {object.value(QStringLiteral("name")).toString(), object.value(QStringLiteral("author")).toString()})
+        for (const auto character : text)
+            if (character.category() == QChar::Other_Control || character.category() == QChar::Other_Format
+                || character.category() == QChar::Separator_Line || character.category() == QChar::Separator_Paragraph)
+                return fail(error, QStringLiteral("插件名称和作者自述不能包含换行或隐藏控制字符。"));
     if (!manifest.maxHostVersion.isEmpty() && (!validVersion(manifest.maxHostVersion) || compareVersions(manifest.maxHostVersion, manifest.minHostVersion) < 0))
         return fail(error, QStringLiteral("插件最高宿主版本格式无效。"));
     if (compareVersions(QString::fromLatin1(APP_VERSION), manifest.minHostVersion) < 0

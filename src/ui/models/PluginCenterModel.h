@@ -7,7 +7,7 @@ class PluginCenterModel final : public PageModel {
     Q_OBJECT
 public:
     explicit PluginCenterModel(QObject* parent = nullptr);
-    void setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages);
+    void setSnapshot(const QVariantList& installed, const QVariantList& discover, const QVariantList& pages, const QVariantList& builtin = {});
     void setStatus(const QString& message, bool busy = false);
     void setCatalogRefreshState(bool refreshing, const QString& error = {});
     void setBusy(bool busy) { setValue("busy", busy); }

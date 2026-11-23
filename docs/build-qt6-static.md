@@ -89,17 +89,17 @@ dist\XiaoJiAutoKey\plugins\builtin\<插件ID>\<插件版本>\
 dist\XiaoJiAutoKey.zip
 ```
 
-主程序默认仅构建和部署小叽驱动，DD、USB 保留独立目标，由插件中心按需安装；小叽管理组件随小叽插件交付。已有 `build-qt6\Release` 可能包含历史遗留文件和用户数据，整理干净发布目录时只按清单收集当前随包小叽版本。`dist\XiaoJiAutoKey.zip` 用于 Gitee 和 GitHub Release，两端使用同一份发布包，流程见 [双平台同步](repository-sync.md)。发布包绝不包含 `config.json`、用户安装插件、插件数据和缓存，具体清单见 [发布包内容](release-process.md#发布包内容)。
+主程序默认构建和部署小叽与 DD 两种内置驱动，USB 保留独立目标，由插件中心按需安装；小叽管理组件随小叽插件交付。已有 `build-qt6\Release` 可能包含历史遗留文件和用户数据，整理干净发布目录时只按清单收集当前随包小叽和 DD 版本。`dist\XiaoJiAutoKey.zip` 用于 Gitee 和 GitHub Release，两端使用同一份发布包，流程见 [双平台同步](repository-sync.md)。发布包绝不包含 `config.json`、用户安装插件、插件数据和缓存，具体清单见 [发布包内容](release-process.md#发布包内容)。
 
 Qt 6 QML、Quick Controls、SVG 和 Shader Tools 静态链接进 exe 后，体积会大于旧 Widgets 版本，每次产物以实际构建为准。编译通过与功能运行确认分别记录；构建产物、日志及本机配置均不提交 Git。
 
-在 Windows 的 Visual Studio 根工程中显式编译可选插件时，目标需要带生成工程的相对目录：
+在 Windows 的 Visual Studio 根工程中单独编译驱动插件时，目标需要带生成工程的相对目录：
 
 ```powershell
 & 'D:\software\cmake-3.31.6\bin\cmake.exe' --build build-qt6 --config Release --target plugins/driver-dd/XiaoJiPluginDDPackage plugins/driver-usb/XiaoJiPluginUSBPackage
 ```
 
-直接以 `plugins/driver-dd` 或 `plugins/driver-usb` 为源码目录独立配置时，使用对应的普通目标名即可。上述目标只收集独立插件输出，不会把 DD、USB 加入默认随包插件。
+直接以 `plugins/driver-dd` 或 `plugins/driver-usb` 为源码目录独立配置时，使用对应的普通目标名即可。上述目标可刷新独立插件输出；DD 同时属于默认随包插件，USB 仍需按需安装。
 
 ## 手动清理
 

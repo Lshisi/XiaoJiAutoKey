@@ -12,6 +12,8 @@
 
 `scripts/sources.py` 负责两平台发现、声明读取与公共网络请求。Gitee 使用其网页实际采用的公开搜索服务，不能照搬 GitHub topic API；搜索错误、分页上限和单仓库读取失败保留此前有效来源并记录原因。`scripts/catalog.py` 负责包校验、版本聚合、审核、策略和签名；从已发布且验签通过的目录恢复历史，避免依赖单份 Actions 缓存。
 
+签名版本记录同时包含 ZIP 的 `sha256` 和真实解压文件的 `contentsSha256`，发布账号由仓库平台及所有者生成，作者仅是插件自述。内容摘要算法、历史版本回填和新客户端上线顺序见[目录内容摘要与升级](../docs/plugin-release.md#目录内容摘要与升级)。只补充旧 ZIP 的摘要，不替换历史包或复用旧版本发布不同内容；包内不得携带宿主保留的 `.installation.json`。
+
 ## 审核和管理
 
 `reviews.json` 的记录为 `{ "id": "author.plugin", "version": "1.0.0", "sha256": "包的 SHA-256", "status": "approved" }`，仅精确匹配的版本获得审核标记。删去记录即可撤销，新版默认未审核。

@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import sys
 import time
+import unicodedata
 import zipfile
 
 from sources import SourceHTTPError, VERSION, descriptor, discover, download, repository, validate_identity
@@ -51,7 +52,7 @@ def write_json(path: Path, value):
     temporary.replace(path)
 
 
-def check_package(body: bytes, expected_id: str) -> dict:
+def check_package(body: bytes, expected_id: str) -> tuple[dict, str]:
     with zipfile.ZipFile(io.BytesIO(body)) as archive:
         entries = archive.infolist()
         if not entries or len(entries) > 4096 or sum(item.file_size for item in entries) > MAX_UNPACKED_BYTES:
@@ -67,6 +68,8 @@ def check_package(body: bytes, expected_id: str) -> dict:
             if entry.is_dir():
                 continue
             key = name.casefold()
+            if key == ".installation.json":
+                raise ValueError("插件包不能包含宿主安装记录")
             if key in folded:
                 raise ValueError("包内有大小写冲突的重复路径")
             folded.add(key)
@@ -90,6 +93,8 @@ def check_package(body: bytes, expected_id: str) -> dict:
         for field, maximum in (("name", 80), ("author", 120), ("description", 2000)):
             if not isinstance(manifest.get(field), str) or not manifest[field].strip() or len(manifest[field]) > maximum:
                 raise ValueError(f"{field} 格式无效")
+            if field != "description" and any(unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"} for char in manifest[field]):
+                raise ValueError("插件名称和作者自述不能包含换行或隐藏控制字符")
         if not string_list(manifest.get("platforms"), 8) or "windows-x64" not in manifest["platforms"]:
             raise ValueError("需要声明 Windows x64 平台")
         permissions = manifest.get("permissions", [])
@@ -207,7 +212,15 @@ def check_package(body: bytes, expected_id: str) -> dict:
             confirmation = command.get("confirmation", "")
             if program not in files or not program.lower().endswith(".exe") or not isinstance(confirmation, str) or not confirmation.strip() or len(confirmation) > 1500 or not string_list(command.get("arguments", []), 24):
                 raise ValueError("管理工具、参数或说明无效")
-        return manifest
+        contents = hashlib.sha256(b"XiaoJiPluginContents\0v1\0")
+        for name in sorted(files, key=lambda value: value.encode("utf-8")):
+            path = name.encode("utf-8")
+            data = archive.read(files[name])
+            contents.update(len(path).to_bytes(4, "big"))
+            contents.update(path)
+            contents.update(len(data).to_bytes(8, "big"))
+            contents.update(hashlib.sha256(data).digest())
+        return manifest, contents.hexdigest()
 
 
 def releases(source: dict) -> list[dict]:
@@ -290,7 +303,7 @@ def register_issue(path: Path):
     checked = None
     for candidate in candidates:
         try:
-            checked = check_package(download(candidate["url"], MAX_PACKAGE_BYTES), source["id"])
+            checked, _ = check_package(download(candidate["url"], MAX_PACKAGE_BYTES), source["id"])
             break
         except (ValueError, zipfile.BadZipFile):
             continue
@@ -371,6 +384,9 @@ def validate_history(catalog: dict) -> dict:
                     or not VERSION.fullmatch(version["version"]) or not isinstance(version.get("sha256"), str)
                     or not re.fullmatch(r"[0-9a-fA-F]{64}", version["sha256"])):
                 raise ValueError("历史版本或包哈希无效")
+            if "contentsSha256" in version and (not isinstance(version["contentsSha256"], str)
+                    or not re.fullmatch(r"[0-9a-fA-F]{64}", version["contentsSha256"])):
+                raise ValueError("历史文件内容摘要无效")
     return catalog
 
 
@@ -446,7 +462,7 @@ def collect(bootstrap: bool = False):
                 for release in releases(location):
                     package = download(release["url"], MAX_PACKAGE_BYTES)
                     try:
-                        candidate = check_package(package, plugin_id)
+                        candidate, contents_hash = check_package(package, plugin_id)
                     except (ValueError, zipfile.BadZipFile) as error:
                         errors.append({"id": plugin_id, "error": str(error)})
                         continue
@@ -460,10 +476,11 @@ def collect(bootstrap: bool = False):
                         errors.append({"id": plugin_id, "repository": address, "error": f"版本 {version} 内容已变化，拒绝覆盖"})
                         continue
                     if prior:
+                        prior["contentsSha256"] = contents_hash
                         urls = list(dict.fromkeys([prior["url"], *prior.get("mirrors", []), release["url"]]))
                         prior["mirrors"] = [url for url in urls if url != prior["url"]][:4]
                     else:
-                        known[version] = {"version": version, "url": release["url"], "sha256": digest, "mirrors": [],
+                        known[version] = {"version": version, "url": release["url"], "sha256": digest, "contentsSha256": contents_hash, "mirrors": [],
                             "size": len(package), "minHostVersion": candidate["minHostVersion"],
                             "maxHostVersion": candidate.get("maxHostVersion", ""), "reviewed": False,
                             "notes": release["notes"], "publishedAt": release["publishedAt"]}
@@ -473,6 +490,21 @@ def collect(bootstrap: bool = False):
                 errors.append({"id": plugin_id, "repository": address, "error": str(error)})
         if not known:
             continue
+        for version in known.values():
+            if version.get("contentsSha256"):
+                continue
+            for address in dict.fromkeys([version["url"], *version.get("mirrors", [])]):
+                try:
+                    package = download(address, MAX_PACKAGE_BYTES)
+                    if hashlib.sha256(package).hexdigest() != version["sha256"].lower():
+                        raise ValueError("历史发行包与原签名目录的哈希不一致")
+                    candidate, contents_hash = check_package(package, plugin_id)
+                    if candidate["version"] != version["version"]:
+                        raise ValueError("历史发行包版本不一致")
+                    version["contentsSha256"] = contents_hash
+                    break
+                except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
+                    errors.append({"id": plugin_id, "version": version["version"], "error": str(error)})
         row = dict(old.get(plugin_id, {}))
         newest = max(known, key=lambda number: tuple(map(int, number.split("."))))
         if manifest and manifest["version"] == newest:

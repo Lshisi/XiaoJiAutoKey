@@ -273,6 +273,7 @@ std::wstring GetKeyDisplayName(const KeyDescriptor& key);
 [[nodiscard]] std::wstring ModifierPrefix(std::uint8_t modifiers);
 [[nodiscard]] bool SamePrimaryKey(const KeyDescriptor& left, const KeyDescriptor& right) noexcept;
 [[nodiscard]] bool KeyMatchesEvent(const KeyDescriptor& binding, const KeyDescriptor& event) noexcept;
+[[nodiscard]] bool KeyReleasedByEvent(const KeyDescriptor& binding, const KeyDescriptor& event) noexcept;
 [[nodiscard]] std::vector<KeyDescriptor> ExpandKeyComponents(const KeyDescriptor& key);
 [[nodiscard]] bool IsReservedKeyCombination(const KeyDescriptor& key) noexcept;
 std::wstring RepeatModeToText(RepeatMode mode);

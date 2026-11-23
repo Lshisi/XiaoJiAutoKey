@@ -193,6 +193,11 @@ bool KeyMatchesEvent(const KeyDescriptor& binding, const KeyDescriptor& event) n
     return SamePrimaryKey(binding, event) && binding.modifiers == event.modifiers;
 }
 
+bool KeyReleasedByEvent(const KeyDescriptor& binding, const KeyDescriptor& event) noexcept {
+    return SamePrimaryKey(binding, event) || (IsKeyboardModifierKey(event)
+        && (binding.modifiers & ModifierMaskFromKey(event)) != 0);
+}
+
 std::vector<KeyDescriptor> ExpandKeyComponents(const KeyDescriptor& key) {
     if (!key.IsValid()) return {};
 

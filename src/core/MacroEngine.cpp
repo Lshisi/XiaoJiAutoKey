@@ -93,8 +93,7 @@ void MacroEngine::OnTriggerUp(const KeyDescriptor& key) {
     std::lock_guard lock(mutex_);
     std::erase_if(triggerKeysDown_, [&key](const auto& down) { return SamePrimaryKey(down, key); });
     const auto released = [&key](const KeyDescriptor& binding) {
-        return SamePrimaryKey(binding, key) || (IsKeyboardModifierKey(key)
-            && (binding.modifiers & ModifierMaskFromKey(key)) != 0);
+        return KeyReleasedByEvent(binding, key);
     };
     std::erase_if(pauseKeysDown_, released);
     for (auto& rt : macros_) {

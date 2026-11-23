@@ -63,6 +63,8 @@
 
 `sounds` 中每个事件分别保存 `enabled`、`path`、`volume`。新建配置的所有事件默认开启；切换和暂停提示默认音量低于整体启停。
 
+首次读取只有旧字段的 1.1.6 配置时，将 `customSoundOn`、`customSoundOff`、`macroSoundOn`、`macroSoundOff` 转为对应四项启停事件的自定义音频；`soundVolume` 和 `macroSoundVolume` 分别用于按键组与循环／录制组，保留音量 0 的静音设置。已有 `sounds` 时直接使用逐事件配置。后续保存只写 `sounds`，不再写旧字段；此转换不修改自定义音频文件，也不主动写入用户配置。
+
 `scripts/package-release.ps1` 保留原有四个启停 WAV 的存在检查，同时收录 `assets/audio/` 中全部 WAV，因此后续加入的音频会自动进入发布包。
 
 ## 界面预览

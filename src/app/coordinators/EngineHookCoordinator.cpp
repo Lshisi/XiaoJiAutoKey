@@ -80,16 +80,13 @@ void EngineHookCoordinator::handleRawInputChanged(const KeyDescriptor& key, bool
     }
 
     const auto controlHotkey = context_.controlHotkey ? context_.controlHotkey() : std::nullopt;
-    if (!pressed && IsKeyboardModifierKey(key) && controlHotkey.has_value()
-        && (controlHotkey->modifiers & ModifierMaskFromKey(key)) != 0) {
+    if (!pressed && controlHotkey.has_value() && KeyReleasedByEvent(*controlHotkey, key)) {
         rawControlHotkeyPressed_ = false;
     }
-    if (controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, key)) {
-        if (pressed && !rawControlHotkeyPressed_) {
+    if (pressed && controlHotkey.has_value() && KeyMatchesEvent(*controlHotkey, key)) {
+        if (!rawControlHotkeyPressed_) {
             rawControlHotkeyPressed_ = true;
             handleControlHotkeyPressed();
-        } else if (!pressed) {
-            rawControlHotkeyPressed_ = false;
         }
     } else {
         handlePhysicalChanged(key, pressed);

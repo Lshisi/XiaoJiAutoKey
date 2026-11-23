@@ -1,0 +1,1329 @@
+{
+  "activeProfileId": 2,
+  "activeMacroId": 3,
+  "profiles": [
+    {
+      "id": 2,
+      "name": "[K1-01]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:160",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "[K1-02]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:161",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "[K1-03]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:162",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "[K1-04]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:163",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "[K1-05]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:164",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "[K1-06]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:165",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "[K1-07]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:82",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "[K1-08]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:82+Shift",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "[K1-09]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:82",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": false,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "sequence",
+          "name": "第 1 段：1",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50",
+          "mode": "sequence",
+          "name": "第 2 段：2",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": false,
+          "key": "K:51",
+          "mode": "sequence",
+          "name": "第 3 段：停用，应跳过",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "[K2-01]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "hold",
+          "name": "A 松开应停",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "[K2-02]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": true,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "hold",
+          "name": "A 参与优先",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:66",
+          "mode": "toggle",
+          "name": "B 背景连发",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "[K2-03]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65+Shift",
+          "mode": "hold",
+          "name": "Shift+A 按压",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "[K2-04]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "independent",
+          "name": "A 独立，防误停关",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:66",
+          "mode": "independent",
+          "name": "B 独立，防误停关",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": false
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "[K2-05]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "independent",
+          "name": "A 独立，防误停开",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": true
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:66",
+          "mode": "independent",
+          "name": "B 独立，防误停开",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": true
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "[K2-06]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "M:2",
+          "mode": "hold",
+          "name": "鼠标右键按压",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "[K3-01]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "toggle",
+          "name": "1 作为运行标志",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "[K3-02]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "toggle",
+          "name": "1 作为运行标志",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "[K3-03]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49",
+          "mode": "toggle",
+          "name": "1 作为运行标志",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "[K4-01]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:160",
+          "mode": "hold",
+          "name": "LShift 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "[K4-02]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:161",
+          "mode": "hold",
+          "name": "RShift 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "[K4-03]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:162",
+          "mode": "hold",
+          "name": "LCtrl 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "[K4-04]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:163",
+          "mode": "hold",
+          "name": "RCtrl 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "[K4-05]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:164",
+          "mode": "hold",
+          "name": "LAlt 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "[K4-06]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:165",
+          "mode": "hold",
+          "name": "RAlt 连发 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "[K5-01]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "toggle",
+          "name": "A 按键页 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "[K5-02]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "independent",
+          "name": "A 独立 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:68",
+          "mode": "independent",
+          "name": "D 替代项",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "preventAccidentalStop": false
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "[K5-03]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "K:82",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "sequence",
+          "name": "A 当前段 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:68",
+          "mode": "sequence",
+          "name": "D 下一段",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "[K5-04]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": true,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "toggle",
+          "name": "A 先申请",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:67",
+          "mode": "hold",
+          "name": "C 按压优先接管",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "[K5-05]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "toggle",
+          "name": "A 前台恢复 150ms",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "[G1]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65+Shift",
+          "mode": "toggle",
+          "name": "Shift 保持，A 脉冲",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "[G2]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:162",
+          "mode": "longPress",
+          "name": "左 Ctrl 持续保持",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "martialAssist": false
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "[G3]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:49+Ctrl",
+          "mode": "longPress",
+          "name": "Ctrl+1 长按",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "martialAssist": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:50+Ctrl",
+          "mode": "longPress",
+          "name": "Ctrl+2 长按",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "martialAssist": false
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "[G4]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": false,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "hold",
+          "name": "A 按压",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:66",
+          "mode": "hold",
+          "name": "B 按压",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 3,
+          "enabled": true,
+          "key": "K:67",
+          "mode": "toggle",
+          "name": "C 背景开关",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "[G5]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [],
+      "defaultDelayMs": 150,
+      "mixedMode": true,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:65",
+          "mode": "hold",
+          "name": "A 参与优先",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:66",
+          "mode": "hold",
+          "name": "B 不参与优先",
+          "delayMs": 150,
+          "suppressMixedMode": true
+        },
+        {
+          "id": 3,
+          "enabled": true,
+          "key": "K:67",
+          "mode": "toggle",
+          "name": "C 背景开关",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "[G6]",
+      "enabled": true,
+      "controlHotkey": "M:4",
+      "sequenceSwitchKey": "",
+      "pauseKeys": [
+        "K:80",
+        "K:164"
+      ],
+      "defaultDelayMs": 150,
+      "mixedMode": true,
+      "wasdProtection": false,
+      "rememberSequencePosition": true,
+      "bindings": [
+        {
+          "id": 1,
+          "enabled": true,
+          "key": "K:70",
+          "mode": "longPress",
+          "name": "F 武学助手",
+          "delayMs": 150,
+          "suppressMixedMode": false,
+          "martialAssist": true
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "key": "K:71",
+          "mode": "hold",
+          "name": "G 按压优先",
+          "delayMs": 150,
+          "suppressMixedMode": false
+        }
+      ]
+    }
+  ],
+  "macros": [
+    {
+      "id": 3,
+      "name": "[K5-M]",
+      "enabled": true,
+      "triggerKey": "K:120",
+      "triggerMode": "toggle",
+      "loopCount": 0,
+      "pauseKeys": [],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:65",
+          "name": "A 点击，之后等待 700ms",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 700
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "action": "click",
+          "key": "K:66",
+          "name": "B 心跳，之后等待 100ms",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 100
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "[K5-N]",
+      "enabled": true,
+      "triggerKey": "K:120",
+      "triggerMode": "toggle",
+      "loopCount": 0,
+      "pauseKeys": [],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:67",
+          "name": "C 点击",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 700
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "action": "click",
+          "key": "K:68",
+          "name": "D 心跳",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 100
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "[M1]",
+      "enabled": true,
+      "triggerKey": "K:120",
+      "triggerMode": "toggle",
+      "loopCount": 3,
+      "pauseKeys": [
+        "K:80"
+      ],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:49",
+          "name": "每轮点击 1",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 500
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "[M2]",
+      "enabled": true,
+      "triggerKey": "K:120",
+      "triggerMode": "hold",
+      "loopCount": 0,
+      "pauseKeys": [],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:49",
+          "name": "点击 1",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 150
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "[M3]",
+      "enabled": true,
+      "triggerKey": "K:120+Ctrl",
+      "triggerMode": "hold",
+      "loopCount": 0,
+      "pauseKeys": [],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:49",
+          "name": "点击 1",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 150
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "[M4]",
+      "enabled": true,
+      "triggerKey": "K:120",
+      "triggerMode": "toggle",
+      "loopCount": 0,
+      "pauseKeys": [
+        "K:80"
+      ],
+      "steps": [
+        {
+          "id": 1,
+          "enabled": true,
+          "action": "click",
+          "key": "K:49",
+          "name": "点击 1 一次",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 150
+        },
+        {
+          "id": 2,
+          "enabled": true,
+          "action": "hold",
+          "key": "K:50",
+          "name": "保持 2 共 1200ms",
+          "durationMs": 1200,
+          "wheelDelta": 120,
+          "delayAfterMs": 200
+        },
+        {
+          "id": 3,
+          "enabled": true,
+          "action": "down",
+          "key": "K:162",
+          "name": "按下左 Ctrl",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 0
+        },
+        {
+          "id": 4,
+          "enabled": true,
+          "action": "click",
+          "key": "K:51",
+          "name": "Ctrl 保持时点击 3",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 200
+        },
+        {
+          "id": 5,
+          "enabled": true,
+          "action": "up",
+          "key": "K:162",
+          "name": "松开左 Ctrl",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 200
+        },
+        {
+          "id": 6,
+          "enabled": true,
+          "action": "wait",
+          "name": "等待 1500ms",
+          "durationMs": 1500,
+          "wheelDelta": 120,
+          "delayAfterMs": 0
+        },
+        {
+          "id": 7,
+          "enabled": true,
+          "action": "wheel",
+          "name": "滚轮向上 1 格",
+          "durationMs": 500,
+          "wheelDelta": 120,
+          "delayAfterMs": 300
+        },
+        {
+          "id": 8,
+          "enabled": true,
+          "action": "wheel",
+          "name": "滚轮向下 1 格",
+          "durationMs": 500,
+          "wheelDelta": -120,
+          "delayAfterMs": 300
+        }
+      ]
+    }
+  ]
+}

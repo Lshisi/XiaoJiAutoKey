@@ -1,0 +1,84 @@
+{
+  "profiles": [],
+  "macros": [],
+  "beepEnabled": true,
+  "macroBeepEnabled": true,
+  "customSoundOn": "@AUDIO@/macro-on.wav",
+  "customSoundOff": "@AUDIO@/macro-off.wav",
+  "macroSoundOn": "@AUDIO@/repeat-on.wav",
+  "macroSoundOff": "@AUDIO@/repeat-off.wav",
+  "soundVolume": 0,
+  "macroSoundVolume": 25,
+  "sounds": {
+    "repeatOn": {
+      "enabled": true,
+      "path": "@AUDIO@/repeat-on.wav",
+      "volume": 35
+    },
+    "repeatOff": {
+      "enabled": true,
+      "path": "@AUDIO@/repeat-off.wav",
+      "volume": 35
+    },
+    "independentOn": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "independentOff": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "independentSwitch": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "sequenceSwitch": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "repeatPause": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "repeatResume": {
+      "enabled": true,
+      "path": "",
+      "volume": 35
+    },
+    "macroOn": {
+      "enabled": true,
+      "path": "@AUDIO@/macro-on.wav",
+      "volume": 45
+    },
+    "macroOff": {
+      "enabled": true,
+      "path": "@AUDIO@/macro-off.wav",
+      "volume": 45
+    },
+    "macroPause": {
+      "enabled": true,
+      "path": "",
+      "volume": 45
+    },
+    "macroResume": {
+      "enabled": true,
+      "path": "",
+      "volume": 45
+    },
+    "recordingOn": {
+      "enabled": true,
+      "path": "",
+      "volume": 55
+    },
+    "recordingOff": {
+      "enabled": true,
+      "path": "",
+      "volume": 55
+    }
+  }
+}

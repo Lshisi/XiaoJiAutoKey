@@ -1,0 +1,12 @@
+{
+  "profiles": [],
+  "macros": [],
+  "beepEnabled": true,
+  "macroBeepEnabled": true,
+  "customSoundOn": "@AUDIO@/repeat-on.wav",
+  "customSoundOff": "@AUDIO@/repeat-off.wav",
+  "macroSoundOn": "@AUDIO@/macro-on.wav",
+  "macroSoundOff": "@AUDIO@/macro-off.wav",
+  "soundVolume": 0,
+  "macroSoundVolume": 25
+}

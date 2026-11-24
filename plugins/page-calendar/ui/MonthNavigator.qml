@@ -58,6 +58,8 @@ ColumnLayout {
                 text: modelData.inMonth ? String(modelData.day) : ""
                 quiet: true
                 compact: true
+                leftPadding: 4
+                rightPadding: 4
                 accented: modelData.selected && modelData.inMonth
                 enabled: modelData.inMonth && modelData.inRange
                 font.weight: modelData.today ? Theme.headingWeight : Theme.bodyWeight

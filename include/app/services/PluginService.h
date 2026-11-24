@@ -52,6 +52,8 @@ public:
     bool available(const QString& providerId, QString* error = nullptr) const;
     void confirmDriverActivation(const QString& providerId);
     bool rollbackDriverActivation(const QString& providerId);
+    // True while a package download, install, management step, native dialog or host driver
+    // operation is running. Fetching the plugin catalog never makes the service busy.
     bool busy() const;
     void setHostBusy(bool busy);
     void notifyDeviceChange() { deviceChangePending_ = true; }
@@ -97,11 +99,13 @@ private:
     bool rollbackActivation(const QString& id, const QString& operation);
     void cancelActivations(const QString& id, bool runtimeOnly = false);
     void waitForHealthCheck();
-    void download(const QString& url, qsizetype maximum, std::function<void(const QByteArray&)> completed,
+    enum class Download { Package, Catalog };
+    void download(Download kind, const QString& url, qsizetype maximum, std::function<void(const QByteArray&)> completed,
         std::function<void(const QString&)> failed = {});
     void tryCatalogSources(QStringList sources, const QByteArray& key, const QString& primary, const QString& lastError = {});
     void refreshPendingCatalog();
     void finishCatalogRefresh(const QString& error = {});
+    void deferCatalogRefresh();
     void downloadPackage(QStringList sources, const QString& id, const QString& hash, bool repair = false, const QString& lastError = {});
     void stage(const QByteArray& zip, const QString& source, const QString& expectedId = {}, const QString& expectedHash = {}, bool repair = false);
     void installStaged(const QString& directory, const QString& hash, const Manifest& manifest, const QString& source, bool fromCatalog, bool repair);
@@ -112,6 +116,7 @@ private:
     void setEnabled(const QString& id, bool enabled, bool ask = true);
     void stopPlugin(const QString& id, const QString& reason);
     void executeManagement(const QString& providerId, const QString& operation, bool removeAfter = false);
+    bool cleanupRemovedFiles(const QString& id, QString* error);
     void completeRemoval(const QString& id);
     void remove(const QString& id);
     void loadCatalogCache();
@@ -135,9 +140,9 @@ private:
     QByteArray catalogEnvelope_;
     QNetworkAccessManager network_;
     QPointer<QNetworkReply> reply_;
+    QPointer<QNetworkReply> catalogReply_;
     QPointer<QThread> worker_;
     QTimer refreshTimer_;
-    QByteArray transfer_;
     QVariantMap runtimeState_;
     std::thread healthWorker_;
     std::atomic<bool> healthBusy_{false};

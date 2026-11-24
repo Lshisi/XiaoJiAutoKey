@@ -113,6 +113,7 @@ PluginService::~PluginService() {
     shutdownRuntimes();
     model_.setPageContextProvider({});
     if (reply_) { reply_->disconnect(this); reply_->abort(); }
+    if (catalogReply_) { catalogReply_->disconnect(this); catalogReply_->abort(); }
     if (worker_) worker_->wait();
     if (healthWorker_.joinable()) healthWorker_.join();
     for (auto& [id, context] : contexts_) context->deactivate();
@@ -185,7 +186,7 @@ QString PluginService::catalogCachePath() const {
     return QDir(cacheDirectory_).filePath(QStringLiteral("catalog-") + identity + QStringLiteral(".json"));
 }
 
-bool PluginService::busy() const { return reply_ || worker_ || nativeDialogDepth_ > 0 || hostBusy_ || catalogRefreshing_; }
+bool PluginService::busy() const { return reply_ || worker_ || nativeDialogDepth_ > 0 || hostBusy_; }
 
 void PluginService::setHostBusy(bool busy) {
     if (hostBusy_ == busy) return;
@@ -1009,34 +1010,37 @@ void PluginService::setBackgroundRunning(const QString& id, bool running) {
 
 void PluginService::fail(const QString& message) { model_.setStatus(message, hostBusy_ || reply_ || worker_); }
 
-void PluginService::download(const QString& url, qsizetype maximum, std::function<void(const QByteArray&)> completed,
+void PluginService::download(Download kind, const QString& url, qsizetype maximum, std::function<void(const QByteArray&)> completed,
     std::function<void(const QString&)> failed) {
-    if (reply_ || worker_) { fail(tr("已有插件操作正在进行，请稍后重试。")); return; }
+    if (kind == Download::Package && (reply_ || worker_)) { fail(tr("已有插件操作正在进行，请稍后重试。")); return; }
     if (!safeUrl(url)) {
         const auto message = tr("插件下载需要无认证信息的 HTTPS 地址。");
         if (failed) failed(message); else fail(message);
         return;
     }
-    transfer_.clear();
     QNetworkRequest request{QUrl(url)};
     request.setRawHeader("User-Agent", "XiaoJiAutoKey/" APP_VERSION);
     auto* reply = network_.get(request);
-    reply_ = reply;
-    model_.setStatus(catalogRefreshing_ ? tr("正在获取插件列表…") : tr("正在下载插件…"), true);
-    connect(reply, &QIODevice::readyRead, this, [this, reply, maximum] {
+    auto& slot = kind == Download::Catalog ? catalogReply_ : reply_;
+    slot = reply;
+    // A catalog fetch may overlap a package download, so each request owns its buffer.
+    const auto transfer = std::make_shared<QByteArray>();
+    if (kind == Download::Package) model_.setStatus(tr("正在下载插件…"), true);
+    connect(reply, &QIODevice::readyRead, this, [reply, maximum, transfer] {
         const auto bytes = reply->readAll();
-        if (bytes.size() > maximum - transfer_.size()) { reply->setProperty("sizeExceeded", true); reply->abort(); return; }
-        transfer_.append(bytes);
+        if (bytes.size() > maximum - transfer->size()) { reply->setProperty("sizeExceeded", true); reply->abort(); return; }
+        transfer->append(bytes);
     });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, maximum, completed = std::move(completed), failed = std::move(failed)] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, kind, maximum, transfer, completed = std::move(completed), failed = std::move(failed)] {
         const auto final = reply->readAll();
-        if (final.size() <= maximum - transfer_.size()) transfer_.append(final);
+        if (final.size() <= maximum - transfer->size()) transfer->append(final);
         else reply->setProperty("sizeExceeded", true);
-        const auto bytes = std::move(transfer_);
+        const QByteArray bytes = std::move(*transfer);
         const bool ok = !reply->property("sizeExceeded").toBool() && reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200 && safeUrl(reply->url().toString());
         const QString message = reply->property("sizeExceeded").toBool() ? tr("插件下载超过大小限制。") : reply->errorString();
-        reply_ = nullptr;
+        auto& slot = kind == Download::Catalog ? catalogReply_ : reply_;
+        if (slot == reply) slot = nullptr;
         reply->deleteLater();
         if (shuttingDown_) return;
         if (!ok) {
@@ -1047,7 +1051,7 @@ void PluginService::download(const QString& url, qsizetype maximum, std::functio
             }
             return;
         }
-        model_.setStatus({}, false);
+        if (kind == Download::Package) model_.setStatus({}, false);
         completed(bytes);
     });
     QTimer::singleShot(120000, reply, [reply] { if (!reply->isFinished()) reply->abort(); });
@@ -1088,18 +1092,27 @@ void PluginService::finishCatalogRefresh(const QString& error) {
     catalogRefreshing_ = false;
     model_.setCatalogRefreshState(false, error);
     if (!error.isEmpty()) DiagLog::Write("plugin catalog: " + error.toStdString());
-    model_.setStatus({}, busy());
+}
+
+// Applying the catalog reloads the plugin inventory, so it waits for every other plugin
+// or driver operation to finish. The result is dropped and requested again once idle.
+void PluginService::deferCatalogRefresh() {
+    catalogRefreshPending_ = true;
+    DiagLog::Write("plugin catalog: deferred while a plugin or driver operation is busy");
+    finishCatalogRefresh();
 }
 
 void PluginService::tryCatalogSources(QStringList sources, const QByteArray& key, const QString& primary, const QString& lastError) {
     if (primary != QString::fromStdString(config_.pluginRegistryUrl)) { finishCatalogRefresh(); return; }
+    if (busy()) { deferCatalogRefresh(); return; }
     if (sources.isEmpty()) {
         finishCatalogRefresh(lastError);
         return;
     }
     const auto source = sources.takeFirst();
-    download(source, 8 * 1024 * 1024, [this, key, primary, sources](const QByteArray& bytes) {
+    download(Download::Catalog, source, 8 * 1024 * 1024, [this, key, primary, sources](const QByteArray& bytes) {
         if (primary != QString::fromStdString(config_.pluginRegistryUrl)) { finishCatalogRefresh(); return; }
+        if (busy()) { deferCatalogRefresh(); return; }
         QJsonObject catalog;
         QString error;
         if (!decodeCatalog(bytes, key, catalog_.value(QStringLiteral("revision")).toVariant().toLongLong(), &catalog, &error)) {
@@ -1128,7 +1141,7 @@ void PluginService::downloadPackage(QStringList sources, const QString& id, cons
         return;
     }
     const auto source = sources.takeFirst();
-    download(source, 64 * 1024 * 1024, [this, sources, source, id, hash, repair](const QByteArray& bytes) {
+    download(Download::Package, source, 64 * 1024 * 1024, [this, sources, source, id, hash, repair](const QByteArray& bytes) {
         const auto actual = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
         if (actual.compare(hash, Qt::CaseInsensitive) != 0) {
             downloadPackage(sources, id, hash, repair, tr("来源内容与签名目录中的包哈希不一致。")); return;
@@ -1227,6 +1240,14 @@ void PluginService::installStaged(const QString& directory, const QString& hash,
     QString integrityError;
     if (!verifyManifestContents(manifest, &integrityError)) {
         QDir(directory).removeRecursively(); fail(integrityError); return;
+    }
+    if (preferenceFound != config_.plugins.end() && preferenceFound->second.removed) {
+        QString cleanupError;
+        if (!cleanupRemovedFiles(manifest.id, &cleanupError)) {
+            QDir(directory).removeRecursively();
+            fail(cleanupError.isEmpty() ? tr("此插件的原生文件需要重启小叽后清理，请重启后再安装。") : cleanupError);
+            return;
+        }
     }
     const auto parent = containedFile(hostDirectory_, QStringLiteral("plugins/installed/") + manifest.id, false);
     if (parent.isEmpty() || QFileInfo(parent).isSymLink() || QFileInfo(parent).isJunction()) {
@@ -1400,6 +1421,40 @@ void PluginService::remove(const QString& id) {
     completeRemoval(id);
 }
 
+bool PluginService::cleanupRemovedFiles(const QString& id, QString* error) {
+    const auto preference = config_.plugins.find(id.toStdString());
+    if (!validPluginId(id) || preference == config_.plugins.end() || !preference->second.removed
+        || preference->second.removalPendingRestart) {
+        if (error) *error = tr("插件卸载尚未完成，已保留插件文件。");
+        return false;
+    }
+    if (NativeModule::isLoaded(id)) return false;
+    const auto path = containedFile(hostDirectory_, QStringLiteral("plugins/installed/") + id, false);
+    const QFileInfo folder(path);
+    if (path.isEmpty() || folder.isSymLink() || folder.isJunction()
+        || (folder.exists() && (!folder.isDir()
+            || QDir::cleanPath(folder.canonicalFilePath()).compare(QDir::cleanPath(path), Qt::CaseInsensitive) != 0))) {
+        if (error) *error = tr("插件安装目录无效或包含链接，无法清理旧文件。");
+        return false;
+    }
+    if (!folder.exists()) return true;
+    // Keep native versions until restart, even if only a different version's QML was active.
+    for (const auto& version : QDir(path).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks)) {
+        if (!validVersion(version.fileName())) continue;
+        const auto manifest = readObject(QDir(version.absoluteFilePath()).filePath(QStringLiteral("plugin.json")), 128 * 1024);
+        if (manifest.isEmpty()) {
+            if (error) *error = tr("旧插件清单缺失或无效，无法确认是否可立即清理，请重启小叽后再安装。");
+            return false;
+        }
+        if (!manifest.value(QStringLiteral("native")).toString().isEmpty()) return false;
+    }
+    if (!QDir(path).removeRecursively()) {
+        if (error) *error = tr("旧插件文件未能清理，请关闭占用这些文件的程序后重新安装。");
+        return false;
+    }
+    return true;
+}
+
 void PluginService::completeRemoval(const QString& id) {
     const auto reason = disableBlockedReason(id);
     if (!reason.isEmpty()) {
@@ -1420,7 +1475,11 @@ void PluginService::completeRemoval(const QString& id) {
     }
     emit saveRequested();
     reload();
-    model_.setStatus(tr("插件已卸载，文件将在重启时清理，设置已保留。"));
+    QString cleanupError;
+    const bool cleaned = cleanupRemovedFiles(id, &cleanupError);
+    model_.setStatus(cleaned ? tr("插件已卸载，设置已保留，可直接重新安装。")
+        : cleanupError.isEmpty() ? tr("插件已卸载，文件将在重启时清理，设置已保留。")
+        : tr("插件已卸载，但文件清理未完成：%1").arg(cleanupError));
 }
 
 void PluginService::dispatch(const QString& action, const QString& id, const QVariant& value) {

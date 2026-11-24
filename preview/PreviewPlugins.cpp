@@ -233,11 +233,9 @@ void PreviewController::handlePluginAction(const QString& action, const QString&
     if (action == QStringLiteral("refresh")) {
         if (pluginCenter_.state().value("catalogRefreshing").toBool()) return;
         pluginCenter_.setCatalogRefreshState(true);
-        pluginCenter_.setStatus(tr("正在刷新插件列表…"), true);
         QTimer::singleShot(350, this, [this] {
             refreshPreviewPlugins();
             pluginCenter_.setCatalogRefreshState(false);
-            pluginCenter_.setStatus({});
         });
         return;
     }

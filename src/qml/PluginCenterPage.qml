@@ -6,7 +6,8 @@ import XiaoJi.UI
 Item {
     id: root
     readonly property QtObject page: pluginCenterModel
-    readonly property bool busy: page.state.busy || page.state.catalogRefreshing
+    readonly property bool busy: page.state.busy
+    readonly property bool refreshing: page.state.catalogRefreshing
     property int tab: 2
     property var detail: null
     readonly property var rows: {
@@ -33,7 +34,7 @@ Item {
                 spacing: 6
                 QuietHeading { text: qsTr("插件中心"); pageTitle: true; Layout.fillWidth: true; Layout.alignment: Qt.AlignTop }
                 ActionButton { text: qsTr("导入"); leadingIcon: "import"; enabled: !root.busy; onClicked: root.page.dispatch("import") }
-                IconButton { iconName: "refresh"; hint: qsTr("刷新插件列表与更新信息"); enabled: !root.busy; onClicked: root.page.dispatch("refresh") }
+                IconButton { iconName: "refresh"; hint: qsTr("刷新插件列表与更新信息"); enabled: !root.busy && !root.refreshing; onClicked: root.page.dispatch("refresh") }
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -87,7 +88,14 @@ Item {
                     color: Theme.muted
                 }
             }
-            QuietLabel { visible: text.length > 0; Layout.fillWidth: true; text: root.page.state.status; color: Theme.muted; maximumLineCount: 3; elide: Text.ElideRight }
+            QuietLabel {
+                visible: text.length > 0
+                Layout.fillWidth: true
+                text: root.page.state.status || (root.refreshing ? qsTr("正在获取插件列表…") : "")
+                color: Theme.muted
+                maximumLineCount: 3
+                elide: Text.ElideRight
+            }
         }
     }
     Loader {

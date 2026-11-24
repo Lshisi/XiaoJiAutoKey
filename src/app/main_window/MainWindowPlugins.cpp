@@ -220,7 +220,10 @@ DriverCoordinator::SwitchResult MainWindow::switchPluginDriver(const QString& pr
         return DriverCoordinator::SwitchResult::Canceled;
     }
     inputHook_.setDialogOpen(true);
+    // The switch dialogs run nested event loops; catalog updates wait until it ends.
+    view_.driverPage()->setBusy(true);
     const auto guard = qScopeGuard([this] { inputHook_.setDialogOpen(false); });
+    const auto busyGuard = qScopeGuard([this] { view_.driverPage()->setBusy(false); });
     const auto name = pluginService_->driverName(providerId);
     if (!ConfigConfirmDialog::confirm(this, tr("切换驱动"), tr("将停止连发和循环、释放按键，准备 %1 驱动，并重启应用。").arg(name), tr("继续"))) return DriverCoordinator::SwitchResult::Canceled;
     engineStateCoordinator_.setRepeatRunning(false);

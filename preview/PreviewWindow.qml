@@ -50,7 +50,8 @@ Window {
             QuietCombo {
                 Layout.preferredWidth: 132
                 model: [qsTr("其它窗口预览…"), qsTr("关闭确认"), qsTr("导入配置"), qsTr("更新下载"),
-                    qsTr("分享提示"), qsTr("新手引导"), qsTr("坐标拾取")]
+                    qsTr("分享提示"), qsTr("新手引导"), qsTr("坐标拾取"),
+                    qsTr("脆皮山庄出餐单"), qsTr("脆皮山庄主题")]
                 onActivated: { appView.showExample(currentIndex); currentIndex = 0 }
                 Accessible.name: qsTr("选择其它窗口预览")
             }

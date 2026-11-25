@@ -51,5 +51,5 @@ Rectangle {
         CaptionButton { onClicked: appView.minimizeWindow() }
         CaptionButton { closeAction: true; onClicked: appView.closeWindow() }
     }
-    Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 10; anchors.bottomMargin: 0; height: 1; color: Theme.border }
+    Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 10; anchors.bottomMargin: 0; height: Theme.crispyThemeEnabled ? 2 : 1; color: Theme.crispyThemeEnabled ? Theme.crispyBrand : Theme.border }
 }

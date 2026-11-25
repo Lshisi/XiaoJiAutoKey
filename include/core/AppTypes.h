@@ -234,6 +234,8 @@ struct AppConfig {
     bool xiaojiDriverUninstalledByUser = false;
     bool ddDriverUninstalledByUser = false;
     std::string faction = "cangjian";
+    bool crispyThemeUnlocked = false;
+    bool crispyThemeEnabled = false;
     // Cached update result. The update coordinator schedules network checks.
     std::string latestKnownVersion;
     std::map<std::string, std::int64_t> dailyUsageMs;

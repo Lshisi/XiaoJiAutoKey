@@ -19,6 +19,7 @@ void PageRefreshCoordinator::refreshAll() {
     if (!context_.view || !context_.config || !context_.repeaterEngine) return;
 
     FactionTheme::instance().setCurrent(QString::fromStdString(context_.config->faction));
+    FactionTheme::instance().setCrispyThemeEnabled(context_.config->crispyThemeEnabled);
     if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
 
     auto* profile = context_.activeProfile ? context_.activeProfile() : nullptr;

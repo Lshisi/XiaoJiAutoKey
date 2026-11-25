@@ -388,7 +388,11 @@ void MainWindowView::updateFactionVisuals(QMainWindow* window) {
     palette.setColor(QPalette::Window, appShellColor());
     window->setPalette(palette);
     window->centralWidget()->setStyleSheet(QString("QWidget#mainWindowRoot { background: %1; border-radius: 10px; }").arg(appShellColor().name()));
-    if (settingsPage_) settingsPage_->setFaction(faction.id);
+    if (settingsPage_) {
+        settingsPage_->setFaction(faction.id);
+        settingsPage_->setCrispyThemeState(settingsPage_->state().value("crispyThemeUnlocked").toBool(),
+            FactionTheme::instance().crispyThemeEnabled());
+    }
     for (auto* dialog : window->findChildren<QmlDialog*>()) dialog->refreshVisuals();
     window->update();
 }

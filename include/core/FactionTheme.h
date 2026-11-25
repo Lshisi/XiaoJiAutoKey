@@ -34,6 +34,10 @@ public:
     const FactionInfo* find(const QString& id) const;
 
     void setCurrent(const QString& factionId);
+    void setCrispyThemeEnabled(bool enabled);
+    bool crispyThemeEnabled() const;
+    QString themeName() const;
+    static QColor crispyAccent(bool darkMode);
 
     // Convenience accessors for current theme
     QColor primaryColor() const;
@@ -46,4 +50,5 @@ private:
     FactionTheme();
     std::vector<FactionInfo> factions_;
     int currentIndex_ = 0;
+    bool crispyThemeEnabled_ = false;
 };

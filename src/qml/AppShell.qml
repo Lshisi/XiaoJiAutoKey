@@ -24,7 +24,7 @@ Rectangle {
                 Layout.minimumWidth: Theme.sidebarWidth
                 Layout.maximumWidth: Theme.sidebarWidth
                 Layout.fillHeight: true
-                color: Theme.surfaceTint
+                color: Theme.sidebarBackground
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }
                 ColumnLayout {
                     anchors.fill: parent
@@ -78,6 +78,10 @@ Rectangle {
                 QuietLabel { text: qsTr("By：龙虎-闻成画"); color: Theme.muted; font.pixelSize: 11 }
             }
         }
+    }
+    Loader {
+        active: settingsPageModel.state.crispyThemeReceiptVisible
+        sourceComponent: CrispyThemeReceipt {}
     }
     Loader {
         anchors.right: parent.right

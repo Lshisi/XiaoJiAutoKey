@@ -17,7 +17,7 @@ Button {
     property bool toolTipHovered: hovered
     readonly property color foregroundColor: !enabled ? Theme.muted
         : destructive ? (Theme.dark ? Theme.background : Theme.field)
-        : primary ? Theme.accentForeground : Theme.text
+        : primary ? Theme.primaryForeground : Theme.text
     implicitHeight: Math.max(compact ? Theme.compactButtonHeight : Theme.buttonHeight, contentItem.implicitHeight + topPadding + bottomPadding)
     implicitWidth: Math.max(implicitHeight, contentItem.implicitWidth + leftPadding + rightPadding)
     leftPadding: compact ? 8 : 12
@@ -63,7 +63,7 @@ Button {
     background: Rectangle {
         radius: Theme.buttonRadius
         color: !control.enabled ? Theme.hover : control.destructive ? (control.down || control.hovered ? Qt.darker(Theme.danger, 1.1) : Theme.danger) : control.primary
-            ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
+            ? (control.down ? Theme.primaryPressed : control.hovered ? Theme.primaryHover : Theme.primaryFill)
             : control.down ? (control.accented || control.quiet ? Theme.accentBorder : Theme.accentSoft)
             : control.hovered ? (control.accented || control.quiet ? Theme.accentSoft : Theme.accentSubtle)
             : control.accented ? Theme.accentSubtle : control.quiet ? "transparent" : Theme.field

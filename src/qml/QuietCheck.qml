@@ -19,15 +19,15 @@ CheckBox {
         y: Math.round((control.height - height) / 2)
         radius: 4
         color: !control.enabled ? Theme.hover : control.checked
-            ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
+            ? (control.down ? Theme.primaryPressed : control.hovered ? Theme.primaryHover : Theme.primaryFill)
             : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.field
         border.width: control.visualFocus ? 2 : 1
-        border.color: !control.enabled ? Theme.border : control.visualFocus || control.checked ? Theme.accent : control.hovered ? Theme.accentBorder : Theme.border
+        border.color: !control.enabled ? Theme.border : control.visualFocus ? Theme.accent : control.checked ? Theme.primaryFill : control.hovered ? Theme.accentBorder : Theme.border
         QuietIcon {
             anchors.centerIn: parent
             name: "check"
             visible: control.checked
-            color: control.enabled ? Theme.accentForeground : Theme.muted
+            color: control.enabled ? Theme.primaryForeground : Theme.muted
             pixelSize: Theme.iconGlyphSize
         }
     }

@@ -7,6 +7,7 @@ QtObject {
     readonly property color background: colors.background
     readonly property color surface: colors.surface
     readonly property color surfaceTint: colors.surfaceTint
+    readonly property color sidebarBackground: colors.sidebarBackground
     readonly property color titleBarBackground: colors.titleBarBackground
     readonly property color field: colors.field
     readonly property color border: colors.border
@@ -22,9 +23,24 @@ QtObject {
     readonly property color accentSubtle: colors.accentSubtle
     readonly property color accentBorder: colors.accentBorder
     readonly property color accentForeground: colors.accentForeground
+    readonly property color primaryFill: colors.primaryFill
+    readonly property color primaryHover: colors.primaryHover
+    readonly property color primaryPressed: colors.primaryPressed
+    readonly property color primaryForeground: colors.primaryForeground
     readonly property color danger: colors.danger
     readonly property color warning: colors.warning
     readonly property color success: colors.success
+    readonly property color crispyAccent: colors.crispyAccent
+    readonly property color crispyAccentForeground: colors.crispyAccentForeground
+    readonly property bool crispyThemeEnabled: colors.crispyThemeEnabled
+    readonly property color crispyBrand: colors.crispyBrand
+    readonly property color crispyCream: colors.crispyCream
+    readonly property color crispyPaper: colors.crispyPaper
+    readonly property color crispyText: colors.crispyText
+    readonly property color crispyMuted: colors.crispyMuted
+    readonly property color crispyGold: colors.crispyGold
+    readonly property string crispyFontFamily: Qt.platform.os === "osx" ? "PingFang SC" : fontFamily
+    readonly property string crispyMonoFontFamily: Qt.platform.os === "osx" ? "Menlo" : "Consolas"
     readonly property color keyOverviewFill: colors.keyOverviewFill
     readonly property color keyOverviewHover: colors.keyOverviewHover
     readonly property color keyOverviewBorder: colors.keyOverviewBorder

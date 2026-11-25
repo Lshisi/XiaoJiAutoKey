@@ -247,6 +247,15 @@ bool MainWindow::setupUi() {
         [this]() { applyGameGateSettings(); },
         [this]() { applyAutoStartSettings(); }
     });
+    connect(view_.settingsPage(), &SettingsPageModel::crispyThemeReceiptVisibleChanged,
+        this, [this, wasDialogOpen = false](bool visible) mutable {
+            if (visible) {
+                wasDialogOpen = inputHook_.isDialogOpen();
+                inputHook_.setDialogOpen(true);
+            } else {
+                inputHook_.setDialogOpen(wasDialogOpen);
+            }
+        });
     connect(view_.settingsPage(), &SettingsPageModel::automaticUpdateChecksToggled,
         this, [this](bool) { updateCoordinator_.refreshBackgroundChecks(); });
     driverCoordinator_.bind(DriverCoordinator::Context{

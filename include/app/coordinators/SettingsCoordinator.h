@@ -30,5 +30,6 @@ public:
     void setFaction(const QString& factionId);
 
 private:
+    void applyTheme(const QString& factionId, bool crispyTheme);
     Context context_;
 };

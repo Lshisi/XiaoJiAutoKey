@@ -14,7 +14,7 @@ Switch {
         y: (control.height - height) / 2
         radius: 10
         color: !control.enabled ? Theme.hover : control.checked
-            ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
+            ? (control.down ? Theme.primaryPressed : control.hovered ? Theme.primaryHover : Theme.primaryFill)
             : control.down ? Theme.accentSoft : control.hovered ? Theme.accentSubtle : Theme.hover
         border.color: control.visualFocus ? Theme.accent : control.enabled && control.hovered ? Theme.accentBorder : Theme.border
         border.width: control.visualFocus ? 2 : 1
@@ -24,7 +24,7 @@ Switch {
             width: 12
             height: 12
             radius: 6
-            color: !control.enabled ? Theme.muted : control.checked ? Theme.accentForeground : Theme.text
+            color: !control.enabled ? Theme.muted : control.checked ? Theme.primaryForeground : Theme.text
             Behavior on x {
                 enabled: Theme.motionEnabled && control.visible && !control.down
                 NumberAnimation { duration: Theme.toggleDuration; easing.type: Easing.OutCubic }

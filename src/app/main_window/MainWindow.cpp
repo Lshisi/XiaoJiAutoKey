@@ -1484,6 +1484,7 @@ void MainWindow::applyImportedSharePayload(const SharePayload& payload) {
         const QString factionId = QString::fromStdString(payload.faction);
         if (factionId != QString::fromStdString(config_.faction)) {
             config_.faction = payload.faction;
+            config_.crispyThemeEnabled = false;
             FactionTheme::instance().setCurrent(factionId);
             view_.updateFactionVisuals(this);
         }

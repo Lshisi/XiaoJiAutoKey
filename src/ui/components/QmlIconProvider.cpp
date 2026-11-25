@@ -84,7 +84,8 @@ QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize
             ? image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation) : image;
     }
     QString path = id.section('/', 0, -2);
-    const QColor color(QStringLiteral("#") + id.section('/', -1));
+    const bool preserveColors = id.section('/', -1) == QStringLiteral("original");
+    const QColor color = preserveColors ? QColor() : QColor(QStringLiteral("#") + id.section('/', -1));
     if (path.startsWith(QStringLiteral("plugin-pages/"))) {
         const auto decoded = QByteArray::fromBase64Encoding(path.section('/', 1).toLatin1(),
             QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
@@ -96,7 +97,7 @@ QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize
     } else {
         path = QStringLiteral(":/assets/%1").arg(path);
     }
-    if (!color.isValid()) {
+    if (!preserveColors && !color.isValid()) {
         qWarning() << "Invalid QML icon:" << id;
         return {};
     }
@@ -139,8 +140,10 @@ QImage QmlIconProvider::requestImage(const QString& id, QSize* size, const QSize
         } else {
             renderer.render(&painter);
         }
-        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        painter.fillRect(image.rect(), color);
+        if (!preserveColors) {
+            painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            painter.fillRect(image.rect(), color);
+        }
     }
     return image.scaled(imageSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 }

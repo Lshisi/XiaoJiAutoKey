@@ -37,6 +37,12 @@ PreviewController::PreviewController(QObject* parent)
     connect(&settingsPage_, &SettingsPageModel::gameGateEnabledChanged, &settingsPage_, &SettingsPageModel::setGameGateEnabled);
     connect(&settingsPage_, &SettingsPageModel::autoStartToggled, &settingsPage_, &SettingsPageModel::setAutoStartEnabled);
     connect(&settingsPage_, &SettingsPageModel::automaticUpdateChecksToggled, &settingsPage_, &SettingsPageModel::setAutomaticUpdateChecks);
+    connect(&settingsPage_, &SettingsPageModel::crispyThemeUnlockRequested, this, [this] {
+        settingsPage_.setCrispyThemeState(true, FactionTheme::instance().crispyThemeEnabled());
+    });
+    connect(&settingsPage_, &SettingsPageModel::crispyThemeSelected, this, [this] {
+        applyTheme(QStringLiteral("cangjian"), true);
+    });
     connect(&pluginCenter_, &PluginCenterModel::actionRequested, this, &PreviewController::handlePluginAction);
     connect(&pluginCenter_, &PageModel::stateChanged, this, [this] {
         sidebar_.setPluginPages(pluginCenter_.state().value("pages").toList());
@@ -188,6 +194,8 @@ void PreviewController::setDemoData(bool enabled) {
     processes_ = enabled ? QStringList{QStringLiteral("mumu*")} : QStringList{};
     for (const auto& process : processes_) settings.gameGateProcesses.push_back(process.toStdString());
     settings.faction = FactionTheme::instance().current().id.toStdString();
+    settings.crispyThemeUnlocked = settingsPage_.state().value("crispyThemeUnlocked").toBool();
+    settings.crispyThemeEnabled = FactionTheme::instance().crispyThemeEnabled();
     settingsPage_.setConfig(settings);
     aboutPage_.setUpdateIdle();
     onboarding_.skip();
@@ -207,9 +215,15 @@ void PreviewController::selectPage(const QString& page) {
 }
 
 void PreviewController::selectFaction(const QString& faction) {
+    applyTheme(faction, false);
+}
+
+void PreviewController::applyTheme(const QString& faction, bool crispyTheme) {
     if (!FactionTheme::instance().find(faction)) return;
     FactionTheme::instance().setCurrent(faction);
+    FactionTheme::instance().setCrispyThemeEnabled(crispyTheme);
     settingsPage_.setFaction(faction);
+    settingsPage_.setCrispyThemeState(settingsPage_.state().value("crispyThemeUnlocked").toBool(), crispyTheme);
     emit themeChanged();
     emit overlayChanged();
 }

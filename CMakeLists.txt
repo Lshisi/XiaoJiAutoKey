@@ -320,6 +320,15 @@ set(QML_FILES
     src/qml/QuietCard.qml
     src/qml/FactionPicker.qml
     src/qml/FactionSymbol.qml
+    src/qml/FactionMenuEntry.qml
+    src/qml/CrispyThemeReceipt.qml
+    src/qml/CrispyStripes.qml
+    src/qml/CrispyReceiptDivider.qml
+    src/qml/CrispyReceiptPaper.qml
+    src/qml/CrispyReceiptContent.qml
+    src/qml/CrispyReceiptReward.qml
+    src/qml/CrispyReceiptAction.qml
+    src/qml/CrispyReceiptLabel.qml
     src/qml/NavIcon.qml
     src/qml/SidebarNavigation.qml
     src/qml/ProfileToolbar.qml

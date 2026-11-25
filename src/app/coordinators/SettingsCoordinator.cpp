@@ -29,6 +29,14 @@ void SettingsCoordinator::bind(Context context) {
     connect(context_.page, &SettingsPageModel::factionChanged, this, [this](const QString& factionId) {
         setFaction(factionId);
     });
+    connect(context_.page, &SettingsPageModel::crispyThemeUnlockRequested, this, [this] {
+        context_.config->crispyThemeUnlocked = true;
+        context_.page->setCrispyThemeState(true, context_.config->crispyThemeEnabled);
+        if (context_.saveConfig) context_.saveConfig();
+    });
+    connect(context_.page, &SettingsPageModel::crispyThemeSelected, this, [this] {
+        if (context_.config->crispyThemeUnlocked) applyTheme(QStringLiteral("cangjian"), true);
+    });
     connect(context_.page, &SettingsPageModel::gameGateEnabledChanged, this, [this](bool enabled) {
         context_.config->gameGateEnabled = enabled;
         context_.page->setGameGateEnabled(enabled);
@@ -67,12 +75,19 @@ void SettingsCoordinator::bind(Context context) {
 }
 
 void SettingsCoordinator::setFaction(const QString& factionId) {
+    applyTheme(factionId, false);
+}
+
+void SettingsCoordinator::applyTheme(const QString& factionId, bool crispyTheme) {
     if (!context_.config || factionId.isEmpty()) {
         return;
     }
 
     context_.config->faction = factionId.toStdString();
+    context_.config->crispyThemeEnabled = crispyTheme;
     FactionTheme::instance().setCurrent(factionId);
+    FactionTheme::instance().setCrispyThemeEnabled(crispyTheme);
+    context_.page->setCrispyThemeState(context_.config->crispyThemeUnlocked, crispyTheme);
     if (context_.saveConfig) context_.saveConfig();
     if (context_.refreshFactionVisuals) context_.refreshFactionVisuals();
 }

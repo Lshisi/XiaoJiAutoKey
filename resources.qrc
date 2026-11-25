@@ -34,12 +34,14 @@
     <file>assets/icons/drag-handle.svg</file>
     <file>assets/icons/lock.svg</file>
     <file>assets/icons/unlock.svg</file>
+    <file>assets/icons/sparkles.svg</file>
     <file>assets/factions/shaolin.svg</file>
     <file>assets/factions/wanhua.svg</file>
     <file>assets/factions/qixiu.svg</file>
     <file>assets/factions/chunyang.svg</file>
     <file>assets/factions/tiance.svg</file>
     <file>assets/factions/cangjian.svg</file>
+    <file>assets/factions/cangjian-crispy.svg</file>
     <file>assets/factions/wudu.svg</file>
     <file>assets/factions/tangmen.svg</file>
     <file>assets/factions/mingjiao.svg</file>

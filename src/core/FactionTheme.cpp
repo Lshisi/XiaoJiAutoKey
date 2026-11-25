@@ -1,6 +1,7 @@
 #include "FactionTheme.h"
 #include "DesignTokens.h"
 
+#include <QCoreApplication>
 #include <algorithm>
 #include <cmath>
 
@@ -95,6 +96,7 @@ const FactionInfo* FactionTheme::find(const QString& id) const {
 }
 
 void FactionTheme::setCurrent(const QString& factionId) {
+    crispyThemeEnabled_ = false;
     for (int i = 0; i < static_cast<int>(factions_.size()); ++i) {
         if (factions_[i].id == factionId) {
             currentIndex_ = i;
@@ -110,11 +112,30 @@ void FactionTheme::setCurrent(const QString& factionId) {
     currentIndex_ = 0;
 }
 
-QColor FactionTheme::primaryColor() const { return current().primaryColor; }
-QColor FactionTheme::secondaryColor() const { return current().secondaryColor; }
+void FactionTheme::setCrispyThemeEnabled(bool enabled) {
+    crispyThemeEnabled_ = enabled && current().id == QStringLiteral("cangjian");
+}
+
+bool FactionTheme::crispyThemeEnabled() const { return crispyThemeEnabled_; }
+
+QString FactionTheme::themeName() const {
+    return crispyThemeEnabled_ ? QCoreApplication::translate("FactionTheme", "藏剑 · 脆皮山庄") : current().name;
+}
+
+QColor FactionTheme::crispyAccent(bool darkMode) {
+    return darkMode ? QColor("#ff8793") : QColor("#c41230");
+}
+
+QColor FactionTheme::primaryColor() const { return crispyThemeEnabled_ ? crispyAccent(false) : current().primaryColor; }
+QColor FactionTheme::secondaryColor() const {
+    if (!crispyThemeEnabled_) return current().secondaryColor;
+    auto color = primaryColor();
+    color.setAlpha(30);
+    return color;
+}
 FactionPalette FactionTheme::palette() const {
     const bool darkMode = Fluent::Theme::isDarkMode();
-    const QColor accent = usableAccent(current().primaryColor, darkMode);
+    const QColor accent = crispyThemeEnabled_ ? crispyAccent(darkMode) : usableAccent(current().primaryColor, darkMode);
     const QColor white(0xFF, 0xFF, 0xFF);
     const QColor black(0x00, 0x00, 0x00);
     const QColor surfaceBase = darkMode ? QColor(0x20, 0x20, 0x20) : QColor(0xF7, 0xF8, 0xFA);
@@ -129,8 +150,18 @@ FactionPalette FactionTheme::palette() const {
     p.surfaceTint = mixColor(surfaceBase, accent, darkMode ? 0.045 : 0.025, 255);
     p.titleBarBackground = mixColor(darkMode ? Fluent::Colors::titleBarBg() : surfaceBase,
         accent, darkMode ? 0.09 : 0.14, 255);
-    p.textOnAccent = relativeLuminance(accent) > 0.48 ? QColor(0x16, 0x16, 0x16) : white;
+    if (crispyThemeEnabled_) {
+        p.accentSoft = darkMode ? QColor("#42332e") : QColor("#f7ecd9");
+        p.accentSubtle = darkMode ? QColor("#342b28") : QColor("#fcf7ee");
+        p.accentBorder = darkMode ? QColor("#a66d65") : QColor("#dcb8a6");
+        p.surfaceTint = darkMode ? QColor("#242122") : QColor("#f7f5f1");
+        p.titleBarBackground = darkMode ? QColor("#292426") : QColor("#fffdf8");
+    }
+    p.textOnAccent = crispyThemeEnabled_ && darkMode ? QColor(0x25, 0x24, 0x1E)
+        : relativeLuminance(accent) > 0.48 ? QColor(0x16, 0x16, 0x16) : white;
     return p;
 }
-QString FactionTheme::iconPath() const { return current().iconPath; }
+QString FactionTheme::iconPath() const {
+    return crispyThemeEnabled_ ? QStringLiteral(":/assets/factions/cangjian-crispy.svg") : current().iconPath;
+}
 QString FactionTheme::patternPath() const { return current().patternPath; }

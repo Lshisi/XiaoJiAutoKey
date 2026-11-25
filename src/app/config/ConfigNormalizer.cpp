@@ -4,6 +4,8 @@
 #include <algorithm>
 
 void ConfigNormalizer::normalize(AppConfig& config) {
+    config.crispyThemeEnabled = config.crispyThemeEnabled
+        && config.crispyThemeUnlocked && config.faction == "cangjian";
     for (auto& profile : config.profiles) {
         profile.defaultDelayMs = std::max(profile.defaultDelayMs, kMinDelayMs);
         for (auto& binding : profile.bindings) {

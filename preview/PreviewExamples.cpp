@@ -148,6 +148,17 @@ void PreviewController::showExample(int example) {
     case 4: shareBanner_.showForText(QStringLiteral("preview")); break;
     case 5: dialog_.resetEditorGuides(); onboarding_.show(); break;
     case 6: pickerVisible_ = true; emit pickerChanged(); break;
+    case 7:
+        selectFaction(QStringLiteral("cangjian"));
+        settingsPage_.setCrispyThemeState(true, false);
+        navigate(QStringLiteral("settings"));
+        settingsPage_.showCrispyThemeReceipt();
+        break;
+    case 8:
+        settingsPage_.setCrispyThemeState(true, false);
+        settingsPage_.selectCrispyTheme();
+        navigate(QStringLiteral("settings"));
+        break;
     default: break;
     }
 }

@@ -81,6 +81,7 @@ signals:
     void pickerChanged();
 
 private:
+    void applyTheme(const QString& faction, bool crispyTheme);
     void navigate(const QString& page);
     void refreshDriver();
     void showDriverReport();

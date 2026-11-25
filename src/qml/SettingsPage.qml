@@ -34,7 +34,7 @@ QuietScrollView {
                     Layout.topMargin: 6
                     Layout.bottomMargin: 6
                     radius: 8
-                    color: Theme.surface
+                    color: Theme.crispyThemeEnabled ? Theme.sidebarBackground : Theme.surface
                     implicitHeight: previewContent.implicitHeight + 12
                     RowLayout {
                         id: previewContent
@@ -44,24 +44,62 @@ QuietScrollView {
                         anchors.topMargin: 6
                         anchors.bottomMargin: 6
                         spacing: 10
-                        Item {
+                        ActionButton {
+                            id: factionEmblem
                             Layout.preferredWidth: 36
                             Layout.preferredHeight: 36
-                            FactionSymbol {
-                                anchors.fill: parent
+                            quiet: true
+                            leftPadding: 0
+                            rightPadding: 0
+                            topPadding: 0
+                            bottomPadding: 0
+                            enabled: Theme.colors.factionId === "cangjian"
+                            hint: root.page.state.crispyThemeUnlocked ? qsTr("查看出餐单")
+                                : root.page.state.thursday ? qsTr("今天庄里的小叽，好像有点紧张。") : qsTr("藏剑")
+                            onClicked: {
+                                root.page.activateFactionEmblem()
+                                if (Theme.motionEnabled && root.page.state.thursday && !root.page.state.crispyThemeUnlocked)
+                                    emblemWiggle.restart()
+                            }
+                            contentItem: FactionSymbol {
+                                id: emblemSymbol
                                 iconSource: Theme.colors.factionIcon
                                 tintColor: Theme.text
+                                preserveColors: Theme.colors.crispyThemeEnabled
+                            }
+                            SequentialAnimation {
+                                id: emblemWiggle
+                                paused: !root.visible || !Theme.motionEnabled
+                                RotationAnimator { target: emblemSymbol; from: 0; to: -8; duration: 60 }
+                                RotationAnimator { target: emblemSymbol; from: -8; to: 6; duration: 90 }
+                                RotationAnimator { target: emblemSymbol; from: 6; to: 0; duration: 60 }
                             }
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 3
                             QuietLabel { text: qsTr("门派主题"); color: Theme.muted }
-                            QuietLabel { text: Theme.colors.factionName; font.weight: Theme.headingWeight }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; text: Theme.colors.themeName; font.weight: Theme.headingWeight }
+                                QuietLabel {
+                                    visible: root.page.state.crispyThemeEnabled && root.page.state.thursday
+                                    text: qsTr("今日出餐")
+                                    color: Theme.accent
+                                    font.pixelSize: Theme.captionFontSize
+                                }
+                            }
                             Rectangle { Layout.fillWidth: true; implicitHeight: 3; radius: 1.5; color: Theme.accent }
                         }
                         FactionPicker { Layout.preferredWidth: 120 }
                     }
+                }
+                RowLayout {
+                    visible: root.page.state.crispyThemeUnlocked
+                    Layout.fillWidth: true
+                    QuietLabel { text: qsTr("隐藏外观已永久收藏"); color: Theme.muted; font.pixelSize: Theme.captionFontSize }
+                    Item { Layout.fillWidth: true }
+                    ActionButton { text: qsTr("查看出餐单"); compact: true; quiet: true; onClicked: root.page.showCrispyThemeReceipt() }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("生效范围") }

@@ -559,6 +559,10 @@ AppConfig ConfigStore::Load() const {
         config.faction = *faction;
     if (config.faction.empty() || config.faction == "none")
         config.faction = "cangjian";
+    if (const auto unlocked = GetBoolField(*object, "crispyThemeUnlocked"))
+        config.crispyThemeUnlocked = *unlocked;
+    if (const auto enabled = GetBoolField(*object, "crispyThemeEnabled"))
+        config.crispyThemeEnabled = *enabled;
 
     if (const auto latestKnownVersion = GetStringField(*object, "latestKnownVersion");
         latestKnownVersion.has_value() && !latestKnownVersion->empty())
@@ -777,6 +781,8 @@ bool ConfigStore::Save(
 
     if (!config.faction.empty())
         root.emplace("faction", config.faction);
+    root.emplace("crispyThemeUnlocked", config.crispyThemeUnlocked);
+    root.emplace("crispyThemeEnabled", config.crispyThemeEnabled);
     if (!config.latestKnownVersion.empty())
         root.emplace("latestKnownVersion", config.latestKnownVersion);
 

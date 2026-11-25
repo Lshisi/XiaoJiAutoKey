@@ -54,8 +54,10 @@ QuietScrollView {
                             topPadding: 0
                             bottomPadding: 0
                             enabled: Theme.colors.factionId === "cangjian"
-                            hint: root.page.state.crispyThemeUnlocked ? qsTr("查看出餐单")
-                                : root.page.state.thursday ? qsTr("今天庄里的小叽，好像有点紧张。") : qsTr("藏剑")
+                                && (!root.page.state.crispyThemeUnlocked || root.page.state.crispyThemeEnabled)
+                            hint: root.page.state.crispyThemeEnabled ? qsTr("查看出餐单")
+                                : !root.page.state.crispyThemeUnlocked && root.page.state.thursday
+                                    ? qsTr("今天庄里的小叽，好像有点紧张。") : qsTr("藏剑")
                             onClicked: {
                                 root.page.activateFactionEmblem()
                                 if (Theme.motionEnabled && root.page.state.thursday && !root.page.state.crispyThemeUnlocked)
@@ -81,25 +83,33 @@ QuietScrollView {
                             QuietLabel { text: qsTr("门派主题"); color: Theme.muted }
                             RowLayout {
                                 Layout.fillWidth: true
-                                QuietLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; text: Theme.colors.themeName; font.weight: Theme.headingWeight }
+                                spacing: 8
+                                QuietLabel {
+                                    Layout.minimumWidth: 0
+                                    text: Theme.colors.themeName
+                                    font.weight: Theme.headingWeight
+                                    elide: Text.ElideRight
+                                    wrapMode: Text.NoWrap
+                                }
+                                ActionButton {
+                                    visible: root.page.state.crispyThemeEnabled
+                                    text: qsTr("查看出餐单")
+                                    compact: true
+                                    quiet: true
+                                    onClicked: root.page.showCrispyThemeReceipt()
+                                }
                                 QuietLabel {
                                     visible: root.page.state.crispyThemeEnabled && root.page.state.thursday
                                     text: qsTr("今日出餐")
                                     color: Theme.accent
                                     font.pixelSize: Theme.captionFontSize
                                 }
+                                Item { Layout.fillWidth: true }
                             }
                             Rectangle { Layout.fillWidth: true; implicitHeight: 3; radius: 1.5; color: Theme.accent }
                         }
                         FactionPicker { Layout.preferredWidth: 120 }
                     }
-                }
-                RowLayout {
-                    visible: root.page.state.crispyThemeUnlocked
-                    Layout.fillWidth: true
-                    QuietLabel { text: qsTr("隐藏外观已永久收藏"); color: Theme.muted; font.pixelSize: Theme.captionFontSize }
-                    Item { Layout.fillWidth: true }
-                    ActionButton { text: qsTr("查看出餐单"); compact: true; quiet: true; onClicked: root.page.showCrispyThemeReceipt() }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.divider }
                 QuietHeading { text: qsTr("生效范围") }

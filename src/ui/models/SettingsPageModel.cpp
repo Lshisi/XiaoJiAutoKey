@@ -58,7 +58,7 @@ void SettingsPageModel::refreshCalendar() {
 void SettingsPageModel::activateFactionEmblem() {
     if (state_.value("faction").toString() != QStringLiteral("cangjian")) return;
     if (state_.value("crispyThemeUnlocked").toBool()) {
-        showCrispyThemeReceipt();
+        if (state_.value("crispyThemeEnabled").toBool()) showCrispyThemeReceipt();
         return;
     }
     refreshCalendar();

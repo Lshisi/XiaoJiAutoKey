@@ -116,16 +116,6 @@ ActionButton {
                         Qt.callLater(() => settingsPageModel.selectCrispyTheme())
                     }
                 }
-                ActionButton {
-                    width: factionList.width
-                    text: qsTr("查看出餐单")
-                    quiet: true
-                    compact: true
-                    onClicked: {
-                        factionPopup.close()
-                        Qt.callLater(() => settingsPageModel.showCrispyThemeReceipt())
-                    }
-                }
             }
             ScrollBar.vertical: QuietScrollBar {}
         }

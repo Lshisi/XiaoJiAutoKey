@@ -7,6 +7,7 @@ on:
       - 'plugins/driver-xiaoji/v*'
       - 'plugins/driver-usb/v*'
       - 'plugins/page-calendar/v*'
+      - 'plugins/pet-xiaoji/v*'
 
 permissions:
   contents: write
@@ -31,18 +32,18 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = $env:GITHUB_REF_NAME
-          if ($tag -notmatch '^plugins/(driver-dd|driver-xiaoji|driver-usb|page-calendar)/v(\d+\.\d+\.\d+)$') { throw 'Invalid official plugin tag.' }
+          if ($tag -notmatch '^plugins/(driver-dd|driver-xiaoji|driver-usb|page-calendar|pet-xiaoji)/v(\d+\.\d+\.\d+)$') { throw 'Invalid official plugin tag.' }
           $slug = $Matches[1]
           $version = $Matches[2]
           $manifest = Get-Content -LiteralPath "plugins/$slug/plugin.json" -Raw -Encoding UTF8 | ConvertFrom-Json
-          $ids = @{'driver-dd'='xiaoji.driver.dd'; 'driver-xiaoji'='xiaoji.driver.xiaoji'; 'driver-usb'='xiaoji.driver.usb'; 'page-calendar'='xiaoji.page.calendar'}
+          $ids = @{'driver-dd'='xiaoji.driver.dd'; 'driver-xiaoji'='xiaoji.driver.xiaoji'; 'driver-usb'='xiaoji.driver.usb'; 'page-calendar'='xiaoji.page.calendar'; 'pet-xiaoji'='xiaoji.pet.xiaoji'}
           if ($manifest.id -ne $ids[$slug] -or $manifest.version -ne $version) { throw 'Tag and manifest must identify the same immutable version.' }
-          $targets = @{'driver-dd'='XiaoJiPluginDD'; 'driver-xiaoji'='XiaoJiPluginXiaoji'; 'driver-usb'='XiaoJiPluginUSB'; 'page-calendar'='XiaoJiPluginCalendar'}
+          $targets = @{'driver-dd'='XiaoJiPluginDD'; 'driver-xiaoji'='XiaoJiPluginXiaoji'; 'driver-usb'='XiaoJiPluginUSB'; 'page-calendar'='XiaoJiPluginCalendar'; 'pet-xiaoji'='XiaoJiPluginPet'}
           "PLUGIN_SLUG=$slug" >> $env:GITHUB_ENV
           "PLUGIN_TARGET=$($targets[$slug])" >> $env:GITHUB_ENV
           "PLUGIN_VERSION=$version" >> $env:GITHUB_ENV
       - name: Build plugin without Qt
-        if: env.PLUGIN_SLUG != 'page-calendar'
+        if: startsWith(env.PLUGIN_SLUG, 'driver-')
         run: |
           cmake -S "plugins/$env:PLUGIN_SLUG" -B build-plugin -G 'Visual Studio 17 2022' -A x64
           if ($LASTEXITCODE -ne 0) { throw 'Plugin configuration failed.' }
@@ -50,7 +51,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Plugin build failed.' }
       - name: Package immutable artifact
         run: |
-          $source = if ($env:PLUGIN_SLUG -eq 'page-calendar') { "plugins/$env:PLUGIN_SLUG" } else { 'build-plugin/Release' }
+          $source = if ($env:PLUGIN_SLUG -like 'driver-*') { 'build-plugin/Release' } else { "plugins/$env:PLUGIN_SLUG" }
           ./scripts/package-plugin.ps1 -SourceDirectory $source -PackageName $env:PLUGIN_TARGET
       - uses: actions/setup-python@v5
         with:

@@ -106,7 +106,7 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 | `pluginApi` 成员 | 内容 |
 | --- | --- |
 | `pluginId`、`theme` | 当前插件身份与框架主题 |
-| `state` | `version`、`driver`、`repeatRunning`、`macroRunning` 等公开状态；需要读取或控制引擎权限 |
+| `state` | `version`、`driver`、`repeatRunning`、`macroRunning`、`repeatActive`、`macroActive`、`repeatPaused`、`macroPaused`、`gameGatePaused`；需要读取或控制引擎权限 |
 | `settings` / `saveSetting(key, value)` | 自己名下的 JSON 设置；最多 128 项，总计 64 KB，键最多 64 字符 |
 | `navigate(pageId)` | 框架公开页面或本插件页面；跨插件私有路由不开放 |
 | `requestEngine(macro, running)` | 请求启动/停止对应引擎，需 `engine.control` |
@@ -118,6 +118,8 @@ zip 根目录直接包含 `plugin.json`，不包额外的顶层文件夹。规�
 | `showWindow` / `hideWindow` / `closeWindow` / `configureWindow` / `startWindowMove` | 操作本插件清单中的独立窗口 |
 
 插件请求启动引擎还需经过一次明确的宿主确认，防止页面加载、安装或后台回调直接开始发送按键。框架消息和确认界面沿用现有主题、模态与热键保护。
+
+`repeatRunning`/`macroRunning` 表示任务已开启，`macroRunning` 汇总所有循环，不随当前所选循环改变。`repeatActive`/`macroActive` 表示未被完全暂停或前台限制挂起的逻辑活动状态，不代表每一刻都有按键输出；连发部分暂停时仍有活动长按项则保持活动。`repeatPaused` 可与 `repeatActive` 同时为真，表示部分暂停；`macroPaused` 表示运行中的循环全部暂停，`gameGatePaused` 表示有已开启任务受游戏前台限制。插件通过 `stateChanged` 读取汇总，不从这些字段推断具体键位、输出次数或宏步骤，也不自行修改引擎状态。旧宿主缺少活动字段时，仅可回退到运行/停止展示。
 
 页面由单独的 `QQmlEngine` 承载，停用、卸载或升级时移除入口并销毁页面。纯 QML 版本之间可立即替换；新旧任一版本包含原生模块，或进程仍加载过该插件的 DLL 时，整体等待重启，包括原生版本改为纯 QML 的情况，不混用新页面与旧原生模块。
 

@@ -93,6 +93,7 @@ private:
     void initializePreviewPlugins(bool enabled);
     void refreshPreviewPlugins();
     void syncPreviewPet();
+    void refreshPluginRuntimeState();
     void handlePluginAction(const QString& action, const QString& id, const QVariant& value);
     PreviewDialogModel dialog_;
     PreviewDialogModel overviewDialog_;
@@ -108,8 +109,8 @@ private:
     SidebarModel sidebar_;
     PluginPageContext pluginContext_{QStringLiteral("example.status-page"), {QStringLiteral("ui.page"), QStringLiteral("engine.read"), QStringLiteral("settings.own")}};
     PluginPageContext calendarContext_{QStringLiteral("xiaoji.page.calendar"), {QStringLiteral("ui.page")}};
-    PluginPageContext petContext_{QStringLiteral("example.desktop-pet"), {QStringLiteral("ui.page"), QStringLiteral("ui.window"),
-        QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own")}};
+    PluginPageContext petContext_{QStringLiteral("xiaoji.pet.xiaoji"), {QStringLiteral("ui.page"), QStringLiteral("ui.window"),
+        QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own"), QStringLiteral("engine.read")}};
     QVariantList previewPlugins_;
     QVariantMap previewPetWindowState_;
     std::unique_ptr<Plugins::PluginRuntime> petRuntime_;

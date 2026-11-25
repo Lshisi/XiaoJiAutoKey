@@ -42,10 +42,10 @@ void PreviewController::initializePreviewPlugins(bool enabled) {
         {"author", tr("SDK 示例")}, {"version", "1.0.0"}, {"description", tr("读取运行状态，保存插件自己的显示标题。")},
         {"source", tr("本地")}, {"enabled", true}, {"hasPage", true}, {"hasDriver", false}, {"reviewed", false},
         {"permissions", QStringList{"ui.page", "engine.read", "settings.own"}}});
-    if (enabled) previewPlugins_.append(QVariantMap{{"id", "example.desktop-pet"}, {"name", tr("桌宠示例")},
-        {"author", tr("SDK 示例")}, {"version", "1.0.0"}, {"description", tr("设置页、独立后台和透明桌面窗口共用正式插件接口。")},
-        {"source", tr("本地")}, {"enabled", true}, {"hasPage", true}, {"hasDriver", false}, {"hasBackground", true}, {"hasWindow", true},
-        {"backgroundEnabled", false}, {"permissions", QStringList{"ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own"}}});
+    if (enabled) previewPlugins_.append(QVariantMap{{"id", "xiaoji.pet.xiaoji"}, {"name", tr("小叽 · 江湖桌宠")},
+        {"author", tr("小叽官方")}, {"version", "1.0.0"}, {"description", tr("藏剑小叽陪伴、摸头、拖动与运行状态联动。")},
+        {"source", tr("官方")}, {"official", true}, {"enabled", true}, {"hasPage", true}, {"hasDriver", false}, {"hasBackground", true}, {"hasWindow", true},
+        {"backgroundEnabled", false}, {"permissions", QStringList{"ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own", "engine.read"}}});
     if (enabled) previewPlugins_.append(QVariantMap{{"id", "example.broken-page"}, {"name", tr("异常插件（示例）")},
         {"author", tr("SDK 示例")}, {"version", "1.0.0"}, {"description", tr("清单或文件异常时仍保留管理条目。")},
         {"source", tr("插件中心")}, {"enabled", false}, {"invalid", true}, {"blocked", true},
@@ -61,7 +61,7 @@ void PreviewController::initializePreviewPlugins(bool enabled) {
 void PreviewController::syncPreviewPet() {
     bool enabled = false;
     bool resume = false;
-    for (const auto& row : previewPlugins_) if (row.toMap().value("id").toString() == QStringLiteral("example.desktop-pet")) {
+    for (const auto& row : previewPlugins_) if (row.toMap().value("id").toString() == QStringLiteral("xiaoji.pet.xiaoji")) {
         enabled = row.toMap().value("enabled").toBool(); resume = row.toMap().value("backgroundEnabled").toBool();
     }
     if (!enabled) {
@@ -75,26 +75,41 @@ void PreviewController::syncPreviewPet() {
     if (petRuntime_) return;
     petContext_.activate();
     Plugins::Manifest manifest;
-    manifest.id = QStringLiteral("example.desktop-pet"); manifest.name = tr("桌宠示例"); manifest.version = QStringLiteral("1.0.0");
-    manifest.directory = QStringLiteral(":/plugin-examples/desktop-pet"); manifest.backgroundFile = QStringLiteral("Background.qml");
-    manifest.permissions = {QStringLiteral("ui.page"), QStringLiteral("ui.window"), QStringLiteral("runtime.background"), QStringLiteral("messaging.own"), QStringLiteral("settings.own")};
-    manifest.windows.push_back({QStringLiteral("pet"), tr("桌宠"), QStringLiteral("Pet.qml"), 220, 200, true, true, true});
-    manifest.commands.push_back({QStringLiteral("snapshot"), tr("查询桌宠状态"), QStringLiteral("background")});
-    manifest.commands.push_back({QStringLiteral("poke"), tr("和桌宠打招呼"), QStringLiteral("background")});
+    QString error;
+    if (!Plugins::readManifest(QStringLiteral(":/plugin-examples/xiaoji-pet/plugin.json"), &manifest, &error)) {
+        petContext_.setRuntime({{"status", "error"}, {"backgroundRunning", false}, {"error", error}});
+        return;
+    }
     petRuntime_ = std::make_unique<Plugins::PluginRuntime>(manifest, &petContext_, previewPetWindowState_, this);
     connect(petRuntime_.get(), &Plugins::PluginRuntime::changed, this, &PreviewController::refreshPreviewPlugins);
     connect(petRuntime_.get(), &Plugins::PluginRuntime::windowStateSaved, this, [this](const QVariantMap& state) { previewPetWindowState_ = state; });
     connect(petRuntime_.get(), &Plugins::PluginRuntime::backgroundRequested, this, [this](bool running) {
-        handlePluginAction(QStringLiteral("background"), QStringLiteral("example.desktop-pet"), running);
+        handlePluginAction(QStringLiteral("background"), QStringLiteral("xiaoji.pet.xiaoji"), running);
     });
     connect(petRuntime_.get(), &Plugins::PluginRuntime::backgroundFailed, this, [this](const QString&) {
         for (auto& item : previewPlugins_) {
             auto row = item.toMap();
-            if (row.value("id").toString() == QStringLiteral("example.desktop-pet")) { row.insert("backgroundEnabled", false); item = row; }
+            if (row.value("id").toString() == QStringLiteral("xiaoji.pet.xiaoji")) { row.insert("backgroundEnabled", false); item = row; }
         }
         refreshPreviewPlugins();
     });
     if (resume) QTimer::singleShot(0, petRuntime_.get(), [this] { if (petRuntime_) petRuntime_->startBackground(QStringLiteral("restore")); });
+}
+
+void PreviewController::refreshPluginRuntimeState() {
+    const auto repeat = keys_.model()->state();
+    const auto macro = macros_.model()->state();
+    const bool repeatRunning = repeat.value("running").toBool();
+    const bool macroRunning = macro.value("running").toBool();
+    const bool repeatPaused = repeatRunning && repeat.value("overviewPaused").toBool();
+    const bool macroPaused = macroRunning && macro.value("overviewPaused").toBool();
+    const QVariantMap state{{"version", version()},
+        {"driver", QStringList{tr("小叽"), QStringLiteral("DD"), QStringLiteral("USB")}[static_cast<int>(driverMode_)]},
+        {"repeatRunning", repeatRunning}, {"macroRunning", macroRunning},
+        {"repeatActive", repeatRunning && !repeatPaused}, {"macroActive", macroRunning && !macroPaused},
+        {"repeatPaused", repeatPaused}, {"macroPaused", macroPaused}, {"gameGatePaused", false}};
+    pluginContext_.setRuntimeState(state);
+    petContext_.setRuntimeState(state);
 }
 
 void PreviewController::refreshPreviewPlugins() {
@@ -116,6 +131,7 @@ void PreviewController::refreshPreviewPlugins() {
     for (auto& value : previewPlugins_) {
         auto row = value.toMap();
         const bool calendar = row.value("id").toString() == QStringLiteral("xiaoji.page.calendar");
+        const bool pet = row.value("id").toString() == QStringLiteral("xiaoji.pet.xiaoji");
         const bool installed = row.value("installed", true).toBool();
         row.insert("installed", installed);
         if (!installed) row.insert("enabled", false);
@@ -135,8 +151,8 @@ void PreviewController::refreshPreviewPlugins() {
         else if (row.value("source").toString() == tr("官方") || row.value("source").toString() == tr("社区")
             || row.value("source").toString() == tr("随程序提供")) row.insert("source", tr("插件中心"));
         if (bundled || row.value("integrityError").toBool()) row.insert("reviewed", false);
-        row.insert("minHostVersion", calendar ? QStringLiteral("1.1.9") : QStringLiteral("1.1.8"));
-        row.insert("latestVersion", calendar ? QStringLiteral("1.0.0") : QStringLiteral("1.0.1"));
+        row.insert("minHostVersion", calendar || pet ? QStringLiteral("1.1.9") : QStringLiteral("1.1.8"));
+        row.insert("latestVersion", calendar || pet ? QStringLiteral("1.0.0") : QStringLiteral("1.0.1"));
         row.insert("latestReviewed", false);
         if (row.value("builtin").toBool()) {
             row.insert("bundledVersion", QStringLiteral("1.0.0"));
@@ -151,27 +167,26 @@ void PreviewController::refreshPreviewPlugins() {
         row.insert("canEnable", !row.value("removalPendingRestart").toBool());
         row.insert("disableReason", installed && lastBuiltin ? tr("至少保留一个可用的内置驱动，请先安装并启用另一种内置驱动。") : QString());
         row.insert("hasSystemDriverUninstall", row.value("id").toString() == ids[0] || row.value("id").toString() == ids[1]);
-        if (row.value("id").toString() == QStringLiteral("example.desktop-pet") && petRuntime_) {
+        if (pet && petRuntime_) {
             const auto runtime = petRuntime_->presentation();
             row.insert("runtimeStatus", runtime.value("status")); row.insert("backgroundRunning", runtime.value("backgroundRunning"));
             row.insert("runtimeError", runtime.value("error")); row.insert("windows", runtime.value("windows")); row.insert("commands", runtime.value("commands"));
-        } else if (row.value("id").toString() == QStringLiteral("example.desktop-pet")) {
-            row.insert("runtimeStatus", QStringLiteral("stopped")); row.insert("backgroundRunning", false);
-            row.insert("runtimeError", QString()); row.insert("windows", QVariantList{}); row.insert("commands", QVariantList{});
+        } else if (pet) {
+            row.insert("runtimeStatus", petContext_.runtime().value("status", "stopped")); row.insert("backgroundRunning", false);
+            row.insert("runtimeError", petContext_.runtime().value("error")); row.insert("windows", QVariantList{}); row.insert("commands", QVariantList{});
         }
         value = row;
         if (row.value("builtin").toBool()) builtinPlugins.append(row);
         if (installed) installedPlugins.append(row);
         if (!installed || !row.value("enabled").toBool() || row.value("blocked").toBool() || row.value("newInstall").toBool()) continue;
         if (row.value("hasPage").toBool()) {
-            const bool pet = row.value("id").toString() == QStringLiteral("example.desktop-pet");
             pages.append(QVariantMap{{"id", QStringLiteral("plugin:") + row.value("id").toString() + (pet ? QStringLiteral("/settings") : QStringLiteral("/main"))},
-                {"pluginId", row.value("id")}, {"title", calendar ? tr("活动日历") : pet ? tr("桌宠设置") : tr("运行面板")},
+                {"pluginId", row.value("id")}, {"title", calendar ? tr("活动日历") : pet ? tr("江湖桌宠") : tr("运行面板")},
                 {"icon", QmlIconProvider::pageIconName(calendar ? QStringLiteral(":/plugin-examples/calendar/icons/calendar.svg")
-                    : pet ? QStringLiteral(":/plugin-examples/desktop-pet/icons/pet.svg")
+                    : pet ? QStringLiteral(":/plugin-examples/xiaoji-pet/icons/pet.svg")
                     : QStringLiteral(":/plugin-examples/status/icons/status.svg"))},
                 {"source", QUrl(calendar ? QStringLiteral("qrc:/plugin-examples/CalendarPreview.qml")
-                    : pet ? QStringLiteral("qrc:/plugin-examples/desktop-pet/Main.qml") : QStringLiteral("qrc:/plugin-examples/status/Main.qml"))}});
+                    : pet ? QStringLiteral("qrc:/plugin-examples/xiaoji-pet/Main.qml") : QStringLiteral("qrc:/plugin-examples/status/Main.qml"))}});
         }
         if (row.value("hasDriver").toBool()) providers.append(QVariantMap{{"id", row.value("id").toString() + QStringLiteral("/default")}, {"name", row.value("name")}});
     }
@@ -203,7 +218,7 @@ void PreviewController::refreshPreviewPlugins() {
     driverPage_.setProviders(providers, ids[static_cast<int>(driverMode_)] + QStringLiteral("/default"));
     refreshDriver();
     pluginContext_.activate();
-    pluginContext_.setRuntimeState({{"driver", ids[static_cast<int>(driverMode_)]}, {"repeatRunning", keys_.model()->state().value("running")}, {"macroRunning", macros_.model()->state().value("running")}});
+    refreshPluginRuntimeState();
     if (currentPage_.startsWith(QStringLiteral("plugin:")) && pluginCenter_.page(currentPage_).isEmpty()) navigate(QStringLiteral("plugins"));
 }
 
@@ -239,7 +254,7 @@ void PreviewController::handlePluginAction(const QString& action, const QString&
         });
         return;
     }
-    if (id == QStringLiteral("example.desktop-pet") && petRuntime_) {
+    if (id == QStringLiteral("xiaoji.pet.xiaoji") && petRuntime_) {
         if (action == QStringLiteral("background")) {
             if (value.toBool()) petRuntime_->startBackground(); else petRuntime_->stopBackground();
             for (auto& item : previewPlugins_) { auto row = item.toMap(); if (row.value("id").toString() == id) { row.insert("backgroundEnabled", value.toBool()); item = row; } }
@@ -266,7 +281,7 @@ void PreviewController::handlePluginAction(const QString& action, const QString&
             item = row;
         }
     } else if (action == QStringLiteral("open")) {
-        navigate(QStringLiteral("plugin:") + id + (id == QStringLiteral("example.desktop-pet") ? QStringLiteral("/settings") : QStringLiteral("/main")));
+        navigate(QStringLiteral("plugin:") + id + (id == QStringLiteral("xiaoji.pet.xiaoji") ? QStringLiteral("/settings") : QStringLiteral("/main")));
         return;
     } else if (action == QStringLiteral("remove")) {
         for (const auto& item : previewPlugins_) {

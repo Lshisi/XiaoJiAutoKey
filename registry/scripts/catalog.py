@@ -182,7 +182,8 @@ def check_package(body: bytes, expected_id: str) -> tuple[dict, str]:
             for field, default in (("width", 320), ("height", 240)):
                 if type(window.get(field, default)) is not int or not 32 <= window.get(field, default) <= 2048:
                     raise ValueError("窗口尺寸无效")
-            if any(type(window.get(field, False)) is not bool for field in ("transparent", "frameless", "topmost")):
+            if any(type(window.get(field, default)) is not bool for field, default in
+                   (("transparent", False), ("frameless", False), ("topmost", False), ("focusable", True))):
                 raise ValueError("窗口选项无效")
             contributions += 1
         commands = manifest.get("commands", [])

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "xiaoji.pet.xiaoji",
+  "name": "小叽 · 江湖桌宠",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.1.9",
+  "author": "小叽官方",
+  "description": "藏剑小叽陪你练功：摸头、拖动、打盹，并随连发和循环的运行、暂停与停止切换动作。",
+  "platforms": ["windows-x64"],
+  "permissions": ["ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own", "engine.read"],
+  "background": {"file": "Background.qml"},
+  "pages": [{"id": "settings", "title": "江湖桌宠", "file": "Main.qml", "icon": "icons/pet.svg"}],
+  "windows": [{"id": "pet", "title": "小叽", "file": "Pet.qml", "width": 224, "height": 224, "transparent": true, "frameless": true, "topmost": true, "focusable": false}],
+  "commands": [
+    {"id": "interact", "title": "摸摸头"}
+  ],
+  "resources": ["ui", "skins/cangjian/atlas.png"]
+}

@@ -20,8 +20,7 @@ PreviewController::PreviewController(QObject* parent)
         {"macroCurrentStep", true}, {"macroPauseKeys", true}};
     const auto workspaceChanged = [this]() {
         emit activityIconChanged(); emit overlayChanged();
-        pluginContext_.setRuntimeState({{"driver", QStringList{tr("小叽"), QStringLiteral("DD"), QStringLiteral("USB")}[static_cast<int>(driverMode_)]},
-            {"repeatRunning", keys_.model()->state().value("running")}, {"macroRunning", macros_.model()->state().value("running")}});
+        refreshPluginRuntimeState();
     };
     connect(keys_.model(), &PageModel::stateChanged, this, workspaceChanged);
     connect(macros_.model(), &PageModel::stateChanged, this, workspaceChanged);
@@ -51,7 +50,7 @@ PreviewController::PreviewController(QObject* parent)
         const auto descriptor = pluginCenter_.page(id);
         if (descriptor.isEmpty()) return nullptr;
         if (descriptor.value("pluginId").toString() == QStringLiteral("xiaoji.page.calendar")) return &calendarContext_;
-        return descriptor.value("pluginId").toString() == QStringLiteral("example.desktop-pet") ? &petContext_ : &pluginContext_;
+        return descriptor.value("pluginId").toString() == QStringLiteral("xiaoji.pet.xiaoji") ? &petContext_ : &pluginContext_;
     });
     connect(&petContext_, &PluginPageContext::navigationRequested, this, &PreviewController::navigate);
     connect(this, &PreviewController::themeChanged, &petContext_, &PluginPageContext::refreshTheme);

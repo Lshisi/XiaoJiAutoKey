@@ -10,10 +10,11 @@ SDK、官方插件和目录服务均在现有主仓库，GitHub 为 `Lshisi/Xiao
 | `plugins/driver-xiaoji` | `XiaoJiPluginXiaojiPackage` | `plugins/driver-xiaoji/vx.y.z` | `XiaoJiPluginXiaoji-vx.y.z.zip` |
 | `plugins/driver-usb` | `XiaoJiPluginUSBPackage` | `plugins/driver-usb/vx.y.z` | `XiaoJiPluginUSB-vx.y.z.zip` |
 | `plugins/page-calendar` | 纯 QML，直接打包源码目录 | `plugins/page-calendar/vx.y.z` | `XiaoJiPluginCalendar-vx.y.z.zip` |
+| `plugins/pet-xiaoji` | 纯 QML，直接打包源码目录 | `plugins/pet-xiaoji/vx.y.z` | `XiaoJiPluginPet-vx.y.z.zip` |
 
 修改对应清单 `version` 和代码，提交源文件后再发布对应 tag。协议、宿主和固件版本分开管理。已发布的同一 ID + 版本不能替换包内容，重做包应使用新版本。原生官方入口的版本宏由清单生成。
 
-[plugin-release.yml](../.github/workflows/plugin-release.yml) 在推送上述 tag 后独立构建和打包，无需 Qt；活动日历跳过编译，直接收集源码、声明资源和许可证。不执行驱动、安装助手或输入操作，向 GitHub Release 上传 zip 及 `.sha256`；配置 Gitee 发布凭据后，将同一份文件上传到 Gitee Release。两端不分别重建 ZIP，确保包哈希一致。先同步源提交到两端，再推插件 tag。
+[plugin-release.yml](../.github/workflows/plugin-release.yml) 在推送上述 tag 后独立构建和打包，无需 Qt；活动日历和桌宠跳过编译，直接收集源码、声明资源和许可证。桌宠的 `design/` 概念图不进入插件，正式皮肤必须按清单资源完整提供。不执行驱动、安装助手或输入操作，向 GitHub Release 上传 zip 及 `.sha256`；配置 Gitee 发布凭据后，将同一份文件上传到 Gitee Release。两端不分别重建 ZIP，确保包哈希一致。先同步源提交到两端，再推插件 tag。
 
 已发布插件附件不可覆盖。若 GitHub 发布成功、Gitee 失败，用 [Retry Gitee plugin mirror](../.github/workflows/plugin-mirror.yml) 手动填写同一个 tag，直接下载 GitHub 已发布附件补镜像；不重新构建或重打包。相同内容可幂等补传，不同内容拒绝覆盖。
 
@@ -21,7 +22,7 @@ SDK、官方插件和目录服务均在现有主仓库，GitHub 为 `Lshisi/Xiao
 
 后台和独立窗口仍使用同一套发布与审核流程，不单独建发布平台。清单声明和 SDK 桌宠/原生后台示例见 [插件运行时](plugin-runtime.md)；纯 QML 版本之间一起替换页面、后台和窗口，新旧任一版本包含原生模块或进程仍保留已加载模块时整体等待重启。
 
-完整应用仍由 `scripts/package-release.ps1` 构建和打包，携带小叽和 DD 两种内置驱动的清单版本。USB、活动日历默认不安装，通过插件中心按需下载；独立包仍可经“导入”安装，官方身份须匹配可信目录。用户安装版本、`plugin-data`、缓存及 `config.json` 不进入发布包。框架更新只接受 `vx.y.z` 和 `XiaoJiAutoKey.zip` / `XiaoJiAutoKey-vx.y.z.zip`，与插件 tag 及附件分开。
+完整应用仍由 `scripts/package-release.ps1` 构建和打包，携带小叽和 DD 两种内置驱动的清单版本。USB、活动日历、江湖桌宠默认不安装，通过插件中心按需下载；独立包仍可经“导入”安装，官方身份须匹配可信目录。用户安装版本、`plugin-data`、缓存及 `config.json` 不进入发布包。框架更新只接受 `vx.y.z` 和 `XiaoJiAutoKey.zip` / `XiaoJiAutoKey-vx.y.z.zip`，与插件 tag 及附件分开。
 
 驱动 DLL、INF/SYS/CAT、安装工具及许可证属于对应插件，小叽和 DD 以完整内置插件随应用发布。用户须保留至少一种可用的内置驱动，其余可停用及卸载，正常启动不会自动装回；内置标签保留离线安装入口。其他插件允许停用及卸载。驱动页的诊断/自检入口由清单声明，专有说明通过原生诊断文本提供；系统驱动卸载可与插件移除联动，也可独立执行，失败及待电脑重启时保留文件和工具。管理工具的退出码、权限及继续卸载约定见 [插件开发](plugin-development.md#安装与恢复)。
 
@@ -54,7 +55,7 @@ Gitee 的公开搜索和 GitHub topic API 不同，不能假设 `topic:` 查询�
 }
 ```
 
-单插件仓库也可使用此声明以限定 tag 或附件前缀。`tagPrefix`、`assetPrefix` 可选；不指定时从公开 Release ZIP 中匹配清单 ID。声明不含本机路径和密钥，也不会执行开发者的构建脚本。主仓库的 [xiaoji-plugins.json](../xiaoji-plugins.json) 声明三个驱动和活动日历四个官方模块。
+单插件仓库也可使用此声明以限定 tag 或附件前缀。`tagPrefix`、`assetPrefix` 可选；不指定时从公开 Release ZIP 中匹配清单 ID。声明不含本机路径和密钥，也不会执行开发者的构建脚本。主仓库的 [xiaoji-plugins.json](../xiaoji-plugins.json) 声明三个驱动、活动日历和江湖桌宠五个官方模块。
 
 搜索有索引延迟和 API 配额，发布后不保证即时出现。搜索故障或达到分页上限时保留此前有效结果；完整搜索确认撤去标记后，自动来源退出公开展示，已有安装和策略记录保留。单仓库读取最近 30 个 Release，每插件最多保留 128 个版本；本版 GitHub 最多搜索 500 个仓库，Gitee 最多 250 个，达到上限会在 `collection-errors.json` 说明。
 

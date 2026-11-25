@@ -89,7 +89,8 @@ bool PluginWindows::dispatch(const QString& operation, const QString& id, const 
         Qt::WindowFlags flags = Qt::Tool;
         if (declaration->frameless) flags |= Qt::FramelessWindowHint;
         if (topmost) flags |= Qt::WindowStaysOnTopHint;
-        if (clickThrough) flags |= Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus;
+        if (clickThrough) flags |= Qt::WindowTransparentForInput;
+        if (clickThrough || !declaration->focusable) flags |= Qt::WindowDoesNotAcceptFocus;
         window->setFlags(flags);
         if (declaration->transparent) { auto format = window->format(); format.setAlphaBufferSize(8); window->setFormat(format); }
         window->setColor(declaration->transparent ? QColor(Qt::transparent) : api_->theme().value("surface").value<QColor>());
@@ -130,7 +131,7 @@ bool PluginWindows::dispatch(const QString& operation, const QString& id, const 
     else if (operation == QStringLiteral("move")) return window->startSystemMove();
     else if (operation == QStringLiteral("configure")) {
         for (auto it = options.cbegin(); it != options.cend(); ++it) {
-            if (it.key() == QStringLiteral("topmost") || it.key() == QStringLiteral("clickThrough")) {
+            if (it.key() == QStringLiteral("topmost") || it.key() == QStringLiteral("clickThrough") || it.key() == QStringLiteral("resetPosition")) {
                 if (it.value().metaType().id() != QMetaType::Bool) { error_ = tr("窗口开关必须是布尔值。"); return false; }
             } else if (it.key() == QStringLiteral("x") || it.key() == QStringLiteral("y") || it.key() == QStringLiteral("width") || it.key() == QStringLiteral("height")) {
                 bool ok = false;
@@ -146,11 +147,18 @@ bool PluginWindows::dispatch(const QString& operation, const QString& id, const 
         if (options.contains("topmost")) flags.setFlag(Qt::WindowStaysOnTopHint, options.value("topmost").toBool());
         if (options.contains("clickThrough")) {
             flags.setFlag(Qt::WindowTransparentForInput, options.value("clickThrough").toBool());
-            flags.setFlag(Qt::WindowDoesNotAcceptFocus, options.value("clickThrough").toBool());
+            flags.setFlag(Qt::WindowDoesNotAcceptFocus, options.value("clickThrough").toBool() || !declaration->focusable);
         }
         if (flags != window->flags()) window->setFlags(flags);
         window->setGeometry(options.value("x", window->x()).toInt(), options.value("y", window->y()).toInt(),
             options.value("width", window->width()).toInt(), options.value("height", window->height()).toInt());
+        if (options.value("resetPosition").toBool()) {
+            if (auto* screen = QGuiApplication::primaryScreen()) {
+                window->setScreen(screen);
+                const auto area = screen->availableGeometry();
+                window->setPosition(area.right() - window->width() - 23, area.bottom() - window->height() - 23);
+            }
+        }
         constrain(window);
         if (visible) window->show();
     } else { error_ = tr("不支持此窗口操作。"); return false; }
@@ -197,7 +205,10 @@ QVariantList PluginWindows::presentation() const {
         const auto found = windows_.find(declaration.id);
         const auto* window = found == windows_.end() ? nullptr : found->second;
         rows.append(QVariantMap{{"id", declaration.id}, {"title", declaration.title}, {"open", window != nullptr},
-            {"visible", window && window->isVisible()}, {"clickThrough", window && window->flags().testFlag(Qt::WindowTransparentForInput)}});
+            {"visible", window && window->isVisible()}, {"clickThrough", window && window->flags().testFlag(Qt::WindowTransparentForInput)},
+            {"topmost", window ? window->flags().testFlag(Qt::WindowStaysOnTopHint) : declaration.topmost},
+            {"focusable", declaration.focusable}, {"width", window ? window->width() : declaration.width},
+            {"height", window ? window->height() : declaration.height}});
     }
     return rows;
 }

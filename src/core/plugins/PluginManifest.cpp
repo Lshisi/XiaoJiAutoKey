@@ -212,7 +212,7 @@ bool parseManifest(const QJsonObject& object, const QString& directory, Manifest
         window.id = row.value(QStringLiteral("id")).toString();
         window.title = row.value(QStringLiteral("title")).toString().trimmed();
         window.file = row.value(QStringLiteral("file")).toString();
-        for (const auto& key : {QStringLiteral("transparent"), QStringLiteral("frameless"), QStringLiteral("topmost")})
+        for (const auto& key : {QStringLiteral("transparent"), QStringLiteral("frameless"), QStringLiteral("topmost"), QStringLiteral("focusable")})
             if (row.contains(key) && !row.value(key).isBool()) return fail(error, QStringLiteral("插件窗口选项格式无效。"));
         window.width = row.value(QStringLiteral("width")).toInt(320);
         window.height = row.value(QStringLiteral("height")).toInt(240);
@@ -225,6 +225,7 @@ bool parseManifest(const QJsonObject& object, const QString& directory, Manifest
         window.transparent = row.value(QStringLiteral("transparent")).toBool();
         window.frameless = row.value(QStringLiteral("frameless")).toBool();
         window.topmost = row.value(QStringLiteral("topmost")).toBool();
+        window.focusable = row.value(QStringLiteral("focusable")).toBool(true);
         ids.insert(window.id);
         manifest.windows.push_back(window);
     }

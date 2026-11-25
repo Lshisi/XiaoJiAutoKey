@@ -40,6 +40,7 @@ struct WindowContribution {
     bool transparent = false;
     bool frameless = false;
     bool topmost = false;
+    bool focusable = true;
 };
 
 struct CommandContribution {

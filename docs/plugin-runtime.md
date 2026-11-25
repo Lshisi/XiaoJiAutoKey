@@ -14,7 +14,7 @@
 | --- | --- |
 | `background.file` | 后台 QML 相对路径，根对象使用 `QtObject`，声明 `required property QtObject pluginApi` |
 | `background.native` | 为 `true` 时使用 `native` DLL 的后台启停接口，可和后台 QML 同时声明 |
-| `windows` | 最多 8 项，声明 `id`、`title`、QML `file` 以及可选 `width`、`height`、`transparent`、`frameless`、`topmost` |
+| `windows` | 最多 8 项，声明 `id`、`title`、QML `file` 以及可选 `width`、`height`、`transparent`、`frameless`、`topmost`、`focusable` |
 | `commands` | 最多 32 项，声明 `id`、`title`、`target`；目标为 `background`（默认，需后台 QML）或 `native`（需 DLL） |
 
 后台至少声明 QML 或原生入口之一，申请 `runtime.background`；窗口申请 `ui.window`；命令和事件申请 `messaging.own`。这些权限用于声明用途和约束公开 API，不提供系统级隔离。
@@ -22,6 +22,8 @@
 窗口 QML 根对象使用 `Item`，声明 `required property QtObject pluginApi` 和 `required property string windowId`；插件提供窗口内容，框架创建 `QQuickWindow`。页面和窗口内容根对象不直接使用 `Window`。
 
 窗口初始宽高默认 320×240，声明范围为 32–2048 个逻辑像素，实际尺寸和位置受屏幕工作区约束。窗口、页面、驱动和命令 ID 分别在各自列表内唯一，使用现有本地 ID 格式。
+
+`focusable` 默认 `true`，保持原有窗口交互；桌宠等陪伴窗口可声明 `false`，显示及鼠标交互不接受键盘焦点。鼠标穿透窗口始终不接受焦点，恢复交互后仍遵守清单中的 `focusable`。
 
 后台和窗口 QML 入口由打包脚本自动收集；引用的其他组件、图片和资源仍须列入 `resources`。所有文件遵循原有路径包含、版本、哈希和包大小规则；目录服务同步检查新清单，GitHub / Gitee 的发现、发布和审核方式不变。
 
@@ -41,6 +43,8 @@
 | `windows` | 声明的窗口及 `open`、`visible`、`clickThrough` 状态 |
 | `commands` | 公开命令的 ID、标题和目标 |
 
+`runtime.windows` 同时提供窗口的 `topmost`、清单 `focusable`、当前 `width`、`height`，供设置页读取实际托管状态；窗口关闭时尺寸和置顶项为清单默认值。
+
 通过 `runtimeChanged` 观察变化。`setBackgroundRunning(bool)` 返回值只说明请求是否被能力与参数检查接收，最终结果读取 `runtime`。
 
 后台 QML 创建后依次发送 `lifecycleEvent("starting", reason)` 和 `lifecycleEvent("started", reason)`；后台可在 `started` 中显示窗口。停止时先发送 `stopping`，取消对应请求、关闭窗口、销毁后台 QML，原生后台结束后进入 `stopped`。后台销毁后，`stopped` 事件由仍在的设置页等接收。
@@ -56,7 +60,7 @@ QML 后台在 GUI 线程运行，适合状态、短任务和普通定时器，�
 | `showWindow(windowId)` | 创建或显示清单中的窗口，页面关闭后继续存在 |
 | `hideWindow(windowId)` | 隐藏并保留内容，动画应根据窗口可见状态暂停 |
 | `closeWindow(windowId)` | 销毁窗口内容，再打开时重新创建 |
-| `configureWindow(windowId, options)` | 修改已打开窗口的 `x`、`y`、`width`、`height`、`topmost`、`clickThrough` |
+| `configureWindow(windowId, options)` | 修改已打开窗口的 `x`、`y`、`width`、`height`、`topmost`、`clickThrough`；`resetPosition: true` 找回到主屏工作区右下方 |
 | `startWindowMove(windowId)` | 在拖动手势中请求系统移动窗口，使用逻辑坐标 |
 
 只能操作本插件声明的窗口。除拖动外，窗口操作延迟到当前 QML 回调结束后执行，避免同步销毁发起操作的对象；最终状态与错误通过 `runtime` 返回。
@@ -64,6 +68,8 @@ QML 后台在 GUI 线程运行，适合状态、短任务和普通定时器，�
 框架单独保存位置、尺寸、屏幕、置顶和鼠标穿透设置，不占用插件 JSON 设置额度；显示时恢复，屏幕移除、工作区或 DPI 变化后重新约束。位置保存合并写入。
 
 窗口不会仅因上次打开过就自动出现，由用户再次打开或后台在 `started` 中显示。详情提供打开、关闭和“恢复交互”，鼠标穿透不妨碍从主界面恢复控制。
+
+“找回”可先 `showWindow` 再 `configureWindow`，传入 `resetPosition: true, clickThrough: false`；位置仍经工作区约束并由宿主保存。
 
 ## 页面与后台通信
 
@@ -109,4 +115,6 @@ UTF-8 JSON 缓冲区仅在调用期间有效，不转移内存所有权；异步
 - [native-service](../sdk/examples/native-service)：不提供驱动的原生后台，展示计数命令、C ABI 回复和事件，以及 QML 页面。
 - 原有 [status-page](../sdk/examples/status-page) 和 [native-driver](../sdk/examples/native-driver) 继续使用。
 
-预览加载资源内的桌宠 QML，使用正式运行时和窗口承载；启停、窗口位置和设置仅在预览内存保存，不加载 DLL、不读取用户配置、不联网或发送按键。本轮未启动预览。
+正式桌宠为 [pet-xiaoji](../plugins/pet-xiaoji/README.md)，采用纯 QML 后台、门派皮肤、设置页和不接受焦点的透明窗口，读取公开引擎状态。SDK 桌宠继续保留为最小开发示例。
+
+共用预览加载正式桌宠清单和 QML，使用正式运行时和窗口承载；启停、窗口位置和设置仅在预览内存保存，示例连发/循环及暂停同步为只读状态，不加载 DLL、不读取用户配置、不联网或发送按键。

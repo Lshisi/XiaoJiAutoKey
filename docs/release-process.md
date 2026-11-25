@@ -14,7 +14,7 @@
 | `plugins/builtin/xiaoji.driver.xiaoji/<插件版本>/` | 小叽驱动插件的清单、DLL、声明载荷和许可证，版本取自其 `plugin.json` |
 | `plugins/builtin/xiaoji.driver.dd/<插件版本>/` | DD 驱动插件的清单、DLL、DD 运行库、INF 和许可证，版本取自其 `plugin.json` |
 
-小叽驱动与 DD 驱动默认随程序提供，用户可卸载多余的一种，须保留至少一种可用的内置驱动；内置标签保留离线安装入口，正常启动不会自动装回。USB、活动日历由用户从插件中心按需下载，不进入完整应用包。DD 运行库 `DD32.dll` / `DD64.dll` 和 INF 位于内置或独立 DD 插件的 `driver/`，不放在 exe 根目录。小叽驱动管理工具、本机签名组件及许可证在小叽插件的 `driver/xiaoji/`，包括 `xiaoji.exe`、`xiaoji-setup.exe`；可选已签名包在该目录的 `package/`。旧 HID 输入文件不再发布，仅保留必要的历史安装清理能力。
+小叽驱动与 DD 驱动默认随程序提供，用户可卸载多余的一种，须保留至少一种可用的内置驱动；内置标签保留离线安装入口，正常启动不会自动装回。USB、活动日历、江湖桌宠由用户从插件中心按需下载，不进入完整应用包。DD 运行库 `DD32.dll` / `DD64.dll` 和 INF 位于内置或独立 DD 插件的 `driver/`，不放在 exe 根目录。小叽驱动管理工具、本机签名组件及许可证在小叽插件的 `driver/xiaoji/`，包括 `xiaoji.exe`、`xiaoji-setup.exe`；可选已签名包在该目录的 `package/`。旧 HID 输入文件不再发布，仅保留必要的历史安装清理能力。
 
 发布包必须排除：
 

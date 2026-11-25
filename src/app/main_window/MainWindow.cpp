@@ -1297,9 +1297,6 @@ void MainWindow::syncQtGeometryWithNativeWindow() {
 }
 
 void MainWindow::refreshStatusOverlay() {
-    if (pluginService_) pluginService_->setRuntimeState({{"version", QStringLiteral(APP_VERSION)},
-        {"driver", pluginService_->driverName(QString::fromStdString(config_.activeDriverId))},
-        {"repeatRunning", engine_.IsToolRunning()}, {"macroRunning", macroEngine_.HasActiveMacro()}});
     auto* profile = profileController_.activeProfile();
     auto* macro = macroController_.activeMacro();
     const auto repeatStatus = engine_.GetStatus();
@@ -1309,6 +1306,22 @@ void MainWindow::refreshStatusOverlay() {
     const bool gameGatePaused = config_.gameGateEnabled && !gameWatcher_.IsGameForeground();
     const bool repeatActive = repeatRunning && (!repeatStatus.paused || !repeatStatus.holdKeys.empty());
     const bool macroActive = macroRunning && !macroStatus.paused;
+    if (pluginService_) {
+        bool anyMacroRunning = false;
+        bool anyMacroActive = false;
+        for (const auto& entry : config_.macros) {
+            const auto status = macro && entry.id == macro->id ? macroStatus : macroEngine_.GetStatus(entry.id);
+            anyMacroRunning = anyMacroRunning || status.running;
+            anyMacroActive = anyMacroActive || (status.running && !status.paused);
+        }
+        pluginService_->setRuntimeState({{"version", QStringLiteral(APP_VERSION)},
+            {"driver", pluginService_->driverName(QString::fromStdString(config_.activeDriverId))},
+            {"repeatRunning", repeatRunning}, {"macroRunning", anyMacroRunning},
+            {"repeatActive", repeatActive && !gameGatePaused}, {"macroActive", anyMacroActive && !gameGatePaused},
+            {"repeatPaused", repeatRunning && (repeatStatus.paused || gameGatePaused)},
+            {"macroPaused", anyMacroRunning && (!anyMacroActive || gameGatePaused)},
+            {"gameGatePaused", gameGatePaused && (repeatRunning || anyMacroRunning)}});
+    }
     usageStatisticsCoordinator_.updateRunning(!gameGatePaused
         && (repeatActive || macroActive));
     statusOverlay_.setGameGatePaused(gameGatePaused && (repeatRunning || macroRunning));

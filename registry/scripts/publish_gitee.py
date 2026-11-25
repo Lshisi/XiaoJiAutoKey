@@ -78,7 +78,7 @@ def publish(args):
     if not token:
         print("::notice::Gitee mirror skipped: configure XIAOJI_GITEE_TOKEN to enable dual-platform publication.")
         return
-    if args.tag != "catalog" and not re.fullmatch(r"plugins/(?:driver-(?:dd|xiaoji|usb)|page-calendar)/v\d+\.\d+\.\d+", args.tag):
+    if args.tag != "catalog" and not re.fullmatch(r"plugins/(?:driver-(?:dd|xiaoji|usb)|page-calendar|pet-xiaoji)/v\d+\.\d+\.\d+", args.tag):
         raise ValueError("不支持的官方插件发行 tag")
     if args.replace_catalog and args.tag != "catalog":
         raise ValueError("仅目录元数据允许替换，插件附件不可覆盖")

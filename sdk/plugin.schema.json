@@ -37,7 +37,8 @@
           "height": {"type": "integer", "minimum": 32, "maximum": 2048, "default": 240},
           "transparent": {"type": "boolean", "default": false},
           "frameless": {"type": "boolean", "default": false},
-          "topmost": {"type": "boolean", "default": false}
+          "topmost": {"type": "boolean", "default": false},
+          "focusable": {"type": "boolean", "default": true}
         }
       }
     },

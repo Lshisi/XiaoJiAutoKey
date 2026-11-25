@@ -111,14 +111,18 @@ endforeach()
 qt_add_resources(XiaoJiPreview preview_plugin_example PREFIX /plugin-examples
     FILES "${PROJECT_ROOT}/sdk/examples/status-page/Main.qml"
           "${PROJECT_ROOT}/sdk/examples/status-page/icons/status.svg")
-foreach(pet_file Main.qml Background.qml Pet.qml icons/pet.svg)
-    set_source_files_properties("${PROJECT_ROOT}/sdk/examples/desktop-pet/${pet_file}" PROPERTIES QT_RESOURCE_ALIAS "desktop-pet/${pet_file}")
+set(PET_PLUGIN_ROOT "${PROJECT_ROOT}/plugins/pet-xiaoji")
+file(GLOB_RECURSE PET_PLUGIN_RESOURCES CONFIGURE_DEPENDS RELATIVE "${PET_PLUGIN_ROOT}"
+    "${PET_PLUGIN_ROOT}/ui/*.qml" "${PET_PLUGIN_ROOT}/icons/*.svg"
+    "${PET_PLUGIN_ROOT}/skins/*.png" "${PET_PLUGIN_ROOT}/skins/*.json")
+set(PET_PLUGIN_FILES plugin.json Main.qml Background.qml Pet.qml ${PET_PLUGIN_RESOURCES})
+set(PET_PREVIEW_RESOURCES)
+foreach(pet_file IN LISTS PET_PLUGIN_FILES)
+    set(pet_path "${PET_PLUGIN_ROOT}/${pet_file}")
+    set_source_files_properties("${pet_path}" PROPERTIES QT_RESOURCE_ALIAS "xiaoji-pet/${pet_file}")
+    list(APPEND PET_PREVIEW_RESOURCES "${pet_path}")
 endforeach()
-qt_add_resources(XiaoJiPreview preview_pet_example PREFIX /plugin-examples
-    FILES "${PROJECT_ROOT}/sdk/examples/desktop-pet/Main.qml"
-          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Background.qml"
-          "${PROJECT_ROOT}/sdk/examples/desktop-pet/Pet.qml"
-          "${PROJECT_ROOT}/sdk/examples/desktop-pet/icons/pet.svg")
+qt_add_resources(XiaoJiPreview preview_pet PREFIX /plugin-examples FILES ${PET_PREVIEW_RESOURCES})
 set(CALENDAR_PLUGIN_FILES Main.qml ui/ActivityGroup.qml ui/CalendarModel.qml ui/CalendarData.js
     ui/CalendarRequest.qml ui/MonthNavigator.qml icons/calendar.svg)
 set(CALENDAR_PREVIEW_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/CalendarPreview.qml")

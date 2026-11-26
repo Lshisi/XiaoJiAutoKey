@@ -58,6 +58,7 @@ QuietCombo {
 
     delegate: ItemDelegate {
         id: entry
+        CrispyControlFeedback { targetControl: entry }
         required property int index
         required property var modelData
         width: root.popup.width - 2 * root.popup.padding - 10

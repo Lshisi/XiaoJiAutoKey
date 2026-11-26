@@ -106,7 +106,8 @@ FocusScope {
                     }
                 }
                 TapHandler {
-                    onTapped: {
+                    onTapped: eventPoint => {
+                        CrispyEffects.burst(dayCell, eventPoint.position)
                         chart.focusedIndex = dayCell.index
                         chart.forceActiveFocus()
                     }

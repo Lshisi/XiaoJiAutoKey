@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 SpinBox {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: Theme.buttonHeight
     implicitWidth: 136
     from: 0

@@ -5,6 +5,7 @@ import XiaoJi.UI
 
 Button {
     id: banner
+    CrispyControlFeedback { targetControl: banner; small: false }
     implicitHeight: Math.max(52, contentItem.implicitHeight + topPadding + bottomPadding)
     leftPadding: 14
     rightPadding: 8

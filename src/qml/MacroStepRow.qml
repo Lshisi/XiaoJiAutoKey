@@ -24,8 +24,11 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        onDoubleClicked: {
-            if (!root.selectionActive) root.page.editStepRequested(root.entry.id)
+        onDoubleClicked: mouse => {
+            if (!root.selectionActive) {
+                CrispyEffects.burst(root, Qt.point(mouse.x, mouse.y))
+                root.page.editStepRequested(root.entry.id)
+            }
         }
     }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }

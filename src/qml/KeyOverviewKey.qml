@@ -5,6 +5,7 @@ import XiaoJi.UI
 
 Button {
     id: control
+    CrispyControlFeedback { targetControl: control }
     required property var keyData
     required property var usage
     property bool selected: false

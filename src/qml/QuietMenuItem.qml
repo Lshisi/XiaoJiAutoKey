@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 MenuItem {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: Math.max(36, contentItem.implicitHeight + 12)
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize

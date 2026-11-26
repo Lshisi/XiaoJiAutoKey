@@ -80,7 +80,20 @@ QuietScrollView {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 3
-                            QuietLabel { text: qsTr("门派主题"); color: Theme.muted }
+                            RowLayout {
+                                id: themeCaption
+                                Layout.fillWidth: true
+                                spacing: 5
+                                QuietLabel { id: themeCaptionText; text: qsTr("门派主题"); color: Theme.muted }
+                                Loader {
+                                    active: Theme.crispyThemeEnabled && themeCaption.width >= themeCaptionText.implicitWidth + 23
+                                    visible: active
+                                    Layout.preferredWidth: 13
+                                    Layout.preferredHeight: 13
+                                    sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 13; color: Theme.crispyGold }
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 8

@@ -14,7 +14,19 @@ QuietCard {
         id: body
         anchors.fill: parent
         spacing: 8
-        QuietHeading { text: qsTr("快捷控制") }
+        RowLayout {
+            id: headingRow
+            Layout.fillWidth: true
+            spacing: 6
+            QuietHeading { id: heading; Layout.fillWidth: true; text: qsTr("快捷控制") }
+            Loader {
+                active: Theme.crispyThemeEnabled && headingRow.width >= heading.implicitWidth + 22
+                visible: active
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 16; color: Theme.crispyGold }
+            }
+        }
         ActionButton {
             id: runButton
             readonly property string actionText: root.pageState.running ? qsTr("停止") : qsTr("启动")

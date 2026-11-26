@@ -14,8 +14,11 @@ Item {
     HoverHandler { id: rowHover }
     MouseArea {
         anchors.fill: parent
-        onDoubleClicked: {
-            if (!root.selectionActive) root.page.editBinding(root.entry.id)
+        onDoubleClicked: mouse => {
+            if (!root.selectionActive) {
+                CrispyEffects.burst(root, Qt.point(mouse.x, mouse.y))
+                root.page.editBinding(root.entry.id)
+            }
         }
     }
     Rectangle {

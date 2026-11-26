@@ -5,6 +5,7 @@ import XiaoJi.UI
 
 ItemDelegate {
     id: option
+    CrispyControlFeedback { targetControl: option }
     required property string factionName
     required property url factionIcon
     property bool selected: false

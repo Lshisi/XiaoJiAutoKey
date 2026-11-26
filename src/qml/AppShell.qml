@@ -73,9 +73,21 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: 14
                 anchors.rightMargin: 14
-                QuietLabel { text: qsTr("V%1").arg(appView.version); color: Theme.muted; font.pixelSize: 11 }
+                QuietLabel { id: versionLabel; text: qsTr("V%1").arg(appView.version); color: Theme.muted; font.pixelSize: 11 }
                 Item { Layout.fillWidth: true }
-                QuietLabel { text: qsTr("By：龙虎-闻成画"); color: Theme.muted; font.pixelSize: 11 }
+                QuietLabel { id: authorLabel; text: qsTr("By：龙虎-闻成画"); color: Theme.muted; font.pixelSize: 11 }
+            }
+            Loader {
+                anchors.centerIn: parent
+                active: Theme.crispyThemeEnabled
+                    && statusBar.width / 2 - Math.max(versionLabel.width, authorLabel.width) - 14 >= 32
+                visible: active
+                sourceComponent: Row {
+                    spacing: 5
+                    Accessible.ignored: true
+                    QuietIcon { name: "drumstick"; pixelSize: 18; color: Theme.crispyGold }
+                    QuietLabel { anchors.verticalCenter: parent.verticalCenter; text: qsTr("V50"); font.family: Theme.crispyMonoFontFamily; font.pixelSize: Theme.captionFontSize; color: Theme.crispyAccent; Accessible.ignored: true }
+                }
             }
         }
     }

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="110" viewBox="0 0 100 110">
+  <defs><clipPath id="bucket"><path d="M19 49h66l-8 54H28Z"/></clipPath></defs>
+  <g fill="#ecad3d">
+    <rect x="44" y="9" width="10" height="43" rx="5" transform="rotate(-10 49 30)"/>
+    <rect x="59" y="7" width="10" height="45" rx="5" transform="rotate(9 64 29)"/>
+    <rect x="6" y="46" width="6" height="7" rx="3" transform="rotate(30 9 49)"/>
+    <rect x="92" y="32" width="7" height="8" rx="3" transform="rotate(30 95 36)"/>
+    <rect x="86" y="77" width="4" height="5" rx="2" transform="rotate(20 88 79)"/>
+  </g>
+  <g clip-path="url(#bucket)">
+    <path d="M19 49h66v54H19Z" fill="#c41230"/>
+    <path d="M32 49h14v54H32Zm29 0h14v54H61Z" fill="#fff6e8"/>
+  </g>
+  <circle cx="53" cy="74" r="15" fill="#fff6e8"/>
+  <text x="53" y="80" text-anchor="middle" font-family="Microsoft YaHei UI, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#c41230">叽</text>
+</svg>

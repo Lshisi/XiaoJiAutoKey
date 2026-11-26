@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 TextField {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: Math.max(32, contentHeight + 14)
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodyFontSize

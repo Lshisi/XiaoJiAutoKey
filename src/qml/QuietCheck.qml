@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 CheckBox {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: Math.max(22, contentItem.implicitHeight + 4)
     spacing: 8
     padding: 2

@@ -74,6 +74,7 @@ foreach(qml_file IN LISTS PREVIEW_QML_FILES)
 endforeach()
 set_source_files_properties("${PROJECT_ROOT}/src/qml/Theme.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties("${PROJECT_ROOT}/src/qml/Typography.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties("${PROJECT_ROOT}/src/qml/CrispyEffects.qml" PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(XiaoJiPreview
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml
@@ -101,9 +102,10 @@ if(MSVC)
 endif()
 file(GLOB FACTION_ICONS CONFIGURE_DEPENDS "${PROJECT_ROOT}/assets/factions/*.svg")
 file(GLOB CONTROL_ICONS CONFIGURE_DEPENDS "${PROJECT_ROOT}/assets/icons/*.svg")
+file(GLOB THEME_ASSETS CONFIGURE_DEPENDS "${PROJECT_ROOT}/assets/themes/*.svg")
 qt_add_resources(XiaoJiPreview preview_assets
     PREFIX "/" BASE "${PROJECT_ROOT}"
-    FILES "${PROJECT_ROOT}/assets/icon.png" "${PROJECT_ROOT}/assets/icon-active.png" ${FACTION_ICONS} ${CONTROL_ICONS}
+    FILES "${PROJECT_ROOT}/assets/icon.png" "${PROJECT_ROOT}/assets/icon-active.png" ${FACTION_ICONS} ${CONTROL_ICONS} ${THEME_ASSETS}
 )
 foreach(status_file Main.qml icons/status.svg)
     set_source_files_properties("${PROJECT_ROOT}/sdk/examples/status-page/${status_file}" PROPERTIES QT_RESOURCE_ALIAS "status/${status_file}")

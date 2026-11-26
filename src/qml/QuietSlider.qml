@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 Slider {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: 32
     from: 0
     to: 100

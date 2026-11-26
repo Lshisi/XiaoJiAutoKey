@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 Switch {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitWidth: 36
     implicitHeight: 24
     padding: 0

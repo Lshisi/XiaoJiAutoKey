@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 ComboBox {
     id: control
+    CrispyControlFeedback { targetControl: control }
     implicitHeight: Theme.buttonHeight
     implicitWidth: 160
     leftPadding: 10
@@ -43,6 +44,7 @@ ComboBox {
     }
     delegate: ItemDelegate {
         id: optionDelegate
+        CrispyControlFeedback { targetControl: optionDelegate }
         required property int index
         width: control.width - 8
         text: control.textAt(index)

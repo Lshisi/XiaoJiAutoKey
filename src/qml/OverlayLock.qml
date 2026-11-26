@@ -4,6 +4,7 @@ import XiaoJi.UI
 
 Button {
     id: control
+    CrispyControlFeedback { targetControl: control }
     readonly property var appearance: overlayModel.overlayState
     implicitWidth: 32
     implicitHeight: 32

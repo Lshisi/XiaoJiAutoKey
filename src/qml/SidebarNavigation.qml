@@ -16,6 +16,17 @@ ListView {
     interactive: !draggedEntry
     onCountChanged: Qt.callLater(navigation.revealCurrentPage)
     ScrollBar.vertical: QuietScrollBar { autoHide: true }
+    Loader {
+        parent: navigation
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        width: Math.min(100, navigation.width - 12)
+        height: 122
+        active: Theme.crispyThemeEnabled && !navigation.draggedEntry
+            && navigation.height - navigation.contentHeight >= height + 14
+        visible: active
+        sourceComponent: CrispyBucketSticker {}
+    }
 
     function revealCurrentPage() {
         currentIndex = sidebarModel.indexOfPage(appView.currentPage)

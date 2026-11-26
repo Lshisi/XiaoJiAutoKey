@@ -323,6 +323,10 @@ set(QML_FILES
     src/qml/FactionMenuEntry.qml
     src/qml/CrispyThemeReceipt.qml
     src/qml/CrispyStripes.qml
+    src/qml/CrispyBucketSticker.qml
+    src/qml/CrispyEffects.qml
+    src/qml/CrispyClickBurst.qml
+    src/qml/CrispyControlFeedback.qml
     src/qml/CrispyReceiptDivider.qml
     src/qml/CrispyReceiptPaper.qml
     src/qml/CrispyReceiptContent.qml
@@ -397,6 +401,7 @@ foreach(qml_file IN LISTS QML_FILES)
 endforeach()
 set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/qml/Typography.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/qml/CrispyEffects.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(XiaoJiAutoKey
     URI XiaoJi.UI
     RESOURCE_PREFIX /qt/qml

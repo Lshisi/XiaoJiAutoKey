@@ -13,6 +13,7 @@ QuietScrollView {
     background: Rectangle { color: Theme.field; radius: Theme.inputRadius; border.color: editor.activeFocus ? Theme.accent : editor.enabled && editor.hovered ? Theme.accentBorder : Theme.border }
     TextArea {
         id: editor
+        CrispyControlFeedback { targetControl: editor }
         textFormat: TextEdit.PlainText
         font.family: Theme.fontFamily
         font.pixelSize: Theme.bodyFontSize

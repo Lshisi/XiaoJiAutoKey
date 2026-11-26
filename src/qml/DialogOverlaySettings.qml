@@ -29,6 +29,7 @@ ColumnLayout {
             model: [qsTr("按键连发"), qsTr("循环连发"), qsTr("通用")]
             delegate: TabButton {
                 id: tab
+                CrispyControlFeedback { targetControl: tab }
                 required property int index
                 required property string modelData
                 text: modelData

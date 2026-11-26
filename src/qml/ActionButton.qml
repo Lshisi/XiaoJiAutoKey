@@ -5,6 +5,7 @@ import XiaoJi.UI
 
 Button {
     id: control
+    CrispyControlFeedback { targetControl: control; small: control.compact || control.quiet || control.width <= 48 }
     property bool primary: false
     property bool quiet: false
     property bool accented: false

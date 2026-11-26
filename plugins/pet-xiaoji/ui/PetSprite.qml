@@ -6,55 +6,49 @@ Item {
     property string action: "idle"
     property bool active: true
     property bool motionEnabled: true
-    property bool blinking: false
-    readonly property var clip: root.skin.actions[root.action] || root.skin.actions.idle
-    readonly property bool idleStill: root.action === "idle" && !root.blinking
-    readonly property bool loops: root.action === "practice" || root.action === "sleep" || root.action === "drag"
-    readonly property bool failed: imageProbe.status === Image.Error
-    readonly property bool ready: imageProbe.status === Image.Ready
+    property int frameIndex: 0
+    property bool finished: false
+    readonly property var actionData: root.skin.actions[root.action]
+    readonly property var frame: root.actionData.frames[Math.min(root.frameIndex, root.actionData.frames.length - 1)]
+    readonly property bool failed: atlas.status === Image.Error
+    readonly property bool ready: atlas.status === Image.Ready
+    readonly property bool playing: root.ready && root.active && root.visible && root.motionEnabled
+        && !root.finished && root.actionData.frames.length > 1
     implicitWidth: 192
     implicitHeight: 192
+    clip: true
     Accessible.ignored: true
-    onActionChanged: {
-        root.blinking = false
-        Qt.callLater(function() {
-            sprite.currentFrame = 0
-            if (root.ready && root.motionEnabled && !root.idleStill) sprite.restart()
-        })
+
+    function reset() {
+        root.frameIndex = 0
+        root.finished = false
+        Qt.callLater(function() { if (root.playing) frameClock.restart() })
     }
-    onMotionEnabledChanged: if (!root.motionEnabled) Qt.callLater(function() { sprite.currentFrame = 0 })
+    function advance() {
+        if (root.frameIndex + 1 < root.actionData.frames.length) root.frameIndex += 1
+        else if (root.actionData.loopFrom >= 0) root.frameIndex = root.actionData.loopFrom
+        else root.finished = true
+    }
+    onActionChanged: root.reset()
+    onSkinChanged: root.reset()
+    onMotionEnabledChanged: if (!root.motionEnabled) root.reset()
+
     Image {
-        id: imageProbe
-        visible: false
+        id: atlas
+        x: -root.frame.column * root.width
+        y: -root.frame.row * root.height
+        width: root.width * root.skin.columns
+        height: root.height * root.skin.rows
         source: root.skin.source
         sourceSize: Qt.size(root.skin.frameWidth * root.skin.columns, root.skin.frameHeight * root.skin.rows)
         asynchronous: true
-    }
-    AnimatedSprite {
-        id: sprite
-        anchors.fill: parent
-        source: root.ready ? root.skin.source : ""
-        frameWidth: root.skin.frameWidth
-        frameHeight: root.skin.frameHeight
-        frameX: root.clip.frame * root.skin.frameWidth
-        frameY: root.clip.row * root.skin.frameHeight
-        frameCount: root.idleStill || !root.motionEnabled ? 1 : root.clip.count
-        frameDuration: root.clip.duration
-        loops: root.loops ? AnimatedSprite.Infinite : 1
-        finishBehavior: AnimatedSprite.FinishAtFinalFrame
-        interpolate: false
         smooth: false
-        running: root.ready && root.motionEnabled && !root.idleStill
-        paused: !root.active || !root.visible
-        onFinished: if (root.action === "idle") root.blinking = false
     }
     Timer {
-        interval: 4500
+        id: frameClock
+        interval: root.frame.duration
         repeat: true
-        running: root.active && root.visible && root.ready && root.motionEnabled && root.action === "idle"
-        onTriggered: {
-            root.blinking = true
-            sprite.restart()
-        }
+        running: root.playing
+        onTriggered: root.advance()
     }
 }

@@ -24,6 +24,8 @@ QtObject {
             }
             if (action === "pet") root.controller.pet()
             else if (action === "drag" && typeof payload.active === "boolean") root.controller.drag(payload.active)
+            else if (action === "finished" && typeof payload.name === "string"
+                     && Number.isInteger(payload.interactionId)) root.controller.finish(payload.name, payload.interactionId)
             else if (action !== "snapshot") {
                 root.pluginApi.reply(requestId, false, {}, qsTr("桌宠不认识这个动作。"))
                 return

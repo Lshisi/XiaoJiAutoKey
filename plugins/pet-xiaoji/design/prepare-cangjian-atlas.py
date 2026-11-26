@@ -1,73 +1,54 @@
-"""切帧、对齐、合图；按正式动作表导出无损 WebP 素材预览，需要 Pillow。"""
+"""对首次生成的 24 帧原图仅做裁切、脚底对齐及合图；需要 Pillow。"""
 
 import json
 from pathlib import Path
 
 from PIL import Image
 
-
 DESIGN = Path(__file__).resolve().parent
 CELL = 256
+FOOT_Y = 244
 SOURCE_FOOT_Y = (
-    (244, 244, 244, 244),
-    (244, 244, 244, 244),
-    (221, 215, 244, 244),
-    (218, 218, 218, 218),
-    (244, 244, 244, 244),
-    (244, 244, 210, 244),
+    (241, 241, 241, 241),
+    (241, 241, 241, 241),
+    (225, 217, 248, 248),
+    (220, 220, 220, 220),
+    (241, 241, 241, 240),
+    (241, 240, 240, 240),
 )
 AIRBORNE = {(2, 0), (2, 1), (5, 2)}
 
 
 def main():
     atlas = Image.new("RGBA", (1024, 1536))
-    frames = []
     with Image.open(DESIGN / "cangjian-atlas-source.png") as source:
         for row in range(6):
             for column in range(4):
                 left, top = column * CELL, row * CELL
-                original = source.crop((left, top, left + CELL, top + CELL))
+                frame = source.crop((left, top, left + CELL, top + CELL)).convert("RGBA")
+                foot = FOOT_Y - 16 if (row, column) in AIRBORNE else FOOT_Y
                 aligned = Image.new("RGBA", (CELL, CELL))
-                foot_y = 208 if (row, column) in AIRBORNE else 224
-                aligned.paste(original, (0, foot_y - SOURCE_FOOT_Y[row][column]))
+                aligned.paste(frame, (0, foot - SOURCE_FOOT_Y[row][column]))
                 atlas.paste(aligned, (left, top))
-                frames.append(aligned)
+    atlas.save(DESIGN.parent / "skins" / "cangjian" / "atlas.png")
 
-    destination = DESIGN.parent / "skins" / "cangjian" / "atlas.png"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(destination)
+    skin = (DESIGN.parent / "ui" / "PetSkin.qml").read_text(encoding="utf-8")
+    start = skin.index("{", skin.index("actions:"))
+    actions = json.JSONDecoder().raw_decode(skin, start)[0]
+    html = TEMPLATE.replace("__ACTIONS__", json.dumps(actions, ensure_ascii=False))
+    (DESIGN / "sprite-preview.html").write_text(html, encoding="utf-8")
 
-    skin_source = (DESIGN.parent / "ui" / "PetSkin.qml").read_text(encoding="utf-8")
-    actions_start = skin_source.index("{", skin_source.index("actions:"))
-    actions, _ = json.JSONDecoder().raw_decode(skin_source, actions_start)
-    preview = []
-    durations = []
-    sequence = (("idle", 1), ("pet", 1), ("drag", 2), ("land", 1),
-                ("sleep", 1), ("practice", 3), ("rest", 1), ("finish", 1))
-    for action, cycles in sequence:
-        clip = actions[action]
-        for cycle in range(cycles):
-            start = clip["loopFrom"] if cycle else 0
-            for frame in clip["frames"][start:]:
-                preview.append(frames[frame["row"] * 4 + frame["column"]])
-                durations.append(frame["duration"])
+    preview = Image.new("RGBA", (1024, 512), "#f1ede3")
+    positions = ((0, 0), (1, 2), (2, 0), (2, 2), (3, 0), (4, 2), (4, 0), (5, 2))
+    for index, (row, column) in enumerate(positions):
+        frame = atlas.crop((column * CELL, row * CELL, (column + 1) * CELL, (row + 1) * CELL))
+        preview.alpha_composite(frame, (index % 4 * CELL, index // 4 * CELL))
+    preview.convert("RGB").save(DESIGN / "cangjian-preview.png")
+    print("已按首次原图生成 24 帧 PNG 图集及逐帧预览；未缩放或重绘角色和武器。")
 
-    atlas.save(DESIGN / "cangjian-atlas-reference.webp", lossless=True, exact=True, method=6)
-    preview[0].save(
-        DESIGN / "cangjian-preview.webp",
-        save_all=True,
-        append_images=preview[1:],
-        duration=durations,
-        loop=0,
-        lossless=True,
-        exact=True,
-        method=6,
-    )
-    print(destination)
-    print(DESIGN / "cangjian-atlas-reference.webp")
-    print(DESIGN / "cangjian-preview.webp")
 
-    html = """<!doctype html>
+TEMPLATE = """
+<!doctype html>
 <html lang="zh-CN">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -83,7 +64,7 @@ output{color:#e6bf65}.note{font-size:13px}option{background:#32363b}
 </style>
 <main>
 <h1>藏剑小叽 · 精灵预览</h1>
-<p>直接查看透明图集中的完整颜色。可选择动作，或暂停后逐帧检查。</p>
+<p>首次生成的 24 帧动作，保留角色、武器与姿态的原有比例。可暂停后逐帧查看。</p>
 <div class="stage"><div id="pet" role="img" aria-label="藏剑小叽动作素材"></div></div>
 <div class="controls">
 <select id="action" aria-label="动作"><option value="idle">待机眨眼</option><option value="pet">摸摸头</option><option value="drag">拖起</option><option value="land">落地</option><option value="sleep">打盹</option><option value="practice">练剑</option><option value="rest">驻剑</option><option value="finish">收工</option></select>
@@ -111,8 +92,6 @@ document.addEventListener('visibilitychange',schedule);show();schedule();
 </script>
 </html>
 """
-    (DESIGN / "sprite-preview.html").write_text(html.replace("__ACTIONS__", json.dumps(actions, ensure_ascii=False)), encoding="utf-8")
-    print(DESIGN / "sprite-preview.html")
 
 
 if __name__ == "__main__":

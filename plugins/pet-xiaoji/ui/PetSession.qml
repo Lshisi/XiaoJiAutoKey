@@ -4,11 +4,13 @@ QtObject {
     id: root
     required property QtObject pluginApi
     property string action: "idle"
+    property int interactionId: 0
     property string statusText: ""
     property string pending: ""
     readonly property bool running: root.pluginApi.runtime.backgroundRunning === true
     function apply(payload) {
         root.action = payload.action || "idle"
+        root.interactionId = payload.interactionId
         root.statusText = payload.statusText || ""
     }
     function refresh() {
@@ -18,7 +20,7 @@ QtObject {
         if (root.running) root.refresh()
         else {
             root.pending = ""
-            root.apply({})
+            root.apply({ action: "idle", interactionId: 0, statusText: "" })
         }
     }
     Component.onCompleted: root.refresh()

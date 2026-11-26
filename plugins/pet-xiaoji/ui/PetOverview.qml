@@ -17,7 +17,8 @@ RowLayout {
         Layout.preferredHeight: 128
         skin: skin.current
         action: session.action
-        active: root.visible && Window.window !== null && Window.window.visible && Window.window.visibility !== Window.Minimized
+        interactionId: session.interactionId
+        active: session.running && root.visible && Window.window !== null && Window.window.visible && Window.window.visibility !== Window.Minimized
         motionEnabled: Theme.motionEnabled
     }
     ColumnLayout {

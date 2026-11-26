@@ -28,8 +28,14 @@ Item {
         anchors.fill: parent
         skin: skin.current
         action: move.active ? "drag" : session.action
+        interactionId: session.interactionId
         active: root.windowVisible && session.running
         motionEnabled: Theme.motionEnabled
+        onAnimationFinished: function(name, interactionId) {
+            if (session.running) root.pluginApi.request("interact", {
+                action: "finished", name: name, interactionId: interactionId
+            })
+        }
     }
     Item {
         anchors.fill: parent

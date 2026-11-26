@@ -6,13 +6,12 @@ QtObject {
     property bool sleeping: false
     property bool dragging: false
     property string gesture: ""
+    property int interactionId: 0
     property bool initialized: false
     property bool observedRun: false
     readonly property bool linked: root.pluginApi.settings.linkRunning !== false
     readonly property bool engineRunning: root.pluginApi.state.repeatRunning === true || root.pluginApi.state.macroRunning === true
     readonly property bool engineActive: root.pluginApi.state.repeatActive === true || root.pluginApi.state.macroActive === true
-        || (root.pluginApi.state.repeatActive === undefined && root.pluginApi.state.repeatRunning === true)
-        || (root.pluginApi.state.macroActive === undefined && root.pluginApi.state.macroRunning === true)
     readonly property bool live: root.pluginApi.runtime.backgroundRunning === true
     readonly property string action: root.dragging ? "drag" : root.gesture.length ? root.gesture
         : root.linked && root.engineRunning ? (root.engineActive ? "practice" : "rest") : root.sleeping ? "sleep" : "idle"
@@ -28,12 +27,15 @@ QtObject {
     signal changed()
 
     function snapshot() {
-        return { action: root.action, statusText: root.statusText }
+        return { action: root.action, interactionId: root.interactionId, statusText: root.statusText }
     }
     function play(name) {
         root.sleeping = false
+        root.interactionId += 1
         root.gesture = name
-        root.gestureTimer.restart()
+    }
+    function finish(name, interactionId) {
+        if (name === root.gesture && interactionId === root.interactionId) root.gesture = ""
     }
     function pet() {
         if (!root.dragging) root.play("pet")
@@ -42,7 +44,6 @@ QtObject {
         root.dragging = active
         root.sleeping = false
         root.gesture = ""
-        root.gestureTimer.stop()
         if (active) root.dragGuard.restart()
         else {
             root.dragGuard.stop()
@@ -50,6 +51,7 @@ QtObject {
         }
     }
     onActionChanged: root.changed()
+    onInteractionIdChanged: Qt.callLater(root.changed)
     onStatusTextChanged: root.changed()
     onEngineRunningChanged: {
         if (!root.initialized || !root.linked) return
@@ -57,7 +59,6 @@ QtObject {
         if (root.engineRunning) {
             root.observedRun = true
             root.gesture = ""
-            root.gestureTimer.stop()
         } else if (root.observedRun) {
             root.observedRun = false
             root.play("finish")
@@ -67,7 +68,6 @@ QtObject {
         if (root.initialized && root.linked && root.engineActive) {
             root.sleeping = false
             root.gesture = ""
-            root.gestureTimer.stop()
         }
     }
     onLinkedChanged: {
@@ -75,7 +75,6 @@ QtObject {
         root.observedRun = root.linked && root.engineRunning
         root.sleeping = false
         root.gesture = ""
-        root.gestureTimer.stop()
     }
     Component.onCompleted: {
         root.observedRun = root.linked && root.engineRunning
@@ -85,10 +84,6 @@ QtObject {
         interval: 120000
         running: root.canSleep
         onTriggered: root.sleeping = true
-    }
-    property Timer gestureTimer: Timer {
-        interval: root.gesture === "land" ? 400 : 1000
-        onTriggered: root.gesture = ""
     }
     property Timer dragGuard: Timer {
         interval: 30000

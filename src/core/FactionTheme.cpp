@@ -119,7 +119,7 @@ void FactionTheme::setCrispyThemeEnabled(bool enabled) {
 bool FactionTheme::crispyThemeEnabled() const { return crispyThemeEnabled_; }
 
 QString FactionTheme::themeName() const {
-    return crispyThemeEnabled_ ? QCoreApplication::translate("FactionTheme", "藏剑 · 脆皮山庄") : current().name;
+    return crispyThemeEnabled_ ? QCoreApplication::translate("FactionTheme", "脆皮山庄") : current().name;
 }
 
 QColor FactionTheme::crispyAccent(bool darkMode) {

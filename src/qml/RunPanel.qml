@@ -24,7 +24,7 @@ QuietCard {
                 visible: active
                 Layout.preferredWidth: 16
                 Layout.preferredHeight: 16
-                sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 16; color: Theme.crispyGold }
+                sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 16; color: Theme.crispyGold; preserveColors: true }
             }
         }
         ActionButton {

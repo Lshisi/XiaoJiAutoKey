@@ -12,7 +12,7 @@ ColumnLayout {
             if (windows[i].id === "pet") return windows[i]
         return { open: false, visible: false, topmost: true, clickThrough: false }
     }
-    readonly property var sizes: [160, 224, 288]
+    PetSizing { id: sizing; storedSize: root.pluginApi.settings.size }
     spacing: 12
     RowLayout {
         Layout.fillWidth: true
@@ -20,9 +20,9 @@ ColumnLayout {
         QuietCombo {
             Layout.preferredWidth: 160
             model: [qsTr("小"), qsTr("中"), qsTr("大")]
-            currentIndex: Math.max(0, root.sizes.indexOf(root.pluginApi.settings.size || 224))
+            currentIndex: sizing.selectedIndex
             Accessible.name: qsTr("桌宠大小")
-            onActivated: root.pluginApi.saveSetting("size", root.sizes[currentIndex])
+            onActivated: root.pluginApi.saveSetting("size", sizing.sizes[currentIndex])
         }
     }
     RowLayout {

@@ -43,7 +43,7 @@ void PreviewController::initializePreviewPlugins(bool enabled) {
         {"source", tr("本地")}, {"enabled", true}, {"hasPage", true}, {"hasDriver", false}, {"reviewed", false},
         {"permissions", QStringList{"ui.page", "engine.read", "settings.own"}}});
     if (enabled) previewPlugins_.append(QVariantMap{{"id", "xiaoji.pet.xiaoji"}, {"name", tr("小叽 · 江湖桌宠")},
-        {"author", tr("小叽官方")}, {"version", "1.0.0"}, {"description", tr("藏剑小叽陪伴、摸头、拖动与运行状态联动。")},
+        {"author", tr("小叽官方")}, {"version", "1.0.0"}, {"description", tr("像素藏剑小叽：挥剑、张望、伸懒腰、打盹与运行状态联动。")},
         {"source", tr("官方")}, {"official", true}, {"enabled", true}, {"hasPage", true}, {"hasDriver", false}, {"hasBackground", true}, {"hasWindow", true},
         {"backgroundEnabled", false}, {"permissions", QStringList{"ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own", "engine.read"}}});
     if (enabled) previewPlugins_.append(QVariantMap{{"id", "example.broken-page"}, {"name", tr("异常插件（示例）")},

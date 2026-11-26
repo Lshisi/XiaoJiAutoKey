@@ -6,18 +6,19 @@ import XiaoJi.UI
 ActionButton {
     id: root
     property bool sidebar: false
+    readonly property bool crispySidebar: sidebar && Theme.crispyThemeEnabled
     readonly property int popupWidth: {
         let width = 112
         for (let i = 0; i < appView.factions.length; ++i) {
             width = Math.max(width, popupMetrics.advanceWidth(appView.factions[i].name) + 62)
         }
         if (settingsPageModel.state.crispyThemeUnlocked)
-            width = Math.max(width, popupMetrics.advanceWidth(qsTr("藏剑 · 脆皮山庄")) + 62)
+            width = Math.max(width, popupMetrics.advanceWidth(qsTr("脆皮山庄")) + 62)
         return width
     }
     implicitHeight: sidebar ? 58 : Theme.buttonHeight
     quiet: sidebar
-    text: sidebar && Theme.colors.crispyThemeEnabled ? qsTr("脆皮山庄") : Theme.colors.themeName
+    text: Theme.colors.themeName
     hint: qsTr("切换门派主题（%1）").arg(Theme.colors.themeName)
     onClicked: factionPopup.open()
     FontMetrics {
@@ -25,11 +26,11 @@ ActionButton {
         font: root.font
     }
     contentItem: RowLayout {
-        spacing: 7
+        spacing: root.crispySidebar ? 6 : 7
         Item {
             visible: root.sidebar
-            Layout.preferredWidth: 34
-            Layout.preferredHeight: 34
+            Layout.preferredWidth: root.crispySidebar ? 36 : 34
+            Layout.preferredHeight: root.crispySidebar ? 36 : 34
             FactionSymbol {
                 anchors.fill: parent
                 iconSource: Theme.colors.factionIcon
@@ -40,22 +41,23 @@ ActionButton {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            spacing: 4
+            spacing: root.crispySidebar ? 3 : 4
             QuietLabel {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 text: root.text
-                color: root.sidebar && Theme.crispyThemeEnabled ? Theme.accent : Theme.bodyText
-                font.weight: root.sidebar && Theme.crispyThemeEnabled ? Font.DemiBold : root.sidebar ? Theme.headingWeight : Theme.bodyWeight
+                color: root.crispySidebar ? Theme.accent : Theme.bodyText
+                font.pixelSize: root.crispySidebar ? Theme.bodyFontSize + 1 : root.font.pixelSize
+                font.weight: root.crispySidebar ? Font.Bold : root.sidebar ? Theme.headingWeight : Theme.bodyWeight
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
             }
             Loader {
-                active: root.sidebar && Theme.crispyThemeEnabled
+                active: root.crispySidebar
                 visible: active
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 9
-                sourceComponent: CrispyStripes {}
+                Layout.preferredWidth: 52
+                Layout.preferredHeight: 5
+                sourceComponent: CrispyStripes { paperColor: Theme.sidebarBackground }
             }
         }
         QuietIcon {
@@ -107,7 +109,7 @@ ActionButton {
                 }
                 FactionMenuEntry {
                     width: factionList.width
-                    factionName: qsTr("藏剑 · 脆皮山庄")
+                    factionName: qsTr("脆皮山庄")
                     factionIcon: "qrc:/assets/factions/cangjian-crispy.svg"
                     preserveColors: true
                     selected: Theme.colors.crispyThemeEnabled
@@ -117,7 +119,7 @@ ActionButton {
                     }
                 }
             }
-            ScrollBar.vertical: QuietScrollBar {}
+            ScrollBar.vertical: QuietScrollBar { policy: ScrollBar.AlwaysOff }
         }
         background: Rectangle { color: Theme.surface; radius: Theme.inputRadius; border.color: Theme.border }
     }

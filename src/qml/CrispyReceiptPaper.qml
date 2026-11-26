@@ -5,13 +5,14 @@ import XiaoJi.UI
 Item {
     id: paper
     readonly property real tearHeight: 9
+    readonly property real tearOverlap: 1
     readonly property var tearOutline: {
         const count = Math.max(1, Math.round(paper.width / 20))
         const step = paper.width / count
-        const points = [Qt.point(0, 0), Qt.point(paper.width, 0), Qt.point(paper.width, paper.tearHeight)]
+        const points = [Qt.point(0, 0), Qt.point(paper.width, 0), Qt.point(paper.width, paper.tearHeight + paper.tearOverlap)]
         for (let i = count - 1; i >= 0; --i) {
-            points.push(Qt.point((i + 0.5) * step, 0))
-            points.push(Qt.point(i * step, paper.tearHeight))
+            points.push(Qt.point((i + 0.5) * step, paper.tearOverlap))
+            points.push(Qt.point(i * step, paper.tearHeight + paper.tearOverlap))
         }
         points.push(Qt.point(0, 0))
         return points
@@ -32,7 +33,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: paper.tearHeight
+        height: paper.tearHeight + paper.tearOverlap
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             fillColor: Theme.crispyPaper

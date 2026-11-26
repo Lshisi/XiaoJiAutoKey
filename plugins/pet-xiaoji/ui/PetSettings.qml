@@ -50,7 +50,7 @@ ColumnLayout {
     }
     QuietLabel {
         Layout.fillWidth: true
-        text: qsTr("连发或循环运行时练剑，暂停时等候，全部停止后收工。闲下来两分钟会打盹。")
+        text: qsTr("连发或循环运行时挥剑，暂停时驻剑，全部停止后收工。闲下来会张望、伸懒腰和打哈欠，两分钟后打盹；摸摸头就会醒来。")
         color: Theme.muted
         wrapMode: Text.WordWrap
     }

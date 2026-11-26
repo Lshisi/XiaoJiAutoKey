@@ -177,6 +177,7 @@ Item {
                 name: Theme.crispyThemeEnabled ? "drumstick" : "keyboard"
                 pixelSize: 28
                 color: Theme.crispyThemeEnabled ? Theme.crispyGold : Theme.muted
+                preserveColors: Theme.crispyThemeEnabled
                 opacity: Theme.crispyThemeEnabled ? 1 : 0.6
                 Layout.bottomMargin: 4
             }

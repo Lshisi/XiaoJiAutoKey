@@ -1,16 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="110" viewBox="0 0 100 110">
-  <defs><clipPath id="bucket"><path d="M19 49h66l-8 54H28Z"/></clipPath></defs>
-  <g fill="#ecad3d">
-    <rect x="44" y="9" width="10" height="43" rx="5" transform="rotate(-10 49 30)"/>
-    <rect x="59" y="7" width="10" height="45" rx="5" transform="rotate(9 64 29)"/>
-    <rect x="6" y="46" width="6" height="7" rx="3" transform="rotate(30 9 49)"/>
-    <rect x="92" y="32" width="7" height="8" rx="3" transform="rotate(30 95 36)"/>
-    <rect x="86" y="77" width="4" height="5" rx="2" transform="rotate(20 88 79)"/>
+  <ellipse cx="50" cy="103" rx="26" ry="3" fill="#92733d" opacity=".08"/>
+  <g transform="rotate(-5 50 60)" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="50" cy="51" rx="32" ry="8" fill="#ecd6ad"/>
+    <path d="m31 32-4-13c-4 .2-5-4.8-1.5-6.3 1.3-.5 2.6-.2 3.5.8 1-1.2 2.8-1.4 4-.4 2.8 2.2.8 6.1-2.1 5.6l4.4 12.8Z" fill="#fff2d4" stroke="#d3ab70" stroke-width="1"/>
+    <path d="M23 38c-3-4-.9-9 3.2-10 1-4.3 6.3-6 9.8-3.5 4.6-1 8.6 2.6 8.6 6.9 4 2.5 4.7 7.9 1.6 11.3 1.1 4.4-2 8.7-6.4 9.1-3.1 3.5-8.3 3.6-11.5.2-4.7-.1-7.8-4.6-6.4-9 .1-1.9.4-3.4 1.1-5Z" fill="#efb24a" stroke="#d99232" stroke-width="1.2"/>
+    <path d="m63 28 6-13c-3.5-2.5-1.5-7.6 2.1-6.2 1.3-1.4 3.3-1.4 4.5 0 2 2.4-.1 5.7-2.8 5.1l-6 14Z" fill="#fff2d4" stroke="#d3ab70" stroke-width="1"/>
+    <path d="M49 35c-2.1-4.4.2-9 4.5-10.1 1.8-4.1 7.2-5 10.3-1.9 4.5-.2 8 3.8 7.4 8.1 4.1 3 4.4 8.8.5 12 0 5-4.4 8.4-9 7.3-3.9 3-9.4 1.4-11.2-3-4.1-1.9-5.4-7.3-2.5-10.7Z" fill="#eaa03a" stroke="#cb842e" stroke-width="1.2"/>
+    <path d="M27 34c1.2-3.1 4-4.3 7-3.2 2.4-1.2 5.5-.2 6.4 2.2-4.3-.4-7.8 1.2-10 4.8Zm26-1c1.4-3.8 5.5-5.2 8.4-2.7 2.2-.1 4.1 1.2 4.5 3.3-4.8-1.3-7.3 1.4-10 3.5Z" fill="#ffcf71"/>
+    <path d="m29 42 2.3 1m6-5 1.4 2m-3 7 2-.6m18-6 2.2.5m5-5 1.2 2m-3 7 1.7-.7" fill="none" stroke="#bf7929" stroke-width="1.8"/>
+    <path d="M18 51Q50 59 82 51l-7 42c-1 6-12 9-25 9s-24-3-25-9Z" fill="#fff6e8"/>
+    <path d="M18 51q6 1.7 13 2.6l6 47.2q-10-1.8-12-7.8Zm26 3.8q7 .3 15-.2l-1 46.9q-7 .5-14 0Zm28-1.6q5-1 10-2.2l-7 42q-2 5-10 7.8Z" fill="#c41230"/>
+    <path d="M19 52q31 8 62 0l-1 4q-30 7-60 0Z" fill="#a50f28" opacity=".12"/>
+    <path d="M18 51Q50 59 82 51" fill="none" stroke="#fff0d8" stroke-width="3"/>
+    <path d="m18 53 7 40c1 6 12 9 25 9s24-3 25-9l7-40" fill="none" stroke="#c99972" stroke-width=".8" opacity=".4"/>
+    <circle cx="50" cy="77" r="13" fill="#fff6e8"/>
+    <text x="50" y="82" text-anchor="middle" font-family="Microsoft YaHei UI, PingFang SC, sans-serif" font-size="15" font-weight="600" fill="#c41230">叽</text>
   </g>
-  <g clip-path="url(#bucket)">
-    <path d="M19 49h66v54H19Z" fill="#c41230"/>
-    <path d="M32 49h14v54H32Zm29 0h14v54H61Z" fill="#fff6e8"/>
-  </g>
-  <circle cx="53" cy="74" r="15" fill="#fff6e8"/>
-  <text x="53" y="80" text-anchor="middle" font-family="Microsoft YaHei UI, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#c41230">叽</text>
+  <path d="m10 48 3-1 2 3-3 2Z" fill="#efb24a" opacity=".8"/>
+  <path d="m88 32 3-1 1 3-3 1Z" fill="#efb24a" opacity=".65"/>
 </svg>

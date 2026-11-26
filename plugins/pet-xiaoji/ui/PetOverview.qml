@@ -13,13 +13,18 @@ RowLayout {
     }
     PetSprite {
         id: character
-        Layout.preferredWidth: 128
-        Layout.preferredHeight: 128
+        Layout.preferredWidth: 96
+        Layout.preferredHeight: 96
         skin: skin.current
         action: session.action
         interactionId: session.interactionId
         active: session.running && root.visible && Window.window !== null && Window.window.visible && Window.window.visibility !== Window.Minimized
         motionEnabled: Theme.motionEnabled
+        onAnimationFinished: function(name, interactionId) {
+            if (session.running) root.pluginApi.request("interact", {
+                action: "finished", name: name, interactionId: interactionId
+            })
+        }
     }
     ColumnLayout {
         Layout.fillWidth: true

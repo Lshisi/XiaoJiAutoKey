@@ -6,31 +6,20 @@ import XiaoJi.UI
 ColumnLayout {
     id: content
     property bool animateEntrance: false
-    signal closeRequested()
     spacing: 8
-    RowLayout {
+    CrispyReceiptLabel {
         Layout.fillWidth: true
-        spacing: 0
-        Item { Layout.preferredWidth: Theme.compactIconSize; Layout.preferredHeight: Theme.compactIconSize }
-        CrispyReceiptLabel {
-            Layout.fillWidth: true
-            text: qsTr("江湖隐藏菜单 · 周四限定")
-            color: Theme.crispyMuted
-            font.pixelSize: Theme.captionFontSize
-            font.letterSpacing: 1
-            horizontalAlignment: Text.AlignHCenter
-        }
-        IconButton {
-            iconName: "close"
-            compact: true
-            hint: qsTr("收起出餐单")
-            onClicked: content.closeRequested()
-            contentItem: QuietIcon { name: "close"; color: Theme.crispyMuted; pixelSize: Theme.smallIconGlyphSize }
-        }
+        Layout.minimumHeight: Theme.compactIconSize
+        text: qsTr("江湖隐藏菜单 · 周四限定")
+        color: Theme.crispyMuted
+        font.pixelSize: Theme.captionFontSize
+        font.letterSpacing: 1
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
     }
     CrispyReceiptLabel {
         Layout.fillWidth: true
-        text: qsTr("藏剑山庄 · 周四出餐单")
+        text: qsTr("脆皮山庄 · 周四出餐单")
         font.pixelSize: Theme.pageTitleFontSize - 1
         font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter

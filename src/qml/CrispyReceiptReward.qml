@@ -17,7 +17,7 @@ RowLayout {
         Layout.fillWidth: true
         Layout.minimumWidth: 0
         spacing: 2
-        CrispyReceiptLabel { Layout.fillWidth: true; text: qsTr("已解锁「藏剑 · 脆皮山庄」"); font.weight: Font.DemiBold }
+        CrispyReceiptLabel { Layout.fillWidth: true; text: qsTr("已解锁「脆皮山庄」"); font.weight: Font.DemiBold }
         CrispyReceiptLabel { Layout.fillWidth: true; text: qsTr("永久收藏，随时换装。"); color: Theme.crispyMuted; font.pixelSize: Theme.captionFontSize }
     }
 }

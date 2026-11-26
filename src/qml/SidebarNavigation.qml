@@ -21,9 +21,9 @@ ListView {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         width: Math.min(100, navigation.width - 12)
-        height: 122
+        height: 104
         active: Theme.crispyThemeEnabled && !navigation.draggedEntry
-            && navigation.height - navigation.contentHeight >= height + 14
+            && navigation.height - navigation.contentHeight >= 136
         visible: active
         sourceComponent: CrispyBucketSticker {}
     }

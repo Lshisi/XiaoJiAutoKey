@@ -85,7 +85,7 @@ Rectangle {
                 sourceComponent: Row {
                     spacing: 5
                     Accessible.ignored: true
-                    QuietIcon { name: "drumstick"; pixelSize: 18; color: Theme.crispyGold }
+                    QuietIcon { name: "drumstick"; pixelSize: 18; color: Theme.crispyGold; preserveColors: true }
                     QuietLabel { anchors.verticalCenter: parent.verticalCenter; text: qsTr("V50"); font.family: Theme.crispyMonoFontFamily; font.pixelSize: Theme.captionFontSize; color: Theme.crispyAccent; Accessible.ignored: true }
                 }
             }

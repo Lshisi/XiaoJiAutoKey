@@ -11,9 +11,9 @@
   "permissions": ["ui.page", "ui.window", "runtime.background", "messaging.own", "settings.own", "engine.read"],
   "background": {"file": "Background.qml"},
   "pages": [{"id": "settings", "title": "江湖桌宠", "file": "Main.qml", "icon": "icons/pet.svg"}],
-  "windows": [{"id": "pet", "title": "小叽", "file": "Pet.qml", "width": 224, "height": 224, "transparent": true, "frameless": true, "topmost": true, "focusable": false}],
+  "windows": [{"id": "pet", "title": "小叽", "file": "Pet.qml", "width": 96, "height": 96, "transparent": true, "frameless": true, "topmost": true, "focusable": false}],
   "commands": [
     {"id": "interact", "title": "摸摸头"}
   ],
-  "resources": ["ui", "skins/cangjian/atlas.png"]
+  "resources": ["ui", "skins/cangjian/atlas.png", "skins/cangjian/practice-pixel.png", "skins/cangjian/ambient-pixel.png"]
 }

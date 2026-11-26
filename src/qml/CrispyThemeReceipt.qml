@@ -17,7 +17,7 @@ Popup {
     padding: 0
     modal: true
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: Popup.CloseOnEscape
     Component.onCompleted: open()
     onClosed: Qt.callLater(receipt.page.dismissCrispyThemeReceipt)
     Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, Theme.dark ? 0.45 : 0.22) }
@@ -35,7 +35,7 @@ Popup {
         implicitHeight: ticketBody.implicitHeight + receiptFooter.implicitHeight + 10
             + Theme.dialogVerticalPadding + Theme.cardGap + paper.tearHeight
         Accessible.role: Accessible.Dialog
-        Accessible.name: qsTr("藏剑山庄 · 周四出餐单")
+        Accessible.name: qsTr("脆皮山庄 · 周四出餐单")
         CrispyReceiptPaper {
             id: paper
             anchors.fill: parent
@@ -59,7 +59,6 @@ Popup {
                     id: ticketBody
                     width: scroll.availableWidth
                     animateEntrance: receipt.visible && Theme.motionEnabled
-                    onCloseRequested: receipt.close()
                 }
             }
             Column {

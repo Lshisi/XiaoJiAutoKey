@@ -90,7 +90,7 @@ QuietScrollView {
                                     visible: active
                                     Layout.preferredWidth: 13
                                     Layout.preferredHeight: 13
-                                    sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 13; color: Theme.crispyGold }
+                                    sourceComponent: QuietIcon { name: "drumstick"; pixelSize: 13; color: Theme.crispyGold; preserveColors: true }
                                 }
                                 Item { Layout.fillWidth: true }
                             }

@@ -7,10 +7,11 @@ Item {
     required property QtObject pluginApi
     required property string windowId
     readonly property bool windowVisible: Window.window !== null && Window.window.visible && Window.window.visibility !== Window.Minimized
-    readonly property int petSize: [160, 224, 288].indexOf(root.pluginApi.settings.size) >= 0 ? root.pluginApi.settings.size : 224
+    readonly property int petSize: sizing.size
     function applySize() {
         if (root.windowVisible) root.pluginApi.configureWindow(root.windowId, { width: root.petSize, height: root.petSize })
     }
+    Pet.PetSizing { id: sizing; storedSize: root.pluginApi.settings.size }
     Pet.PetSession { id: session; pluginApi: root.pluginApi }
     Pet.PetSkin {
         id: skin
@@ -30,7 +31,7 @@ Item {
         action: move.active ? "drag" : session.action
         interactionId: session.interactionId
         active: root.windowVisible && session.running
-        motionEnabled: Theme.motionEnabled
+        motionEnabled: root.pluginApi.theme.motionEnabled !== false
         onAnimationFinished: function(name, interactionId) {
             if (session.running) root.pluginApi.request("interact", {
                 action: "finished", name: name, interactionId: interactionId
@@ -59,7 +60,7 @@ Item {
         }
         TapHandler {
             acceptedButtons: Qt.RightButton
-            onTapped: root.pluginApi.navigate("plugin:xiaoji.pet.xiaoji/settings")
+            onTapped: root.pluginApi.navigate("plugin:" + root.pluginApi.pluginId + "/settings")
         }
     }
     QuietLabel {
